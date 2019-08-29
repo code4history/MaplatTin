@@ -1,0 +1,35 @@
+{
+  "name": "maplat_tin",
+  "version": "0.4.4-1",
+  "description": "JavaScript library which performs bijective conversion mutually between the coordinate systems of two planes based on the control points.",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack --config webpack.config.js --mode production",
+    "test": "jasmine"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/code4nara/MaplatTin.git"
+  },
+  "keywords": [
+    "warp",
+    "GIS"
+  ],
+  "author": "Kohei Otsuka",
+  "license": "Apache2.0",
+  "bugs": {
+    "url": "https://github.com/code4nara/MaplatTin/issues"
+  },
+  "homepage": "https://github.com/code4nara/MaplatTin/wiki",
+  "dependencies": {
+    "@turf/turf": "^5.1.6"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.5.5",
+    "@babel/polyfill": "^7.4.4",
+    "@babel/preset-env": "^7.5.5",
+    "babel-loader": "^8.0.6",
+    "webpack": "^4.39.3",
+    "webpack-command": "^0.5.0"
+  }
+}
