@@ -1,29 +1,19 @@
-const webpack = require('webpack');
-
 module.exports = {
-    entry: './index.js',
+    mode: 'development',
+    devtool: 'source-map',
+    entry: ['@babel/polyfill', './index.js'], // polyfill はIE11などで必要
     output: {
-        path: __dirname,
-        filename: 'bundle.js'
+        path: `${__dirname}/dist`,
+        filename: 'main.js'
     },
     module: {
         rules: [
             {
-                // 拡張子 .js の場合
                 test: /\.js$/,
-                use: [
-                    {
-                        // Babel を利用する
-                        loader: 'babel-loader',
-                        // Babel のオプションを指定する
-                        options: {
-                            presets: [
-                                // プリセットを指定することで、ES2018 を ES5 に変換
-                                '@babel/preset-env',
-                            ]
-                        }
-                    }
-                ]
+                exclude: /node_modules/,
+                use: {
+                    loader: 'babel-loader'
+                }
             }
         ]
     }
