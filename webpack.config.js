@@ -1,14 +1,10 @@
 module.exports = {
     mode: 'development',
     devtool: 'source-map',
-    entry: {
-        main: ['@babel/polyfill', './src/index.js'], // polyfill はIE11などで必要
-        worker1: './src/worker1',
-        worker2: './src/worker2',
-    },
+    entry: ['@babel/polyfill', './web-bridge.js'],
     output: {
-        path: `${__dirname}/dist`,
-        filename: '[name].js'
+        path: `${__dirname}/www`,
+        filename: 'maplat_tin.js'
     },
     module: {
         rules: [

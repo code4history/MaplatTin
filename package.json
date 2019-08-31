@@ -4,7 +4,8 @@
   "description": "JavaScript library which performs bijective conversion mutually between the coordinate systems of two planes based on the control points.",
   "main": "index.js",
   "scripts": {
-    "build": "webpack"
+    "build": "webpack",
+    "test": "jasmine"
   },
   "repository": {
     "type": "git",
@@ -27,7 +28,11 @@
     "@babel/core": "^7.5.5",
     "@babel/polyfill": "^7.4.4",
     "@babel/preset-env": "^7.5.5",
+    "@babel/register": "^7.5.5",
     "babel-loader": "^8.0.6",
+    "expose-loader": "^0.7.5",
+    "jasmine": "^3.4.0",
+    "ol": "^5.3.3",
     "webpack": "^4.39.3",
     "webpack-cli": "^3.3.7"
   }

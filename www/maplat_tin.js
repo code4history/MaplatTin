@@ -86,9592 +86,4941 @@
 /************************************************************************/
 /******/ ({
 
-/***/ "./legacy/sprintf.js":
-/*!***************************!*\
-  !*** ./legacy/sprintf.js ***!
-  \***************************/
+/***/ "./constrained-tin.js":
+/*!****************************!*\
+  !*** ./constrained-tin.js ***!
+  \****************************/
 /*! exports provided: default */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
-/* WEBPACK VAR INJECTION */(function(module) {function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+/* harmony import */ var _turf_helpers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @turf/helpers */ "./node_modules/@turf/helpers/main.es.js");
+function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
-var Global = function Global() {};
-
-Global.prototype.dispatch = function () {
-  /*!
-  **  sprintf.js -- POSIX sprintf(3)-style String Formatting for JavaScript
-  **  Copyright (c) 2006-2014 Ralf S. Engelschall <rse@engelschall.com>
-  **  Partly based on Public Domain code by Jan Moesen <http://jan.moesen.nu/>
-  **
-  **  Permission is hereby granted, free of charge, to any person obtaining
-  **  a copy of this software and associated documentation files (the
-  **  "Software"), to deal in the Software without restriction, including
-  **  without limitation the rights to use, copy, modify, merge, publish,
-  **  distribute, sublicense, and/or sell copies of the Software, and to
-  **  permit persons to whom the Software is furnished to do so, subject to
-  **  the following conditions:
-  **
-  **  The above copyright notice and this permission notice shall be included
-  **  in all copies or substantial portions of the Software.
-  **
-  **  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-  **  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-  **  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-  **  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-  **  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-  **  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-  **  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-  */
-
-  /*  Universal Module Definition (UMD)  */
-  (function (root, name, factory) {
-    /* global define: false */
-
-    /* global module: false */
-    if (typeof define === "function" && typeof __webpack_require__(/*! !webpack amd options */ "./node_modules/webpack/buildin/amd-options.js") !== "undefined")
-      /*  AMD environment  */
-      define(name, function () {
-        return factory(root);
-      });else if (( false ? undefined : _typeof(module)) === "object" && _typeof(module.exports) === "object")
-      /*  CommonJS environment  */
-      module.exports = factory(root);else
-      /*  Browser environment  */
-      root[name] = factory(root);
-  })(this, "sprintf", function ()
-  /* root */
-  {
-    /*  the POSIX sprintf(3)-style function  */
-    var sprintf = function sprintf() {
-      /*  argument sanity checking  */
-      if (!arguments || arguments.length < 1) throw new Error("sprintf: ERROR: not enough arguments");
-      /*  initialize processing queue  */
-
-      var argumentnum = 0;
-      var done = "",
-          todo = arguments[argumentnum++];
-      /*  parse still to be done format string  */
-
-      var m;
-
-      while (m = /^([^%]*)%(?:(\d+)\$|\((.*?)\))?([#0 +'-]+)?(\*|\d+)?(\.\*|\.\d+)?([%diouxXfFeEcs])((?:.|[\r\n])*)$/.exec(todo)) {
-        var pProlog = m[1],
-            pAccessD = m[2],
-            pAccessN = m[3],
-            pFlags = m[4],
-            pMinLength = m[5],
-            pPrecision = m[6],
-            pType = m[7],
-            pEpilog = m[8];
-        /*  determine substitution  */
-
-        var subst;
-        if (pType === "%")
-          /*  special case: escaped percent character  */
-          subst = "%";else {
-          /*  parse padding and justify aspects of flags  */
-          var padWith = " ";
-          var justifyRight = true;
-
-          if (pFlags) {
-            if (pFlags.indexOf("0") >= 0) padWith = "0";
-
-            if (pFlags.indexOf("-") >= 0) {
-              padWith = " ";
-              justifyRight = false;
-            }
-          } else pFlags = "";
-          /*  determine minimum length  */
+// A fast algorithm for generating constrained delaunay triangulations
+// https://www.sciencedirect.com/science/article/pii/004579499390239A
+// A robust efficient algorithm for point location in triangulations
+// https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-728.pdf
+// https://savithru-j.github.io/cdt-js/
+// Copyright 2018 Savithru Jayasinghe
+// Licensed under the MIT License
 
 
-          var access;
-          var minLength = -1;
-
-          if (pMinLength) {
-            if (pMinLength === "*") {
-              access = argumentnum++;
-              if (access >= arguments.length) throw new Error("sprintf: ERROR: not enough arguments");
-              minLength = arguments[access];
-            } else minLength = parseInt(pMinLength, 10);
-          }
-          /*  determine precision  */
-
-
-          var precision = -1;
-
-          if (pPrecision) {
-            if (pPrecision === ".*") {
-              access = argumentnum++;
-              if (access >= arguments.length) throw new Error("sprintf: ERROR: not enough arguments");
-              precision = arguments[access];
-            } else precision = parseInt(pPrecision.substring(1), 10);
-          }
-          /*  determine how to fetch argument  */
-
-
-          access = argumentnum++;
-
-          if (pAccessD) {
-            access = parseInt(pAccessD, 10);
-            if (access >= arguments.length) throw new Error("sprintf: ERROR: not enough arguments");
-            subst = arguments[access];
-          } else if (pAccessN) {
-            if (_typeof(arguments[1]) !== "object") throw new Error("sprintf: ERROR: invalid non-object arguments for named argument");
-            subst = arguments[1][pAccessN];
-            if (typeof subst === "undefined") throw new Error("sprintf: ERROR: invalid undefined value for named argument");
-          } else {
-            if (access >= arguments.length) throw new Error("sprintf: ERROR: not enough arguments");
-            subst = arguments[access];
-          }
-          /*  dispatch into expansions according to type  */
-
-
-          var prefix = "";
-
-          switch (pType) {
-            /*  decimal number  */
-            case "d":
-            case "i":
-              if (typeof subst !== "number") subst = 0;
-              subst = subst.toString(10);
-              if (pFlags.indexOf("#") >= 0 && subst >= 0) subst = "+" + subst;
-              if (pFlags.indexOf(" ") >= 0 && subst >= 0) subst = " " + subst;
-              break;
-
-            /*  binary number  */
-
-            case "b":
-              if (typeof subst !== "number") subst = 0;
-              subst = subst.toString(2);
-              break;
-
-            /*  octal number  */
-
-            case "o":
-              if (typeof subst !== "number") subst = 0;
-              subst = subst.toString(8);
-              break;
-
-            /*  unsigned decimal number  */
-
-            case "u":
-              if (typeof subst !== "number") subst = 0;
-              subst = Math.abs(subst);
-              subst = subst.toString(10);
-              break;
-
-            /*  (lower-case) hexadecimal number  */
-
-            case "x":
-              if (typeof subst !== "number") subst = 0;
-              subst = subst.toString(16).toLowerCase();
-              if (pFlags.indexOf("#") >= 0) prefix = "0x";
-              break;
-
-            /*  (upper-case) hexadecimal number  */
-
-            case "X":
-              if (typeof subst !== "number") subst = 0;
-              subst = subst.toString(16).toUpperCase();
-              if (pFlags.indexOf("#") >= 0) prefix = "0X";
-              break;
-
-            /*  (lower/upper-case) floating point number (fixed precision)  */
-
-            case "f":
-            case "F":
-              if (typeof subst !== "number") subst = 0.0;
-              subst = 0.0 + subst;
-
-              if (precision > -1) {
-                if (subst.toFixed) subst = subst.toFixed(precision);else {
-                  subst = Math.round(subst * Math.pow(10, precision)) / Math.pow(10, precision);
-                  subst += "0000000000";
-                  subst = subst.substr(0, subst.indexOf(".") + precision + 1);
-                }
-              }
-
-              subst = "" + subst;
-
-              if (pFlags.indexOf("'") >= 0) {
-                var k = 0;
-
-                for (var i = subst.length - 1 - 3; i >= 0; i -= 3) {
-                  subst = subst.substring(0, i) + (k === 0 ? "." : ",") + subst.substring(i);
-                  k = (k + 1) % 2;
-                }
-              }
-
-              break;
-
-            /*  (lower/upper-case) floating point number (exponential-based precision)  */
-
-            case "e":
-            case "E":
-              if (typeof subst !== "number") subst = 0.0;
-              subst = 0.0 + subst;
-
-              if (precision > -1) {
-                if (subst.toExponential) subst = subst.toExponential(precision);else throw new Error("sprintf: ERROR: toExponential() method not supported");
-              }
-
-              subst = "" + subst;
-              if (pType === "E") subst = subst.replace(/e\+/, "E+");
-              break;
-
-            /*  single character  */
-
-            case "c":
-              if (typeof subst !== "number") subst = 0;
-              subst = String.fromCharCode(subst);
-              break;
-
-            /*  string  */
-
-            case "s":
-              if (typeof subst !== "string") subst = String(subst);
-              if (precision > -1) subst = subst.substr(0, precision);
-              break;
-
-            default:
-              throw new Error("sprintf: ERROR: invalid conversion character \"" + pType + "\"");
-          }
-          /*  apply optional padding  */
-
-
-          var padding = minLength - subst.toString().length - prefix.toString().length;
-
-          if (padding > 0) {
-            var arrTmp = new Array(padding + 1);
-            if (justifyRight) subst = arrTmp.join(padWith) + subst;else subst = subst + arrTmp.join(padWith);
-          }
-          /*  add optional prefix  */
-
-
-          subst = prefix + subst;
-        }
-        /*  update the processing queue  */
-
-        done = done + pProlog + subst;
-        todo = pEpilog;
-      }
-      /*  return finally formatted string  */
-
-
-      return done + todo;
-    };
-    /*  brand with the version  */
-
-
-    sprintf.version = {
-      text: "1.2.3",
-      major: 1,
-      minor: 2,
-      micro: 3
-    };
-    /*  export API  */
-
-    return sprintf;
-  });
-
-  return this;
+var Point = function Point(x, y) {
+  this.x = x;
+  this.y = y;
 };
 
-var global = new Global().dispatch();
-/* harmony default export */ __webpack_exports__["default"] = (global.sprintf);
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../node_modules/webpack/buildin/harmony-module.js */ "./node_modules/webpack/buildin/harmony-module.js")(module)))
+Point.prototype.dot = function (p1) {
+  return this.x * p1.x + this.y * p1.y;
+};
+
+Point.prototype.add = function (p1) {
+  return new Point(this.x + p1.x, this.y + p1.y);
+};
+
+Point.prototype.sub = function (p1) {
+  return new Point(this.x - p1.x, this.y - p1.y);
+};
+
+Point.prototype.scale = function (s) {
+  return new Point(this.x * s, this.y * s);
+};
+
+Point.prototype.sqDistanceTo = function (p1) {
+  return (this.x - p1.x) * (this.x - p1.x) + (this.y - p1.y) * (this.y - p1.y);
+};
+
+Point.prototype.toStr = function () {
+  return "(" + this.x.toFixed(3) + ", " + this.y.toFixed(3) + ")";
+};
+
+Point.prototype.copyFrom = function (p) {
+  this.x = p.x;
+  this.y = p.y;
+};
+
+function cross(vec0, vec1) {
+  return vec0.x * vec1.y - vec0.y * vec1.x;
+}
+
+function getPointOrientation(edge, p) {
+  var vec_edge01 = edge[1].sub(edge[0]);
+  var vec_edge0_to_p = p.sub(edge[0]);
+  return cross(vec_edge01, vec_edge0_to_p);
+} //Some variables for rendering
+
+
+var fieldOrigin = new Point(0.0, 0.0); //new Point(-16000000, -16000000);
+
+var fieldSize = 1.0; //32000000;
+
+var boundingTriangleSize = 1000; //1000000000;
+
+function binSorter(a, b) {
+  if (a.bin == b.bin) {
+    return 0;
+  } else {
+    return a.bin < b.bin ? -1 : 1;
+  }
+}
+
+function isQuadConvex(p0, p1, p2, p3) {
+  var diag0 = [p0, p2];
+  var diag1 = [p1, p3];
+  return isEdgeIntersecting(diag0, diag1);
+}
+
+function isSameEdge(edge0, edge1) {
+  return edge0[0] == edge1[0] && edge0[1] == edge1[1] || edge0[1] == edge1[0] && edge0[0] == edge1[1];
+}
+
+function isEdgeIntersecting(edgeA, edgeB) {
+  var vecA0A1 = edgeA[1].sub(edgeA[0]);
+  var vecA0B0 = edgeB[0].sub(edgeA[0]);
+  var vecA0B1 = edgeB[1].sub(edgeA[0]);
+  var AxB0 = cross(vecA0A1, vecA0B0);
+  var AxB1 = cross(vecA0A1, vecA0B1); //Check if the endpoints of edgeB are on the same side of edgeA
+
+  if (AxB0 > 0 && AxB1 > 0 || AxB0 < 0 && AxB1 < 0) return false;
+  var vecB0B1 = edgeB[1].sub(edgeB[0]);
+  var vecB0A0 = edgeA[0].sub(edgeB[0]);
+  var vecB0A1 = edgeA[1].sub(edgeB[0]);
+  var BxA0 = cross(vecB0B1, vecB0A0);
+  var BxA1 = cross(vecB0B1, vecB0A1); //Check if the endpoints of edgeA are on the same side of edgeB
+
+  if (BxA0 > 0 && BxA1 > 0 || BxA0 < 0 && BxA1 < 0) return false; //Special case of colinear edges
+
+  if (Math.abs(AxB0) < 1e-14 && Math.abs(AxB1) < 1e-14) {
+    //Separated in x
+    if (Math.max(edgeB[0].x, edgeB[1].x) < Math.min(edgeA[0].x, edgeA[1].x) || Math.min(edgeB[0].x, edgeB[1].x) > Math.max(edgeA[0].x, edgeA[1].x)) return false; //Separated in y
+
+    if (Math.max(edgeB[0].y, edgeB[1].y) < Math.min(edgeA[0].y, edgeA[1].y) || Math.min(edgeB[0].y, edgeB[1].y) > Math.max(edgeA[0].y, edgeA[1].y)) return false;
+  }
+
+  return true;
+}
+
+function setupDelaunay(meshData) {
+  var nVertex = meshData.vert.length;
+  var nBinsX = Math.round(Math.pow(nVertex, 0.25));
+  var nBins = nBinsX * nBinsX; //Compute scaled vertex coordinates and assign each vertex to a bin
+
+  var scaledverts = [];
+  var bin_index = [];
+
+  for (var i = 0; i < nVertex; i++) {
+    var scaled_x = (meshData.vert[i].x - fieldOrigin.x) / fieldSize;
+    var scaled_y = (meshData.vert[i].y - fieldOrigin.y) / fieldSize;
+    scaledverts.push(new Point(scaled_x, scaled_y));
+    var ind_i = Math.round((nBinsX - 1) * scaled_x);
+    var ind_j = Math.round((nBinsX - 1) * scaled_y);
+    var bin_id;
+
+    if (ind_j % 2 === 0) {
+      bin_id = ind_j * nBinsX + ind_i;
+    } else {
+      bin_id = (ind_j + 1) * nBinsX - ind_i - 1;
+    }
+
+    bin_index.push({
+      ind: i,
+      bin: bin_id
+    });
+  } //Add super-triangle vertices (far away)
+
+
+  var D = boundingTriangleSize;
+  scaledverts.push(new Point(-D + 0.5, -D / Math.sqrt(3) + 0.5));
+  scaledverts.push(new Point(D + 0.5, -D / Math.sqrt(3) + 0.5));
+  scaledverts.push(new Point(0.5, 2 * D / Math.sqrt(3) + 0.5));
+
+  for (var i = nVertex; i < nVertex + 3; i++) {
+    meshData.vert.push(new Point(fieldSize * scaledverts[i].x + fieldOrigin.x, fieldSize * scaledverts[i].y + fieldOrigin.y));
+  } //Sort the vertices in ascending bin order
+
+
+  bin_index.sort(binSorter);
+  meshData.scaled_vert = scaledverts;
+  meshData.bin = bin_index; //Super-triangle connectivity
+
+  meshData.tri = [[nVertex, nVertex + 1, nVertex + 2]];
+  meshData.adj = [[-1, -1, -1]];
+  meshData.vert_to_tri = [];
+} //Function for computing the unconstrained Delaunay triangulation
+
+
+function delaunay(meshData) {
+  //Sort input vertices and setup super-triangle
+  setupDelaunay(meshData);
+  var verts = meshData.scaled_vert;
+  var bins = meshData.bin;
+  var triangles = meshData.tri;
+  var adjacency = meshData.adj;
+  var N = verts.length - 3; //vertices includes super-triangle nodes
+
+  var ind_tri = 0; //points to the super-triangle
+
+  var nhops_total = 0;
+
+  for (var i = 0; i < N; i++) {
+    var new_i = bins[i].ind;
+    var res = findEnclosingTriangle(verts[new_i], meshData, ind_tri);
+    ind_tri = res[0];
+    nhops_total += res[1];
+    if (ind_tri === -1) throw "Could not find a triangle containing the new vertex!";
+    var cur_tri = triangles[ind_tri]; //vertex indices of triangle containing new point
+
+    var new_tri0 = [cur_tri[0], cur_tri[1], new_i];
+    var new_tri1 = [new_i, cur_tri[1], cur_tri[2]];
+    var new_tri2 = [cur_tri[0], new_i, cur_tri[2]]; //Replace the triangle containing the point with new_tri0, and
+    //fix its adjacency
+
+    triangles[ind_tri] = new_tri0;
+    var N_tri = triangles.length;
+    var cur_tri_adj = adjacency[ind_tri]; //neighbors of cur_tri
+
+    adjacency[ind_tri] = [N_tri, N_tri + 1, cur_tri_adj[2]]; //Add the other two new triangles to the list
+
+    triangles.push(new_tri1); //triangle index N_tri
+
+    triangles.push(new_tri2); //triangle index (N_tri+1)
+
+    adjacency.push([cur_tri_adj[0], N_tri + 1, ind_tri]); //adj for triangle N_tri
+
+    adjacency.push([N_tri, cur_tri_adj[1], ind_tri]); //adj for triangle (N_tri+1)
+    //stack of triangles which need to be checked for Delaunay condition
+    //each element contains: [index of tri to check, adjncy index to goto triangle that contains new point]
+
+    var stack = [];
+
+    if (cur_tri_adj[2] >= 0) //if triangle cur_tri's neighbor exists
+      {
+        //Find the index for cur_tri in the adjacency of the neighbor
+        var neigh_adj_ind = adjacency[cur_tri_adj[2]].indexOf(ind_tri); //No need to update adjacency, but push the neighbor on to the stack
+
+        stack.push([cur_tri_adj[2], neigh_adj_ind]);
+      }
+
+    if (cur_tri_adj[0] >= 0) //if triangle N_tri's neighbor exists
+      {
+        //Find the index for cur_tri in the adjacency of the neighbor
+        var neigh_adj_ind = adjacency[cur_tri_adj[0]].indexOf(ind_tri);
+        adjacency[cur_tri_adj[0]][neigh_adj_ind] = N_tri;
+        stack.push([cur_tri_adj[0], neigh_adj_ind]);
+      }
+
+    if (cur_tri_adj[1] >= 0) //if triangle (N_tri+1)'s neighbor exists
+      {
+        //Find the index for cur_tri in the adjacency of the neighbor
+        var neigh_adj_ind = adjacency[cur_tri_adj[1]].indexOf(ind_tri);
+        adjacency[cur_tri_adj[1]][neigh_adj_ind] = N_tri + 1;
+        stack.push([cur_tri_adj[1], neigh_adj_ind]);
+      }
+
+    restoreDelaunay(new_i, meshData, stack);
+  } //loop over vertices
+
+
+  removeBoundaryTriangles(meshData);
+} //Uses edge orientations - based on Peter Brown's Technical Report 1997
+
+
+function findEnclosingTriangle(target_vertex, meshData, ind_tri_cur) {
+  var vertices = meshData.scaled_vert;
+  var triangles = meshData.tri;
+  var adjacency = meshData.adj;
+  var max_hops = Math.max(10, adjacency.length);
+  var nhops = 0;
+  var found_tri = false;
+  var path = [];
+
+  while (!found_tri && nhops < max_hops) {
+    if (ind_tri_cur === -1) //target is outside triangulation
+      return [ind_tri_cur, nhops];
+    var tri_cur = triangles[ind_tri_cur]; //Orientation of target wrt each edge of triangle (positive if on left of edge)
+
+    var orients = [getPointOrientation([vertices[tri_cur[1]], vertices[tri_cur[2]]], target_vertex), getPointOrientation([vertices[tri_cur[2]], vertices[tri_cur[0]]], target_vertex), getPointOrientation([vertices[tri_cur[0]], vertices[tri_cur[1]]], target_vertex)];
+    if (orients[0] >= 0 && orients[1] >= 0 && orients[2] >= 0) //target is to left of all edges, so inside tri
+      return [ind_tri_cur, nhops];
+    var base_ind = -1;
+
+    for (var iedge = 0; iedge < 3; iedge++) {
+      if (orients[iedge] >= 0) {
+        base_ind = iedge;
+        break;
+      }
+    }
+
+    var base_p1_ind = (base_ind + 1) % 3;
+    var base_p2_ind = (base_ind + 2) % 3;
+
+    if (orients[base_p1_ind] >= 0 && orients[base_p2_ind] < 0) {
+      ind_tri_cur = adjacency[ind_tri_cur][base_p2_ind]; //should move to the triangle opposite base_p2_ind
+
+      path[nhops] = vertices[tri_cur[base_ind]].add(vertices[tri_cur[base_p1_ind]]).scale(0.5);
+    } else if (orients[base_p1_ind] < 0 && orients[base_p2_ind] >= 0) {
+      ind_tri_cur = adjacency[ind_tri_cur][base_p1_ind]; //should move to the triangle opposite base_p1_ind
+
+      path[nhops] = vertices[tri_cur[base_p2_ind]].add(vertices[tri_cur[base_ind]]).scale(0.5);
+    } else {
+      var vec0 = vertices[tri_cur[base_p1_ind]].sub(vertices[tri_cur[base_ind]]); //vector from base_ind to base_p1_ind
+
+      var vec1 = target_vertex.sub(vertices[tri_cur[base_ind]]); //vector from base_ind to target_vertex
+
+      if (vec0.dot(vec1) > 0) {
+        ind_tri_cur = adjacency[ind_tri_cur][base_p2_ind]; //should move to the triangle opposite base_p2_ind
+
+        path[nhops] = vertices[tri_cur[base_ind]].add(vertices[tri_cur[base_p1_ind]]).scale(0.5);
+      } else {
+        ind_tri_cur = adjacency[ind_tri_cur][base_p1_ind]; //should move to the triangle opposite base_p1_ind
+
+        path[nhops] = vertices[tri_cur[base_p2_ind]].add(vertices[tri_cur[base_ind]]).scale(0.5);
+      }
+    }
+
+    nhops++;
+  }
+
+  if (!found_tri) {
+    throw "Could not locate the triangle that encloses (" + target_vertex.x + ", " + target_vertex.y + ")!";
+  }
+
+  return [ind_tri_cur, nhops - 1];
+}
+
+function restoreDelaunay(ind_vert, meshData, stack) {
+  var vertices = meshData.scaled_vert;
+  var triangles = meshData.tri;
+  var adjacency = meshData.adj;
+  var v_new = vertices[ind_vert];
+
+  while (stack.length > 0) {
+    var ind_tri_pair = stack.pop(); //[index of tri to check, adjncy index to goto triangle that contains new point]
+
+    var ind_tri = ind_tri_pair[0];
+    var ind_tri_vert = triangles[ind_tri]; //vertex indices of the triangle
+
+    var v_tri = [];
+
+    for (var i = 0; i < 3; i++) {
+      v_tri[i] = vertices[ind_tri_vert[i]];
+    }
+
+    if (!isDelaunay2(v_tri, v_new)) {
+      //v_new lies inside the circumcircle of the triangle, so need to swap diagonals
+      var outernode_tri = ind_tri_pair[1]; // [0,1,2] node-index of vertex that's not part of the common edge
+
+      var ind_tri_neigh = adjacency[ind_tri][outernode_tri];
+      if (ind_tri_neigh < 0) throw "negative index"; //Swap the diagonal between the adjacent triangles
+
+      swapDiagonal(meshData, ind_tri, ind_tri_neigh); //Add the triangles opposite the new vertex to the stack
+
+      var new_node_ind_tri = triangles[ind_tri].indexOf(ind_vert);
+      var ind_tri_outerp2 = adjacency[ind_tri][new_node_ind_tri];
+
+      if (ind_tri_outerp2 >= 0) {
+        var neigh_node = adjacency[ind_tri_outerp2].indexOf(ind_tri);
+        stack.push([ind_tri_outerp2, neigh_node]);
+      }
+
+      var new_node_ind_tri_neigh = triangles[ind_tri_neigh].indexOf(ind_vert);
+      var ind_tri_neigh_outer = adjacency[ind_tri_neigh][new_node_ind_tri_neigh];
+
+      if (ind_tri_neigh_outer >= 0) {
+        var neigh_node = adjacency[ind_tri_neigh_outer].indexOf(ind_tri_neigh);
+        stack.push([ind_tri_neigh_outer, neigh_node]);
+      }
+    } //is not Delaunay
+
+  }
+} //Swaps the diagonal of adjacent triangles A and B
+
+
+function swapDiagonal(meshData, ind_triA, ind_triB) {
+  var triangles = meshData.tri;
+  var adjacency = meshData.adj;
+  var vert2tri = meshData.vert_to_tri; //Find the node index of the outer vertex in each triangle
+
+  var outernode_triA = adjacency[ind_triA].indexOf(ind_triB);
+  var outernode_triB = adjacency[ind_triB].indexOf(ind_triA); //Indices of nodes after the outernode (i.e. nodes of the common edge)
+
+  var outernode_triA_p1 = (outernode_triA + 1) % 3;
+  var outernode_triA_p2 = (outernode_triA + 2) % 3;
+  var outernode_triB_p1 = (outernode_triB + 1) % 3;
+  var outernode_triB_p2 = (outernode_triB + 2) % 3; //Update triangle nodes
+
+  triangles[ind_triA][outernode_triA_p2] = triangles[ind_triB][outernode_triB];
+  triangles[ind_triB][outernode_triB_p2] = triangles[ind_triA][outernode_triA]; //Update adjacencies for triangle opposite outernode
+
+  adjacency[ind_triA][outernode_triA] = adjacency[ind_triB][outernode_triB_p1];
+  adjacency[ind_triB][outernode_triB] = adjacency[ind_triA][outernode_triA_p1]; //Update adjacency of neighbor opposite triangle A's (outernode+1) node
+
+  var ind_triA_neigh_outerp1 = adjacency[ind_triA][outernode_triA_p1];
+
+  if (ind_triA_neigh_outerp1 >= 0) {
+    var neigh_node = adjacency[ind_triA_neigh_outerp1].indexOf(ind_triA);
+    adjacency[ind_triA_neigh_outerp1][neigh_node] = ind_triB;
+  } //Update adjacency of neighbor opposite triangle B's (outernode+1) node
+
+
+  var ind_triB_neigh_outerp1 = adjacency[ind_triB][outernode_triB_p1];
+
+  if (ind_triB_neigh_outerp1 >= 0) {
+    var neigh_node = adjacency[ind_triB_neigh_outerp1].indexOf(ind_triB);
+    adjacency[ind_triB_neigh_outerp1][neigh_node] = ind_triA;
+  } //Update adjacencies for triangles opposite the (outernode+1) node
+
+
+  adjacency[ind_triA][outernode_triA_p1] = ind_triB;
+  adjacency[ind_triB][outernode_triB_p1] = ind_triA; //Update vertex to triangle connectivity, if data structure exists
+
+  if (vert2tri.length > 0) {
+    //The original outernodes will now be part of both triangles
+    vert2tri[triangles[ind_triA][outernode_triA]].push(ind_triB);
+    vert2tri[triangles[ind_triB][outernode_triB]].push(ind_triA); //Remove triangle B from the triangle set of outernode_triA_p1
+
+    var local_ind = vert2tri[triangles[ind_triA][outernode_triA_p1]].indexOf(ind_triB);
+    vert2tri[triangles[ind_triA][outernode_triA_p1]].splice(local_ind, 1); //Remove triangle A from the triangle set of outernode_triB_p1
+
+    local_ind = vert2tri[triangles[ind_triB][outernode_triB_p1]].indexOf(ind_triA);
+    vert2tri[triangles[ind_triB][outernode_triB_p1]].splice(local_ind, 1);
+  }
+}
+
+function removeBoundaryTriangles(meshData) {
+  var verts = meshData.scaled_vert;
+  var triangles = meshData.tri;
+  var adjacency = meshData.adj;
+  var N = verts.length - 3;
+  var del_count = 0;
+  var indmap = [];
+
+  for (var i = 0; i < triangles.length; i++) {
+    var prev_del_count = del_count;
+
+    for (var j = i; j < triangles.length; j++) {
+      if (triangles[j][0] < N && triangles[j][1] < N && triangles[j][2] < N) {
+        indmap[i + del_count] = i;
+        break;
+      } else {
+        indmap[i + del_count] = -1;
+        del_count++;
+      }
+    }
+
+    var del_length = del_count - prev_del_count;
+
+    if (del_length > 0) {
+      triangles.splice(i, del_length);
+      adjacency.splice(i, del_length);
+    }
+  } //Update adjacencies
+
+
+  for (var i = 0; i < adjacency.length; i++) {
+    for (var j = 0; j < 3; j++) {
+      adjacency[i][j] = indmap[adjacency[i][j]];
+    }
+  } //Delete super-triangle nodes
+
+
+  meshData.scaled_vert.splice(-3, 3);
+  meshData.vert.splice(-3, 3);
+}
+
+function isDelaunay2(v_tri, p) {
+  var vecp0 = v_tri[0].sub(p);
+  var vecp1 = v_tri[1].sub(p);
+  var vecp2 = v_tri[2].sub(p);
+  var p0_sq = vecp0.x * vecp0.x + vecp0.y * vecp0.y;
+  var p1_sq = vecp1.x * vecp1.x + vecp1.y * vecp1.y;
+  var p2_sq = vecp2.x * vecp2.x + vecp2.y * vecp2.y;
+  var det = vecp0.x * (vecp1.y * p2_sq - p1_sq * vecp2.y) - vecp0.y * (vecp1.x * p2_sq - p1_sq * vecp2.x) + p0_sq * (vecp1.x * vecp2.y - vecp1.y * vecp2.x);
+  if (det > 0) //p is inside circumcircle of v_tri
+    return false;else return true;
+}
+
+function constrainEdges(meshData) {
+  if (meshData.con_edge.length == 0) return;
+  buildVertexConnectivity(meshData);
+  var con_edges = meshData.con_edge;
+  var triangles = meshData.tri;
+  var verts = meshData.scaled_vert;
+  var adjacency = meshData.adj;
+  var vert2tri = meshData.vert_to_tri;
+  var newEdgeList = [];
+
+  for (var iedge = 0; iedge < con_edges.length; iedge++) {
+    var intersections = getEdgeIntersections(meshData, iedge);
+    var iter = 0;
+    var maxIter = Math.max(intersections.length, 1);
+
+    while (intersections.length > 0 && iter < maxIter) {
+      fixEdgeIntersections(meshData, intersections, iedge, newEdgeList);
+      intersections = getEdgeIntersections(meshData, iedge);
+      iter++;
+    }
+
+    if (intersections.length > 0) throw "Could not add edge " + iedge + " to triangulation after " + maxIter + " iterations!";
+  } //loop over constrained edges
+  //Restore Delaunay
+
+
+  while (true) {
+    var num_diagonal_swaps = 0;
+
+    for (var iedge = 0; iedge < newEdgeList.length; iedge++) {
+      var new_edge_nodes = newEdgeList[iedge]; //Check if the new edge is a constrained edge
+
+      var is_con_edge = false;
+
+      for (var jedge = 0; jedge < con_edges.length; jedge++) {
+        if (isSameEdge(new_edge_nodes, con_edges[jedge])) {
+          is_con_edge = true;
+          break;
+        }
+
+        ;
+      }
+
+      if (is_con_edge) continue; //cannot change this edge if it's constrained
+
+      var tri_around_v0 = vert2tri[new_edge_nodes[0]];
+      var tri_count = 0;
+      var tri_ind_pair = [-1, -1]; //indices of the triangles on either side of this edge
+
+      for (var itri = 0; itri < tri_around_v0.length; itri++) {
+        var cur_tri = triangles[tri_around_v0[itri]];
+
+        if (cur_tri[0] == new_edge_nodes[1] || cur_tri[1] == new_edge_nodes[1] || cur_tri[2] == new_edge_nodes[1]) {
+          tri_ind_pair[tri_count] = tri_around_v0[itri];
+          tri_count++;
+          if (tri_count == 2) break; //found both neighboring triangles
+        }
+      }
+
+      if (tri_ind_pair[0] == -1) continue; //this edge no longer exists, so nothing to do.
+
+      var triA_verts = [verts[triangles[tri_ind_pair[0]][0]], verts[triangles[tri_ind_pair[0]][1]], verts[triangles[tri_ind_pair[0]][2]]];
+      var outer_nodeB_ind = adjacency[tri_ind_pair[1]].indexOf(tri_ind_pair[0]);
+      var triB_vert = verts[triangles[tri_ind_pair[1]][outer_nodeB_ind]];
+
+      if (!isDelaunay2(triA_verts, triB_vert)) {
+        var outer_nodeA_ind = adjacency[tri_ind_pair[0]].indexOf(tri_ind_pair[1]); //Swap the diagonal between the pair of triangles
+
+        swapDiagonal(meshData, tri_ind_pair[0], tri_ind_pair[1]);
+        num_diagonal_swaps++; //Replace current new edge with the new diagonal
+
+        newEdgeList[iedge] = [triangles[tri_ind_pair[0]][outer_nodeA_ind], triangles[tri_ind_pair[1]][outer_nodeB_ind]];
+      }
+    } //loop over new edges
+
+
+    if (num_diagonal_swaps == 0) break; //no further swaps, we're done.
+  }
+}
+
+function buildVertexConnectivity(meshData) {
+  var triangles = meshData.tri;
+  meshData.vert_to_tri = [];
+  var vConnectivity = meshData.vert_to_tri;
+
+  for (var itri = 0; itri < triangles.length; itri++) {
+    for (var node = 0; node < 3; node++) {
+      if (vConnectivity[triangles[itri][node]] == undefined) vConnectivity[triangles[itri][node]] = [itri];else vConnectivity[triangles[itri][node]].push(itri);
+    }
+  }
+}
+
+function getEdgeIntersections(meshData, iedge) {
+  var triangles = meshData.tri;
+  var verts = meshData.scaled_vert;
+  var adjacency = meshData.adj;
+  var con_edges = meshData.con_edge;
+  var vert2tri = meshData.vert_to_tri;
+  var edge_v0_ind = con_edges[iedge][0];
+  var edge_v1_ind = con_edges[iedge][1];
+  var edge_coords = [verts[edge_v0_ind], verts[edge_v1_ind]];
+  var tri_around_v0 = vert2tri[edge_v0_ind];
+  var edge_in_triangulation = false; //stores the index of tri that intersects current edge,
+  //and the edge-index of intersecting edge in triangle
+
+  var intersections = [];
+
+  for (var itri = 0; itri < tri_around_v0.length; itri++) {
+    var cur_tri = triangles[tri_around_v0[itri]];
+    var v0_node = cur_tri.indexOf(edge_v0_ind);
+    var v0p1_node = (v0_node + 1) % 3;
+    var v0p2_node = (v0_node + 2) % 3;
+
+    if (edge_v1_ind == cur_tri[v0p1_node]) {
+      //constrained edge is an edge of the current tri (node v0_node to v0_node+1)
+      edge_in_triangulation = true;
+      break;
+    } else if (edge_v1_ind == cur_tri[v0p2_node]) {
+      //constrained edge is an edge of the current tri (node v0_node to v0_node+2)
+      edge_in_triangulation = true;
+      break;
+    }
+
+    var opposite_edge_coords = [verts[cur_tri[v0p1_node]], verts[cur_tri[v0p2_node]]];
+
+    if (isEdgeIntersecting(edge_coords, opposite_edge_coords)) {
+      intersections.push([tri_around_v0[itri], v0_node]);
+      break;
+    }
+  }
+
+  if (!edge_in_triangulation) {
+    if (intersections.length == 0) throw "Cannot have no intersections!";
+
+    while (true) {
+      var prev_intersection = intersections[intersections.length - 1]; //[tri ind][node ind for edge]
+
+      var tri_ind = adjacency[prev_intersection[0]][prev_intersection[1]];
+
+      if (triangles[tri_ind][0] == edge_v1_ind || triangles[tri_ind][1] == edge_v1_ind || triangles[tri_ind][2] == edge_v1_ind) {
+        break; //found the end node of the edge
+      } //Find the index of the edge from which we came into this triangle
+
+
+      var prev_edge_ind = adjacency[tri_ind].indexOf(prev_intersection[0]);
+      if (prev_edge_ind == -1) throw "Could not find edge!";
+      var cur_tri = triangles[tri_ind]; //Loop over the other two edges in this triangle,
+      //and check if they intersect the constrained edge
+
+      for (var offset = 1; offset < 3; offset++) {
+        var v0_node = (prev_edge_ind + offset + 1) % 3;
+        var v1_node = (prev_edge_ind + offset + 2) % 3;
+        var cur_edge_coords = [verts[cur_tri[v0_node]], verts[cur_tri[v1_node]]];
+
+        if (isEdgeIntersecting(edge_coords, cur_edge_coords)) {
+          intersections.push([tri_ind, (prev_edge_ind + offset) % 3]);
+          break;
+        }
+      }
+    } //while intersections not found
+
+  } //if edge not in triangulation
+
+
+  return intersections;
+}
+
+function fixEdgeIntersections(meshData, intersectionList, con_edge_ind, newEdgeList) {
+  var triangles = meshData.tri;
+  var verts = meshData.scaled_vert;
+  var adjacency = meshData.adj;
+  var con_edges = meshData.con_edge; //Node indices and endpoint coords of current constrained edge
+
+  var con_edge_nodes = con_edges[con_edge_ind];
+  var cur_con_edge_coords = [verts[con_edge_nodes[0]], verts[con_edge_nodes[1]]];
+  var nIntersections = intersectionList.length;
+
+  for (var i = 0; i < nIntersections; i++) {
+    //Looping in reverse order is important since then the
+    //indices in intersectionList remain unaffected by any diagonal swaps
+    var tri0_ind = intersectionList[nIntersections - 1 - i][0];
+    var tri0_node = intersectionList[nIntersections - 1 - i][1];
+    var tri1_ind = adjacency[tri0_ind][tri0_node];
+    var tri1_node = adjacency[tri1_ind].indexOf(tri0_ind);
+    var quad_v0 = verts[triangles[tri0_ind][tri0_node]];
+    var quad_v1 = verts[triangles[tri0_ind][(tri0_node + 1) % 3]];
+    var quad_v2 = verts[triangles[tri1_ind][tri1_node]];
+    var quad_v3 = verts[triangles[tri0_ind][(tri0_node + 2) % 3]];
+    var isConvex = isQuadConvex(quad_v0, quad_v1, quad_v2, quad_v3);
+
+    if (isConvex) {
+      swapDiagonal(meshData, tri0_ind, tri1_ind);
+      var newDiagonal_nodes = [triangles[tri0_ind][tri0_node], triangles[tri1_ind][tri1_node]];
+      var newDiagonal_coords = [quad_v0, quad_v2];
+      var hasCommonNode = newDiagonal_nodes[0] == con_edge_nodes[0] || newDiagonal_nodes[0] == con_edge_nodes[1] || newDiagonal_nodes[1] == con_edge_nodes[0] || newDiagonal_nodes[1] == con_edge_nodes[1];
+
+      if (hasCommonNode || !isEdgeIntersecting(cur_con_edge_coords, newDiagonal_coords)) {
+        newEdgeList.push([newDiagonal_nodes[0], newDiagonal_nodes[1]]);
+      }
+    } //is convex
+
+  } //loop over intersections
+
+}
+
+function loadEdges(meshData, edges) {
+  var nVertex = meshData.vert.length;
+  meshData.con_edge = [];
+
+  for (var i = 0; i < edges.length; i++) {
+    var edge = edges[i];
+
+    if (edge[0] < 0 || edge[0] >= nVertex || edge[1] < 0 || edge[1] >= nVertex) {
+      throw "Vertex indices of edge " + i + " need to be non-negative and less than the number of input vertices.";
+      meshData.con_edge = [];
+      break;
+    }
+
+    if (edge[0] === edge[1]) {
+      throw "Edge " + i + " is degenerate!";
+      meshData.con_edge = [];
+      break;
+    }
+
+    if (!isEdgeValid(edge, meshData.con_edge, meshData.vert)) {
+      throw "Edge " + i + " already exists or intersects with an existing edge!";
+      meshData.con_edge = [];
+      break;
+    }
+
+    meshData.con_edge.push([edge[0], edge[1]]);
+  }
+}
+
+function isEdgeValid(newEdge, edgeList, vertices) {
+  var new_edge_verts = [vertices[newEdge[0]], vertices[newEdge[1]]];
+
+  for (var i = 0; i < edgeList.length; i++) {
+    //Not valid if edge already exists
+    if (edgeList[i][0] == newEdge[0] && edgeList[i][1] == newEdge[1] || edgeList[i][0] == newEdge[1] && edgeList[i][1] == newEdge[0]) return false;
+    var hasCommonNode = edgeList[i][0] == newEdge[0] || edgeList[i][0] == newEdge[1] || edgeList[i][1] == newEdge[0] || edgeList[i][1] == newEdge[1];
+    var edge_verts = [vertices[edgeList[i][0]], vertices[edgeList[i][1]]];
+    if (!hasCommonNode && isEdgeIntersecting(edge_verts, new_edge_verts)) return false;
+  }
+
+  return true;
+}
+
+/* harmony default export */ __webpack_exports__["default"] = (function (points, edges, z) {
+  if (!edges) edges = [];
+  if (_typeof(points) !== "object" || points.type !== "FeatureCollection") throw "Argument points must be FeatureCollection";
+  if (!Array.isArray(edges)) throw "Argument points must be Array of Array";
+  if (z && typeof z !== "string") throw "Argument z must be string";
+  var isPointZ = false; // Caluculating scale factor
+  // Original cdt-js not working well with coordinates between (0,0)-(1,1)
+  // So points must be normalized
+
+  var xyzs = points.features.reduce(function (prev, point) {
+    var xy = point.geometry.coordinates;
+    prev[0].push(xy[0]);
+    prev[1].push(xy[1]);
+
+    if (z) {
+      prev[2].push(point.properties[z]);
+    } else if (xy.length === 3) {
+      isPointZ = true;
+      prev[2].push(point.geometry.coordinates[2]);
+    }
+
+    return prev;
+  }, [[], [], []]);
+  var xMax = Math.max.apply(null, xyzs[0]);
+  var xMin = Math.min.apply(null, xyzs[0]);
+  var yMax = Math.max.apply(null, xyzs[1]);
+  var yMin = Math.min.apply(null, xyzs[1]);
+  var xDiff = xMax - xMin;
+  var xCenter = (xMax + xMin) / 2.0;
+  var yDiff = yMax - yMin;
+  var yCenter = (yMax + yMin) / 2.0;
+  var maxDiff = Math.max(xDiff, yDiff) * 1.1; // Normalize points
+
+  var normPoints = points.features.map(function (point) {
+    var xy = point.geometry.coordinates;
+    var normXy = [(xy[0] - xCenter) / maxDiff + 0.5, (xy[1] - yCenter) / maxDiff + 0.5];
+    return new Point(normXy[0], normXy[1]);
+  }); // Create data structure for cdt-js
+
+  var meshData = {
+    vert: normPoints
+  }; // Load edges to data structure, with checking error
+
+  loadEdges(meshData, edges); // Calculating Delaunay
+
+  delaunay(meshData); // Applying edges constrain
+
+  constrainEdges(meshData); // Unnormalize points and create output results
+
+  var keys = ['a', 'b', 'c'];
+  return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])(meshData.tri.map(function (indices) {
+    var properties = {};
+    var coords = indices.map(function (index, i) {
+      var coord = [xyzs[0][index], xyzs[1][index]];
+
+      if (xyzs[2][index] !== undefined) {
+        if (isPointZ) {
+          coord[2] = xyzs[2][index];
+        } else {
+          properties[keys[i]] = xyzs[2][index];
+        }
+      }
+
+      return coord;
+    });
+    coords[3] = coords[0];
+    return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["polygon"])([coords], properties);
+  }));
+});
+;
 
 /***/ }),
 
-/***/ "./legacy/swiper.js":
-/*!**************************!*\
-  !*** ./legacy/swiper.js ***!
-  \**************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ "./mapshaper-maplat.js":
+/*!*****************************!*\
+  !*** ./mapshaper-maplat.js ***!
+  \*****************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
 
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* WEBPACK VAR INJECTION */(function(module) {function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+/* WEBPACK VAR INJECTION */(function(Buffer) {var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
 
-var Global = function Global() {};
+(function () {
+  VERSION = '0.4.87';
 
-Global.prototype.dispatch = function () {
-  /**
-   * Swiper 4.3.3
-   * Most modern mobile touch slider and framework with hardware accelerated transitions
-   * http://www.idangero.us/swiper/
-   *
-   * Copyright 2014-2018 Vladimir Kharlampidi
-   *
-   * Released under the MIT License
-   *
-   * Released on: June 17, 2018
-   */
-  (function (global, factory) {
-    (typeof exports === "undefined" ? "undefined" : _typeof(exports)) === 'object' && typeof module !== 'undefined' ? module.exports = factory() : typeof define === 'function' && __webpack_require__(/*! !webpack amd options */ "./node_modules/webpack/buildin/amd-options.js") ? define(factory) : global.Swiper = factory();
-  })(this, function () {
-    'use strict';
-    /**
-     * SSR Window 1.0.0
-     * Better handling for window object in SSR environment
-     * https://github.com/nolimits4web/ssr-window
-     *
-     * Copyright 2018, Vladimir Kharlampidi
-     *
-     * Licensed under MIT
-     *
-     * Released on: February 10, 2018
-     */
+  var error = function error() {
+    var msg = Utils.toArray(arguments).join(' ');
+    throw new Error(msg);
+  };
 
-    var d;
+  var utils = {
+    getUniqueName: function getUniqueName(prefix) {
+      var n = Utils.__uniqcount || 0;
+      Utils.__uniqcount = n + 1;
+      return (prefix || "__id_") + n;
+    },
+    isFunction: function isFunction(obj) {
+      return typeof obj == 'function';
+    },
+    isObject: function isObject(obj) {
+      return obj === Object(obj); // via underscore
+    },
+    clamp: function clamp(val, min, max) {
+      return val < min ? min : val > max ? max : val;
+    },
+    interpolate: function interpolate(val1, val2, pct) {
+      return val1 * (1 - pct) + val2 * pct;
+    },
+    isArray: function isArray(obj) {
+      return Array.isArray(obj);
+    },
+    // NaN -> true
+    isNumber: function isNumber(obj) {
+      // return toString.call(obj) == '[object Number]'; // ie8 breaks?
+      return obj != null && obj.constructor == Number;
+    },
+    isInteger: function isInteger(obj) {
+      return Utils.isNumber(obj) && (obj | 0) === obj;
+    },
+    isString: function isString(obj) {
+      return obj != null && obj.toString === String.prototype.toString; // TODO: replace w/ something better.
+    },
+    isBoolean: function isBoolean(obj) {
+      return obj === true || obj === false;
+    },
+    // Convert an array-like object to an Array, or make a copy if @obj is an Array
+    toArray: function toArray(obj) {
+      var arr;
+      if (!Utils.isArrayLike(obj)) error("Utils.toArray() requires an array-like object");
 
-    if (typeof document === 'undefined') {
-      d = {
-        body: {},
-        addEventListener: function addEventListener() {},
-        removeEventListener: function removeEventListener() {},
-        activeElement: {
-          blur: function blur() {},
-          nodeName: ''
-        },
-        querySelector: function querySelector() {
-          return null;
-        },
-        querySelectorAll: function querySelectorAll() {
-          return [];
-        },
-        getElementById: function getElementById() {
-          return null;
-        },
-        createEvent: function createEvent() {
-          return {
-            initEvent: function initEvent() {}
-          };
-        },
-        createElement: function createElement() {
-          return {
-            children: [],
-            childNodes: [],
-            style: {},
-            setAttribute: function setAttribute() {},
-            getElementsByTagName: function getElementsByTagName() {
-              return [];
-            }
-          };
-        },
-        location: {
-          hash: ''
-        }
-      };
-    } else {
-      // eslint-disable-next-line
-      d = document;
-    }
+      try {
+        arr = Array.prototype.slice.call(obj, 0); // breaks in ie8
+      } catch (e) {
+        // support ie8
+        arr = [];
 
-    var doc = d;
-    var w;
-
-    if (typeof window === 'undefined') {
-      w = {
-        document: doc,
-        navigator: {
-          userAgent: ''
-        },
-        location: {},
-        history: {},
-        CustomEvent: function CustomEvent() {
-          return this;
-        },
-        addEventListener: function addEventListener() {},
-        removeEventListener: function removeEventListener() {},
-        getComputedStyle: function getComputedStyle() {
-          return {
-            getPropertyValue: function getPropertyValue() {
-              return '';
-            }
-          };
-        },
-        Image: function Image() {},
-        Date: function Date() {},
-        screen: {},
-        setTimeout: function setTimeout() {},
-        clearTimeout: function clearTimeout() {}
-      };
-    } else {
-      // eslint-disable-next-line
-      w = window;
-    }
-
-    var win = w;
-    /**
-     * Dom7 2.0.6
-     * Minimalistic JavaScript library for DOM manipulation, with a jQuery-compatible API
-     * http://framework7.io/docs/dom.html
-     *
-     * Copyright 2018, Vladimir Kharlampidi
-     * The iDangero.us
-     * http://www.idangero.us/
-     *
-     * Licensed under MIT
-     *
-     * Released on: May 27, 2018
-     */
-
-    var Dom7 = function Dom7(arr) {
-      var self = this; // Create array-like object
-
-      for (var i = 0; i < arr.length; i += 1) {
-        self[i] = arr[i];
-      }
-
-      self.length = arr.length; // Return collection with methods
-
-      return this;
-    };
-
-    function $(selector, context) {
-      var arr = [];
-      var i = 0;
-
-      if (selector && !context) {
-        if (selector instanceof Dom7) {
-          return selector;
+        for (var i = 0, n = obj.length; i < n; i++) {
+          arr[i] = obj[i];
         }
       }
 
-      if (selector) {
-        // String
-        if (typeof selector === 'string') {
-          var els;
-          var tempParent;
-          var html = selector.trim();
-
-          if (html.indexOf('<') >= 0 && html.indexOf('>') >= 0) {
-            var toCreate = 'div';
-
-            if (html.indexOf('<li') === 0) {
-              toCreate = 'ul';
-            }
-
-            if (html.indexOf('<tr') === 0) {
-              toCreate = 'tbody';
-            }
-
-            if (html.indexOf('<td') === 0 || html.indexOf('<th') === 0) {
-              toCreate = 'tr';
-            }
-
-            if (html.indexOf('<tbody') === 0) {
-              toCreate = 'table';
-            }
-
-            if (html.indexOf('<option') === 0) {
-              toCreate = 'select';
-            }
-
-            tempParent = doc.createElement(toCreate);
-            tempParent.innerHTML = html;
-
-            for (i = 0; i < tempParent.childNodes.length; i += 1) {
-              arr.push(tempParent.childNodes[i]);
-            }
-          } else {
-            if (!context && selector[0] === '#' && !selector.match(/[ .<>:~]/)) {
-              // Pure ID selector
-              els = [doc.getElementById(selector.trim().split('#')[1])];
-            } else {
-              // Other selectors
-              els = (context || doc).querySelectorAll(selector.trim());
-            }
-
-            for (i = 0; i < els.length; i += 1) {
-              if (els[i]) {
-                arr.push(els[i]);
-              }
-            }
-          }
-        } else if (selector.nodeType || selector === win || selector === doc) {
-          // Node/element
-          arr.push(selector);
-        } else if (selector.length > 0 && selector[0].nodeType) {
-          // Array of elements or instance of Dom
-          for (i = 0; i < selector.length; i += 1) {
-            arr.push(selector[i]);
-          }
-        }
-      }
-
-      return new Dom7(arr);
-    }
-
-    $.fn = Dom7.prototype;
-    $.Class = Dom7;
-    $.Dom7 = Dom7;
-
-    function unique(arr) {
-      var uniqueArray = [];
-
-      for (var i = 0; i < arr.length; i += 1) {
-        if (uniqueArray.indexOf(arr[i]) === -1) {
-          uniqueArray.push(arr[i]);
-        }
-      }
-
-      return uniqueArray;
-    } // Classes and attributes
-
-
-    function addClass(className) {
-      var this$1 = this;
-
-      if (typeof className === 'undefined') {
-        return this;
-      }
-
-      var classes = className.split(' ');
-
-      for (var i = 0; i < classes.length; i += 1) {
-        for (var j = 0; j < this.length; j += 1) {
-          if (typeof this$1[j].classList !== 'undefined') {
-            this$1[j].classList.add(classes[i]);
-          }
-        }
-      }
-
-      return this;
-    }
-
-    function removeClass(className) {
-      var this$1 = this;
-      var classes = className.split(' ');
-
-      for (var i = 0; i < classes.length; i += 1) {
-        for (var j = 0; j < this.length; j += 1) {
-          if (typeof this$1[j].classList !== 'undefined') {
-            this$1[j].classList.remove(classes[i]);
-          }
-        }
-      }
-
-      return this;
-    }
-
-    function hasClass(className) {
-      if (!this[0]) {
-        return false;
-      }
-
-      return this[0].classList.contains(className);
-    }
-
-    function toggleClass(className) {
-      var this$1 = this;
-      var classes = className.split(' ');
-
-      for (var i = 0; i < classes.length; i += 1) {
-        for (var j = 0; j < this.length; j += 1) {
-          if (typeof this$1[j].classList !== 'undefined') {
-            this$1[j].classList.toggle(classes[i]);
-          }
-        }
-      }
-
-      return this;
-    }
-
-    function attr(attrs, value) {
-      var arguments$1 = arguments;
-      var this$1 = this;
-
-      if (arguments.length === 1 && typeof attrs === 'string') {
-        // Get attr
-        if (this[0]) {
-          return this[0].getAttribute(attrs);
-        }
-
-        return undefined;
-      } // Set attrs
-
-
-      for (var i = 0; i < this.length; i += 1) {
-        if (arguments$1.length === 2) {
-          // String
-          this$1[i].setAttribute(attrs, value);
-        } else {
-          // Object
-          // eslint-disable-next-line
-          for (var attrName in attrs) {
-            this$1[i][attrName] = attrs[attrName];
-            this$1[i].setAttribute(attrName, attrs[attrName]);
-          }
-        }
-      }
-
-      return this;
-    } // eslint-disable-next-line
-
-
-    function removeAttr(attr) {
-      var this$1 = this;
-
-      for (var i = 0; i < this.length; i += 1) {
-        this$1[i].removeAttribute(attr);
-      }
-
-      return this;
-    }
-
-    function data(key, value) {
-      var this$1 = this;
-      var el;
-
-      if (typeof value === 'undefined') {
-        el = this[0]; // Get value
-
-        if (el) {
-          if (el.dom7ElementDataStorage && key in el.dom7ElementDataStorage) {
-            return el.dom7ElementDataStorage[key];
-          }
-
-          var dataKey = el.getAttribute("data-" + key);
-
-          if (dataKey) {
-            return dataKey;
-          }
-
-          return undefined;
-        }
-
-        return undefined;
-      } // Set value
-
-
-      for (var i = 0; i < this.length; i += 1) {
-        el = this$1[i];
-
-        if (!el.dom7ElementDataStorage) {
-          el.dom7ElementDataStorage = {};
-        }
-
-        el.dom7ElementDataStorage[key] = value;
-      }
-
-      return this;
-    } // Transforms
-    // eslint-disable-next-line
-
-
-    function transform(transform) {
-      var this$1 = this;
-
-      for (var i = 0; i < this.length; i += 1) {
-        var elStyle = this$1[i].style;
-        elStyle.webkitTransform = transform;
-        elStyle.transform = transform;
-      }
-
-      return this;
-    }
-
-    function transition(duration) {
-      var this$1 = this;
-
-      if (typeof duration !== 'string') {
-        duration = duration + "ms"; // eslint-disable-line
-      }
-
-      for (var i = 0; i < this.length; i += 1) {
-        var elStyle = this$1[i].style;
-        elStyle.webkitTransitionDuration = duration;
-        elStyle.transitionDuration = duration;
-      }
-
-      return this;
-    } // Events
-
-
-    function on() {
-      var this$1 = this;
-      var assign;
-      var args = [],
-          len = arguments.length;
-
-      while (len--) {
-        args[len] = arguments[len];
-      }
-
-      var eventType = args[0];
-      var targetSelector = args[1];
-      var listener = args[2];
-      var capture = args[3];
-
-      if (typeof args[1] === 'function') {
-        assign = args, eventType = assign[0], listener = assign[1], capture = assign[2];
-        targetSelector = undefined;
-      }
-
-      if (!capture) {
-        capture = false;
-      }
-
-      function handleLiveEvent(e) {
-        var target = e.target;
-
-        if (!target) {
-          return;
-        }
-
-        var eventData = e.target.dom7EventData || [];
-
-        if (eventData.indexOf(e) < 0) {
-          eventData.unshift(e);
-        }
-
-        if ($(target).is(targetSelector)) {
-          listener.apply(target, eventData);
-        } else {
-          var parents = $(target).parents(); // eslint-disable-line
-
-          for (var k = 0; k < parents.length; k += 1) {
-            if ($(parents[k]).is(targetSelector)) {
-              listener.apply(parents[k], eventData);
-            }
-          }
-        }
-      }
-
-      function handleEvent(e) {
-        var eventData = e && e.target ? e.target.dom7EventData || [] : [];
-
-        if (eventData.indexOf(e) < 0) {
-          eventData.unshift(e);
-        }
-
-        listener.apply(this, eventData);
-      }
-
-      var events = eventType.split(' ');
-      var j;
-
-      for (var i = 0; i < this.length; i += 1) {
-        var el = this$1[i];
-
-        if (!targetSelector) {
-          for (j = 0; j < events.length; j += 1) {
-            var event = events[j];
-
-            if (!el.dom7Listeners) {
-              el.dom7Listeners = {};
-            }
-
-            if (!el.dom7Listeners[event]) {
-              el.dom7Listeners[event] = [];
-            }
-
-            el.dom7Listeners[event].push({
-              listener: listener,
-              proxyListener: handleEvent
-            });
-            el.addEventListener(event, handleEvent, capture);
-          }
-        } else {
-          // Live events
-          for (j = 0; j < events.length; j += 1) {
-            var event$1 = events[j];
-
-            if (!el.dom7LiveListeners) {
-              el.dom7LiveListeners = {};
-            }
-
-            if (!el.dom7LiveListeners[event$1]) {
-              el.dom7LiveListeners[event$1] = [];
-            }
-
-            el.dom7LiveListeners[event$1].push({
-              listener: listener,
-              proxyListener: handleLiveEvent
-            });
-            el.addEventListener(event$1, handleLiveEvent, capture);
-          }
-        }
-      }
-
-      return this;
-    }
-
-    function off() {
-      var this$1 = this;
-      var assign;
-      var args = [],
-          len = arguments.length;
-
-      while (len--) {
-        args[len] = arguments[len];
-      }
-
-      var eventType = args[0];
-      var targetSelector = args[1];
-      var listener = args[2];
-      var capture = args[3];
-
-      if (typeof args[1] === 'function') {
-        assign = args, eventType = assign[0], listener = assign[1], capture = assign[2];
-        targetSelector = undefined;
-      }
-
-      if (!capture) {
-        capture = false;
-      }
-
-      var events = eventType.split(' ');
-
-      for (var i = 0; i < events.length; i += 1) {
-        var event = events[i];
-
-        for (var j = 0; j < this.length; j += 1) {
-          var el = this$1[j];
-          var handlers = void 0;
-
-          if (!targetSelector && el.dom7Listeners) {
-            handlers = el.dom7Listeners[event];
-          } else if (targetSelector && el.dom7LiveListeners) {
-            handlers = el.dom7LiveListeners[event];
-          }
-
-          if (handlers && handlers.length) {
-            for (var k = handlers.length - 1; k >= 0; k -= 1) {
-              var handler = handlers[k];
-
-              if (listener && handler.listener === listener) {
-                el.removeEventListener(event, handler.proxyListener, capture);
-                handlers.splice(k, 1);
-              } else if (!listener) {
-                el.removeEventListener(event, handler.proxyListener, capture);
-                handlers.splice(k, 1);
-              }
-            }
-          }
-        }
-      }
-
-      return this;
-    }
-
-    function trigger() {
-      var this$1 = this;
-      var args = [],
-          len = arguments.length;
-
-      while (len--) {
-        args[len] = arguments[len];
-      }
-
-      var events = args[0].split(' ');
-      var eventData = args[1];
-
-      for (var i = 0; i < events.length; i += 1) {
-        var event = events[i];
-
-        for (var j = 0; j < this.length; j += 1) {
-          var el = this$1[j];
-          var evt = void 0;
-
-          try {
-            evt = new win.CustomEvent(event, {
-              detail: eventData,
-              bubbles: true,
-              cancelable: true
-            });
-          } catch (e) {
-            evt = doc.createEvent('Event');
-            evt.initEvent(event, true, true);
-            evt.detail = eventData;
-          } // eslint-disable-next-line
-
-
-          el.dom7EventData = args.filter(function (data, dataIndex) {
-            return dataIndex > 0;
-          });
-          el.dispatchEvent(evt);
-          el.dom7EventData = [];
-          delete el.dom7EventData;
-        }
-      }
-
-      return this;
-    }
-
-    function transitionEnd(callback) {
-      var events = ['webkitTransitionEnd', 'transitionend'];
-      var dom = this;
-      var i;
-
-      function fireCallBack(e) {
-        /* jshint validthis:true */
-        if (e.target !== this) {
-          return;
-        }
-
-        callback.call(this, e);
-
-        for (i = 0; i < events.length; i += 1) {
-          dom.off(events[i], fireCallBack);
-        }
-      }
-
-      if (callback) {
-        for (i = 0; i < events.length; i += 1) {
-          dom.on(events[i], fireCallBack);
-        }
-      }
-
-      return this;
-    }
-
-    function outerWidth(includeMargins) {
-      if (this.length > 0) {
-        if (includeMargins) {
-          // eslint-disable-next-line
-          var styles = this.styles();
-          return this[0].offsetWidth + parseFloat(styles.getPropertyValue('margin-right')) + parseFloat(styles.getPropertyValue('margin-left'));
-        }
-
-        return this[0].offsetWidth;
-      }
-
-      return null;
-    }
-
-    function outerHeight(includeMargins) {
-      if (this.length > 0) {
-        if (includeMargins) {
-          // eslint-disable-next-line
-          var styles = this.styles();
-          return this[0].offsetHeight + parseFloat(styles.getPropertyValue('margin-top')) + parseFloat(styles.getPropertyValue('margin-bottom'));
-        }
-
-        return this[0].offsetHeight;
-      }
-
-      return null;
-    }
-
-    function offset() {
-      if (this.length > 0) {
-        var el = this[0];
-        var box = el.getBoundingClientRect();
-        var body = doc.body;
-        var clientTop = el.clientTop || body.clientTop || 0;
-        var clientLeft = el.clientLeft || body.clientLeft || 0;
-        var scrollTop = el === win ? win.scrollY : el.scrollTop;
-        var scrollLeft = el === win ? win.scrollX : el.scrollLeft;
-        return {
-          top: box.top + scrollTop - clientTop,
-          left: box.left + scrollLeft - clientLeft
-        };
-      }
-
-      return null;
-    }
-
-    function styles() {
-      if (this[0]) {
-        return win.getComputedStyle(this[0], null);
-      }
-
-      return {};
-    }
-
-    function css(props, value) {
-      var this$1 = this;
-      var i;
-
-      if (arguments.length === 1) {
-        if (typeof props === 'string') {
-          if (this[0]) {
-            return win.getComputedStyle(this[0], null).getPropertyValue(props);
-          }
-        } else {
-          for (i = 0; i < this.length; i += 1) {
-            // eslint-disable-next-line
-            for (var prop in props) {
-              this$1[i].style[prop] = props[prop];
-            }
-          }
-
-          return this;
-        }
-      }
-
-      if (arguments.length === 2 && typeof props === 'string') {
-        for (i = 0; i < this.length; i += 1) {
-          this$1[i].style[props] = value;
-        }
-
-        return this;
-      }
-
-      return this;
-    } // Iterate over the collection passing elements to `callback`
-
-
-    function each(callback) {
-      var this$1 = this; // Don't bother continuing without a callback
-
-      if (!callback) {
-        return this;
-      } // Iterate over the current collection
-
-
-      for (var i = 0; i < this.length; i += 1) {
-        // If the callback returns false
-        if (callback.call(this$1[i], i, this$1[i]) === false) {
-          // End the loop early
-          return this$1;
-        }
-      } // Return `this` to allow chained DOM operations
-
-
-      return this;
-    } // eslint-disable-next-line
-
-
-    function html(html) {
-      var this$1 = this;
-
-      if (typeof html === 'undefined') {
-        return this[0] ? this[0].innerHTML : undefined;
-      }
-
-      for (var i = 0; i < this.length; i += 1) {
-        this$1[i].innerHTML = html;
-      }
-
-      return this;
-    } // eslint-disable-next-line
-
-
-    function text(text) {
-      var this$1 = this;
-
-      if (typeof text === 'undefined') {
-        if (this[0]) {
-          return this[0].textContent.trim();
-        }
-
-        return null;
-      }
-
-      for (var i = 0; i < this.length; i += 1) {
-        this$1[i].textContent = text;
-      }
-
-      return this;
-    }
-
-    function is(selector) {
-      var el = this[0];
-      var compareWith;
-      var i;
-
-      if (!el || typeof selector === 'undefined') {
-        return false;
-      }
-
-      if (typeof selector === 'string') {
-        if (el.matches) {
-          return el.matches(selector);
-        } else if (el.webkitMatchesSelector) {
-          return el.webkitMatchesSelector(selector);
-        } else if (el.msMatchesSelector) {
-          return el.msMatchesSelector(selector);
-        }
-
-        compareWith = $(selector);
-
-        for (i = 0; i < compareWith.length; i += 1) {
-          if (compareWith[i] === el) {
-            return true;
-          }
-        }
-
-        return false;
-      } else if (selector === doc) {
-        return el === doc;
-      } else if (selector === win) {
-        return el === win;
-      }
-
-      if (selector.nodeType || selector instanceof Dom7) {
-        compareWith = selector.nodeType ? [selector] : selector;
-
-        for (i = 0; i < compareWith.length; i += 1) {
-          if (compareWith[i] === el) {
-            return true;
-          }
-        }
-
-        return false;
-      }
-
+      return arr;
+    },
+    // Array like: has length property, is numerically indexed and mutable.
+    // TODO: try to detect objects with length property but no indexed data elements
+    isArrayLike: function isArrayLike(obj) {
+      if (!obj) return false;
+      if (Utils.isArray(obj)) return true;
+      if (Utils.isString(obj)) return false;
+      if (obj.length === 0) return true;
+      if (obj.length > 0) return true;
       return false;
-    }
+    },
+    // See https://raw.github.com/kvz/phpjs/master/functions/strings/addslashes.js
+    addslashes: function addslashes(str) {
+      return (str + '').replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
+    },
+    // Escape a literal string to use in a regexp.
+    // Ref.: http://simonwillison.net/2006/Jan/20/escape/
+    regexEscape: function regexEscape(str) {
+      return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+    },
+    defaults: function defaults(dest) {
+      for (var i = 1, n = arguments.length; i < n; i++) {
+        var src = arguments[i] || {};
 
-    function index() {
-      var child = this[0];
-      var i;
-
-      if (child) {
-        i = 0; // eslint-disable-next-line
-
-        while ((child = child.previousSibling) !== null) {
-          if (child.nodeType === 1) {
-            i += 1;
-          }
-        }
-
-        return i;
-      }
-
-      return undefined;
-    } // eslint-disable-next-line
-
-
-    function eq(index) {
-      if (typeof index === 'undefined') {
-        return this;
-      }
-
-      var length = this.length;
-      var returnIndex;
-
-      if (index > length - 1) {
-        return new Dom7([]);
-      }
-
-      if (index < 0) {
-        returnIndex = length + index;
-
-        if (returnIndex < 0) {
-          return new Dom7([]);
-        }
-
-        return new Dom7([this[returnIndex]]);
-      }
-
-      return new Dom7([this[index]]);
-    }
-
-    function append() {
-      var this$1 = this;
-      var args = [],
-          len = arguments.length;
-
-      while (len--) {
-        args[len] = arguments[len];
-      }
-
-      var newChild;
-
-      for (var k = 0; k < args.length; k += 1) {
-        newChild = args[k];
-
-        for (var i = 0; i < this.length; i += 1) {
-          if (typeof newChild === 'string') {
-            var tempDiv = doc.createElement('div');
-            tempDiv.innerHTML = newChild;
-
-            while (tempDiv.firstChild) {
-              this$1[i].appendChild(tempDiv.firstChild);
-            }
-          } else if (newChild instanceof Dom7) {
-            for (var j = 0; j < newChild.length; j += 1) {
-              this$1[i].appendChild(newChild[j]);
-            }
-          } else {
-            this$1[i].appendChild(newChild);
+        for (var key in src) {
+          if (key in dest === false && src.hasOwnProperty(key)) {
+            dest[key] = src[key];
           }
         }
       }
 
-      return this;
-    }
+      return dest;
+    },
+    extend: function extend(o) {
+      var dest = o || {},
+          n = arguments.length,
+          key,
+          i,
+          src;
 
-    function prepend(newChild) {
-      var this$1 = this;
-      var i;
-      var j;
+      for (i = 1; i < n; i++) {
+        src = arguments[i] || {};
 
-      for (i = 0; i < this.length; i += 1) {
-        if (typeof newChild === 'string') {
-          var tempDiv = doc.createElement('div');
-          tempDiv.innerHTML = newChild;
-
-          for (j = tempDiv.childNodes.length - 1; j >= 0; j -= 1) {
-            this$1[i].insertBefore(tempDiv.childNodes[j], this$1[i].childNodes[0]);
-          }
-        } else if (newChild instanceof Dom7) {
-          for (j = 0; j < newChild.length; j += 1) {
-            this$1[i].insertBefore(newChild[j], this$1[i].childNodes[0]);
-          }
-        } else {
-          this$1[i].insertBefore(newChild, this$1[i].childNodes[0]);
-        }
-      }
-
-      return this;
-    }
-
-    function next(selector) {
-      if (this.length > 0) {
-        if (selector) {
-          if (this[0].nextElementSibling && $(this[0].nextElementSibling).is(selector)) {
-            return new Dom7([this[0].nextElementSibling]);
-          }
-
-          return new Dom7([]);
-        }
-
-        if (this[0].nextElementSibling) {
-          return new Dom7([this[0].nextElementSibling]);
-        }
-
-        return new Dom7([]);
-      }
-
-      return new Dom7([]);
-    }
-
-    function nextAll(selector) {
-      var nextEls = [];
-      var el = this[0];
-
-      if (!el) {
-        return new Dom7([]);
-      }
-
-      while (el.nextElementSibling) {
-        var next = el.nextElementSibling; // eslint-disable-line
-
-        if (selector) {
-          if ($(next).is(selector)) {
-            nextEls.push(next);
-          }
-        } else {
-          nextEls.push(next);
-        }
-
-        el = next;
-      }
-
-      return new Dom7(nextEls);
-    }
-
-    function prev(selector) {
-      if (this.length > 0) {
-        var el = this[0];
-
-        if (selector) {
-          if (el.previousElementSibling && $(el.previousElementSibling).is(selector)) {
-            return new Dom7([el.previousElementSibling]);
-          }
-
-          return new Dom7([]);
-        }
-
-        if (el.previousElementSibling) {
-          return new Dom7([el.previousElementSibling]);
-        }
-
-        return new Dom7([]);
-      }
-
-      return new Dom7([]);
-    }
-
-    function prevAll(selector) {
-      var prevEls = [];
-      var el = this[0];
-
-      if (!el) {
-        return new Dom7([]);
-      }
-
-      while (el.previousElementSibling) {
-        var prev = el.previousElementSibling; // eslint-disable-line
-
-        if (selector) {
-          if ($(prev).is(selector)) {
-            prevEls.push(prev);
-          }
-        } else {
-          prevEls.push(prev);
-        }
-
-        el = prev;
-      }
-
-      return new Dom7(prevEls);
-    }
-
-    function parent(selector) {
-      var this$1 = this;
-      var parents = []; // eslint-disable-line
-
-      for (var i = 0; i < this.length; i += 1) {
-        if (this$1[i].parentNode !== null) {
-          if (selector) {
-            if ($(this$1[i].parentNode).is(selector)) {
-              parents.push(this$1[i].parentNode);
-            }
-          } else {
-            parents.push(this$1[i].parentNode);
+        for (key in src) {
+          if (src.hasOwnProperty(key)) {
+            dest[key] = src[key];
           }
         }
       }
 
-      return $(unique(parents));
-    }
+      return dest;
+    },
+    // Pseudoclassical inheritance
+    //
+    // Inherit from a Parent function:
+    //    Utils.inherit(Child, Parent);
+    // Call parent's constructor (inside child constructor):
+    //    this.__super__([args...]);
+    inherit: function inherit(targ, src) {
+      var f = function f() {
+        if (this.__super__ == f) {
+          // add __super__ of parent to front of lookup chain
+          // so parent class constructor can call its parent using this.__super__
+          this.__super__ = src.prototype.__super__; // call parent constructor function. this.__super__ now points to parent-of-parent
 
-    function parents(selector) {
-      var this$1 = this;
-      var parents = []; // eslint-disable-line
+          src.apply(this, arguments); // remove temp __super__, expose targ.prototype.__super__ again
 
-      for (var i = 0; i < this.length; i += 1) {
-        var parent = this$1[i].parentNode; // eslint-disable-line
-
-        while (parent) {
-          if (selector) {
-            if ($(parent).is(selector)) {
-              parents.push(parent);
-            }
-          } else {
-            parents.push(parent);
-          }
-
-          parent = parent.parentNode;
+          delete this.__super__;
         }
-      }
-
-      return $(unique(parents));
-    }
-
-    function closest(selector) {
-      var closest = this; // eslint-disable-line
-
-      if (typeof selector === 'undefined') {
-        return new Dom7([]);
-      }
-
-      if (!closest.is(selector)) {
-        closest = closest.parents(selector).eq(0);
-      }
-
-      return closest;
-    }
-
-    function find(selector) {
-      var this$1 = this;
-      var foundElements = [];
-
-      for (var i = 0; i < this.length; i += 1) {
-        var found = this$1[i].querySelectorAll(selector);
-
-        for (var j = 0; j < found.length; j += 1) {
-          foundElements.push(found[j]);
-        }
-      }
-
-      return new Dom7(foundElements);
-    }
-
-    function children(selector) {
-      var this$1 = this;
-      var children = []; // eslint-disable-line
-
-      for (var i = 0; i < this.length; i += 1) {
-        var childNodes = this$1[i].childNodes;
-
-        for (var j = 0; j < childNodes.length; j += 1) {
-          if (!selector) {
-            if (childNodes[j].nodeType === 1) {
-              children.push(childNodes[j]);
-            }
-          } else if (childNodes[j].nodeType === 1 && $(childNodes[j]).is(selector)) {
-            children.push(childNodes[j]);
-          }
-        }
-      }
-
-      return new Dom7(unique(children));
-    }
-
-    function remove() {
-      var this$1 = this;
-
-      for (var i = 0; i < this.length; i += 1) {
-        if (this$1[i].parentNode) {
-          this$1[i].parentNode.removeChild(this$1[i]);
-        }
-      }
-
-      return this;
-    }
-
-    function add() {
-      var args = [],
-          len = arguments.length;
-
-      while (len--) {
-        args[len] = arguments[len];
-      }
-
-      var dom = this;
-      var i;
-      var j;
-
-      for (i = 0; i < args.length; i += 1) {
-        var toAdd = $(args[i]);
-
-        for (j = 0; j < toAdd.length; j += 1) {
-          dom[dom.length] = toAdd[j];
-          dom.length += 1;
-        }
-      }
-
-      return dom;
-    }
-
-    var Methods = {
-      addClass: addClass,
-      removeClass: removeClass,
-      hasClass: hasClass,
-      toggleClass: toggleClass,
-      attr: attr,
-      removeAttr: removeAttr,
-      data: data,
-      transform: transform,
-      transition: transition,
-      on: on,
-      off: off,
-      trigger: trigger,
-      transitionEnd: transitionEnd,
-      outerWidth: outerWidth,
-      outerHeight: outerHeight,
-      offset: offset,
-      css: css,
-      each: each,
-      html: html,
-      text: text,
-      is: is,
-      index: index,
-      eq: eq,
-      append: append,
-      prepend: prepend,
-      next: next,
-      nextAll: nextAll,
-      prev: prev,
-      prevAll: prevAll,
-      parent: parent,
-      parents: parents,
-      closest: closest,
-      find: find,
-      children: children,
-      remove: remove,
-      add: add,
-      styles: styles
-    };
-    Object.keys(Methods).forEach(function (methodName) {
-      $.fn[methodName] = Methods[methodName];
-    });
-    var Utils = {
-      deleteProps: function deleteProps(obj) {
-        var object = obj;
-        Object.keys(object).forEach(function (key) {
-          try {
-            object[key] = null;
-          } catch (e) {// no getter for object
-          }
-
-          try {
-            delete object[key];
-          } catch (e) {// something got wrong
-          }
-        });
-      },
-      nextTick: function nextTick(callback, delay) {
-        if (delay === void 0) delay = 0;
-        return setTimeout(callback, delay);
-      },
-      now: function now() {
-        return Date.now();
-      },
-      getTranslate: function getTranslate(el, axis) {
-        if (axis === void 0) axis = 'x';
-        var matrix;
-        var curTransform;
-        var transformMatrix;
-        var curStyle = win.getComputedStyle(el, null);
-
-        if (win.WebKitCSSMatrix) {
-          curTransform = curStyle.transform || curStyle.webkitTransform;
-
-          if (curTransform.split(',').length > 6) {
-            curTransform = curTransform.split(', ').map(function (a) {
-              return a.replace(',', '.');
-            }).join(', ');
-          } // Some old versions of Webkit choke when 'none' is passed; pass
-          // empty string instead in this case
-
-
-          transformMatrix = new win.WebKitCSSMatrix(curTransform === 'none' ? '' : curTransform);
-        } else {
-          transformMatrix = curStyle.MozTransform || curStyle.OTransform || curStyle.MsTransform || curStyle.msTransform || curStyle.transform || curStyle.getPropertyValue('transform').replace('translate(', 'matrix(1, 0, 0, 1,');
-          matrix = transformMatrix.toString().split(',');
-        }
-
-        if (axis === 'x') {
-          // Latest Chrome and webkits Fix
-          if (win.WebKitCSSMatrix) {
-            curTransform = transformMatrix.m41;
-          } // Crazy IE10 Matrix
-          else if (matrix.length === 16) {
-              curTransform = parseFloat(matrix[12]);
-            } // Normal Browsers
-            else {
-                curTransform = parseFloat(matrix[4]);
-              }
-        }
-
-        if (axis === 'y') {
-          // Latest Chrome and webkits Fix
-          if (win.WebKitCSSMatrix) {
-            curTransform = transformMatrix.m42;
-          } // Crazy IE10 Matrix
-          else if (matrix.length === 16) {
-              curTransform = parseFloat(matrix[13]);
-            } // Normal Browsers
-            else {
-                curTransform = parseFloat(matrix[5]);
-              }
-        }
-
-        return curTransform || 0;
-      },
-      parseUrlQuery: function parseUrlQuery(url) {
-        var query = {};
-        var urlToParse = url || win.location.href;
-        var i;
-        var params;
-        var param;
-        var length;
-
-        if (typeof urlToParse === 'string' && urlToParse.length) {
-          urlToParse = urlToParse.indexOf('?') > -1 ? urlToParse.replace(/\S*\?/, '') : '';
-          params = urlToParse.split('&').filter(function (paramsPart) {
-            return paramsPart !== '';
-          });
-          length = params.length;
-
-          for (i = 0; i < length; i += 1) {
-            param = params[i].replace(/#\S+/g, '').split('=');
-            query[decodeURIComponent(param[0])] = typeof param[1] === 'undefined' ? undefined : decodeURIComponent(param[1]) || '';
-          }
-        }
-
-        return query;
-      },
-      isObject: function isObject(o) {
-        return _typeof(o) === 'object' && o !== null && o.constructor && o.constructor === Object;
-      },
-      extend: function extend() {
-        var args = [],
-            len$1 = arguments.length;
-
-        while (len$1--) {
-          args[len$1] = arguments[len$1];
-        }
-
-        var to = Object(args[0]);
-
-        for (var i = 1; i < args.length; i += 1) {
-          var nextSource = args[i];
-
-          if (nextSource !== undefined && nextSource !== null) {
-            var keysArray = Object.keys(Object(nextSource));
-
-            for (var nextIndex = 0, len = keysArray.length; nextIndex < len; nextIndex += 1) {
-              var nextKey = keysArray[nextIndex];
-              var desc = Object.getOwnPropertyDescriptor(nextSource, nextKey);
-
-              if (desc !== undefined && desc.enumerable) {
-                if (Utils.isObject(to[nextKey]) && Utils.isObject(nextSource[nextKey])) {
-                  Utils.extend(to[nextKey], nextSource[nextKey]);
-                } else if (!Utils.isObject(to[nextKey]) && Utils.isObject(nextSource[nextKey])) {
-                  to[nextKey] = {};
-                  Utils.extend(to[nextKey], nextSource[nextKey]);
-                } else {
-                  to[nextKey] = nextSource[nextKey];
-                }
-              }
-            }
-          }
-        }
-
-        return to;
-      }
-    };
-
-    var Support = function Support() {
-      var testDiv = doc.createElement('div');
-      return {
-        touch: win.Modernizr && win.Modernizr.touch === true || function checkTouch() {
-          return !!('ontouchstart' in win || win.DocumentTouch && doc instanceof win.DocumentTouch);
-        }(),
-        pointerEvents: !!(win.navigator.pointerEnabled || win.PointerEvent),
-        prefixedPointerEvents: !!win.navigator.msPointerEnabled,
-        transition: function checkTransition() {
-          var style = testDiv.style;
-          return 'transition' in style || 'webkitTransition' in style || 'MozTransition' in style;
-        }(),
-        transforms3d: win.Modernizr && win.Modernizr.csstransforms3d === true || function checkTransforms3d() {
-          var style = testDiv.style;
-          return 'webkitPerspective' in style || 'MozPerspective' in style || 'OPerspective' in style || 'MsPerspective' in style || 'perspective' in style;
-        }(),
-        flexbox: function checkFlexbox() {
-          var style = testDiv.style;
-          var styles = 'alignItems webkitAlignItems webkitBoxAlign msFlexAlign mozBoxAlign webkitFlexDirection msFlexDirection mozBoxDirection mozBoxOrient webkitBoxDirection webkitBoxOrient'.split(' ');
-
-          for (var i = 0; i < styles.length; i += 1) {
-            if (styles[i] in style) {
-              return true;
-            }
-          }
-
-          return false;
-        }(),
-        observer: function checkObserver() {
-          return 'MutationObserver' in win || 'WebkitMutationObserver' in win;
-        }(),
-        passiveListener: function checkPassiveListener() {
-          var supportsPassive = false;
-
-          try {
-            var opts = Object.defineProperty({}, 'passive', {
-              // eslint-disable-next-line
-              get: function get() {
-                supportsPassive = true;
-              }
-            });
-            win.addEventListener('testPassiveListener', null, opts);
-          } catch (e) {// No support
-          }
-
-          return supportsPassive;
-        }(),
-        gestures: function checkGestures() {
-          return 'ongesturestart' in win;
-        }()
       };
-    }();
 
-    var SwiperClass = function SwiperClass(params) {
-      if (params === void 0) params = {};
-      var self = this;
-      self.params = params; // Events
+      f.prototype = src.prototype || src; // added || src to allow inheriting from objects as well as functions
+      // Extend targ prototype instead of wiping it out --
+      //   in case inherit() is called after targ.prototype = {stuff}; statement
 
-      self.eventsListeners = {};
+      targ.prototype = Utils.extend(new f(), targ.prototype); //
 
-      if (self.params && self.params.on) {
-        Object.keys(self.params.on).forEach(function (eventName) {
-          self.on(eventName, self.params.on[eventName]);
-        });
+      targ.prototype.constructor = targ;
+      targ.prototype.__super__ = f;
+    },
+    // Inherit from a parent, call the parent's constructor, optionally extend
+    // prototype with optional additional arguments
+    subclass: function subclass(parent) {
+      var child = function child() {
+        this.__super__.apply(this, Utils.toArray(arguments));
+      };
+
+      Utils.inherit(child, parent);
+
+      for (var i = 1; i < arguments.length; i++) {
+        Utils.extend(child.prototype, arguments[i]);
       }
+
+      return child;
+    }
+  };
+  var Utils = utils;
+
+  var Env = function () {
+    var inNode =  true && !!module.exports;
+    var inBrowser = typeof window !== 'undefined' && !inNode;
+    var inPhantom = inBrowser && !!(window.phantom && window.phantom.exit);
+    var ieVersion = inBrowser && /MSIE ([0-9]+)/.exec(navigator.appVersion) && parseInt(RegExp.$1) || NaN;
+    return {
+      iPhone: inBrowser && !!navigator.userAgent.match(/iPhone/i),
+      iPad: inBrowser && !!navigator.userAgent.match(/iPad/i),
+      canvas: inBrowser && !!document.createElement('canvas').getContext,
+      inNode: inNode,
+      inPhantom: inPhantom,
+      inBrowser: inBrowser,
+      ieVersion: ieVersion,
+      ie: !isNaN(ieVersion)
     };
+  }(); // Append elements of @src array to @dest array
 
-    var staticAccessors = {
-      components: {
-        configurable: true
+
+  utils.merge = function (dest, src) {
+    if (!utils.isArray(dest) || !utils.isArray(src)) {
+      error("Usage: utils.merge(destArray, srcArray);");
+    }
+
+    for (var i = 0, n = src.length; i < n; i++) {
+      dest.push(src[i]);
+    }
+
+    return dest;
+  }; // Returns elements in arr and not in other
+  // (similar to underscore diff)
+
+
+  utils.difference = function (arr, other) {
+    var index = utils.arrayToIndex(other);
+    return arr.filter(function (el) {
+      return !Object.prototype.hasOwnProperty.call(index, el);
+    });
+  }; // Test a string or array-like object for existence of substring or element
+
+
+  utils.contains = function (container, item) {
+    if (utils.isString(container)) {
+      return container.indexOf(item) != -1;
+    } else if (utils.isArrayLike(container)) {
+      return utils.indexOf(container, item) != -1;
+    }
+
+    error("Expected Array or String argument");
+  };
+
+  utils.some = function (arr, test) {
+    return arr.reduce(function (val, item) {
+      return val || test(item); // TODO: short-circuit?
+    }, false);
+  };
+
+  utils.every = function (arr, test) {
+    return arr.reduce(function (val, item) {
+      return val && test(item);
+    }, true);
+  };
+
+  utils.find = function (arr, test, ctx) {
+    var matches = arr.filter(test, ctx);
+    return matches.length === 0 ? null : matches[0];
+  };
+
+  utils.indexOf = function (arr, item, prop) {
+    if (prop) error("utils.indexOf() No longer supports property argument");
+    var nan = item !== item;
+
+    for (var i = 0, len = arr.length || 0; i < len; i++) {
+      if (arr[i] === item) return i;
+      if (nan && arr[i] !== arr[i]) return i;
+    }
+
+    return -1;
+  };
+
+  utils.range = function (len, start, inc) {
+    var arr = [],
+        v = start === void 0 ? 0 : start,
+        i = inc === void 0 ? 1 : inc;
+
+    while (len--) {
+      arr.push(v);
+      v += i;
+    }
+
+    return arr;
+  };
+
+  utils.repeat = function (times, func) {
+    var values = [],
+        val;
+
+    for (var i = 0; i < times; i++) {
+      val = func(i);
+
+      if (val !== void 0) {
+        values[i] = val;
       }
+    }
+
+    return values.length > 0 ? values : void 0;
+  }; // Calc sum, skip falsy and NaN values
+  // Assumes: no other non-numeric objects in array
+  //
+
+
+  utils.sum = function (arr, info) {
+    if (!utils.isArrayLike(arr)) error("utils.sum() expects an array, received:", arr);
+    var tot = 0,
+        nan = 0,
+        val;
+
+    for (var i = 0, n = arr.length; i < n; i++) {
+      val = arr[i];
+
+      if (val) {
+        tot += val;
+      } else if (isNaN(val)) {
+        nan++;
+      }
+    }
+
+    if (info) {
+      info.nan = nan;
+    }
+
+    return tot;
+  }; // Calculate min and max values of an array, ignoring NaN values
+
+
+  utils.getArrayBounds = function (arr) {
+    var min = Infinity,
+        max = -Infinity,
+        nan = 0,
+        val;
+
+    for (var i = 0, len = arr.length; i < len; i++) {
+      val = arr[i];
+      if (val !== val) nan++;
+      if (val < min) min = val;
+      if (val > max) max = val;
+    }
+
+    return {
+      min: min,
+      max: max,
+      nan: nan
     };
+  };
 
-    SwiperClass.prototype.on = function on(events, handler, priority) {
-      var self = this;
-
-      if (typeof handler !== 'function') {
-        return self;
+  utils.uniq = function (src) {
+    var index = {};
+    return src.reduce(function (memo, el) {
+      if (el in index === false) {
+        index[el] = true;
+        memo.push(el);
       }
 
-      var method = priority ? 'unshift' : 'push';
-      events.split(' ').forEach(function (event) {
-        if (!self.eventsListeners[event]) {
-          self.eventsListeners[event] = [];
-        }
+      return memo;
+    }, []);
+  };
 
-        self.eventsListeners[event][method](handler);
-      });
-      return self;
-    };
+  utils.pluck = function (arr, key) {
+    return arr.map(function (obj) {
+      return obj[key];
+    });
+  };
 
-    SwiperClass.prototype.once = function once(events, handler, priority) {
-      var self = this;
+  utils.countValues = function (arr) {
+    return arr.reduce(function (memo, val) {
+      memo[val] = val in memo ? memo[val] + 1 : 1;
+      return memo;
+    }, {});
+  };
 
-      if (typeof handler !== 'function') {
-        return self;
-      }
+  utils.indexOn = function (arr, k) {
+    return arr.reduce(function (index, o) {
+      index[o[k]] = o;
+      return index;
+    }, {});
+  };
 
-      function onceHandler() {
-        var args = [],
-            len = arguments.length;
+  utils.groupBy = function (arr, k) {
+    return arr.reduce(function (index, o) {
+      var keyval = o[k];
 
-        while (len--) {
-          args[len] = arguments[len];
-        }
-
-        handler.apply(self, args);
-        self.off(events, onceHandler);
-      }
-
-      return self.on(events, onceHandler, priority);
-    };
-
-    SwiperClass.prototype.off = function off(events, handler) {
-      var self = this;
-
-      if (!self.eventsListeners) {
-        return self;
-      }
-
-      events.split(' ').forEach(function (event) {
-        if (typeof handler === 'undefined') {
-          self.eventsListeners[event] = [];
-        } else {
-          self.eventsListeners[event].forEach(function (eventHandler, index) {
-            if (eventHandler === handler) {
-              self.eventsListeners[event].splice(index, 1);
-            }
-          });
-        }
-      });
-      return self;
-    };
-
-    SwiperClass.prototype.emit = function emit() {
-      var args = [],
-          len = arguments.length;
-
-      while (len--) {
-        args[len] = arguments[len];
-      }
-
-      var self = this;
-
-      if (!self.eventsListeners) {
-        return self;
-      }
-
-      var events;
-      var data;
-      var context;
-
-      if (typeof args[0] === 'string' || Array.isArray(args[0])) {
-        events = args[0];
-        data = args.slice(1, args.length);
-        context = self;
+      if (keyval in index) {
+        index[keyval].push(o);
       } else {
-        events = args[0].events;
-        data = args[0].data;
-        context = args[0].context || self;
+        index[keyval] = [o];
       }
 
-      var eventsArray = Array.isArray(events) ? events : events.split(' ');
-      eventsArray.forEach(function (event) {
-        if (self.eventsListeners && self.eventsListeners[event]) {
-          var handlers = [];
-          self.eventsListeners[event].forEach(function (eventHandler) {
-            handlers.push(eventHandler);
-          });
-          handlers.forEach(function (eventHandler) {
-            eventHandler.apply(context, data);
-          });
-        }
-      });
-      return self;
-    };
+      return index;
+    }, {});
+  };
 
-    SwiperClass.prototype.useModulesParams = function useModulesParams(instanceParams) {
-      var instance = this;
+  utils.arrayToIndex = function (arr, val) {
+    var init = arguments.length > 1;
+    return arr.reduce(function (index, key) {
+      index[key] = init ? val : true;
+      return index;
+    }, {});
+  }; // Support for iterating over array-like objects, like typed arrays
 
-      if (!instance.modules) {
-        return;
+
+  utils.forEach = function (arr, func, ctx) {
+    if (!utils.isArrayLike(arr)) {
+      throw new Error("#forEach() takes an array-like argument. " + arr);
+    }
+
+    for (var i = 0, n = arr.length; i < n; i++) {
+      func.call(ctx, arr[i], i);
+    }
+  };
+
+  utils.forEachProperty = function (o, func, ctx) {
+    Object.keys(o).forEach(function (key) {
+      func.call(ctx, o[key], key);
+    });
+  };
+
+  utils.initializeArray = function (arr, init) {
+    for (var i = 0, len = arr.length; i < len; i++) {
+      arr[i] = init;
+    }
+
+    return arr;
+  };
+
+  utils.replaceArray = function (arr, arr2) {
+    arr.splice(0, arr.length);
+
+    for (var i = 0, n = arr2.length; i < n; i++) {
+      arr.push(arr2[i]);
+    }
+  };
+
+  Utils.repeatString = function (src, n) {
+    var str = "";
+
+    for (var i = 0; i < n; i++) {
+      str += src;
+    }
+
+    return str;
+  };
+
+  Utils.pluralSuffix = function (count) {
+    return count != 1 ? 's' : '';
+  };
+
+  Utils.endsWith = function (str, ending) {
+    return str.indexOf(ending, str.length - ending.length) !== -1;
+  };
+
+  Utils.lpad = function (str, size, pad) {
+    pad = pad || ' ';
+    str = String(str);
+    return Utils.repeatString(pad, size - str.length) + str;
+  };
+
+  Utils.rpad = function (str, size, pad) {
+    pad = pad || ' ';
+    str = String(str);
+    return str + Utils.repeatString(pad, size - str.length);
+  };
+
+  Utils.trim = function (str) {
+    return Utils.ltrim(Utils.rtrim(str));
+  };
+
+  var ltrimRxp = /^\s+/;
+
+  Utils.ltrim = function (str) {
+    return str.replace(ltrimRxp, '');
+  };
+
+  var rtrimRxp = /\s+$/;
+
+  Utils.rtrim = function (str) {
+    return str.replace(rtrimRxp, '');
+  };
+
+  Utils.addThousandsSep = function (str) {
+    var fmt = '',
+        start = str[0] == '-' ? 1 : 0,
+        dec = str.indexOf('.'),
+        end = str.length,
+        ins = (dec == -1 ? end : dec) - 3;
+
+    while (ins > start) {
+      fmt = ',' + str.substring(ins, end) + fmt;
+      end = ins;
+      ins -= 3;
+    }
+
+    return str.substring(0, end) + fmt;
+  };
+
+  Utils.numToStr = function (num, decimals) {
+    return decimals >= 0 ? num.toFixed(decimals) : String(num);
+  };
+
+  Utils.formatNumber = function (num, decimals, nullStr, showPos) {
+    var fmt;
+
+    if (isNaN(num)) {
+      fmt = nullStr || '-';
+    } else {
+      fmt = Utils.numToStr(num, decimals);
+      fmt = Utils.addThousandsSep(fmt);
+
+      if (showPos && parseFloat(fmt) > 0) {
+        fmt = "+" + fmt;
       }
+    }
 
-      Object.keys(instance.modules).forEach(function (moduleName) {
-        var module = instance.modules[moduleName]; // Extend params
+    return fmt;
+  };
 
-        if (module.params) {
-          Utils.extend(instanceParams, module.params);
-        }
-      });
-    };
+  function Transform() {
+    this.mx = this.my = 1;
+    this.bx = this.by = 0;
+  }
 
-    SwiperClass.prototype.useModules = function useModules(modulesParams) {
-      if (modulesParams === void 0) modulesParams = {};
-      var instance = this;
+  Transform.prototype.isNull = function () {
+    return !this.mx || !this.my || isNaN(this.bx) || isNaN(this.by);
+  };
 
-      if (!instance.modules) {
-        return;
-      }
+  Transform.prototype.invert = function () {
+    var inv = new Transform();
+    inv.mx = 1 / this.mx;
+    inv.my = 1 / this.my; //inv.bx = -this.bx * inv.mx;
+    //inv.by = -this.by * inv.my;
 
-      Object.keys(instance.modules).forEach(function (moduleName) {
-        var module = instance.modules[moduleName];
-        var moduleParams = modulesParams[moduleName] || {}; // Extend instance methods and props
+    inv.bx = -this.bx / this.mx;
+    inv.by = -this.by / this.my;
+    return inv;
+  };
 
-        if (module.instance) {
-          Object.keys(module.instance).forEach(function (modulePropName) {
-            var moduleProp = module.instance[modulePropName];
+  Transform.prototype.transform = function (x, y, xy) {
+    xy = xy || [];
+    xy[0] = x * this.mx + this.bx;
+    xy[1] = y * this.my + this.by;
+    return xy;
+  };
 
-            if (typeof moduleProp === 'function') {
-              instance[modulePropName] = moduleProp.bind(instance);
-            } else {
-              instance[modulePropName] = moduleProp;
-            }
-          });
-        } // Add event listeners
+  Transform.prototype.toString = function () {
+    return JSON.stringify(Utils.extend({}, this));
+  };
 
+  function Bounds() {
+    if (arguments.length > 0) {
+      this.setBounds.apply(this, arguments);
+    }
+  }
 
-        if (module.on && instance.on) {
-          Object.keys(module.on).forEach(function (moduleEventName) {
-            instance.on(moduleEventName, module.on[moduleEventName]);
-          });
-        } // Module create callback
+  Bounds.prototype.toString = function () {
+    return JSON.stringify({
+      xmin: this.xmin,
+      xmax: this.xmax,
+      ymin: this.ymin,
+      ymax: this.ymax
+    });
+  };
 
+  Bounds.prototype.toArray = function () {
+    return this.hasBounds() ? [this.xmin, this.ymin, this.xmax, this.ymax] : [];
+  };
 
-        if (module.create) {
-          module.create.bind(instance)(moduleParams);
-        }
-      });
-    };
+  Bounds.prototype.hasBounds = function () {
+    return this.xmin <= this.xmax && this.ymin <= this.ymax;
+  };
 
-    staticAccessors.components.set = function (components) {
-      var Class = this;
+  Bounds.prototype.sameBounds = Bounds.prototype.equals = function (bb) {
+    return bb && this.xmin === bb.xmin && this.xmax === bb.xmax && this.ymin === bb.ymin && this.ymax === bb.ymax;
+  };
 
-      if (!Class.use) {
-        return;
-      }
+  Bounds.prototype.width = function () {
+    return this.xmax - this.xmin || 0;
+  };
 
-      Class.use(components);
-    };
+  Bounds.prototype.height = function () {
+    return this.ymax - this.ymin || 0;
+  };
 
-    SwiperClass.installModule = function installModule(module) {
-      var params = [],
-          len = arguments.length - 1;
+  Bounds.prototype.area = function () {
+    return this.width() * this.height() || 0;
+  };
 
-      while (len-- > 0) {
-        params[len] = arguments[len + 1];
-      }
+  Bounds.prototype.empty = function () {
+    this.xmin = this.ymin = this.xmax = this.ymax = void 0;
+    return this;
+  };
 
-      var Class = this;
-
-      if (!Class.prototype.modules) {
-        Class.prototype.modules = {};
-      }
-
-      var name = module.name || Object.keys(Class.prototype.modules).length + "_" + Utils.now();
-      Class.prototype.modules[name] = module; // Prototype
-
-      if (module.proto) {
-        Object.keys(module.proto).forEach(function (key) {
-          Class.prototype[key] = module.proto[key];
-        });
-      } // Class
-
-
-      if (module["static"]) {
-        Object.keys(module["static"]).forEach(function (key) {
-          Class[key] = module["static"][key];
-        });
-      } // Callback
-
-
-      if (module.install) {
-        module.install.apply(Class, params);
-      }
-
-      return Class;
-    };
-
-    SwiperClass.use = function use(module) {
-      var params = [],
-          len = arguments.length - 1;
-
-      while (len-- > 0) {
-        params[len] = arguments[len + 1];
-      }
-
-      var Class = this;
-
-      if (Array.isArray(module)) {
-        module.forEach(function (m) {
-          return Class.installModule(m);
-        });
-        return Class;
-      }
-
-      return Class.installModule.apply(Class, [module].concat(params));
-    };
-
-    Object.defineProperties(SwiperClass, staticAccessors);
-
-    function updateSize() {
-      var swiper = this;
-      var width;
-      var height;
-      var $el = swiper.$el;
-
-      if (typeof swiper.params.width !== 'undefined') {
-        width = swiper.params.width;
+  Bounds.prototype.setBounds = function (a, b, c, d) {
+    if (arguments.length == 1) {
+      // assume first arg is a Bounds or array
+      if (Utils.isArrayLike(a)) {
+        b = a[1];
+        c = a[2];
+        d = a[3];
+        a = a[0];
       } else {
-        width = $el[0].clientWidth;
-      }
-
-      if (typeof swiper.params.height !== 'undefined') {
-        height = swiper.params.height;
-      } else {
-        height = $el[0].clientHeight;
-      }
-
-      if (width === 0 && swiper.isHorizontal() || height === 0 && swiper.isVertical()) {
-        return;
-      } // Subtract paddings
-
-
-      width = width - parseInt($el.css('padding-left'), 10) - parseInt($el.css('padding-right'), 10);
-      height = height - parseInt($el.css('padding-top'), 10) - parseInt($el.css('padding-bottom'), 10);
-      Utils.extend(swiper, {
-        width: width,
-        height: height,
-        size: swiper.isHorizontal() ? width : height
-      });
-    }
-
-    function updateSlides() {
-      var swiper = this;
-      var params = swiper.params;
-      var $wrapperEl = swiper.$wrapperEl;
-      var swiperSize = swiper.size;
-      var rtl = swiper.rtlTranslate;
-      var wrongRTL = swiper.wrongRTL;
-      var isVirtual = swiper.virtual && params.virtual.enabled;
-      var previousSlidesLength = isVirtual ? swiper.virtual.slides.length : swiper.slides.length;
-      var slides = $wrapperEl.children("." + swiper.params.slideClass);
-      var slidesLength = isVirtual ? swiper.virtual.slides.length : slides.length;
-      var snapGrid = [];
-      var slidesGrid = [];
-      var slidesSizesGrid = [];
-      var offsetBefore = params.slidesOffsetBefore;
-
-      if (typeof offsetBefore === 'function') {
-        offsetBefore = params.slidesOffsetBefore.call(swiper);
-      }
-
-      var offsetAfter = params.slidesOffsetAfter;
-
-      if (typeof offsetAfter === 'function') {
-        offsetAfter = params.slidesOffsetAfter.call(swiper);
-      }
-
-      var previousSnapGridLength = swiper.snapGrid.length;
-      var previousSlidesGridLength = swiper.snapGrid.length;
-      var spaceBetween = params.spaceBetween;
-      var slidePosition = -offsetBefore;
-      var prevSlideSize = 0;
-      var index = 0;
-
-      if (typeof swiperSize === 'undefined') {
-        return;
-      }
-
-      if (typeof spaceBetween === 'string' && spaceBetween.indexOf('%') >= 0) {
-        spaceBetween = parseFloat(spaceBetween.replace('%', '')) / 100 * swiperSize;
-      }
-
-      swiper.virtualSize = -spaceBetween; // reset margins
-
-      if (rtl) {
-        slides.css({
-          marginLeft: '',
-          marginTop: ''
-        });
-      } else {
-        slides.css({
-          marginRight: '',
-          marginBottom: ''
-        });
-      }
-
-      var slidesNumberEvenToRows;
-
-      if (params.slidesPerColumn > 1) {
-        if (Math.floor(slidesLength / params.slidesPerColumn) === slidesLength / swiper.params.slidesPerColumn) {
-          slidesNumberEvenToRows = slidesLength;
-        } else {
-          slidesNumberEvenToRows = Math.ceil(slidesLength / params.slidesPerColumn) * params.slidesPerColumn;
-        }
-
-        if (params.slidesPerView !== 'auto' && params.slidesPerColumnFill === 'row') {
-          slidesNumberEvenToRows = Math.max(slidesNumberEvenToRows, params.slidesPerView * params.slidesPerColumn);
-        }
-      } // Calc slides
-
-
-      var slideSize;
-      var slidesPerColumn = params.slidesPerColumn;
-      var slidesPerRow = slidesNumberEvenToRows / slidesPerColumn;
-      var numFullColumns = slidesPerRow - (params.slidesPerColumn * slidesPerRow - slidesLength);
-
-      for (var i = 0; i < slidesLength; i += 1) {
-        slideSize = 0;
-        var slide = slides.eq(i);
-
-        if (params.slidesPerColumn > 1) {
-          // Set slides order
-          var newSlideOrderIndex = void 0;
-          var column = void 0;
-          var row = void 0;
-
-          if (params.slidesPerColumnFill === 'column') {
-            column = Math.floor(i / slidesPerColumn);
-            row = i - column * slidesPerColumn;
-
-            if (column > numFullColumns || column === numFullColumns && row === slidesPerColumn - 1) {
-              row += 1;
-
-              if (row >= slidesPerColumn) {
-                row = 0;
-                column += 1;
-              }
-            }
-
-            newSlideOrderIndex = column + row * slidesNumberEvenToRows / slidesPerColumn;
-            slide.css({
-              '-webkit-box-ordinal-group': newSlideOrderIndex,
-              '-moz-box-ordinal-group': newSlideOrderIndex,
-              '-ms-flex-order': newSlideOrderIndex,
-              '-webkit-order': newSlideOrderIndex,
-              order: newSlideOrderIndex
-            });
-          } else {
-            row = Math.floor(i / slidesPerRow);
-            column = i - row * slidesPerRow;
-          }
-
-          slide.css("margin-" + (swiper.isHorizontal() ? 'top' : 'left'), row !== 0 && params.spaceBetween && params.spaceBetween + "px").attr('data-swiper-column', column).attr('data-swiper-row', row);
-        }
-
-        if (slide.css('display') === 'none') {
-          continue;
-        } // eslint-disable-line
-
-
-        if (params.slidesPerView === 'auto') {
-          var slideStyles = win.getComputedStyle(slide[0], null);
-          var currentTransform = slide[0].style.transform;
-          var currentWebKitTransform = slide[0].style.webkitTransform;
-
-          if (currentTransform) {
-            slide[0].style.transform = 'none';
-          }
-
-          if (currentWebKitTransform) {
-            slide[0].style.webkitTransform = 'none';
-          }
-
-          if (swiper.isHorizontal()) {
-            slideSize = slide[0].getBoundingClientRect().width + parseFloat(slideStyles.getPropertyValue('margin-left')) + parseFloat(slideStyles.getPropertyValue('margin-right'));
-          } else {
-            slideSize = slide[0].getBoundingClientRect().height + parseFloat(slideStyles.getPropertyValue('margin-top')) + parseFloat(slideStyles.getPropertyValue('margin-bottom'));
-          }
-
-          if (currentTransform) {
-            slide[0].style.transform = currentTransform;
-          }
-
-          if (currentWebKitTransform) {
-            slide[0].style.webkitTransform = currentWebKitTransform;
-          }
-
-          if (params.roundLengths) {
-            slideSize = Math.floor(slideSize);
-          }
-        } else {
-          slideSize = (swiperSize - (params.slidesPerView - 1) * spaceBetween) / params.slidesPerView;
-
-          if (params.roundLengths) {
-            slideSize = Math.floor(slideSize);
-          }
-
-          if (slides[i]) {
-            if (swiper.isHorizontal()) {
-              slides[i].style.width = slideSize + "px";
-            } else {
-              slides[i].style.height = slideSize + "px";
-            }
-          }
-        }
-
-        if (slides[i]) {
-          slides[i].swiperSlideSize = slideSize;
-        }
-
-        slidesSizesGrid.push(slideSize);
-
-        if (params.centeredSlides) {
-          slidePosition = slidePosition + slideSize / 2 + prevSlideSize / 2 + spaceBetween;
-
-          if (prevSlideSize === 0 && i !== 0) {
-            slidePosition = slidePosition - swiperSize / 2 - spaceBetween;
-          }
-
-          if (i === 0) {
-            slidePosition = slidePosition - swiperSize / 2 - spaceBetween;
-          }
-
-          if (Math.abs(slidePosition) < 1 / 1000) {
-            slidePosition = 0;
-          }
-
-          if (params.roundLengths) {
-            slidePosition = Math.floor(slidePosition);
-          }
-
-          if (index % params.slidesPerGroup === 0) {
-            snapGrid.push(slidePosition);
-          }
-
-          slidesGrid.push(slidePosition);
-        } else {
-          if (params.roundLengths) {
-            slidePosition = Math.floor(slidePosition);
-          }
-
-          if (index % params.slidesPerGroup === 0) {
-            snapGrid.push(slidePosition);
-          }
-
-          slidesGrid.push(slidePosition);
-          slidePosition = slidePosition + slideSize + spaceBetween;
-        }
-
-        swiper.virtualSize += slideSize + spaceBetween;
-        prevSlideSize = slideSize;
-        index += 1;
-      }
-
-      swiper.virtualSize = Math.max(swiper.virtualSize, swiperSize) + offsetAfter;
-      var newSlidesGrid;
-
-      if (rtl && wrongRTL && (params.effect === 'slide' || params.effect === 'coverflow')) {
-        $wrapperEl.css({
-          width: swiper.virtualSize + params.spaceBetween + "px"
-        });
-      }
-
-      if (!Support.flexbox || params.setWrapperSize) {
-        if (swiper.isHorizontal()) {
-          $wrapperEl.css({
-            width: swiper.virtualSize + params.spaceBetween + "px"
-          });
-        } else {
-          $wrapperEl.css({
-            height: swiper.virtualSize + params.spaceBetween + "px"
-          });
-        }
-      }
-
-      if (params.slidesPerColumn > 1) {
-        swiper.virtualSize = (slideSize + params.spaceBetween) * slidesNumberEvenToRows;
-        swiper.virtualSize = Math.ceil(swiper.virtualSize / params.slidesPerColumn) - params.spaceBetween;
-
-        if (swiper.isHorizontal()) {
-          $wrapperEl.css({
-            width: swiper.virtualSize + params.spaceBetween + "px"
-          });
-        } else {
-          $wrapperEl.css({
-            height: swiper.virtualSize + params.spaceBetween + "px"
-          });
-        }
-
-        if (params.centeredSlides) {
-          newSlidesGrid = [];
-
-          for (var i$1 = 0; i$1 < snapGrid.length; i$1 += 1) {
-            var slidesGridItem = snapGrid[i$1];
-
-            if (params.roundLengths) {
-              slidesGridItem = Math.floor(slidesGridItem);
-            }
-
-            if (snapGrid[i$1] < swiper.virtualSize + snapGrid[0]) {
-              newSlidesGrid.push(slidesGridItem);
-            }
-          }
-
-          snapGrid = newSlidesGrid;
-        }
-      } // Remove last grid elements depending on width
-
-
-      if (!params.centeredSlides) {
-        newSlidesGrid = [];
-
-        for (var i$2 = 0; i$2 < snapGrid.length; i$2 += 1) {
-          var slidesGridItem$1 = snapGrid[i$2];
-
-          if (params.roundLengths) {
-            slidesGridItem$1 = Math.floor(slidesGridItem$1);
-          }
-
-          if (snapGrid[i$2] <= swiper.virtualSize - swiperSize) {
-            newSlidesGrid.push(slidesGridItem$1);
-          }
-        }
-
-        snapGrid = newSlidesGrid;
-
-        if (Math.floor(swiper.virtualSize - swiperSize) - Math.floor(snapGrid[snapGrid.length - 1]) > 1) {
-          snapGrid.push(swiper.virtualSize - swiperSize);
-        }
-      }
-
-      if (snapGrid.length === 0) {
-        snapGrid = [0];
-      }
-
-      if (params.spaceBetween !== 0) {
-        if (swiper.isHorizontal()) {
-          if (rtl) {
-            slides.css({
-              marginLeft: spaceBetween + "px"
-            });
-          } else {
-            slides.css({
-              marginRight: spaceBetween + "px"
-            });
-          }
-        } else {
-          slides.css({
-            marginBottom: spaceBetween + "px"
-          });
-        }
-      }
-
-      Utils.extend(swiper, {
-        slides: slides,
-        snapGrid: snapGrid,
-        slidesGrid: slidesGrid,
-        slidesSizesGrid: slidesSizesGrid
-      });
-
-      if (slidesLength !== previousSlidesLength) {
-        swiper.emit('slidesLengthChange');
-      }
-
-      if (snapGrid.length !== previousSnapGridLength) {
-        if (swiper.params.watchOverflow) {
-          swiper.checkOverflow();
-        }
-
-        swiper.emit('snapGridLengthChange');
-      }
-
-      if (slidesGrid.length !== previousSlidesGridLength) {
-        swiper.emit('slidesGridLengthChange');
-      }
-
-      if (params.watchSlidesProgress || params.watchSlidesVisibility) {
-        swiper.updateSlidesOffset();
+        b = a.ymin;
+        c = a.xmax;
+        d = a.ymax;
+        a = a.xmin;
       }
     }
 
-    function updateAutoHeight(speed) {
-      var swiper = this;
-      var activeSlides = [];
-      var newHeight = 0;
-      var i;
-
-      if (typeof speed === 'number') {
-        swiper.setTransition(speed);
-      } else if (speed === true) {
-        swiper.setTransition(swiper.params.speed);
-      } // Find slides currently in view
-
-
-      if (swiper.params.slidesPerView !== 'auto' && swiper.params.slidesPerView > 1) {
-        for (i = 0; i < Math.ceil(swiper.params.slidesPerView); i += 1) {
-          var index = swiper.activeIndex + i;
-
-          if (index > swiper.slides.length) {
-            break;
-          }
-
-          activeSlides.push(swiper.slides.eq(index)[0]);
-        }
-      } else {
-        activeSlides.push(swiper.slides.eq(swiper.activeIndex)[0]);
-      } // Find new height from highest slide in view
-
-
-      for (i = 0; i < activeSlides.length; i += 1) {
-        if (typeof activeSlides[i] !== 'undefined') {
-          var height = activeSlides[i].offsetHeight;
-          newHeight = height > newHeight ? height : newHeight;
-        }
-      } // Update Height
-
-
-      if (newHeight) {
-        swiper.$wrapperEl.css('height', newHeight + "px");
-      }
-    }
-
-    function updateSlidesOffset() {
-      var swiper = this;
-      var slides = swiper.slides;
-
-      for (var i = 0; i < slides.length; i += 1) {
-        slides[i].swiperSlideOffset = swiper.isHorizontal() ? slides[i].offsetLeft : slides[i].offsetTop;
-      }
-    }
-
-    function updateSlidesProgress(translate) {
-      if (translate === void 0) translate = this && this.translate || 0;
-      var swiper = this;
-      var params = swiper.params;
-      var slides = swiper.slides;
-      var rtl = swiper.rtlTranslate;
-
-      if (slides.length === 0) {
-        return;
-      }
-
-      if (typeof slides[0].swiperSlideOffset === 'undefined') {
-        swiper.updateSlidesOffset();
-      }
-
-      var offsetCenter = -translate;
-
-      if (rtl) {
-        offsetCenter = translate;
-      } // Visible Slides
-
-
-      slides.removeClass(params.slideVisibleClass);
-
-      for (var i = 0; i < slides.length; i += 1) {
-        var slide = slides[i];
-        var slideProgress = (offsetCenter + (params.centeredSlides ? swiper.minTranslate() : 0) - slide.swiperSlideOffset) / (slide.swiperSlideSize + params.spaceBetween);
-
-        if (params.watchSlidesVisibility) {
-          var slideBefore = -(offsetCenter - slide.swiperSlideOffset);
-          var slideAfter = slideBefore + swiper.slidesSizesGrid[i];
-          var isVisible = slideBefore >= 0 && slideBefore < swiper.size || slideAfter > 0 && slideAfter <= swiper.size || slideBefore <= 0 && slideAfter >= swiper.size;
-
-          if (isVisible) {
-            slides.eq(i).addClass(params.slideVisibleClass);
-          }
-        }
-
-        slide.progress = rtl ? -slideProgress : slideProgress;
-      }
-    }
-
-    function updateProgress(translate) {
-      if (translate === void 0) translate = this && this.translate || 0;
-      var swiper = this;
-      var params = swiper.params;
-      var translatesDiff = swiper.maxTranslate() - swiper.minTranslate();
-      var progress = swiper.progress;
-      var isBeginning = swiper.isBeginning;
-      var isEnd = swiper.isEnd;
-      var wasBeginning = isBeginning;
-      var wasEnd = isEnd;
-
-      if (translatesDiff === 0) {
-        progress = 0;
-        isBeginning = true;
-        isEnd = true;
-      } else {
-        progress = (translate - swiper.minTranslate()) / translatesDiff;
-        isBeginning = progress <= 0;
-        isEnd = progress >= 1;
-      }
-
-      Utils.extend(swiper, {
-        progress: progress,
-        isBeginning: isBeginning,
-        isEnd: isEnd
-      });
-
-      if (params.watchSlidesProgress || params.watchSlidesVisibility) {
-        swiper.updateSlidesProgress(translate);
-      }
-
-      if (isBeginning && !wasBeginning) {
-        swiper.emit('reachBeginning toEdge');
-      }
-
-      if (isEnd && !wasEnd) {
-        swiper.emit('reachEnd toEdge');
-      }
-
-      if (wasBeginning && !isBeginning || wasEnd && !isEnd) {
-        swiper.emit('fromEdge');
-      }
-
-      swiper.emit('progress', progress);
-    }
-
-    function updateSlidesClasses() {
-      var swiper = this;
-      var slides = swiper.slides;
-      var params = swiper.params;
-      var $wrapperEl = swiper.$wrapperEl;
-      var activeIndex = swiper.activeIndex;
-      var realIndex = swiper.realIndex;
-      var isVirtual = swiper.virtual && params.virtual.enabled;
-      slides.removeClass(params.slideActiveClass + " " + params.slideNextClass + " " + params.slidePrevClass + " " + params.slideDuplicateActiveClass + " " + params.slideDuplicateNextClass + " " + params.slideDuplicatePrevClass);
-      var activeSlide;
-
-      if (isVirtual) {
-        activeSlide = swiper.$wrapperEl.find("." + params.slideClass + "[data-swiper-slide-index=\"" + activeIndex + "\"]");
-      } else {
-        activeSlide = slides.eq(activeIndex);
-      } // Active classes
-
-
-      activeSlide.addClass(params.slideActiveClass);
-
-      if (params.loop) {
-        // Duplicate to all looped slides
-        if (activeSlide.hasClass(params.slideDuplicateClass)) {
-          $wrapperEl.children("." + params.slideClass + ":not(." + params.slideDuplicateClass + ")[data-swiper-slide-index=\"" + realIndex + "\"]").addClass(params.slideDuplicateActiveClass);
-        } else {
-          $wrapperEl.children("." + params.slideClass + "." + params.slideDuplicateClass + "[data-swiper-slide-index=\"" + realIndex + "\"]").addClass(params.slideDuplicateActiveClass);
-        }
-      } // Next Slide
-
-
-      var nextSlide = activeSlide.nextAll("." + params.slideClass).eq(0).addClass(params.slideNextClass);
-
-      if (params.loop && nextSlide.length === 0) {
-        nextSlide = slides.eq(0);
-        nextSlide.addClass(params.slideNextClass);
-      } // Prev Slide
-
-
-      var prevSlide = activeSlide.prevAll("." + params.slideClass).eq(0).addClass(params.slidePrevClass);
-
-      if (params.loop && prevSlide.length === 0) {
-        prevSlide = slides.eq(-1);
-        prevSlide.addClass(params.slidePrevClass);
-      }
-
-      if (params.loop) {
-        // Duplicate to all looped slides
-        if (nextSlide.hasClass(params.slideDuplicateClass)) {
-          $wrapperEl.children("." + params.slideClass + ":not(." + params.slideDuplicateClass + ")[data-swiper-slide-index=\"" + nextSlide.attr('data-swiper-slide-index') + "\"]").addClass(params.slideDuplicateNextClass);
-        } else {
-          $wrapperEl.children("." + params.slideClass + "." + params.slideDuplicateClass + "[data-swiper-slide-index=\"" + nextSlide.attr('data-swiper-slide-index') + "\"]").addClass(params.slideDuplicateNextClass);
-        }
-
-        if (prevSlide.hasClass(params.slideDuplicateClass)) {
-          $wrapperEl.children("." + params.slideClass + ":not(." + params.slideDuplicateClass + ")[data-swiper-slide-index=\"" + prevSlide.attr('data-swiper-slide-index') + "\"]").addClass(params.slideDuplicatePrevClass);
-        } else {
-          $wrapperEl.children("." + params.slideClass + "." + params.slideDuplicateClass + "[data-swiper-slide-index=\"" + prevSlide.attr('data-swiper-slide-index') + "\"]").addClass(params.slideDuplicatePrevClass);
-        }
-      }
-    }
-
-    function updateActiveIndex(newActiveIndex) {
-      var swiper = this;
-      var translate = swiper.rtlTranslate ? swiper.translate : -swiper.translate;
-      var slidesGrid = swiper.slidesGrid;
-      var snapGrid = swiper.snapGrid;
-      var params = swiper.params;
-      var previousIndex = swiper.activeIndex;
-      var previousRealIndex = swiper.realIndex;
-      var previousSnapIndex = swiper.snapIndex;
-      var activeIndex = newActiveIndex;
-      var snapIndex;
-
-      if (typeof activeIndex === 'undefined') {
-        for (var i = 0; i < slidesGrid.length; i += 1) {
-          if (typeof slidesGrid[i + 1] !== 'undefined') {
-            if (translate >= slidesGrid[i] && translate < slidesGrid[i + 1] - (slidesGrid[i + 1] - slidesGrid[i]) / 2) {
-              activeIndex = i;
-            } else if (translate >= slidesGrid[i] && translate < slidesGrid[i + 1]) {
-              activeIndex = i + 1;
-            }
-          } else if (translate >= slidesGrid[i]) {
-            activeIndex = i;
-          }
-        } // Normalize slideIndex
-
-
-        if (params.normalizeSlideIndex) {
-          if (activeIndex < 0 || typeof activeIndex === 'undefined') {
-            activeIndex = 0;
-          }
-        }
-      }
-
-      if (snapGrid.indexOf(translate) >= 0) {
-        snapIndex = snapGrid.indexOf(translate);
-      } else {
-        snapIndex = Math.floor(activeIndex / params.slidesPerGroup);
-      }
-
-      if (snapIndex >= snapGrid.length) {
-        snapIndex = snapGrid.length - 1;
-      }
-
-      if (activeIndex === previousIndex) {
-        if (snapIndex !== previousSnapIndex) {
-          swiper.snapIndex = snapIndex;
-          swiper.emit('snapIndexChange');
-        }
-
-        return;
-      } // Get real index
-
-
-      var realIndex = parseInt(swiper.slides.eq(activeIndex).attr('data-swiper-slide-index') || activeIndex, 10);
-      Utils.extend(swiper, {
-        snapIndex: snapIndex,
-        realIndex: realIndex,
-        previousIndex: previousIndex,
-        activeIndex: activeIndex
-      });
-      swiper.emit('activeIndexChange');
-      swiper.emit('snapIndexChange');
-
-      if (previousRealIndex !== realIndex) {
-        swiper.emit('realIndexChange');
-      }
-
-      swiper.emit('slideChange');
-    }
-
-    function updateClickedSlide(e) {
-      var swiper = this;
-      var params = swiper.params;
-      var slide = $(e.target).closest("." + params.slideClass)[0];
-      var slideFound = false;
-
-      if (slide) {
-        for (var i = 0; i < swiper.slides.length; i += 1) {
-          if (swiper.slides[i] === slide) {
-            slideFound = true;
-          }
-        }
-      }
-
-      if (slide && slideFound) {
-        swiper.clickedSlide = slide;
-
-        if (swiper.virtual && swiper.params.virtual.enabled) {
-          swiper.clickedIndex = parseInt($(slide).attr('data-swiper-slide-index'), 10);
-        } else {
-          swiper.clickedIndex = $(slide).index();
-        }
-      } else {
-        swiper.clickedSlide = undefined;
-        swiper.clickedIndex = undefined;
-        return;
-      }
-
-      if (params.slideToClickedSlide && swiper.clickedIndex !== undefined && swiper.clickedIndex !== swiper.activeIndex) {
-        swiper.slideToClickedSlide();
-      }
-    }
-
-    var update = {
-      updateSize: updateSize,
-      updateSlides: updateSlides,
-      updateAutoHeight: updateAutoHeight,
-      updateSlidesOffset: updateSlidesOffset,
-      updateSlidesProgress: updateSlidesProgress,
-      updateProgress: updateProgress,
-      updateSlidesClasses: updateSlidesClasses,
-      updateActiveIndex: updateActiveIndex,
-      updateClickedSlide: updateClickedSlide
-    };
-
-    function getTranslate(axis) {
-      if (axis === void 0) axis = this.isHorizontal() ? 'x' : 'y';
-      var swiper = this;
-      var params = swiper.params;
-      var rtl = swiper.rtlTranslate;
-      var translate = swiper.translate;
-      var $wrapperEl = swiper.$wrapperEl;
-
-      if (params.virtualTranslate) {
-        return rtl ? -translate : translate;
-      }
-
-      var currentTranslate = Utils.getTranslate($wrapperEl[0], axis);
-
-      if (rtl) {
-        currentTranslate = -currentTranslate;
-      }
-
-      return currentTranslate || 0;
-    }
-
-    function setTranslate(translate, byController) {
-      var swiper = this;
-      var rtl = swiper.rtlTranslate;
-      var params = swiper.params;
-      var $wrapperEl = swiper.$wrapperEl;
-      var progress = swiper.progress;
-      var x = 0;
-      var y = 0;
-      var z = 0;
-
-      if (swiper.isHorizontal()) {
-        x = rtl ? -translate : translate;
-      } else {
-        y = translate;
-      }
-
-      if (params.roundLengths) {
-        x = Math.floor(x);
-        y = Math.floor(y);
-      }
-
-      if (!params.virtualTranslate) {
-        if (Support.transforms3d) {
-          $wrapperEl.transform("translate3d(" + x + "px, " + y + "px, " + z + "px)");
-        } else {
-          $wrapperEl.transform("translate(" + x + "px, " + y + "px)");
-        }
-      }
-
-      swiper.previousTranslate = swiper.translate;
-      swiper.translate = swiper.isHorizontal() ? x : y; // Check if we need to update progress
-
-      var newProgress;
-      var translatesDiff = swiper.maxTranslate() - swiper.minTranslate();
-
-      if (translatesDiff === 0) {
-        newProgress = 0;
-      } else {
-        newProgress = (translate - swiper.minTranslate()) / translatesDiff;
-      }
-
-      if (newProgress !== progress) {
-        swiper.updateProgress(translate);
-      }
-
-      swiper.emit('setTranslate', swiper.translate, byController);
-    }
-
-    function minTranslate() {
-      return -this.snapGrid[0];
-    }
-
-    function maxTranslate() {
-      return -this.snapGrid[this.snapGrid.length - 1];
-    }
-
-    var translate = {
-      getTranslate: getTranslate,
-      setTranslate: setTranslate,
-      minTranslate: minTranslate,
-      maxTranslate: maxTranslate
-    };
-
-    function setTransition(duration, byController) {
-      var swiper = this;
-      swiper.$wrapperEl.transition(duration);
-      swiper.emit('setTransition', duration, byController);
-    }
-
-    function transitionStart(runCallbacks, direction) {
-      if (runCallbacks === void 0) runCallbacks = true;
-      var swiper = this;
-      var activeIndex = swiper.activeIndex;
-      var params = swiper.params;
-      var previousIndex = swiper.previousIndex;
-
-      if (params.autoHeight) {
-        swiper.updateAutoHeight();
-      }
-
-      var dir = direction;
-
-      if (!dir) {
-        if (activeIndex > previousIndex) {
-          dir = 'next';
-        } else if (activeIndex < previousIndex) {
-          dir = 'prev';
-        } else {
-          dir = 'reset';
-        }
-      }
-
-      swiper.emit('transitionStart');
-
-      if (runCallbacks && activeIndex !== previousIndex) {
-        if (dir === 'reset') {
-          swiper.emit('slideResetTransitionStart');
-          return;
-        }
-
-        swiper.emit('slideChangeTransitionStart');
-
-        if (dir === 'next') {
-          swiper.emit('slideNextTransitionStart');
-        } else {
-          swiper.emit('slidePrevTransitionStart');
-        }
-      }
-    }
-
-    function transitionEnd$1(runCallbacks, direction) {
-      if (runCallbacks === void 0) runCallbacks = true;
-      var swiper = this;
-      var activeIndex = swiper.activeIndex;
-      var previousIndex = swiper.previousIndex;
-      swiper.animating = false;
-      swiper.setTransition(0);
-      var dir = direction;
-
-      if (!dir) {
-        if (activeIndex > previousIndex) {
-          dir = 'next';
-        } else if (activeIndex < previousIndex) {
-          dir = 'prev';
-        } else {
-          dir = 'reset';
-        }
-      }
-
-      swiper.emit('transitionEnd');
-
-      if (runCallbacks && activeIndex !== previousIndex) {
-        if (dir === 'reset') {
-          swiper.emit('slideResetTransitionEnd');
-          return;
-        }
-
-        swiper.emit('slideChangeTransitionEnd');
-
-        if (dir === 'next') {
-          swiper.emit('slideNextTransitionEnd');
-        } else {
-          swiper.emit('slidePrevTransitionEnd');
-        }
-      }
-    }
-
-    var transition$1 = {
-      setTransition: setTransition,
-      transitionStart: transitionStart,
-      transitionEnd: transitionEnd$1
-    };
-
-    function slideTo(index, speed, runCallbacks, internal) {
-      if (index === void 0) index = 0;
-      if (speed === void 0) speed = this.params.speed;
-      if (runCallbacks === void 0) runCallbacks = true;
-      var swiper = this;
-      var slideIndex = index;
-
-      if (slideIndex < 0) {
-        slideIndex = 0;
-      }
-
-      var params = swiper.params;
-      var snapGrid = swiper.snapGrid;
-      var slidesGrid = swiper.slidesGrid;
-      var previousIndex = swiper.previousIndex;
-      var activeIndex = swiper.activeIndex;
-      var rtl = swiper.rtlTranslate;
-
-      if (swiper.animating && params.preventIntercationOnTransition) {
-        return false;
-      }
-
-      var snapIndex = Math.floor(slideIndex / params.slidesPerGroup);
-
-      if (snapIndex >= snapGrid.length) {
-        snapIndex = snapGrid.length - 1;
-      }
-
-      if ((activeIndex || params.initialSlide || 0) === (previousIndex || 0) && runCallbacks) {
-        swiper.emit('beforeSlideChangeStart');
-      }
-
-      var translate = -snapGrid[snapIndex]; // Update progress
-
-      swiper.updateProgress(translate); // Normalize slideIndex
-
-      if (params.normalizeSlideIndex) {
-        for (var i = 0; i < slidesGrid.length; i += 1) {
-          if (-Math.floor(translate * 100) >= Math.floor(slidesGrid[i] * 100)) {
-            slideIndex = i;
-          }
-        }
-      } // Directions locks
-
-
-      if (swiper.initialized && slideIndex !== activeIndex) {
-        if (!swiper.allowSlideNext && translate < swiper.translate && translate < swiper.minTranslate()) {
-          return false;
-        }
-
-        if (!swiper.allowSlidePrev && translate > swiper.translate && translate > swiper.maxTranslate()) {
-          if ((activeIndex || 0) !== slideIndex) {
-            return false;
-          }
-        }
-      }
-
-      var direction;
-
-      if (slideIndex > activeIndex) {
-        direction = 'next';
-      } else if (slideIndex < activeIndex) {
-        direction = 'prev';
-      } else {
-        direction = 'reset';
-      } // Update Index
-
-
-      if (rtl && -translate === swiper.translate || !rtl && translate === swiper.translate) {
-        swiper.updateActiveIndex(slideIndex); // Update Height
-
-        if (params.autoHeight) {
-          swiper.updateAutoHeight();
-        }
-
-        swiper.updateSlidesClasses();
-
-        if (params.effect !== 'slide') {
-          swiper.setTranslate(translate);
-        }
-
-        if (direction !== 'reset') {
-          swiper.transitionStart(runCallbacks, direction);
-          swiper.transitionEnd(runCallbacks, direction);
-        }
-
-        return false;
-      }
-
-      if (speed === 0 || !Support.transition) {
-        swiper.setTransition(0);
-        swiper.setTranslate(translate);
-        swiper.updateActiveIndex(slideIndex);
-        swiper.updateSlidesClasses();
-        swiper.emit('beforeTransitionStart', speed, internal);
-        swiper.transitionStart(runCallbacks, direction);
-        swiper.transitionEnd(runCallbacks, direction);
-      } else {
-        swiper.setTransition(speed);
-        swiper.setTranslate(translate);
-        swiper.updateActiveIndex(slideIndex);
-        swiper.updateSlidesClasses();
-        swiper.emit('beforeTransitionStart', speed, internal);
-        swiper.transitionStart(runCallbacks, direction);
-
-        if (!swiper.animating) {
-          swiper.animating = true;
-
-          if (!swiper.onSlideToWrapperTransitionEnd) {
-            swiper.onSlideToWrapperTransitionEnd = function transitionEnd(e) {
-              if (!swiper || swiper.destroyed) {
-                return;
-              }
-
-              if (e.target !== this) {
-                return;
-              }
-
-              swiper.$wrapperEl[0].removeEventListener('transitionend', swiper.onSlideToWrapperTransitionEnd);
-              swiper.$wrapperEl[0].removeEventListener('webkitTransitionEnd', swiper.onSlideToWrapperTransitionEnd);
-              swiper.transitionEnd(runCallbacks, direction);
-            };
-          }
-
-          swiper.$wrapperEl[0].addEventListener('transitionend', swiper.onSlideToWrapperTransitionEnd);
-          swiper.$wrapperEl[0].addEventListener('webkitTransitionEnd', swiper.onSlideToWrapperTransitionEnd);
-        }
-      }
-
+    this.xmin = a;
+    this.ymin = b;
+    this.xmax = c;
+    this.ymax = d;
+    if (a > c || b > d) this.update(); // error("Bounds#setBounds() min/max reversed:", a, b, c, d);
+
+    return this;
+  };
+
+  Bounds.prototype.centerX = function () {
+    var x = (this.xmin + this.xmax) * 0.5;
+    return x;
+  };
+
+  Bounds.prototype.centerY = function () {
+    var y = (this.ymax + this.ymin) * 0.5;
+    return y;
+  };
+
+  Bounds.prototype.containsPoint = function (x, y) {
+    if (x >= this.xmin && x <= this.xmax && y <= this.ymax && y >= this.ymin) {
       return true;
     }
 
-    function slideToLoop(index, speed, runCallbacks, internal) {
-      if (index === void 0) index = 0;
-      if (speed === void 0) speed = this.params.speed;
-      if (runCallbacks === void 0) runCallbacks = true;
-      var swiper = this;
-      var newIndex = index;
+    return false;
+  }; // intended to speed up slightly bubble symbol detection; could use intersects() instead
+  // TODO: fix false positive where circle is just outside a corner of the box
 
-      if (swiper.params.loop) {
-        newIndex += swiper.loopedSlides;
+
+  Bounds.prototype.containsBufferedPoint = Bounds.prototype.containsCircle = function (x, y, buf) {
+    if (x + buf > this.xmin && x - buf < this.xmax) {
+      if (y - buf < this.ymax && y + buf > this.ymin) {
+        return true;
       }
-
-      return swiper.slideTo(newIndex, speed, runCallbacks, internal);
-    }
-    /* eslint no-unused-vars: "off" */
-
-
-    function slideNext(speed, runCallbacks, internal) {
-      if (speed === void 0) speed = this.params.speed;
-      if (runCallbacks === void 0) runCallbacks = true;
-      var swiper = this;
-      var params = swiper.params;
-      var animating = swiper.animating;
-
-      if (params.loop) {
-        if (animating) {
-          return false;
-        }
-
-        swiper.loopFix(); // eslint-disable-next-line
-
-        swiper._clientLeft = swiper.$wrapperEl[0].clientLeft;
-        return swiper.slideTo(swiper.activeIndex + params.slidesPerGroup, speed, runCallbacks, internal);
-      }
-
-      return swiper.slideTo(swiper.activeIndex + params.slidesPerGroup, speed, runCallbacks, internal);
-    }
-    /* eslint no-unused-vars: "off" */
-
-
-    function slidePrev(speed, runCallbacks, internal) {
-      if (speed === void 0) speed = this.params.speed;
-      if (runCallbacks === void 0) runCallbacks = true;
-      var swiper = this;
-      var params = swiper.params;
-      var animating = swiper.animating;
-      var snapGrid = swiper.snapGrid;
-      var slidesGrid = swiper.slidesGrid;
-      var rtlTranslate = swiper.rtlTranslate;
-
-      if (params.loop) {
-        if (animating) {
-          return false;
-        }
-
-        swiper.loopFix(); // eslint-disable-next-line
-
-        swiper._clientLeft = swiper.$wrapperEl[0].clientLeft;
-      }
-
-      var translate = rtlTranslate ? swiper.translate : -swiper.translate;
-
-      function normalize(val) {
-        if (val < 0) {
-          return -Math.floor(Math.abs(val));
-        }
-
-        return Math.floor(val);
-      }
-
-      var normalizedTranslate = normalize(translate);
-      var normalizedSnapGrid = snapGrid.map(function (val) {
-        return normalize(val);
-      });
-      var normalizedSlidesGrid = slidesGrid.map(function (val) {
-        return normalize(val);
-      });
-      var currentSnap = snapGrid[normalizedSnapGrid.indexOf(normalizedTranslate)];
-      var prevSnap = snapGrid[normalizedSnapGrid.indexOf(normalizedTranslate) - 1];
-      var prevIndex;
-
-      if (typeof prevSnap !== 'undefined') {
-        prevIndex = slidesGrid.indexOf(prevSnap);
-
-        if (prevIndex < 0) {
-          prevIndex = swiper.activeIndex - 1;
-        }
-      }
-
-      return swiper.slideTo(prevIndex, speed, runCallbacks, internal);
-    }
-    /* eslint no-unused-vars: "off" */
-
-
-    function slideReset(speed, runCallbacks, internal) {
-      if (speed === void 0) speed = this.params.speed;
-      if (runCallbacks === void 0) runCallbacks = true;
-      var swiper = this;
-      return swiper.slideTo(swiper.activeIndex, speed, runCallbacks, internal);
-    }
-    /* eslint no-unused-vars: "off" */
-
-
-    function slideToClosest(speed, runCallbacks, internal) {
-      if (speed === void 0) speed = this.params.speed;
-      if (runCallbacks === void 0) runCallbacks = true;
-      var swiper = this;
-      var index = swiper.activeIndex;
-      var snapIndex = Math.floor(index / swiper.params.slidesPerGroup);
-
-      if (snapIndex < swiper.snapGrid.length - 1) {
-        var translate = swiper.rtlTranslate ? swiper.translate : -swiper.translate;
-        var currentSnap = swiper.snapGrid[snapIndex];
-        var nextSnap = swiper.snapGrid[snapIndex + 1];
-
-        if (translate - currentSnap > (nextSnap - currentSnap) / 2) {
-          index = swiper.params.slidesPerGroup;
-        }
-      }
-
-      return swiper.slideTo(index, speed, runCallbacks, internal);
     }
 
-    function slideToClickedSlide() {
-      var swiper = this;
-      var params = swiper.params;
-      var $wrapperEl = swiper.$wrapperEl;
-      var slidesPerView = params.slidesPerView === 'auto' ? swiper.slidesPerViewDynamic() : params.slidesPerView;
-      var slideToIndex = swiper.clickedIndex;
-      var realIndex;
+    return false;
+  };
 
-      if (params.loop) {
-        if (swiper.animating) {
-          return;
+  Bounds.prototype.intersects = function (bb) {
+    if (bb.xmin <= this.xmax && bb.xmax >= this.xmin && bb.ymax >= this.ymin && bb.ymin <= this.ymax) {
+      return true;
+    }
+
+    return false;
+  };
+
+  Bounds.prototype.contains = function (bb) {
+    if (bb.xmin >= this.xmin && bb.ymax <= this.ymax && bb.xmax <= this.xmax && bb.ymin >= this.ymin) {
+      return true;
+    }
+
+    return false;
+  };
+
+  Bounds.prototype.shift = function (x, y) {
+    this.setBounds(this.xmin + x, this.ymin + y, this.xmax + x, this.ymax + y);
+  };
+
+  Bounds.prototype.padBounds = function (a, b, c, d) {
+    this.xmin -= a;
+    this.ymin -= b;
+    this.xmax += c;
+    this.ymax += d;
+  }; // Rescale the bounding box by a fraction. TODO: implement focus.
+  // @param {number} pct Fraction of original extents
+  // @param {number} pctY Optional amount to scale Y
+  //
+
+
+  Bounds.prototype.scale = function (pct, pctY) {
+    /*, focusX, focusY*/
+    var halfWidth = (this.xmax - this.xmin) * 0.5;
+    var halfHeight = (this.ymax - this.ymin) * 0.5;
+    var kx = pct - 1;
+    var ky = pctY === undefined ? kx : pctY - 1;
+    this.xmin -= halfWidth * kx;
+    this.ymin -= halfHeight * ky;
+    this.xmax += halfWidth * kx;
+    this.ymax += halfHeight * ky;
+  }; // Return a bounding box with the same extent as this one.
+
+
+  Bounds.prototype.cloneBounds = // alias so child classes can override clone()
+  Bounds.prototype.clone = function () {
+    return new Bounds(this.xmin, this.ymin, this.xmax, this.ymax);
+  };
+
+  Bounds.prototype.clearBounds = function () {
+    this.setBounds(new Bounds());
+  };
+
+  Bounds.prototype.mergePoint = function (x, y) {
+    if (this.xmin === void 0) {
+      this.setBounds(x, y, x, y);
+    } else {
+      // this works even if x,y are NaN
+      if (x < this.xmin) this.xmin = x;else if (x > this.xmax) this.xmax = x;
+      if (y < this.ymin) this.ymin = y;else if (y > this.ymax) this.ymax = y;
+    }
+  }; // expands either x or y dimension to match @aspect (width/height ratio)
+  // @focusX, @focusY (optional): expansion focus, as a fraction of width and height
+
+
+  Bounds.prototype.fillOut = function (aspect, focusX, focusY) {
+    if (arguments.length < 3) {
+      focusX = 0.5;
+      focusY = 0.5;
+    }
+
+    var w = this.width(),
+        h = this.height(),
+        currAspect = w / h,
+        pad;
+
+    if (isNaN(aspect) || aspect <= 0) {// error condition; don't pad
+    } else if (currAspect < aspect) {
+      // fill out x dimension
+      pad = h * aspect - w;
+      this.xmin -= (1 - focusX) * pad;
+      this.xmax += focusX * pad;
+    } else {
+      pad = w / aspect - h;
+      this.ymin -= (1 - focusY) * pad;
+      this.ymax += focusY * pad;
+    }
+
+    return this;
+  };
+
+  Bounds.prototype.update = function () {
+    var tmp;
+
+    if (this.xmin > this.xmax) {
+      tmp = this.xmin;
+      this.xmin = this.xmax;
+      this.xmax = tmp;
+    }
+
+    if (this.ymin > this.ymax) {
+      tmp = this.ymin;
+      this.ymin = this.ymax;
+      this.ymax = tmp;
+    }
+  };
+
+  Bounds.prototype.transform = function (t) {
+    this.xmin = this.xmin * t.mx + t.bx;
+    this.xmax = this.xmax * t.mx + t.bx;
+    this.ymin = this.ymin * t.my + t.by;
+    this.ymax = this.ymax * t.my + t.by;
+    this.update();
+    return this;
+  }; // Returns a Transform object for mapping this onto Bounds @b2
+  // @flipY (optional) Flip y-axis coords, for converting to/from pixel coords
+  //
+
+
+  Bounds.prototype.getTransform = function (b2, flipY) {
+    var t = new Transform();
+    t.mx = b2.width() / this.width() || 1; // TODO: better handling of 0 w,h
+
+    t.bx = b2.xmin - t.mx * this.xmin;
+
+    if (flipY) {
+      t.my = -b2.height() / this.height() || 1;
+      t.by = b2.ymax - t.my * this.ymin;
+    } else {
+      t.my = b2.height() / this.height() || 1;
+      t.by = b2.ymin - t.my * this.ymin;
+    }
+
+    return t;
+  };
+
+  Bounds.prototype.mergeCircle = function (x, y, r) {
+    if (r < 0) r = -r;
+    this.mergeBounds([x - r, y - r, x + r, y + r]);
+  };
+
+  Bounds.prototype.mergeBounds = function (bb) {
+    var a, b, c, d;
+
+    if (bb instanceof Bounds) {
+      a = bb.xmin;
+      b = bb.ymin;
+      c = bb.xmax;
+      d = bb.ymax;
+    } else if (arguments.length == 4) {
+      a = arguments[0];
+      b = arguments[1];
+      c = arguments[2];
+      d = arguments[3];
+    } else if (bb.length == 4) {
+      // assume array: [xmin, ymin, xmax, ymax]
+      a = bb[0];
+      b = bb[1];
+      c = bb[2];
+      d = bb[3];
+    } else {
+      error("Bounds#mergeBounds() invalid argument:", bb);
+    }
+
+    if (this.xmin === void 0) {
+      this.setBounds(a, b, c, d);
+    } else {
+      if (a < this.xmin) this.xmin = a;
+      if (b < this.ymin) this.ymin = b;
+      if (c > this.xmax) this.xmax = c;
+      if (d > this.ymax) this.ymax = d;
+    }
+
+    return this;
+  }; // Sort an array of objects based on one or more properties.
+  // Usage: Utils.sortOn(array, key1, asc?[, key2, asc? ...])
+  //
+
+
+  Utils.sortOn = function (arr) {
+    var comparators = [];
+
+    for (var i = 1; i < arguments.length; i += 2) {
+      comparators.push(Utils.getKeyComparator(arguments[i], arguments[i + 1]));
+    }
+
+    arr.sort(function (a, b) {
+      var cmp = 0,
+          i = 0,
+          n = comparators.length;
+
+      while (i < n && cmp === 0) {
+        cmp = comparators[i](a, b);
+        i++;
+      }
+
+      return cmp;
+    });
+    return arr;
+  }; // Sort array of values that can be compared with < > operators (strings, numbers)
+  // null, undefined and NaN are sorted to the end of the array
+  //
+
+
+  Utils.genericSort = function (arr, asc) {
+    var compare = Utils.getGenericComparator(asc);
+    Array.prototype.sort.call(arr, compare);
+    return arr;
+  };
+
+  Utils.sortOnKey = function (arr, getter, asc) {
+    var compare = Utils.getGenericComparator(asc !== false); // asc is default
+
+    arr.sort(function (a, b) {
+      return compare(getter(a), getter(b));
+    });
+  }; // Stashes keys in a temp array (better if calculating key is expensive).
+
+
+  Utils.sortOnKey2 = function (arr, getKey, asc) {
+    Utils.sortArrayByKeys(arr, arr.map(getKey), asc);
+  };
+
+  Utils.sortArrayByKeys = function (arr, keys, asc) {
+    var ids = Utils.getSortedIds(keys, asc);
+    Utils.reorderArray(arr, ids);
+  };
+
+  Utils.getSortedIds = function (arr, asc) {
+    var ids = Utils.range(arr.length);
+    Utils.sortArrayIndex(ids, arr, asc);
+    return ids;
+  };
+
+  Utils.sortArrayIndex = function (ids, arr, asc) {
+    var compare = Utils.getGenericComparator(asc);
+    ids.sort(function (i, j) {
+      // added i, j comparison to guarantee that sort is stable
+      var cmp = compare(arr[i], arr[j]);
+      return cmp > 0 || cmp === 0 && i > j ? 1 : -1;
+    });
+  };
+
+  Utils.reorderArray = function (arr, idxs) {
+    var len = idxs.length;
+    var arr2 = [];
+
+    for (var i = 0; i < len; i++) {
+      var idx = idxs[i];
+      if (idx < 0 || idx >= len) error("Out-of-bounds array idx");
+      arr2[i] = arr[idx];
+    }
+
+    Utils.replaceArray(arr, arr2);
+  };
+
+  Utils.getKeyComparator = function (key, asc) {
+    var compare = Utils.getGenericComparator(asc);
+    return function (a, b) {
+      return compare(a[key], b[key]);
+    };
+  };
+
+  Utils.getGenericComparator = function (asc) {
+    asc = asc !== false;
+    return function (a, b) {
+      var retn = 0;
+
+      if (b == null) {
+        retn = a == null ? 0 : -1;
+      } else if (a == null) {
+        retn = 1;
+      } else if (a < b) {
+        retn = asc ? -1 : 1;
+      } else if (a > b) {
+        retn = asc ? 1 : -1;
+      } else if (a !== a) {
+        retn = 1;
+      } else if (b !== b) {
+        retn = -1;
+      }
+
+      return retn;
+    };
+  }; // Generic in-place sort (null, NaN, undefined not handled)
+
+
+  Utils.quicksort = function (arr, asc) {
+    Utils.quicksortPartition(arr, 0, arr.length - 1);
+    if (asc === false) Array.prototype.reverse.call(arr); // Works with typed arrays
+
+    return arr;
+  }; // Moved out of Utils.quicksort() (saw >100% speedup in Chrome with deep recursion)
+
+
+  Utils.quicksortPartition = function (a, lo, hi) {
+    var i = lo,
+        j = hi,
+        pivot,
+        tmp;
+
+    while (i < hi) {
+      pivot = a[lo + hi >> 1]; // avoid n^2 performance on sorted arrays
+
+      while (i <= j) {
+        while (a[i] < pivot) {
+          i++;
         }
 
-        realIndex = parseInt($(swiper.clickedSlide).attr('data-swiper-slide-index'), 10);
-
-        if (params.centeredSlides) {
-          if (slideToIndex < swiper.loopedSlides - slidesPerView / 2 || slideToIndex > swiper.slides.length - swiper.loopedSlides + slidesPerView / 2) {
-            swiper.loopFix();
-            slideToIndex = $wrapperEl.children("." + params.slideClass + "[data-swiper-slide-index=\"" + realIndex + "\"]:not(." + params.slideDuplicateClass + ")").eq(0).index();
-            Utils.nextTick(function () {
-              swiper.slideTo(slideToIndex);
-            });
-          } else {
-            swiper.slideTo(slideToIndex);
-          }
-        } else if (slideToIndex > swiper.slides.length - slidesPerView) {
-          swiper.loopFix();
-          slideToIndex = $wrapperEl.children("." + params.slideClass + "[data-swiper-slide-index=\"" + realIndex + "\"]:not(." + params.slideDuplicateClass + ")").eq(0).index();
-          Utils.nextTick(function () {
-            swiper.slideTo(slideToIndex);
-          });
-        } else {
-          swiper.slideTo(slideToIndex);
+        while (a[j] > pivot) {
+          j--;
         }
+
+        if (i <= j) {
+          tmp = a[i];
+          a[i] = a[j];
+          a[j] = tmp;
+          i++;
+          j--;
+        }
+      }
+
+      if (lo < j) Utils.quicksortPartition(a, lo, j);
+      lo = i;
+      j = hi;
+    }
+  };
+
+  Utils.findRankByValue = function (arr, value) {
+    if (isNaN(value)) return arr.length;
+    var rank = 1;
+
+    for (var i = 0, n = arr.length; i < n; i++) {
+      if (value > arr[i]) rank++;
+    }
+
+    return rank;
+  };
+
+  Utils.findValueByPct = function (arr, pct) {
+    var rank = Math.ceil((1 - pct) * arr.length);
+    return Utils.findValueByRank(arr, rank);
+  }; // See http://ndevilla.free.fr/median/median/src/wirth.c
+  // Elements of @arr are reordered
+  //
+
+
+  Utils.findValueByRank = function (arr, rank) {
+    if (!arr.length || rank < 1 || rank > arr.length) error("[findValueByRank()] invalid input");
+    rank = Utils.clamp(rank | 0, 1, arr.length);
+    var k = rank - 1,
+        // conv. rank to array index
+    n = arr.length,
+        l = 0,
+        m = n - 1,
+        i,
+        j,
+        val,
+        tmp;
+
+    while (l < m) {
+      val = arr[k];
+      i = l;
+      j = m;
+
+      do {
+        while (arr[i] < val) {
+          i++;
+        }
+
+        while (val < arr[j]) {
+          j--;
+        }
+
+        if (i <= j) {
+          tmp = arr[i];
+          arr[i] = arr[j];
+          arr[j] = tmp;
+          i++;
+          j--;
+        }
+      } while (i <= j);
+
+      if (j < k) l = i;
+      if (k < i) m = j;
+    }
+
+    return arr[k];
+  }; //
+  //
+
+
+  Utils.findMedian = function (arr) {
+    var n = arr.length,
+        rank = Math.floor(n / 2) + 1,
+        median = Utils.findValueByRank(arr, rank);
+
+    if ((n & 1) == 0) {
+      median = (median + Utils.findValueByRank(arr, rank - 1)) / 2;
+    }
+
+    return median;
+  };
+
+  Utils.mean = function (arr) {
+    var count = 0,
+        avg = NaN,
+        val;
+
+    for (var i = 0, n = arr.length; i < n; i++) {
+      val = arr[i];
+      if (isNaN(val)) continue;
+      avg = ++count == 1 ? val : val / count + (count - 1) / count * avg;
+    }
+
+    return avg;
+  }; // Wrapper for DataView class for more convenient reading and writing of
+  //   binary data; Remembers endianness and read/write position.
+  // Has convenience methods for copying from buffers, etc.
+  //
+
+
+  function BinArray(buf, le) {
+    if (Utils.isNumber(buf)) {
+      buf = new ArrayBuffer(buf);
+    } else if (typeof Buffer == 'function' && buf instanceof Buffer) {
+      // Since node 0.10, DataView constructor doesn't accept Buffers,
+      //   so need to copy Buffer to ArrayBuffer
+      buf = BinArray.toArrayBuffer(buf);
+    }
+
+    if (buf instanceof ArrayBuffer == false) {
+      error("BinArray constructor takes an integer, ArrayBuffer or Buffer argument");
+    }
+
+    this._buffer = buf;
+    this._bytes = new Uint8Array(buf);
+    this._view = new DataView(buf);
+    this._idx = 0;
+    this._le = le !== false;
+  }
+
+  BinArray.bufferToUintArray = function (buf, wordLen) {
+    if (wordLen == 4) return new Uint32Array(buf);
+    if (wordLen == 2) return new Uint16Array(buf);
+    if (wordLen == 1) return new Uint8Array(buf);
+    error("BinArray.bufferToUintArray() invalid word length:", wordLen);
+  };
+
+  BinArray.uintSize = function (i) {
+    return i & 1 || i & 2 || 4;
+  };
+
+  BinArray.bufferCopy = function (dest, destId, src, srcId, bytes) {
+    srcId = srcId || 0;
+    bytes = bytes || src.byteLength - srcId;
+    if (dest.byteLength - destId < bytes) error("Buffer overflow; tried to write:", bytes); // When possible, copy buffer data in multi-byte chunks... Added this for faster copying of
+    // shapefile data, which is aligned to 32 bits.
+
+    var wordSize = Math.min(BinArray.uintSize(bytes), BinArray.uintSize(srcId), BinArray.uintSize(dest.byteLength), BinArray.uintSize(destId), BinArray.uintSize(src.byteLength));
+    var srcArr = BinArray.bufferToUintArray(src, wordSize),
+        destArr = BinArray.bufferToUintArray(dest, wordSize),
+        count = bytes / wordSize,
+        i = srcId / wordSize,
+        j = destId / wordSize;
+
+    while (count--) {
+      destArr[j++] = srcArr[i++];
+    }
+
+    return bytes;
+  };
+
+  BinArray.toArrayBuffer = function (src) {
+    var n = src.length,
+        dest = new ArrayBuffer(n),
+        view = new Uint8Array(dest);
+
+    for (var i = 0; i < n; i++) {
+      view[i] = src[i];
+    }
+
+    return dest;
+  }; // Return length in bytes of an ArrayBuffer or Buffer
+  //
+
+
+  BinArray.bufferSize = function (buf) {
+    return buf instanceof ArrayBuffer ? buf.byteLength : buf.length | 0;
+  };
+
+  Utils.buffersAreIdentical = function (a, b) {
+    var alen = BinArray.bufferSize(a);
+    var blen = BinArray.bufferSize(b);
+
+    if (alen != blen) {
+      return false;
+    }
+
+    for (var i = 0; i < alen; i++) {
+      if (a[i] !== b[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  BinArray.prototype = {
+    size: function size() {
+      return this._buffer.byteLength;
+    },
+    littleEndian: function littleEndian() {
+      this._le = true;
+      return this;
+    },
+    bigEndian: function bigEndian() {
+      this._le = false;
+      return this;
+    },
+    buffer: function buffer() {
+      return this._buffer;
+    },
+    bytesLeft: function bytesLeft() {
+      return this._buffer.byteLength - this._idx;
+    },
+    skipBytes: function skipBytes(bytes) {
+      this._idx += bytes + 0;
+      return this;
+    },
+    readUint8: function readUint8() {
+      return this._bytes[this._idx++];
+    },
+    writeUint8: function writeUint8(val) {
+      this._bytes[this._idx++] = val;
+      return this;
+    },
+    readInt8: function readInt8() {
+      return this._view.getInt8(this._idx++);
+    },
+    writeInt8: function writeInt8(val) {
+      this._view.setInt8(this._idx++, val);
+
+      return this;
+    },
+    readUint16: function readUint16() {
+      var val = this._view.getUint16(this._idx, this._le);
+
+      this._idx += 2;
+      return val;
+    },
+    writeUint16: function writeUint16(val) {
+      this._view.setUint16(this._idx, val, this._le);
+
+      this._idx += 2;
+      return this;
+    },
+    readUint32: function readUint32() {
+      var val = this._view.getUint32(this._idx, this._le);
+
+      this._idx += 4;
+      return val;
+    },
+    writeUint32: function writeUint32(val) {
+      this._view.setUint32(this._idx, val, this._le);
+
+      this._idx += 4;
+      return this;
+    },
+    readInt32: function readInt32() {
+      var val = this._view.getInt32(this._idx, this._le);
+
+      this._idx += 4;
+      return val;
+    },
+    writeInt32: function writeInt32(val) {
+      this._view.setInt32(this._idx, val, this._le);
+
+      this._idx += 4;
+      return this;
+    },
+    readFloat64: function readFloat64() {
+      var val = this._view.getFloat64(this._idx, this._le);
+
+      this._idx += 8;
+      return val;
+    },
+    writeFloat64: function writeFloat64(val) {
+      this._view.setFloat64(this._idx, val, this._le);
+
+      this._idx += 8;
+      return this;
+    },
+    // Returns a Float64Array containing @len doubles
+    //
+    readFloat64Array: function readFloat64Array(len) {
+      var bytes = len * 8,
+          i = this._idx,
+          buf = this._buffer,
+          arr; // Inconsistent: first is a view, second a copy...
+
+      if (i % 8 === 0) {
+        arr = new Float64Array(buf, i, len);
+      } else if (buf.slice) {
+        arr = new Float64Array(buf.slice(i, i + bytes));
       } else {
-        swiper.slideTo(slideToIndex);
+        // ie10, etc
+        var dest = new ArrayBuffer(bytes);
+        BinArray.bufferCopy(dest, 0, buf, i, bytes);
+        arr = new Float64Array(dest);
+      }
+
+      this._idx += bytes;
+      return arr;
+    },
+    readUint32Array: function readUint32Array(len) {
+      var arr = [];
+
+      for (var i = 0; i < len; i++) {
+        arr.push(this.readUint32());
+      }
+
+      return arr;
+    },
+    peek: function peek(i) {
+      return this._view.getUint8(i >= 0 ? i : this._idx);
+    },
+    position: function position(i) {
+      if (i != null) {
+        this._idx = i;
+        return this;
+      }
+
+      return this._idx;
+    },
+    readCString: function readCString(fixedLen, asciiOnly) {
+      var str = "",
+          count = fixedLen >= 0 ? fixedLen : this.bytesLeft();
+
+      while (count > 0) {
+        var byteVal = this.readUint8();
+        count--;
+
+        if (byteVal == 0) {
+          break;
+        } else if (byteVal > 127 && asciiOnly) {
+          str = null;
+          break;
+        }
+
+        str += String.fromCharCode(byteVal);
+      }
+
+      if (fixedLen > 0 && count > 0) {
+        this.skipBytes(count);
+      }
+
+      return str;
+    },
+    writeString: function writeString(str, maxLen) {
+      var bytesWritten = 0,
+          charsToWrite = str.length,
+          cval;
+
+      if (maxLen) {
+        charsToWrite = Math.min(charsToWrite, maxLen);
+      }
+
+      for (var i = 0; i < charsToWrite; i++) {
+        cval = str.charCodeAt(i);
+
+        if (cval > 127) {
+          trace("#writeCString() Unicode value beyond ascii range");
+          cval = '?'.charCodeAt(0);
+        }
+
+        this.writeUint8(cval);
+        bytesWritten++;
+      }
+
+      return bytesWritten;
+    },
+    writeCString: function writeCString(str, fixedLen) {
+      var maxChars = fixedLen ? fixedLen - 1 : null,
+          bytesWritten = this.writeString(str, maxChars);
+      this.writeUint8(0); // terminator
+
+      bytesWritten++;
+
+      if (fixedLen) {
+        while (bytesWritten < fixedLen) {
+          this.writeUint8(0);
+          bytesWritten++;
+        }
+      }
+
+      return this;
+    },
+    writeBuffer: function writeBuffer(buf, bytes, startIdx) {
+      this._idx += BinArray.bufferCopy(this._buffer, this._idx, buf, startIdx, bytes);
+      return this;
+    }
+  };
+  /*
+  A simplified version of printf formatting
+  Format codes: %[flags][width][.precision]type
+  supported flags:
+  +   add '+' before positive numbers
+  0   left-pad with '0'
+  '   Add thousands separator
+  width: 1 to many
+  precision: .(1 to many)
+  type:
+  s     string
+  di    integers
+  f     decimal numbers
+  xX    hexidecimal (unsigned)
+  %     literal '%'
+  Examples:
+  code    val    formatted
+  %+d     1      '+1'
+  %4i     32     '  32'
+  %04i    32     '0032'
+  %x      255    'ff'
+  %.2f    0.125  '0.13'
+  %'f     1000   '1,000'
+  */
+  // Usage: Utils.format(formatString, [values])
+  // Tip: When reusing the same format many times, use Utils.formatter() for 5x - 10x better performance
+  //
+
+  Utils.format = function (fmt) {
+    var fn = Utils.formatter(fmt);
+    var str = fn.apply(null, Array.prototype.slice.call(arguments, 1));
+    return str;
+  };
+
+  function formatValue(val, matches) {
+    var flags = matches[1];
+    var padding = matches[2];
+    var decimals = matches[3] ? parseInt(matches[3].substr(1)) : void 0;
+    var type = matches[4];
+    var isString = type == 's',
+        isHex = type == 'x' || type == 'X',
+        isInt = type == 'd' || type == 'i',
+        isFloat = type == 'f',
+        isNumber = !isString;
+    var sign = "",
+        padDigits = 0,
+        isZero = false,
+        isNeg = false;
+    var str, padChar, padStr;
+
+    if (isString) {
+      str = String(val);
+    } else if (isHex) {
+      str = val.toString(16);
+      if (type == 'X') str = str.toUpperCase();
+    } else if (isNumber) {
+      str = Utils.numToStr(val, isInt ? 0 : decimals);
+
+      if (str[0] == '-') {
+        isNeg = true;
+        str = str.substr(1);
+      }
+
+      isZero = parseFloat(str) == 0;
+
+      if (flags.indexOf("'") != -1 || flags.indexOf(',') != -1) {
+        str = Utils.addThousandsSep(str);
+      }
+
+      if (!isZero) {
+        // BUG: sign is added when num rounds to 0
+        if (isNeg) {
+          sign = "\u2212"; // U+2212
+        } else if (flags.indexOf('+') != -1) {
+          sign = '+';
+        }
       }
     }
 
-    var slide = {
-      slideTo: slideTo,
-      slideToLoop: slideToLoop,
-      slideNext: slideNext,
-      slidePrev: slidePrev,
-      slideReset: slideReset,
-      slideToClosest: slideToClosest,
-      slideToClickedSlide: slideToClickedSlide
+    if (padding) {
+      var strLen = str.length + sign.length;
+      var minWidth = parseInt(padding, 10);
+
+      if (strLen < minWidth) {
+        padDigits = minWidth - strLen;
+        padChar = flags.indexOf('0') == -1 ? ' ' : '0';
+        padStr = Utils.repeatString(padChar, padDigits);
+      }
+    }
+
+    if (padDigits == 0) {
+      str = sign + str;
+    } else if (padChar == '0') {
+      str = sign + padStr + str;
+    } else {
+      str = padStr + sign + str;
+    }
+
+    return str;
+  } // Get a function for interpolating formatted values into a string.
+
+
+  Utils.formatter = function (fmt) {
+    var codeRxp = /%([\',+0]*)([1-9]?)((?:\.[1-9])?)([sdifxX%])/g;
+    var literals = [],
+        formatCodes = [],
+        startIdx = 0,
+        prefix = "",
+        matches = codeRxp.exec(fmt),
+        literal;
+
+    while (matches) {
+      literal = fmt.substring(startIdx, codeRxp.lastIndex - matches[0].length);
+
+      if (matches[0] == '%%') {
+        prefix += literal + '%';
+      } else {
+        literals.push(prefix + literal);
+        prefix = '';
+        formatCodes.push(matches);
+      }
+
+      startIdx = codeRxp.lastIndex;
+      matches = codeRxp.exec(fmt);
+    }
+
+    literals.push(prefix + fmt.substr(startIdx));
+    return function () {
+      var str = literals[0],
+          n = arguments.length;
+
+      if (n != formatCodes.length) {
+        error("[format()] Data does not match format string; format:", fmt, "data:", arguments);
+      }
+
+      for (var i = 0; i < n; i++) {
+        str += formatValue(arguments[i], formatCodes[i]) + literals[i + 1];
+      }
+
+      return str;
+    };
+  };
+
+  utils.wildcardToRegExp = function (name) {
+    var rxp = name.split('*').map(function (str) {
+      return utils.regexEscape(str);
+    }).join('.*');
+    return new RegExp('^' + rxp + '$');
+  };
+
+  utils.expandoBuffer = function (constructor, rate) {
+    var capacity = 0,
+        k = rate >= 1 ? rate : 1.2,
+        buf;
+    return function (size) {
+      if (size > capacity) {
+        capacity = Math.ceil(size * k);
+        buf = new constructor(capacity);
+      }
+
+      return buf;
+    };
+  };
+
+  utils.copyElements = function (src, i, dest, j, n, rev) {
+    if (src === dest && j > i) error("copy error");
+    var inc = 1,
+        offs = 0;
+
+    if (rev) {
+      inc = -1;
+      offs = n - 1;
+    }
+
+    for (var k = 0; k < n; k++, offs += inc) {
+      dest[k + j] = src[i + offs];
+    }
+  };
+
+  utils.extendBuffer = function (src, newLen, copyLen) {
+    var len = Math.max(src.length, newLen);
+    var n = copyLen || src.length;
+    var dest = new src.constructor(len);
+    utils.copyElements(src, 0, dest, 0, n);
+    return dest;
+  };
+
+  utils.mergeNames = function (name1, name2) {
+    var merged;
+
+    if (name1 && name2) {
+      merged = utils.findStringPrefix(name1, name2).replace(/[-_]$/, '');
+    }
+
+    return merged || '';
+  };
+
+  utils.findStringPrefix = function (a, b) {
+    var i = 0;
+
+    for (var n = a.length; i < n; i++) {
+      if (a[i] !== b[i]) break;
+    }
+
+    return a.substr(0, i);
+  }; // Similar to isFinite() but does not convert strings or other types
+
+
+  utils.isFiniteNumber = function (val) {
+    return val === 0 || !!val && val.constructor == Number && val !== Infinity && val !== -Infinity;
+  };
+
+  utils.isNonNegNumber = function (val) {
+    return val === 0 || val > 0 && val.constructor == Number;
+  };
+
+  utils.parsePercent = function (o) {
+    var str = String(o);
+    var isPct = str.indexOf('%') > 0;
+    var pct;
+
+    if (isPct) {
+      pct = Number(str.replace('%', '')) / 100;
+    } else {
+      pct = Number(str);
+    }
+
+    if (!(pct >= 0 && pct <= 1)) {
+      stop(utils.format("Invalid percentage: %s", str));
+    }
+
+    return pct;
+  };
+  /*, mapshaper-buffer */
+
+
+  var api = {};
+  var VERSION; // set by build script
+
+  var internal = {
+    VERSION: VERSION,
+    // export version
+    LOGGING: false,
+    context: createContext()
+  }; // Support for timing using T.start() and T.stop("message")
+
+  var T = {
+    stack: [],
+    start: function start() {
+      T.stack.push(+new Date());
+    },
+    stop: function stop(note) {
+      var elapsed = +new Date() - T.stack.pop();
+      var msg = elapsed + 'ms';
+
+      if (note) {
+        msg = note + " " + msg;
+      }
+
+      verbose(msg);
+      return elapsed;
+    }
+  };
+  new Float64Array(1); // workaround for https://github.com/nodejs/node/issues/6006
+
+  internal.runningInBrowser = function () {
+    return !!api.gui;
+  };
+
+  internal.getStateVar = function (key) {
+    return internal.context[key];
+  };
+
+  internal.setStateVar = function (key, val) {
+    internal.context[key] = val;
+  };
+
+  function createContext() {
+    return {
+      DEBUG: false,
+      QUIET: false,
+      VERBOSE: false,
+      defs: {},
+      input_files: []
+    };
+  } // Install a new set of context variables, clear them when an async callback is called.
+  // @cb callback function to wrap
+  // returns wrapped callback function
+
+
+  function createAsyncContext(cb) {
+    internal.context = createContext();
+    return function () {
+      cb.apply(null, utils.toArray(arguments)); // clear context after cb(), so output/errors can be handled in current context
+
+      internal.context = createContext();
+    };
+  } // Save the current context, restore it when an async callback is called
+  // @cb callback function to wrap
+  // returns wrapped callback function
+
+
+  function preserveContext(cb) {
+    var ctx = internal.context;
+    return function () {
+      internal.context = ctx;
+      cb.apply(null, utils.toArray(arguments));
+    };
+  }
+
+  function error() {
+    internal.error.apply(null, utils.toArray(arguments));
+  } // Handle an error caused by invalid input or misuse of API
+
+
+  function stop() {
+    internal.stop.apply(null, utils.toArray(arguments));
+  }
+
+  function UserError(msg) {
+    var err = new Error(msg);
+    err.name = 'UserError';
+    return err;
+  }
+
+  function messageArgs(args) {
+    var arr = utils.toArray(args);
+    var cmd = internal.getStateVar('current_command');
+
+    if (cmd && cmd != 'help') {
+      arr.unshift('[' + cmd + ']');
+    }
+
+    return arr;
+  }
+
+  function message() {
+    internal.message.apply(null, messageArgs(arguments));
+  }
+
+  function verbose() {
+    if (internal.getStateVar('VERBOSE')) {
+      // internal.logArgs(arguments);
+      internal.message.apply(null, messageArgs(arguments));
+    }
+  }
+
+  function debug() {
+    if (internal.getStateVar('DEBUG')) {
+      internal.logArgs(arguments);
+    }
+  }
+
+  function absArcId(arcId) {
+    return arcId >= 0 ? arcId : ~arcId;
+  }
+
+  api.enableLogging = function () {
+    internal.LOGGING = true;
+    return api;
+  };
+
+  api.printError = function (err) {
+    var msg;
+
+    if (utils.isString(err)) {
+      err = new UserError(err);
+    }
+
+    if (internal.LOGGING && err.name == 'UserError') {
+      msg = err.message;
+
+      if (!/Error/.test(msg)) {
+        msg = "Error: " + msg;
+      }
+
+      console.error(messageArgs([msg]).join(' '));
+      internal.message("Run mapshaper -h to view help");
+    } else {
+      // not a user error or logging is disabled -- throw it
+      throw err;
+    }
+  };
+
+  internal.error = function () {
+    var msg = Utils.toArray(arguments).join(' ');
+    throw new Error(msg);
+  };
+
+  internal.stop = function () {
+    throw new UserError(internal.formatLogArgs(arguments));
+  };
+
+  internal.message = function () {
+    internal.logArgs(arguments);
+  };
+
+  internal.formatLogArgs = function (args) {
+    return utils.toArray(args).join(' ');
+  }; // Format an array of (preferably short) strings in columns for console logging.
+
+
+  internal.formatStringsAsGrid = function (arr) {
+    // TODO: variable column width
+    var longest = arr.reduce(function (len, str) {
+      return Math.max(len, str.length);
+    }, 0),
+        colWidth = longest + 2,
+        perLine = Math.floor(80 / colWidth) || 1;
+    return arr.reduce(function (memo, name, i) {
+      var col = i % perLine;
+      if (i > 0 && col === 0) memo += '\n';
+
+      if (col < perLine - 1) {
+        // right-pad all but rightmost column
+        name = utils.rpad(name, colWidth - 2, ' ');
+      }
+
+      return memo + '  ' + name;
+    }, '');
+  };
+
+  internal.logArgs = function (args) {
+    if (internal.LOGGING && !internal.getStateVar('QUIET') && utils.isArrayLike(args)) {
+      (console.error || console.log).call(console, internal.formatLogArgs(args));
+    }
+  };
+
+  internal.getWorldBounds = function (e) {
+    e = utils.isFiniteNumber(e) ? e : 1e-10;
+    return [-180 + e, -90 + e, 180 - e, 90 - e];
+  };
+
+  internal.probablyDecimalDegreeBounds = function (b) {
+    var world = internal.getWorldBounds(-1),
+        // add a bit of excess
+    bbox = b instanceof Bounds ? b.toArray() : b;
+    return containsBounds(world, bbox);
+  };
+
+  internal.clampToWorldBounds = function (b) {
+    var bbox = b instanceof Bounds ? b.toArray() : b;
+    return new Bounds().setBounds(Math.max(bbox[0], -180), Math.max(bbox[1], -90), Math.min(bbox[2], 180), Math.min(bbox[3], 90));
+  };
+
+  internal.layerHasGeometry = function (lyr) {
+    return internal.layerHasPaths(lyr) || internal.layerHasPoints(lyr);
+  };
+
+  internal.layerHasPaths = function (lyr) {
+    return (lyr.geometry_type == 'polygon' || lyr.geometry_type == 'polyline') && internal.layerHasNonNullShapes(lyr);
+  };
+
+  internal.layerHasPoints = function (lyr) {
+    return lyr.geometry_type == 'point' && internal.layerHasNonNullShapes(lyr);
+  };
+
+  internal.layerHasNonNullShapes = function (lyr) {
+    return utils.some(lyr.shapes || [], function (shp) {
+      return !!shp;
+    });
+  };
+
+  internal.requireDataFields = function (table, fields) {
+    if (!table) {
+      stop("Missing attribute data");
+    }
+
+    var dataFields = table.getFields(),
+        missingFields = utils.difference(fields, dataFields);
+
+    if (missingFields.length > 0) {
+      stop("Table is missing one or more fields:\n", missingFields, "\nExisting fields:", '\n' + internal.formatStringsAsGrid(dataFields));
+    }
+  };
+
+  internal.requirePolylineLayer = function (lyr, msg) {
+    if (!lyr || lyr.geometry_type !== 'polyline') stop(msg || "Expected a polyline layer");
+  };
+
+  internal.requirePolygonLayer = function (lyr, msg) {
+    if (!lyr || lyr.geometry_type !== 'polygon') stop(msg || "Expected a polygon layer");
+  };
+
+  internal.requirePathLayer = function (lyr, msg) {
+    if (!lyr || !internal.layerHasPaths(lyr)) stop(msg || "Expected a polygon or polyline layer");
+  };
+
+  var R = 6378137;
+  var D2R = Math.PI / 180; // Equirectangular projection
+
+  function degreesToMeters(deg) {
+    return deg * D2R * R;
+  }
+
+  function distance3D(ax, ay, az, bx, by, bz) {
+    var dx = ax - bx,
+        dy = ay - by,
+        dz = az - bz;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
+
+  function distanceSq(ax, ay, bx, by) {
+    var dx = ax - bx,
+        dy = ay - by;
+    return dx * dx + dy * dy;
+  }
+
+  function distance2D(ax, ay, bx, by) {
+    var dx = ax - bx,
+        dy = ay - by;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function distanceSq3D(ax, ay, az, bx, by, bz) {
+    var dx = ax - bx,
+        dy = ay - by,
+        dz = az - bz;
+    return dx * dx + dy * dy + dz * dz;
+  } // Return id of nearest point to x, y, among x0, y0, x1, y1, ...
+
+
+  function nearestPoint(x, y, x0, y0) {
+    var minIdx = -1,
+        minDist = Infinity,
+        dist;
+
+    for (var i = 0, j = 2, n = arguments.length; j < n; i++, j += 2) {
+      dist = distanceSq(x, y, arguments[j], arguments[j + 1]);
+
+      if (dist < minDist) {
+        minDist = dist;
+        minIdx = i;
+      }
+    }
+
+    return minIdx;
+  } // atan2() makes this function fairly slow, replaced by ~2x faster formula
+
+
+  function innerAngle2(ax, ay, bx, by, cx, cy) {
+    var a1 = Math.atan2(ay - by, ax - bx),
+        a2 = Math.atan2(cy - by, cx - bx),
+        a3 = Math.abs(a1 - a2);
+
+    if (a3 > Math.PI) {
+      a3 = 2 * Math.PI - a3;
+    }
+
+    return a3;
+  } // Return angle abc in range [0, 2PI) or NaN if angle is invalid
+  // (e.g. if length of ab or bc is 0)
+
+  /*
+  function signedAngle2(ax, ay, bx, by, cx, cy) {
+  var a1 = Math.atan2(ay - by, ax - bx),
+    a2 = Math.atan2(cy - by, cx - bx),
+    a3 = a2 - a1;
+  if (ax == bx && ay == by || bx == cx && by == cy) {
+  a3 = NaN; // Use NaN for invalid angles
+  } else if (a3 >= Math.PI * 2) {
+  a3 = 2 * Math.PI - a3;
+  } else if (a3 < 0) {
+  a3 = a3 + 2 * Math.PI;
+  }
+  return a3;
+  }
+  */
+
+
+  function standardAngle(a) {
+    var twoPI = Math.PI * 2;
+
+    while (a < 0) {
+      a += twoPI;
+    }
+
+    while (a >= twoPI) {
+      a -= twoPI;
+    }
+
+    return a;
+  }
+
+  function signedAngle(ax, ay, bx, by, cx, cy) {
+    if (ax == bx && ay == by || bx == cx && by == cy) {
+      return NaN; // Use NaN for invalid angles
+    }
+
+    var abx = ax - bx,
+        aby = ay - by,
+        cbx = cx - bx,
+        cby = cy - by,
+        dotp = abx * cbx + aby * cby,
+        crossp = abx * cby - aby * cbx,
+        a = Math.atan2(crossp, dotp);
+    return standardAngle(a);
+  } // Calc bearing in radians at lng1, lat1
+
+
+  function bearing(lng1, lat1, lng2, lat2) {
+    var D2R = Math.PI / 180;
+    lng1 *= D2R;
+    lng2 *= D2R;
+    lat1 *= D2R;
+    lat2 *= D2R;
+    var y = Math.sin(lng2 - lng1) * Math.cos(lat2),
+        x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lng2 - lng1);
+    return Math.atan2(y, x);
+  } // Calc angle of turn from ab to bc, in range [0, 2PI)
+  // Receive lat-lng values in degrees
+
+
+  function signedAngleSph(alng, alat, blng, blat, clng, clat) {
+    if (alng == blng && alat == blat || blng == clng && blat == clat) {
+      return NaN;
+    }
+
+    var b1 = bearing(blng, blat, alng, alat),
+        // calc bearing at b
+    b2 = bearing(blng, blat, clng, clat),
+        a = Math.PI * 2 + b1 - b2;
+    return standardAngle(a);
+  }
+  /*
+  // Convert arrays of lng and lat coords (xsrc, ysrc) into
+  // x, y, z coords (meters) on the most common spherical Earth model.
+  //
+  function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
+  var deg2rad = Math.PI / 180,
+    r = R;
+  for (var i=0, len=xsrc.length; i<len; i++) {
+  var lng = xsrc[i] * deg2rad,
+      lat = ysrc[i] * deg2rad,
+      cosLat = Math.cos(lat);
+  xbuf[i] = Math.cos(lng) * cosLat * r;
+  ybuf[i] = Math.sin(lng) * cosLat * r;
+  zbuf[i] = Math.sin(lat) * r;
+  }
+  }
+  */
+  // Convert arrays of lng and lat coords (xsrc, ysrc) into
+  // x, y, z coords (meters) on the most common spherical Earth model.
+  //
+
+
+  function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
+    var p = [];
+
+    for (var i = 0, len = xsrc.length; i < len; i++) {
+      lngLatToXYZ(xsrc[i], ysrc[i], p);
+      xbuf[i] = p[0];
+      ybuf[i] = p[1];
+      zbuf[i] = p[2];
+    }
+  }
+
+  function xyzToLngLat(x, y, z, p) {
+    var d = distance3D(0, 0, 0, x, y, z); // normalize
+
+    var lat = Math.asin(z / d) / D2R;
+    var lng = Math.atan2(y / d, x / d) / D2R;
+    p[0] = lng;
+    p[1] = lat;
+  }
+
+  function lngLatToXYZ(lng, lat, p) {
+    var cosLat;
+    lng *= D2R;
+    lat *= D2R;
+    cosLat = Math.cos(lat);
+    p[0] = Math.cos(lng) * cosLat * R;
+    p[1] = Math.sin(lng) * cosLat * R;
+    p[2] = Math.sin(lat) * R;
+  } // Haversine formula (well conditioned at small distances)
+
+
+  function sphericalDistance(lam1, phi1, lam2, phi2) {
+    var dlam = lam2 - lam1,
+        dphi = phi2 - phi1,
+        a = Math.sin(dphi / 2) * Math.sin(dphi / 2) + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlam / 2) * Math.sin(dlam / 2),
+        c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return c;
+  } // Receive: coords in decimal degrees;
+  // Return: distance in meters on spherical earth
+
+
+  function greatCircleDistance(lng1, lat1, lng2, lat2) {
+    var D2R = Math.PI / 180,
+        dist = sphericalDistance(lng1 * D2R, lat1 * D2R, lng2 * D2R, lat2 * D2R);
+    return dist * R;
+  } // TODO: make this safe for small angles
+
+
+  function innerAngle(ax, ay, bx, by, cx, cy) {
+    var ab = distance2D(ax, ay, bx, by),
+        bc = distance2D(bx, by, cx, cy),
+        theta,
+        dotp;
+
+    if (ab === 0 || bc === 0) {
+      theta = 0;
+    } else {
+      dotp = ((ax - bx) * (cx - bx) + (ay - by) * (cy - by)) / (ab * bc);
+
+      if (dotp >= 1 - 1e-14) {
+        theta = 0;
+      } else if (dotp <= -1 + 1e-14) {
+        theta = Math.PI;
+      } else {
+        theta = Math.acos(dotp); // consider using other formula at small dp
+      }
+    }
+
+    return theta;
+  }
+
+  function innerAngle3D(ax, ay, az, bx, by, bz, cx, cy, cz) {
+    var ab = distance3D(ax, ay, az, bx, by, bz),
+        bc = distance3D(bx, by, bz, cx, cy, cz),
+        theta,
+        dotp;
+
+    if (ab === 0 || bc === 0) {
+      theta = 0;
+    } else {
+      dotp = ((ax - bx) * (cx - bx) + (ay - by) * (cy - by) + (az - bz) * (cz - bz)) / (ab * bc);
+
+      if (dotp >= 1) {
+        theta = 0;
+      } else if (dotp <= -1) {
+        theta = Math.PI;
+      } else {
+        theta = Math.acos(dotp); // consider using other formula at small dp
+      }
+    }
+
+    return theta;
+  }
+
+  function triangleArea(ax, ay, bx, by, cx, cy) {
+    var area = Math.abs(((ay - cy) * (bx - cx) + (by - cy) * (cx - ax)) / 2);
+    return area;
+  }
+
+  function detSq(ax, ay, bx, by, cx, cy) {
+    var det = ax * by - ax * cy + bx * cy - bx * ay + cx * ay - cx * by;
+    return det * det;
+  }
+
+  function cosine(ax, ay, bx, by, cx, cy) {
+    var den = distance2D(ax, ay, bx, by) * distance2D(bx, by, cx, cy),
+        cos = 0;
+
+    if (den > 0) {
+      cos = ((ax - bx) * (cx - bx) + (ay - by) * (cy - by)) / den;
+      if (cos > 1) cos = 1; // handle fp rounding error
+      else if (cos < -1) cos = -1;
+    }
+
+    return cos;
+  }
+
+  function cosine3D(ax, ay, az, bx, by, bz, cx, cy, cz) {
+    var den = distance3D(ax, ay, az, bx, by, bz) * distance3D(bx, by, bz, cx, cy, cz),
+        cos = 0;
+
+    if (den > 0) {
+      cos = ((ax - bx) * (cx - bx) + (ay - by) * (cy - by) + (az - bz) * (cz - bz)) / den;
+      if (cos > 1) cos = 1; // handle fp rounding error
+      else if (cos < -1) cos = -1;
+    }
+
+    return cos;
+  }
+
+  function triangleArea3D(ax, ay, az, bx, by, bz, cx, cy, cz) {
+    var area = 0.5 * Math.sqrt(detSq(ax, ay, bx, by, cx, cy) + detSq(ax, az, bx, bz, cx, cz) + detSq(ay, az, by, bz, cy, cz));
+    return area;
+  } // Given point B and segment AC, return the squared distance from B to the
+  // nearest point on AC
+  // Receive the squared length of segments AB, BC, AC
+  // TODO: analyze rounding error. Returns 0 for these coordinates:
+  //    P: [2, 3 - 1e-8]  AB: [[1, 3], [3, 3]]
+  //
+
+
+  function apexDistSq(ab2, bc2, ac2) {
+    var dist2;
+
+    if (ac2 === 0) {
+      dist2 = ab2;
+    } else if (ab2 >= bc2 + ac2) {
+      dist2 = bc2;
+    } else if (bc2 >= ab2 + ac2) {
+      dist2 = ab2;
+    } else {
+      var dval = ab2 + ac2 - bc2;
+      dist2 = ab2 - dval * dval / ac2 * 0.25;
+    }
+
+    if (dist2 < 0) {
+      dist2 = 0;
+    }
+
+    return dist2;
+  }
+
+  function pointSegDistSq(ax, ay, bx, by, cx, cy) {
+    var ab2 = distanceSq(ax, ay, bx, by),
+        ac2 = distanceSq(ax, ay, cx, cy),
+        bc2 = distanceSq(bx, by, cx, cy);
+    return apexDistSq(ab2, ac2, bc2);
+  }
+
+  function pointSegDistSq3D(ax, ay, az, bx, by, bz, cx, cy, cz) {
+    var ab2 = distanceSq3D(ax, ay, az, bx, by, bz),
+        ac2 = distanceSq3D(ax, ay, az, cx, cy, cz),
+        bc2 = distanceSq3D(bx, by, bz, cx, cy, cz);
+    return apexDistSq(ab2, ac2, bc2);
+  }
+
+  internal.calcArcBounds = function (xx, yy, start, len) {
+    var i = start | 0,
+        n = isNaN(len) ? xx.length - i : len + i,
+        x,
+        y,
+        xmin,
+        ymin,
+        xmax,
+        ymax;
+
+    if (n > 0) {
+      xmin = xmax = xx[i];
+      ymin = ymax = yy[i];
+    }
+
+    for (i++; i < n; i++) {
+      x = xx[i];
+      y = yy[i];
+      if (x < xmin) xmin = x;
+      if (x > xmax) xmax = x;
+      if (y < ymin) ymin = y;
+      if (y > ymax) ymax = y;
+    }
+
+    return [xmin, ymin, xmax, ymax];
+  };
+
+  internal.reversePathCoords = function (arr, start, len) {
+    var i = start,
+        j = start + len - 1,
+        tmp;
+
+    while (i < j) {
+      tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+      i++;
+      j--;
+    }
+  }; // merge B into A
+
+
+  function mergeBounds(a, b) {
+    if (b[0] < a[0]) a[0] = b[0];
+    if (b[1] < a[1]) a[1] = b[1];
+    if (b[2] > a[2]) a[2] = b[2];
+    if (b[3] > a[3]) a[3] = b[3];
+  }
+
+  function containsBounds(a, b) {
+    return a[0] <= b[0] && a[2] >= b[2] && a[1] <= b[1] && a[3] >= b[3];
+  }
+
+  function boundsArea(b) {
+    return (b[2] - b[0]) * (b[3] - b[1]);
+  } // export functions so they can be tested
+
+
+  var geom = {
+    R: R,
+    D2R: D2R,
+    degreesToMeters: degreesToMeters,
+    segmentHit: segmentHit,
+    segmentIntersection: segmentIntersection,
+    distanceSq: distanceSq,
+    distance2D: distance2D,
+    distance3D: distance3D,
+    innerAngle: innerAngle,
+    innerAngle2: innerAngle2,
+    signedAngle: signedAngle,
+    bearing: bearing,
+    signedAngleSph: signedAngleSph,
+    standardAngle: standardAngle,
+    convLngLatToSph: convLngLatToSph,
+    lngLatToXYZ: lngLatToXYZ,
+    xyzToLngLat: xyzToLngLat,
+    sphericalDistance: sphericalDistance,
+    greatCircleDistance: greatCircleDistance,
+    pointSegDistSq: pointSegDistSq,
+    pointSegDistSq3D: pointSegDistSq3D,
+    innerAngle3D: innerAngle3D,
+    triangleArea: triangleArea,
+    triangleArea3D: triangleArea3D,
+    cosine: cosine,
+    cosine3D: cosine3D
+  }; // Coordinate iterators
+  //
+  // Interface:
+  //   properties: x, y
+  //   method: hasNext()
+  //
+  // Usage:
+  //   while (iter.hasNext()) {
+  //     iter.x, iter.y; // do something w/ x & y
+  //   }
+  // Iterate over an array of [x, y] points
+  //
+
+  function PointIter(points) {
+    var n = points.length,
+        i = 0,
+        iter = {
+      x: 0,
+      y: 0,
+      hasNext: hasNext
     };
 
-    function loopCreate() {
-      var swiper = this;
-      var params = swiper.params;
-      var $wrapperEl = swiper.$wrapperEl; // Remove duplicated slides
-
-      $wrapperEl.children("." + params.slideClass + "." + params.slideDuplicateClass).remove();
-      var slides = $wrapperEl.children("." + params.slideClass);
-
-      if (params.loopFillGroupWithBlank) {
-        var blankSlidesNum = params.slidesPerGroup - slides.length % params.slidesPerGroup;
-
-        if (blankSlidesNum !== params.slidesPerGroup) {
-          for (var i = 0; i < blankSlidesNum; i += 1) {
-            var blankNode = $(doc.createElement('div')).addClass(params.slideClass + " " + params.slideBlankClass);
-            $wrapperEl.append(blankNode);
-          }
-
-          slides = $wrapperEl.children("." + params.slideClass);
-        }
-      }
-
-      if (params.slidesPerView === 'auto' && !params.loopedSlides) {
-        params.loopedSlides = slides.length;
-      }
-
-      swiper.loopedSlides = parseInt(params.loopedSlides || params.slidesPerView, 10);
-      swiper.loopedSlides += params.loopAdditionalSlides;
-
-      if (swiper.loopedSlides > slides.length) {
-        swiper.loopedSlides = slides.length;
-      }
-
-      var prependSlides = [];
-      var appendSlides = [];
-      slides.each(function (index, el) {
-        var slide = $(el);
-
-        if (index < swiper.loopedSlides) {
-          appendSlides.push(el);
-        }
-
-        if (index < slides.length && index >= slides.length - swiper.loopedSlides) {
-          prependSlides.push(el);
-        }
-
-        slide.attr('data-swiper-slide-index', index);
-      });
-
-      for (var i$1 = 0; i$1 < appendSlides.length; i$1 += 1) {
-        $wrapperEl.append($(appendSlides[i$1].cloneNode(true)).addClass(params.slideDuplicateClass));
-      }
-
-      for (var i$2 = prependSlides.length - 1; i$2 >= 0; i$2 -= 1) {
-        $wrapperEl.prepend($(prependSlides[i$2].cloneNode(true)).addClass(params.slideDuplicateClass));
-      }
+    function hasNext() {
+      if (i >= n) return false;
+      iter.x = points[i][0];
+      iter.y = points[i][1];
+      i++;
+      return true;
     }
 
-    function loopFix() {
-      var swiper = this;
-      var params = swiper.params;
-      var activeIndex = swiper.activeIndex;
-      var slides = swiper.slides;
-      var loopedSlides = swiper.loopedSlides;
-      var allowSlidePrev = swiper.allowSlidePrev;
-      var allowSlideNext = swiper.allowSlideNext;
-      var snapGrid = swiper.snapGrid;
-      var rtl = swiper.rtlTranslate;
-      var newIndex;
-      swiper.allowSlidePrev = true;
-      swiper.allowSlideNext = true;
-      var snapTranslate = -snapGrid[activeIndex];
-      var diff = snapTranslate - swiper.getTranslate(); // Fix For Negative Oversliding
+    return iter;
+  } // Constructor takes arrays of coords: xx, yy, zz (optional)
+  //
 
-      if (activeIndex < loopedSlides) {
-        newIndex = slides.length - loopedSlides * 3 + activeIndex;
-        newIndex += loopedSlides;
-        var slideChanged = swiper.slideTo(newIndex, 0, false, true);
 
-        if (slideChanged && diff !== 0) {
-          swiper.setTranslate((rtl ? -swiper.translate : swiper.translate) - diff);
-        }
-      } else if (params.slidesPerView === 'auto' && activeIndex >= loopedSlides * 2 || activeIndex >= slides.length - loopedSlides) {
-        // Fix For Positive Oversliding
-        newIndex = -slides.length + activeIndex + loopedSlides;
-        newIndex += loopedSlides;
-        var slideChanged$1 = swiper.slideTo(newIndex, 0, false, true);
+  function ArcIter(xx, yy) {
+    this._i = 0;
+    this._n = 0;
+    this._inc = 1;
+    this._xx = xx;
+    this._yy = yy;
+    this.i = 0;
+    this.x = 0;
+    this.y = 0;
+  }
 
-        if (slideChanged$1 && diff !== 0) {
-          swiper.setTranslate((rtl ? -swiper.translate : swiper.translate) - diff);
-        }
+  ArcIter.prototype.init = function (i, len, fw) {
+    if (fw) {
+      this._i = i;
+      this._inc = 1;
+    } else {
+      this._i = i + len - 1;
+      this._inc = -1;
+    }
+
+    this._n = len;
+    return this;
+  };
+
+  ArcIter.prototype.hasNext = function () {
+    var i = this._i;
+
+    if (this._n > 0) {
+      this._i = i + this._inc;
+      this.x = this._xx[i];
+      this.y = this._yy[i];
+      this.i = i;
+      this._n--;
+      return true;
+    }
+
+    return false;
+  };
+
+  function FilteredArcIter(xx, yy, zz) {
+    var _zlim = 0,
+        _i = 0,
+        _inc = 1,
+        _stop = 0;
+
+    this.init = function (i, len, fw, zlim) {
+      _zlim = zlim || 0;
+
+      if (fw) {
+        _i = i;
+        _inc = 1;
+        _stop = i + len;
+      } else {
+        _i = i + len - 1;
+        _inc = -1;
+        _stop = i - 1;
       }
 
-      swiper.allowSlidePrev = allowSlidePrev;
-      swiper.allowSlideNext = allowSlideNext;
-    }
-
-    function loopDestroy() {
-      var swiper = this;
-      var $wrapperEl = swiper.$wrapperEl;
-      var params = swiper.params;
-      var slides = swiper.slides;
-      $wrapperEl.children("." + params.slideClass + "." + params.slideDuplicateClass).remove();
-      slides.removeAttr('data-swiper-slide-index');
-    }
-
-    var loop = {
-      loopCreate: loopCreate,
-      loopFix: loopFix,
-      loopDestroy: loopDestroy
+      return this;
     };
 
-    function setGrabCursor(moving) {
-      var swiper = this;
+    this.hasNext = function () {
+      // using local vars is significantly faster when skipping many points
+      var zarr = zz,
+          i = _i,
+          j = i,
+          zlim = _zlim,
+          stop = _stop,
+          inc = _inc;
+      if (i == stop) return false;
 
-      if (Support.touch || !swiper.params.simulateTouch || swiper.params.watchOverflow && swiper.isLocked) {
-        return;
-      }
+      do {
+        j += inc;
+      } while (j != stop && zarr[j] < zlim);
 
-      var el = swiper.el;
-      el.style.cursor = 'move';
-      el.style.cursor = moving ? '-webkit-grabbing' : '-webkit-grab';
-      el.style.cursor = moving ? '-moz-grabbin' : '-moz-grab';
-      el.style.cursor = moving ? 'grabbing' : 'grab';
-    }
-
-    function unsetGrabCursor() {
-      var swiper = this;
-
-      if (Support.touch || swiper.params.watchOverflow && swiper.isLocked) {
-        return;
-      }
-
-      swiper.el.style.cursor = '';
-    }
-
-    var grabCursor = {
-      setGrabCursor: setGrabCursor,
-      unsetGrabCursor: unsetGrabCursor
+      _i = j;
+      this.x = xx[i];
+      this.y = yy[i];
+      this.i = i;
+      return true;
     };
+  } // Iterate along a path made up of one or more arcs.
+  //
 
-    function appendSlide(slides) {
-      var swiper = this;
-      var $wrapperEl = swiper.$wrapperEl;
-      var params = swiper.params;
 
-      if (params.loop) {
-        swiper.loopDestroy();
-      }
+  function ShapeIter(arcs) {
+    this._arcs = arcs;
+    this._i = 0;
+    this._n = 0;
+    this.x = 0;
+    this.y = 0;
+  }
 
-      if (_typeof(slides) === 'object' && 'length' in slides) {
-        for (var i = 0; i < slides.length; i += 1) {
-          if (slides[i]) {
-            $wrapperEl.append(slides[i]);
-          }
-        }
-      } else {
-        $wrapperEl.append(slides);
-      }
+  ShapeIter.prototype.hasNext = function () {
+    var arc = this._arc;
 
-      if (params.loop) {
-        swiper.loopCreate();
-      }
-
-      if (!(params.observer && Support.observer)) {
-        swiper.update();
-      }
+    if (this._i < this._n === false) {
+      return false;
     }
 
-    function prependSlide(slides) {
-      var swiper = this;
-      var params = swiper.params;
-      var $wrapperEl = swiper.$wrapperEl;
-      var activeIndex = swiper.activeIndex;
-
-      if (params.loop) {
-        swiper.loopDestroy();
-      }
-
-      var newActiveIndex = activeIndex + 1;
-
-      if (_typeof(slides) === 'object' && 'length' in slides) {
-        for (var i = 0; i < slides.length; i += 1) {
-          if (slides[i]) {
-            $wrapperEl.prepend(slides[i]);
-          }
-        }
-
-        newActiveIndex = activeIndex + slides.length;
-      } else {
-        $wrapperEl.prepend(slides);
-      }
-
-      if (params.loop) {
-        swiper.loopCreate();
-      }
-
-      if (!(params.observer && Support.observer)) {
-        swiper.update();
-      }
-
-      swiper.slideTo(newActiveIndex, 0, false);
+    if (arc.hasNext()) {
+      this.x = arc.x;
+      this.y = arc.y;
+      return true;
     }
 
-    function addSlide(index, slides) {
-      var swiper = this;
-      var $wrapperEl = swiper.$wrapperEl;
-      var params = swiper.params;
-      var activeIndex = swiper.activeIndex;
-      var activeIndexBuffer = activeIndex;
+    this.nextArc();
+    return this.hasNext();
+  };
 
-      if (params.loop) {
-        activeIndexBuffer -= swiper.loopedSlides;
-        swiper.loopDestroy();
-        swiper.slides = $wrapperEl.children("." + params.slideClass);
-      }
+  ShapeIter.prototype.init = function (ids) {
+    this._ids = ids;
+    this._n = ids.length;
+    this.reset();
+    return this;
+  };
 
-      var baseLength = swiper.slides.length;
+  ShapeIter.prototype.nextArc = function () {
+    var i = this._i + 1;
 
-      if (index <= 0) {
-        swiper.prependSlide(slides);
-        return;
-      } else if (index >= baseLength) {
-        swiper.appendSlide(slides);
-        return;
-      }
-
-      var newActiveIndex = activeIndexBuffer > index ? activeIndexBuffer + 1 : activeIndexBuffer;
-      var slidesBuffer = [];
-
-      for (var i = baseLength - 1; i >= index; i -= 1) {
-        var currentSlide = swiper.slides.eq(i);
-        currentSlide.remove();
-        slidesBuffer.unshift(currentSlide);
-      }
-
-      if (_typeof(slides) === 'object' && 'length' in slides) {
-        for (var i$1 = 0; i$1 < slides.length; i$1 += 1) {
-          if (slides[i$1]) {
-            $wrapperEl.append(slides[i$1]);
-          }
-        }
-
-        newActiveIndex = activeIndexBuffer > index ? activeIndexBuffer + slides.length : activeIndexBuffer;
-      } else {
-        $wrapperEl.append(slides);
-      }
-
-      for (var i$2 = 0; i$2 < slidesBuffer.length; i$2 += 1) {
-        $wrapperEl.append(slidesBuffer[i$2]);
-      }
-
-      if (params.loop) {
-        swiper.loopCreate();
-      }
-
-      if (!(params.observer && Support.observer)) {
-        swiper.update();
-      }
-
-      if (params.loop) {
-        swiper.slideTo(newActiveIndex + swiper.loopedSlides, 0, false);
-      } else {
-        swiper.slideTo(newActiveIndex, 0, false);
-      }
+    if (i < this._n) {
+      this._arc = this._arcs.getArcIter(this._ids[i]);
+      if (i > 0) this._arc.hasNext(); // skip first point
     }
 
-    function removeSlide(slidesIndexes) {
-      var swiper = this;
-      var params = swiper.params;
-      var $wrapperEl = swiper.$wrapperEl;
-      var activeIndex = swiper.activeIndex;
-      var activeIndexBuffer = activeIndex;
+    this._i = i;
+  };
 
-      if (params.loop) {
-        activeIndexBuffer -= swiper.loopedSlides;
-        swiper.loopDestroy();
-        swiper.slides = $wrapperEl.children("." + params.slideClass);
-      }
+  ShapeIter.prototype.reset = function () {
+    this._i = -1;
+    this.nextArc();
+  }; // An interface for managing a collection of paths.
+  // Constructor signatures:
+  //
+  // ArcCollection(arcs)
+  //    arcs is an array of polyline arcs; each arc is an array of points: [[x0, y0], [x1, y1], ... ]
+  //
+  // ArcCollection(nn, xx, yy)
+  //    nn is an array of arc lengths; xx, yy are arrays of concatenated coords;
 
-      var newActiveIndex = activeIndexBuffer;
-      var indexToRemove;
 
-      if (_typeof(slidesIndexes) === 'object' && 'length' in slidesIndexes) {
-        for (var i = 0; i < slidesIndexes.length; i += 1) {
-          indexToRemove = slidesIndexes[i];
+  function ArcCollection() {
+    var _xx,
+        _yy,
+        // coordinates data
+    _ii,
+        _nn,
+        // indexes, sizes
+    _zz,
+        _zlimit = 0,
+        // simplification
+    _bb,
+        _allBounds,
+        // bounding boxes
+    _arcIter,
+        _filteredArcIter; // path iterators
 
-          if (swiper.slides[indexToRemove]) {
-            swiper.slides.eq(indexToRemove).remove();
-          }
 
-          if (indexToRemove < newActiveIndex) {
-            newActiveIndex -= 1;
-          }
-        }
-
-        newActiveIndex = Math.max(newActiveIndex, 0);
-      } else {
-        indexToRemove = slidesIndexes;
-
-        if (swiper.slides[indexToRemove]) {
-          swiper.slides.eq(indexToRemove).remove();
-        }
-
-        if (indexToRemove < newActiveIndex) {
-          newActiveIndex -= 1;
-        }
-
-        newActiveIndex = Math.max(newActiveIndex, 0);
-      }
-
-      if (params.loop) {
-        swiper.loopCreate();
-      }
-
-      if (!(params.observer && Support.observer)) {
-        swiper.update();
-      }
-
-      if (params.loop) {
-        swiper.slideTo(newActiveIndex + swiper.loopedSlides, 0, false);
-      } else {
-        swiper.slideTo(newActiveIndex, 0, false);
-      }
+    if (arguments.length == 1) {
+      initLegacyArcs(arguments[0]); // want to phase this out
+    } else if (arguments.length == 3) {
+      initXYData.apply(this, arguments);
+    } else {
+      error("ArcCollection() Invalid arguments");
     }
 
-    function removeAllSlides() {
-      var swiper = this;
-      var slidesIndexes = [];
+    function initLegacyArcs(arcs) {
+      var xx = [],
+          yy = [];
+      var nn = arcs.map(function (points) {
+        var n = points ? points.length : 0;
 
-      for (var i = 0; i < swiper.slides.length; i += 1) {
-        slidesIndexes.push(i);
-      }
-
-      swiper.removeSlide(slidesIndexes);
-    }
-
-    var manipulation = {
-      appendSlide: appendSlide,
-      prependSlide: prependSlide,
-      addSlide: addSlide,
-      removeSlide: removeSlide,
-      removeAllSlides: removeAllSlides
-    };
-
-    var Device = function Device() {
-      var ua = win.navigator.userAgent;
-      var device = {
-        ios: false,
-        android: false,
-        androidChrome: false,
-        desktop: false,
-        windows: false,
-        iphone: false,
-        ipod: false,
-        ipad: false,
-        cordova: win.cordova || win.phonegap,
-        phonegap: win.cordova || win.phonegap
-      };
-      var windows = ua.match(/(Windows Phone);?[\s\/]+([\d.]+)?/); // eslint-disable-line
-
-      var android = ua.match(/(Android);?[\s\/]+([\d.]+)?/); // eslint-disable-line
-
-      var ipad = ua.match(/(iPad).*OS\s([\d_]+)/);
-      var ipod = ua.match(/(iPod)(.*OS\s([\d_]+))?/);
-      var iphone = !ipad && ua.match(/(iPhone\sOS|iOS)\s([\d_]+)/); // Windows
-
-      if (windows) {
-        device.os = 'windows';
-        device.osVersion = windows[2];
-        device.windows = true;
-      } // Android
-
-
-      if (android && !windows) {
-        device.os = 'android';
-        device.osVersion = android[2];
-        device.android = true;
-        device.androidChrome = ua.toLowerCase().indexOf('chrome') >= 0;
-      }
-
-      if (ipad || iphone || ipod) {
-        device.os = 'ios';
-        device.ios = true;
-      } // iOS
-
-
-      if (iphone && !ipod) {
-        device.osVersion = iphone[2].replace(/_/g, '.');
-        device.iphone = true;
-      }
-
-      if (ipad) {
-        device.osVersion = ipad[2].replace(/_/g, '.');
-        device.ipad = true;
-      }
-
-      if (ipod) {
-        device.osVersion = ipod[3] ? ipod[3].replace(/_/g, '.') : null;
-        device.iphone = true;
-      } // iOS 8+ changed UA
-
-
-      if (device.ios && device.osVersion && ua.indexOf('Version/') >= 0) {
-        if (device.osVersion.split('.')[0] === '10') {
-          device.osVersion = ua.toLowerCase().split('version/')[1].split(' ')[0];
+        for (var i = 0; i < n; i++) {
+          xx.push(points[i][0]);
+          yy.push(points[i][1]);
         }
-      } // Desktop
 
-
-      device.desktop = !(device.os || device.android || device.webView); // Webview
-
-      device.webView = (iphone || ipad || ipod) && ua.match(/.*AppleWebKit(?!.*Safari)/i); // Minimal UI
-
-      if (device.os && device.os === 'ios') {
-        var osVersionArr = device.osVersion.split('.');
-        var metaViewport = doc.querySelector('meta[name="viewport"]');
-        device.minimalUi = !device.webView && (ipod || iphone) && (osVersionArr[0] * 1 === 7 ? osVersionArr[1] * 1 >= 1 : osVersionArr[0] * 1 > 7) && metaViewport && metaViewport.getAttribute('content').indexOf('minimal-ui') >= 0;
-      } // Pixel Ratio
-
-
-      device.pixelRatio = win.devicePixelRatio || 1; // Export object
-
-      return device;
-    }();
-
-    function onTouchStart(event) {
-      var swiper = this;
-      var data = swiper.touchEventsData;
-      var params = swiper.params;
-      var touches = swiper.touches;
-
-      if (swiper.animating && params.preventIntercationOnTransition) {
-        return;
-      }
-
-      var e = event;
-
-      if (e.originalEvent) {
-        e = e.originalEvent;
-      }
-
-      data.isTouchEvent = e.type === 'touchstart';
-
-      if (!data.isTouchEvent && 'which' in e && e.which === 3) {
-        return;
-      }
-
-      if (data.isTouched && data.isMoved) {
-        return;
-      }
-
-      if (params.noSwiping && $(e.target).closest(params.noSwipingSelector ? params.noSwipingSelector : "." + params.noSwipingClass)[0]) {
-        swiper.allowClick = true;
-        return;
-      }
-
-      if (params.swipeHandler) {
-        if (!$(e).closest(params.swipeHandler)[0]) {
-          return;
-        }
-      }
-
-      touches.currentX = e.type === 'touchstart' ? e.targetTouches[0].pageX : e.pageX;
-      touches.currentY = e.type === 'touchstart' ? e.targetTouches[0].pageY : e.pageY;
-      var startX = touches.currentX;
-      var startY = touches.currentY; // Do NOT start if iOS edge swipe is detected. Otherwise iOS app (UIWebView) cannot swipe-to-go-back anymore
-
-      if (Device.ios && !Device.cordova && params.iOSEdgeSwipeDetection && (startX <= params.iOSEdgeSwipeThreshold || startX >= win.screen.width - params.iOSEdgeSwipeThreshold)) {
-        return;
-      }
-
-      Utils.extend(data, {
-        isTouched: true,
-        isMoved: false,
-        allowTouchCallbacks: true,
-        isScrolling: undefined,
-        startMoving: undefined
+        return n;
       });
-      touches.startX = startX;
-      touches.startY = startY;
-      data.touchStartTime = Utils.now();
-      swiper.allowClick = true;
-      swiper.updateSize();
-      swiper.swipeDirection = undefined;
-
-      if (params.threshold > 0) {
-        data.allowThresholdMove = false;
-      }
-
-      if (e.type !== 'touchstart') {
-        var preventDefault = true;
-
-        if ($(e.target).is(data.formElements)) {
-          preventDefault = false;
-        }
-
-        if (doc.activeElement && $(doc.activeElement).is(data.formElements) && doc.activeElement !== e.target) {
-          doc.activeElement.blur();
-        }
-
-        if (preventDefault && swiper.allowTouchMove) {
-          e.preventDefault();
-        }
-      }
-
-      swiper.emit('touchStart', e);
+      initXYData(nn, xx, yy);
     }
 
-    function onTouchMove(event) {
-      var swiper = this;
-      var data = swiper.touchEventsData;
-      var params = swiper.params;
-      var touches = swiper.touches;
-      var rtl = swiper.rtlTranslate;
-      var e = event;
+    function initXYData(nn, xx, yy) {
+      var size = nn.length;
+      if (nn instanceof Array) nn = new Uint32Array(nn);
+      if (xx instanceof Array) xx = new Float64Array(xx);
+      if (yy instanceof Array) yy = new Float64Array(yy);
+      _xx = xx;
+      _yy = yy;
+      _nn = nn;
+      _zz = null;
+      _zlimit = 0;
+      _filteredArcIter = null; // generate array of starting idxs of each arc
 
-      if (e.originalEvent) {
-        e = e.originalEvent;
+      _ii = new Uint32Array(size);
+
+      for (var idx = 0, j = 0; j < size; j++) {
+        _ii[j] = idx;
+        idx += nn[j];
       }
 
-      if (!data.isTouched) {
-        if (data.startMoving && data.isScrolling) {
-          swiper.emit('touchMoveOpposite', e);
-        }
-
-        return;
+      if (idx != _xx.length || _xx.length != _yy.length) {
+        error("ArcCollection#initXYData() Counting error");
       }
 
-      if (data.isTouchEvent && e.type === 'mousemove') {
-        return;
-      }
+      initBounds(); // Pre-allocate some path iterators for repeated use.
 
-      var pageX = e.type === 'touchmove' ? e.targetTouches[0].pageX : e.pageX;
-      var pageY = e.type === 'touchmove' ? e.targetTouches[0].pageY : e.pageY;
-
-      if (e.preventedByNestedSwiper) {
-        touches.startX = pageX;
-        touches.startY = pageY;
-        return;
-      }
-
-      if (!swiper.allowTouchMove) {
-        // isMoved = true;
-        swiper.allowClick = false;
-
-        if (data.isTouched) {
-          Utils.extend(touches, {
-            startX: pageX,
-            startY: pageY,
-            currentX: pageX,
-            currentY: pageY
-          });
-          data.touchStartTime = Utils.now();
-        }
-
-        return;
-      }
-
-      if (data.isTouchEvent && params.touchReleaseOnEdges && !params.loop) {
-        if (swiper.isVertical()) {
-          // Vertical
-          if (pageY < touches.startY && swiper.translate <= swiper.maxTranslate() || pageY > touches.startY && swiper.translate >= swiper.minTranslate()) {
-            data.isTouched = false;
-            data.isMoved = false;
-            return;
-          }
-        } else if (pageX < touches.startX && swiper.translate <= swiper.maxTranslate() || pageX > touches.startX && swiper.translate >= swiper.minTranslate()) {
-          return;
-        }
-      }
-
-      if (data.isTouchEvent && doc.activeElement) {
-        if (e.target === doc.activeElement && $(e.target).is(data.formElements)) {
-          data.isMoved = true;
-          swiper.allowClick = false;
-          return;
-        }
-      }
-
-      if (data.allowTouchCallbacks) {
-        swiper.emit('touchMove', e);
-      }
-
-      if (e.targetTouches && e.targetTouches.length > 1) {
-        return;
-      }
-
-      touches.currentX = pageX;
-      touches.currentY = pageY;
-      var diffX = touches.currentX - touches.startX;
-      var diffY = touches.currentY - touches.startY;
-
-      if (swiper.params.threshold && Math.sqrt(Math.pow(diffX, 2) + Math.pow(diffY, 2)) < swiper.params.threshold) {
-        return;
-      }
-
-      if (typeof data.isScrolling === 'undefined') {
-        var touchAngle;
-
-        if (swiper.isHorizontal() && touches.currentY === touches.startY || swiper.isVertical() && touches.currentX === touches.startX) {
-          data.isScrolling = false;
-        } else {
-          // eslint-disable-next-line
-          if (diffX * diffX + diffY * diffY >= 25) {
-            touchAngle = Math.atan2(Math.abs(diffY), Math.abs(diffX)) * 180 / Math.PI;
-            data.isScrolling = swiper.isHorizontal() ? touchAngle > params.touchAngle : 90 - touchAngle > params.touchAngle;
-          }
-        }
-      }
-
-      if (data.isScrolling) {
-        swiper.emit('touchMoveOpposite', e);
-      }
-
-      if (typeof data.startMoving === 'undefined') {
-        if (touches.currentX !== touches.startX || touches.currentY !== touches.startY) {
-          data.startMoving = true;
-        }
-      }
-
-      if (data.isScrolling) {
-        data.isTouched = false;
-        return;
-      }
-
-      if (!data.startMoving) {
-        return;
-      }
-
-      swiper.allowClick = false;
-      e.preventDefault();
-
-      if (params.touchMoveStopPropagation && !params.nested) {
-        e.stopPropagation();
-      }
-
-      if (!data.isMoved) {
-        if (params.loop) {
-          swiper.loopFix();
-        }
-
-        data.startTranslate = swiper.getTranslate();
-        swiper.setTransition(0);
-
-        if (swiper.animating) {
-          swiper.$wrapperEl.trigger('webkitTransitionEnd transitionend');
-        }
-
-        data.allowMomentumBounce = false; // Grab Cursor
-
-        if (params.grabCursor && (swiper.allowSlideNext === true || swiper.allowSlidePrev === true)) {
-          swiper.setGrabCursor(true);
-        }
-
-        swiper.emit('sliderFirstMove', e);
-      }
-
-      swiper.emit('sliderMove', e);
-      data.isMoved = true;
-      var diff = swiper.isHorizontal() ? diffX : diffY;
-      touches.diff = diff;
-      diff *= params.touchRatio;
-
-      if (rtl) {
-        diff = -diff;
-      }
-
-      swiper.swipeDirection = diff > 0 ? 'prev' : 'next';
-      data.currentTranslate = diff + data.startTranslate;
-      var disableParentSwiper = true;
-      var resistanceRatio = params.resistanceRatio;
-
-      if (params.touchReleaseOnEdges) {
-        resistanceRatio = 0;
-      }
-
-      if (diff > 0 && data.currentTranslate > swiper.minTranslate()) {
-        disableParentSwiper = false;
-
-        if (params.resistance) {
-          data.currentTranslate = swiper.minTranslate() - 1 + Math.pow(-swiper.minTranslate() + data.startTranslate + diff, resistanceRatio);
-        }
-      } else if (diff < 0 && data.currentTranslate < swiper.maxTranslate()) {
-        disableParentSwiper = false;
-
-        if (params.resistance) {
-          data.currentTranslate = swiper.maxTranslate() + 1 - Math.pow(swiper.maxTranslate() - data.startTranslate - diff, resistanceRatio);
-        }
-      }
-
-      if (disableParentSwiper) {
-        e.preventedByNestedSwiper = true;
-      } // Directions locks
-
-
-      if (!swiper.allowSlideNext && swiper.swipeDirection === 'next' && data.currentTranslate < data.startTranslate) {
-        data.currentTranslate = data.startTranslate;
-      }
-
-      if (!swiper.allowSlidePrev && swiper.swipeDirection === 'prev' && data.currentTranslate > data.startTranslate) {
-        data.currentTranslate = data.startTranslate;
-      } // Threshold
-
-
-      if (params.threshold > 0) {
-        if (Math.abs(diff) > params.threshold || data.allowThresholdMove) {
-          if (!data.allowThresholdMove) {
-            data.allowThresholdMove = true;
-            touches.startX = touches.currentX;
-            touches.startY = touches.currentY;
-            data.currentTranslate = data.startTranslate;
-            touches.diff = swiper.isHorizontal() ? touches.currentX - touches.startX : touches.currentY - touches.startY;
-            return;
-          }
-        } else {
-          data.currentTranslate = data.startTranslate;
-          return;
-        }
-      }
-
-      if (!params.followFinger) {
-        return;
-      } // Update active index in free mode
-
-
-      if (params.freeMode || params.watchSlidesProgress || params.watchSlidesVisibility) {
-        swiper.updateActiveIndex();
-        swiper.updateSlidesClasses();
-      }
-
-      if (params.freeMode) {
-        // Velocity
-        if (data.velocities.length === 0) {
-          data.velocities.push({
-            position: touches[swiper.isHorizontal() ? 'startX' : 'startY'],
-            time: data.touchStartTime
-          });
-        }
-
-        data.velocities.push({
-          position: touches[swiper.isHorizontal() ? 'currentX' : 'currentY'],
-          time: Utils.now()
-        });
-      } // Update progress
-
-
-      swiper.updateProgress(data.currentTranslate); // Update translate
-
-      swiper.setTranslate(data.currentTranslate);
+      _arcIter = new ArcIter(_xx, _yy);
+      return this;
     }
 
-    function onTouchEnd(event) {
-      var swiper = this;
-      var data = swiper.touchEventsData;
-      var params = swiper.params;
-      var touches = swiper.touches;
-      var rtl = swiper.rtlTranslate;
-      var $wrapperEl = swiper.$wrapperEl;
-      var slidesGrid = swiper.slidesGrid;
-      var snapGrid = swiper.snapGrid;
-      var e = event;
-
-      if (e.originalEvent) {
-        e = e.originalEvent;
-      }
-
-      if (data.allowTouchCallbacks) {
-        swiper.emit('touchEnd', e);
-      }
-
-      data.allowTouchCallbacks = false;
-
-      if (!data.isTouched) {
-        if (data.isMoved && params.grabCursor) {
-          swiper.setGrabCursor(false);
-        }
-
-        data.isMoved = false;
-        data.startMoving = false;
-        return;
-      } // Return Grab Cursor
-
-
-      if (params.grabCursor && data.isMoved && data.isTouched && (swiper.allowSlideNext === true || swiper.allowSlidePrev === true)) {
-        swiper.setGrabCursor(false);
-      } // Time diff
-
-
-      var touchEndTime = Utils.now();
-      var timeDiff = touchEndTime - data.touchStartTime; // Tap, doubleTap, Click
-
-      if (swiper.allowClick) {
-        swiper.updateClickedSlide(e);
-        swiper.emit('tap', e);
-
-        if (timeDiff < 300 && touchEndTime - data.lastClickTime > 300) {
-          if (data.clickTimeout) {
-            clearTimeout(data.clickTimeout);
-          }
-
-          data.clickTimeout = Utils.nextTick(function () {
-            if (!swiper || swiper.destroyed) {
-              return;
-            }
-
-            swiper.emit('click', e);
-          }, 300);
-        }
-
-        if (timeDiff < 300 && touchEndTime - data.lastClickTime < 300) {
-          if (data.clickTimeout) {
-            clearTimeout(data.clickTimeout);
-          }
-
-          swiper.emit('doubleTap', e);
-        }
-      }
-
-      data.lastClickTime = Utils.now();
-      Utils.nextTick(function () {
-        if (!swiper.destroyed) {
-          swiper.allowClick = true;
-        }
-      });
-
-      if (!data.isTouched || !data.isMoved || !swiper.swipeDirection || touches.diff === 0 || data.currentTranslate === data.startTranslate) {
-        data.isTouched = false;
-        data.isMoved = false;
-        data.startMoving = false;
-        return;
-      }
-
-      data.isTouched = false;
-      data.isMoved = false;
-      data.startMoving = false;
-      var currentPos;
-
-      if (params.followFinger) {
-        currentPos = rtl ? swiper.translate : -swiper.translate;
+    function initZData(zz) {
+      if (!zz) {
+        _zz = null;
+        _zlimit = 0;
+        _filteredArcIter = null;
       } else {
-        currentPos = -data.currentTranslate;
-      }
-
-      if (params.freeMode) {
-        if (currentPos < -swiper.minTranslate()) {
-          swiper.slideTo(swiper.activeIndex);
-          return;
-        } else if (currentPos > -swiper.maxTranslate()) {
-          if (swiper.slides.length < snapGrid.length) {
-            swiper.slideTo(snapGrid.length - 1);
-          } else {
-            swiper.slideTo(swiper.slides.length - 1);
-          }
-
-          return;
-        }
-
-        if (params.freeModeMomentum) {
-          if (data.velocities.length > 1) {
-            var lastMoveEvent = data.velocities.pop();
-            var velocityEvent = data.velocities.pop();
-            var distance = lastMoveEvent.position - velocityEvent.position;
-            var time = lastMoveEvent.time - velocityEvent.time;
-            swiper.velocity = distance / time;
-            swiper.velocity /= 2;
-
-            if (Math.abs(swiper.velocity) < params.freeModeMinimumVelocity) {
-              swiper.velocity = 0;
-            } // this implies that the user stopped moving a finger then released.
-            // There would be no events with distance zero, so the last event is stale.
-
-
-            if (time > 150 || Utils.now() - lastMoveEvent.time > 300) {
-              swiper.velocity = 0;
-            }
-          } else {
-            swiper.velocity = 0;
-          }
-
-          swiper.velocity *= params.freeModeMomentumVelocityRatio;
-          data.velocities.length = 0;
-          var momentumDuration = 1000 * params.freeModeMomentumRatio;
-          var momentumDistance = swiper.velocity * momentumDuration;
-          var newPosition = swiper.translate + momentumDistance;
-
-          if (rtl) {
-            newPosition = -newPosition;
-          }
-
-          var doBounce = false;
-          var afterBouncePosition;
-          var bounceAmount = Math.abs(swiper.velocity) * 20 * params.freeModeMomentumBounceRatio;
-          var needsLoopFix;
-
-          if (newPosition < swiper.maxTranslate()) {
-            if (params.freeModeMomentumBounce) {
-              if (newPosition + swiper.maxTranslate() < -bounceAmount) {
-                newPosition = swiper.maxTranslate() - bounceAmount;
-              }
-
-              afterBouncePosition = swiper.maxTranslate();
-              doBounce = true;
-              data.allowMomentumBounce = true;
-            } else {
-              newPosition = swiper.maxTranslate();
-            }
-
-            if (params.loop && params.centeredSlides) {
-              needsLoopFix = true;
-            }
-          } else if (newPosition > swiper.minTranslate()) {
-            if (params.freeModeMomentumBounce) {
-              if (newPosition - swiper.minTranslate() > bounceAmount) {
-                newPosition = swiper.minTranslate() + bounceAmount;
-              }
-
-              afterBouncePosition = swiper.minTranslate();
-              doBounce = true;
-              data.allowMomentumBounce = true;
-            } else {
-              newPosition = swiper.minTranslate();
-            }
-
-            if (params.loop && params.centeredSlides) {
-              needsLoopFix = true;
-            }
-          } else if (params.freeModeSticky) {
-            var nextSlide;
-
-            for (var j = 0; j < snapGrid.length; j += 1) {
-              if (snapGrid[j] > -newPosition) {
-                nextSlide = j;
-                break;
-              }
-            }
-
-            if (Math.abs(snapGrid[nextSlide] - newPosition) < Math.abs(snapGrid[nextSlide - 1] - newPosition) || swiper.swipeDirection === 'next') {
-              newPosition = snapGrid[nextSlide];
-            } else {
-              newPosition = snapGrid[nextSlide - 1];
-            }
-
-            newPosition = -newPosition;
-          }
-
-          if (needsLoopFix) {
-            swiper.once('transitionEnd', function () {
-              swiper.loopFix();
-            });
-          } // Fix duration
-
-
-          if (swiper.velocity !== 0) {
-            if (rtl) {
-              momentumDuration = Math.abs((-newPosition - swiper.translate) / swiper.velocity);
-            } else {
-              momentumDuration = Math.abs((newPosition - swiper.translate) / swiper.velocity);
-            }
-          } else if (params.freeModeSticky) {
-            swiper.slideToClosest();
-            return;
-          }
-
-          if (params.freeModeMomentumBounce && doBounce) {
-            swiper.updateProgress(afterBouncePosition);
-            swiper.setTransition(momentumDuration);
-            swiper.setTranslate(newPosition);
-            swiper.transitionStart(true, swiper.swipeDirection);
-            swiper.animating = true;
-            $wrapperEl.transitionEnd(function () {
-              if (!swiper || swiper.destroyed || !data.allowMomentumBounce) {
-                return;
-              }
-
-              swiper.emit('momentumBounce');
-              swiper.setTransition(params.speed);
-              swiper.setTranslate(afterBouncePosition);
-              $wrapperEl.transitionEnd(function () {
-                if (!swiper || swiper.destroyed) {
-                  return;
-                }
-
-                swiper.transitionEnd();
-              });
-            });
-          } else if (swiper.velocity) {
-            swiper.updateProgress(newPosition);
-            swiper.setTransition(momentumDuration);
-            swiper.setTranslate(newPosition);
-            swiper.transitionStart(true, swiper.swipeDirection);
-
-            if (!swiper.animating) {
-              swiper.animating = true;
-              $wrapperEl.transitionEnd(function () {
-                if (!swiper || swiper.destroyed) {
-                  return;
-                }
-
-                swiper.transitionEnd();
-              });
-            }
-          } else {
-            swiper.updateProgress(newPosition);
-          }
-
-          swiper.updateActiveIndex();
-          swiper.updateSlidesClasses();
-        } else if (params.freeModeSticky) {
-          swiper.slideToClosest();
-          return;
-        }
-
-        if (!params.freeModeMomentum || timeDiff >= params.longSwipesMs) {
-          swiper.updateProgress();
-          swiper.updateActiveIndex();
-          swiper.updateSlidesClasses();
-        }
-
-        return;
-      } // Find current slide
-
-
-      var stopIndex = 0;
-      var groupSize = swiper.slidesSizesGrid[0];
-
-      for (var i = 0; i < slidesGrid.length; i += params.slidesPerGroup) {
-        if (typeof slidesGrid[i + params.slidesPerGroup] !== 'undefined') {
-          if (currentPos >= slidesGrid[i] && currentPos < slidesGrid[i + params.slidesPerGroup]) {
-            stopIndex = i;
-            groupSize = slidesGrid[i + params.slidesPerGroup] - slidesGrid[i];
-          }
-        } else if (currentPos >= slidesGrid[i]) {
-          stopIndex = i;
-          groupSize = slidesGrid[slidesGrid.length - 1] - slidesGrid[slidesGrid.length - 2];
-        }
-      } // Find current slide size
-
-
-      var ratio = (currentPos - slidesGrid[stopIndex]) / groupSize;
-
-      if (timeDiff > params.longSwipesMs) {
-        // Long touches
-        if (!params.longSwipes) {
-          swiper.slideTo(swiper.activeIndex);
-          return;
-        }
-
-        if (swiper.swipeDirection === 'next') {
-          if (ratio >= params.longSwipesRatio) {
-            swiper.slideTo(stopIndex + params.slidesPerGroup);
-          } else {
-            swiper.slideTo(stopIndex);
-          }
-        }
-
-        if (swiper.swipeDirection === 'prev') {
-          if (ratio > 1 - params.longSwipesRatio) {
-            swiper.slideTo(stopIndex + params.slidesPerGroup);
-          } else {
-            swiper.slideTo(stopIndex);
-          }
-        }
-      } else {
-        // Short swipes
-        if (!params.shortSwipes) {
-          swiper.slideTo(swiper.activeIndex);
-          return;
-        }
-
-        if (swiper.swipeDirection === 'next') {
-          swiper.slideTo(stopIndex + params.slidesPerGroup);
-        }
-
-        if (swiper.swipeDirection === 'prev') {
-          swiper.slideTo(stopIndex);
-        }
+        if (zz.length != _xx.length) error("ArcCollection#initZData() mismatched arrays");
+        if (zz instanceof Array) zz = new Float64Array(zz);
+        _zz = zz;
+        _filteredArcIter = new FilteredArcIter(_xx, _yy, _zz);
       }
     }
 
-    function onResize() {
-      var swiper = this;
-      var params = swiper.params;
-      var el = swiper.el;
-
-      if (el && el.offsetWidth === 0) {
-        return;
-      } // Breakpoints
-
-
-      if (params.breakpoints) {
-        swiper.setBreakpoint();
-      } // Save locks
-
-
-      var allowSlideNext = swiper.allowSlideNext;
-      var allowSlidePrev = swiper.allowSlidePrev;
-      var snapGrid = swiper.snapGrid; // Disable locks on resize
-
-      swiper.allowSlideNext = true;
-      swiper.allowSlidePrev = true;
-      swiper.updateSize();
-      swiper.updateSlides();
-
-      if (params.freeMode) {
-        var newTranslate = Math.min(Math.max(swiper.translate, swiper.maxTranslate()), swiper.minTranslate());
-        swiper.setTranslate(newTranslate);
-        swiper.updateActiveIndex();
-        swiper.updateSlidesClasses();
-
-        if (params.autoHeight) {
-          swiper.updateAutoHeight();
-        }
-      } else {
-        swiper.updateSlidesClasses();
-
-        if ((params.slidesPerView === 'auto' || params.slidesPerView > 1) && swiper.isEnd && !swiper.params.centeredSlides) {
-          swiper.slideTo(swiper.slides.length - 1, 0, false, true);
-        } else {
-          swiper.slideTo(swiper.activeIndex, 0, false, true);
-        }
-      } // Return locks after resize
-
-
-      swiper.allowSlidePrev = allowSlidePrev;
-      swiper.allowSlideNext = allowSlideNext;
-
-      if (swiper.params.watchOverflow && snapGrid !== swiper.snapGrid) {
-        swiper.checkOverflow();
-      }
+    function initBounds() {
+      var data = calcArcBounds(_xx, _yy, _nn);
+      _bb = data.bb;
+      _allBounds = data.bounds;
     }
 
-    function onClick(e) {
-      var swiper = this;
+    function calcArcBounds(xx, yy, nn) {
+      var numArcs = nn.length,
+          bb = new Float64Array(numArcs * 4),
+          bounds = new Bounds(),
+          arcOffs = 0,
+          arcLen,
+          j,
+          b;
 
-      if (!swiper.allowClick) {
-        if (swiper.params.preventClicks) {
-          e.preventDefault();
+      for (var i = 0; i < numArcs; i++) {
+        arcLen = nn[i];
+
+        if (arcLen > 0) {
+          j = i * 4;
+          b = internal.calcArcBounds(xx, yy, arcOffs, arcLen);
+          bb[j++] = b[0];
+          bb[j++] = b[1];
+          bb[j++] = b[2];
+          bb[j] = b[3];
+          arcOffs += arcLen;
+          bounds.mergeBounds(b);
         }
-
-        if (swiper.params.preventClicksPropagation && swiper.animating) {
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-        }
-      }
-    }
-
-    function attachEvents() {
-      var swiper = this;
-      var params = swiper.params;
-      var touchEvents = swiper.touchEvents;
-      var el = swiper.el;
-      var wrapperEl = swiper.wrapperEl;
-      {
-        swiper.onTouchStart = onTouchStart.bind(swiper);
-        swiper.onTouchMove = onTouchMove.bind(swiper);
-        swiper.onTouchEnd = onTouchEnd.bind(swiper);
-      }
-      swiper.onClick = onClick.bind(swiper);
-      var target = params.touchEventsTarget === 'container' ? el : wrapperEl;
-      var capture = !!params.nested; // Touch Events
-
-      {
-        if (!Support.touch && (Support.pointerEvents || Support.prefixedPointerEvents)) {
-          target.addEventListener(touchEvents.start, swiper.onTouchStart, false);
-          doc.addEventListener(touchEvents.move, swiper.onTouchMove, capture);
-          doc.addEventListener(touchEvents.end, swiper.onTouchEnd, false);
-        } else {
-          if (Support.touch) {
-            var passiveListener = touchEvents.start === 'touchstart' && Support.passiveListener && params.passiveListeners ? {
-              passive: true,
-              capture: false
-            } : false;
-            target.addEventListener(touchEvents.start, swiper.onTouchStart, passiveListener);
-            target.addEventListener(touchEvents.move, swiper.onTouchMove, Support.passiveListener ? {
-              passive: false,
-              capture: capture
-            } : capture);
-            target.addEventListener(touchEvents.end, swiper.onTouchEnd, passiveListener);
-          }
-
-          if (params.simulateTouch && !Device.ios && !Device.android || params.simulateTouch && !Support.touch && Device.ios) {
-            target.addEventListener('mousedown', swiper.onTouchStart, false);
-            doc.addEventListener('mousemove', swiper.onTouchMove, capture);
-            doc.addEventListener('mouseup', swiper.onTouchEnd, false);
-          }
-        } // Prevent Links Clicks
-
-
-        if (params.preventClicks || params.preventClicksPropagation) {
-          target.addEventListener('click', swiper.onClick, true);
-        }
-      } // Resize handler
-
-      swiper.on(Device.ios || Device.android ? 'resize orientationchange observerUpdate' : 'resize observerUpdate', onResize, true);
-    }
-
-    function detachEvents() {
-      var swiper = this;
-      var params = swiper.params;
-      var touchEvents = swiper.touchEvents;
-      var el = swiper.el;
-      var wrapperEl = swiper.wrapperEl;
-      var target = params.touchEventsTarget === 'container' ? el : wrapperEl;
-      var capture = !!params.nested; // Touch Events
-
-      {
-        if (!Support.touch && (Support.pointerEvents || Support.prefixedPointerEvents)) {
-          target.removeEventListener(touchEvents.start, swiper.onTouchStart, false);
-          doc.removeEventListener(touchEvents.move, swiper.onTouchMove, capture);
-          doc.removeEventListener(touchEvents.end, swiper.onTouchEnd, false);
-        } else {
-          if (Support.touch) {
-            var passiveListener = touchEvents.start === 'onTouchStart' && Support.passiveListener && params.passiveListeners ? {
-              passive: true,
-              capture: false
-            } : false;
-            target.removeEventListener(touchEvents.start, swiper.onTouchStart, passiveListener);
-            target.removeEventListener(touchEvents.move, swiper.onTouchMove, capture);
-            target.removeEventListener(touchEvents.end, swiper.onTouchEnd, passiveListener);
-          }
-
-          if (params.simulateTouch && !Device.ios && !Device.android || params.simulateTouch && !Support.touch && Device.ios) {
-            target.removeEventListener('mousedown', swiper.onTouchStart, false);
-            doc.removeEventListener('mousemove', swiper.onTouchMove, capture);
-            doc.removeEventListener('mouseup', swiper.onTouchEnd, false);
-          }
-        } // Prevent Links Clicks
-
-
-        if (params.preventClicks || params.preventClicksPropagation) {
-          target.removeEventListener('click', swiper.onClick, true);
-        }
-      } // Resize handler
-
-      swiper.off(Device.ios || Device.android ? 'resize orientationchange observerUpdate' : 'resize observerUpdate', onResize);
-    }
-
-    var events = {
-      attachEvents: attachEvents,
-      detachEvents: detachEvents
-    };
-
-    function setBreakpoint() {
-      var swiper = this;
-      var activeIndex = swiper.activeIndex;
-      var initialized = swiper.initialized;
-      var loopedSlides = swiper.loopedSlides;
-      if (loopedSlides === void 0) loopedSlides = 0;
-      var params = swiper.params;
-      var breakpoints = params.breakpoints;
-
-      if (!breakpoints || breakpoints && Object.keys(breakpoints).length === 0) {
-        return;
-      } // Set breakpoint for window width and update parameters
-
-
-      var breakpoint = swiper.getBreakpoint(breakpoints);
-
-      if (breakpoint && swiper.currentBreakpoint !== breakpoint) {
-        var breakPointsParams = breakpoint in breakpoints ? breakpoints[breakpoint] : swiper.originalParams;
-        var needsReLoop = params.loop && breakPointsParams.slidesPerView !== params.slidesPerView;
-        Utils.extend(swiper.params, breakPointsParams);
-        Utils.extend(swiper, {
-          allowTouchMove: swiper.params.allowTouchMove,
-          allowSlideNext: swiper.params.allowSlideNext,
-          allowSlidePrev: swiper.params.allowSlidePrev
-        });
-        swiper.currentBreakpoint = breakpoint;
-
-        if (needsReLoop && initialized) {
-          swiper.loopDestroy();
-          swiper.loopCreate();
-          swiper.updateSlides();
-          swiper.slideTo(activeIndex - loopedSlides + swiper.loopedSlides, 0, false);
-        }
-
-        swiper.emit('breakpoint', breakPointsParams);
-      }
-    }
-
-    function getBreakpoint(breakpoints) {
-      // Get breakpoint for window width
-      if (!breakpoints) {
-        return undefined;
-      }
-
-      var breakpoint = false;
-      var points = [];
-      Object.keys(breakpoints).forEach(function (point) {
-        points.push(point);
-      });
-      points.sort(function (a, b) {
-        return parseInt(a, 10) - parseInt(b, 10);
-      });
-
-      for (var i = 0; i < points.length; i += 1) {
-        var point = points[i];
-
-        if (point >= win.innerWidth && !breakpoint) {
-          breakpoint = point;
-        }
-      }
-
-      return breakpoint || 'max';
-    }
-
-    var breakpoints = {
-      setBreakpoint: setBreakpoint,
-      getBreakpoint: getBreakpoint
-    };
-
-    var Browser = function Browser() {
-      function isSafari() {
-        var ua = win.navigator.userAgent.toLowerCase();
-        return ua.indexOf('safari') >= 0 && ua.indexOf('chrome') < 0 && ua.indexOf('android') < 0;
       }
 
       return {
-        isIE: !!win.navigator.userAgent.match(/Trident/g) || !!win.navigator.userAgent.match(/MSIE/g),
-        isSafari: isSafari(),
-        isUiWebView: /(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)/i.test(win.navigator.userAgent)
+        bb: bb,
+        bounds: bounds
       };
-    }();
+    }
 
-    function addClasses() {
-      var swiper = this;
-      var classNames = swiper.classNames;
-      var params = swiper.params;
-      var rtl = swiper.rtl;
-      var $el = swiper.$el;
-      var suffixes = [];
-      suffixes.push(params.direction);
+    this.updateVertexData = function (nn, xx, yy, zz) {
+      initXYData(nn, xx, yy);
+      initZData(zz || null);
+    }; // Give access to raw data arrays...
 
-      if (params.freeMode) {
-        suffixes.push('free-mode');
+
+    this.getVertexData = function () {
+      return {
+        xx: _xx,
+        yy: _yy,
+        zz: _zz,
+        bb: _bb,
+        nn: _nn,
+        ii: _ii
+      };
+    };
+
+    this.getCopy = function () {
+      var copy = new ArcCollection(new Int32Array(_nn), new Float64Array(_xx), new Float64Array(_yy));
+
+      if (_zz) {
+        copy.setThresholds(new Float64Array(_zz));
+        copy.setRetainedInterval(_zlimit);
       }
 
-      if (!Support.flexbox) {
-        suffixes.push('no-flexbox');
+      return copy;
+    };
+
+    function getFilteredPointCount() {
+      var zz = _zz,
+          z = _zlimit;
+      if (!zz || !z) return this.getPointCount();
+      var count = 0;
+
+      for (var i = 0, n = zz.length; i < n; i++) {
+        if (zz[i] >= z) count++;
       }
 
-      if (params.autoHeight) {
-        suffixes.push('autoheight');
+      return count;
+    }
+
+    function getFilteredVertexData() {
+      var len2 = getFilteredPointCount();
+      var arcCount = _nn.length;
+      var xx2 = new Float64Array(len2),
+          yy2 = new Float64Array(len2),
+          zz2 = new Float64Array(len2),
+          nn2 = new Int32Array(arcCount),
+          i = 0,
+          i2 = 0,
+          n,
+          n2;
+
+      for (var arcId = 0; arcId < arcCount; arcId++) {
+        n2 = 0;
+        n = _nn[arcId];
+
+        for (var end = i + n; i < end; i++) {
+          if (_zz[i] >= _zlimit) {
+            xx2[i2] = _xx[i];
+            yy2[i2] = _yy[i];
+            zz2[i2] = _zz[i];
+            i2++;
+            n2++;
+          }
+        }
+
+        if (n2 < 2) error("Collapsed arc"); // endpoints should be z == Infinity
+
+        nn2[arcId] = n2;
       }
 
-      if (rtl) {
-        suffixes.push('rtl');
-      }
+      return {
+        xx: xx2,
+        yy: yy2,
+        zz: zz2,
+        nn: nn2
+      };
+    }
 
-      if (params.slidesPerColumn > 1) {
-        suffixes.push('multirow');
-      }
-
-      if (Device.android) {
-        suffixes.push('android');
-      }
-
-      if (Device.ios) {
-        suffixes.push('ios');
-      } // WP8 Touch Events Fix
+    this.getFilteredCopy = function () {
+      if (!_zz || _zlimit === 0) return this.getCopy();
+      var data = getFilteredVertexData();
+      var copy = new ArcCollection(data.nn, data.xx, data.yy);
+      copy.setThresholds(data.zz);
+      return copy;
+    }; // Return arcs as arrays of [x, y] points (intended for testing).
 
 
-      if (Browser.isIE && (Support.pointerEvents || Support.prefixedPointerEvents)) {
-        suffixes.push("wp8-" + params.direction);
-      }
+    this.toArray = function () {
+      var arr = [];
+      this.forEach(function (iter) {
+        var arc = [];
 
-      suffixes.forEach(function (suffix) {
-        classNames.push(params.containerModifierClass + suffix);
+        while (iter.hasNext()) {
+          arc.push([iter.x, iter.y]);
+        }
+
+        arr.push(arc);
       });
-      $el.addClass(classNames.join(' '));
-    }
-
-    function removeClasses() {
-      var swiper = this;
-      var $el = swiper.$el;
-      var classNames = swiper.classNames;
-      $el.removeClass(classNames.join(' '));
-    }
-
-    var classes = {
-      addClasses: addClasses,
-      removeClasses: removeClasses
+      return arr;
     };
 
-    function loadImage(imageEl, src, srcset, sizes, checkForComplete, callback) {
-      var image;
+    this.toJSON = function () {
+      return this.toArray();
+    }; // @cb function(i, j, xx, yy)
 
-      function onReady() {
-        if (callback) {
-          callback();
+
+    this.forEachArcSegment = function (arcId, cb) {
+      var fw = arcId >= 0,
+          absId = fw ? arcId : ~arcId,
+          zlim = this.getRetainedInterval(),
+          n = _nn[absId],
+          step = fw ? 1 : -1,
+          v1 = fw ? _ii[absId] : _ii[absId] + n - 1,
+          v2 = v1,
+          count = 0;
+
+      for (var j = 1; j < n; j++) {
+        v2 += step;
+
+        if (zlim === 0 || _zz[v2] >= zlim) {
+          cb(v1, v2, _xx, _yy);
+          v1 = v2;
+          count++;
         }
       }
 
-      if (!imageEl.complete || !checkForComplete) {
-        if (src) {
-          image = new win.Image();
-          image.onload = onReady;
-          image.onerror = onReady;
+      return count;
+    }; // @cb function(i, j, xx, yy)
 
-          if (sizes) {
-            image.sizes = sizes;
-          }
 
-          if (srcset) {
-            image.srcset = srcset;
-          }
+    this.forEachSegment = function (cb) {
+      var count = 0;
 
-          if (src) {
-            image.src = src;
-          }
-        } else {
-          onReady();
+      for (var i = 0, n = this.size(); i < n; i++) {
+        count += this.forEachArcSegment(i, cb);
+      }
+
+      return count;
+    };
+
+    this.transformPoints = function (f) {
+      var xx = _xx,
+          yy = _yy,
+          arcId = -1,
+          n = 0,
+          p;
+
+      for (var i = 0, len = xx.length; i < len; i++, n--) {
+        while (n === 0) {
+          n = _nn[++arcId];
         }
+
+        p = f(xx[i], yy[i], arcId);
+
+        if (p) {
+          xx[i] = p[0];
+          yy[i] = p[1];
+        }
+      }
+
+      initBounds();
+    }; // Return an ArcIter object for each path in the dataset
+    //
+
+
+    this.forEach = function (cb) {
+      for (var i = 0, n = this.size(); i < n; i++) {
+        cb(this.getArcIter(i), i);
+      }
+    }; // Iterate over arcs with access to low-level data
+    //
+
+
+    this.forEach2 = function (cb) {
+      for (var arcId = 0, n = this.size(); arcId < n; arcId++) {
+        cb(_ii[arcId], _nn[arcId], _xx, _yy, _zz, arcId);
+      }
+    };
+
+    this.forEach3 = function (cb) {
+      var start, end, xx, yy, zz;
+
+      for (var arcId = 0, n = this.size(); arcId < n; arcId++) {
+        start = _ii[arcId];
+        end = start + _nn[arcId];
+        xx = _xx.subarray(start, end);
+        yy = _yy.subarray(start, end);
+        if (_zz) zz = _zz.subarray(start, end);
+        cb(xx, yy, zz, arcId);
+      }
+    }; // Remove arcs that don't pass a filter test and re-index arcs
+    // Return array mapping original arc ids to re-indexed ids. If arr[n] == -1
+    // then arc n was removed. arr[n] == m indicates that the arc at n was
+    // moved to index m.
+    // Return null if no arcs were re-indexed (and no arcs were removed)
+    //
+
+
+    this.filter = function (cb) {
+      var test = function (i) {
+        return cb(this.getArcIter(i), i);
+      }.bind(this);
+
+      return this.deleteArcs(test);
+    };
+
+    this.deleteArcs = function (test) {
+      var n = this.size(),
+          map = new Int32Array(n),
+          goodArcs = 0,
+          goodPoints = 0;
+
+      for (var i = 0; i < n; i++) {
+        if (test(i)) {
+          map[i] = goodArcs++;
+          goodPoints += _nn[i];
+        } else {
+          map[i] = -1;
+        }
+      }
+
+      if (goodArcs < n) {
+        condenseArcs(map);
+      }
+
+      return map;
+    };
+
+    function condenseArcs(map) {
+      var goodPoints = 0,
+          goodArcs = 0,
+          copyElements = utils.copyElements,
+          k,
+          arcLen;
+
+      for (var i = 0, n = map.length; i < n; i++) {
+        k = map[i];
+        arcLen = _nn[i];
+
+        if (k > -1) {
+          copyElements(_xx, _ii[i], _xx, goodPoints, arcLen);
+          copyElements(_yy, _ii[i], _yy, goodPoints, arcLen);
+          if (_zz) copyElements(_zz, _ii[i], _zz, goodPoints, arcLen);
+          _nn[k] = arcLen;
+          goodPoints += arcLen;
+          goodArcs++;
+        }
+      }
+
+      initXYData(_nn.subarray(0, goodArcs), _xx.subarray(0, goodPoints), _yy.subarray(0, goodPoints));
+      if (_zz) initZData(_zz.subarray(0, goodPoints));
+    }
+
+    this.dedupCoords = function () {
+      var arcId = 0,
+          i = 0,
+          i2 = 0,
+          arcCount = this.size(),
+          zz = _zz,
+          arcLen,
+          arcLen2;
+
+      while (arcId < arcCount) {
+        arcLen = _nn[arcId];
+        arcLen2 = internal.dedupArcCoords(i, i2, arcLen, _xx, _yy, zz);
+        _nn[arcId] = arcLen2;
+        i += arcLen;
+        i2 += arcLen2;
+        arcId++;
+      }
+
+      if (i > i2) {
+        initXYData(_nn, _xx.subarray(0, i2), _yy.subarray(0, i2));
+        if (zz) initZData(zz.subarray(0, i2));
+      }
+
+      return i - i2;
+    };
+
+    this.getVertex = function (arcId, nth) {
+      var i = this.indexOfVertex(arcId, nth);
+      return {
+        x: _xx[i],
+        y: _yy[i]
+      };
+    }; // @nth: index of vertex. ~(idx) starts from the opposite endpoint
+
+
+    this.indexOfVertex = function (arcId, nth) {
+      var absId = arcId < 0 ? ~arcId : arcId,
+          len = _nn[absId];
+      if (nth < 0) nth = len + nth;
+      if (absId != arcId) nth = len - nth - 1;
+      if (nth < 0 || nth >= len) error("[ArcCollection] out-of-range vertex id");
+      return _ii[absId] + nth;
+    }; // Test whether the vertex at index @idx is the endpoint of an arc
+
+
+    this.pointIsEndpoint = function (idx) {
+      var ii = _ii,
+          nn = _nn;
+
+      for (var j = 0, n = ii.length; j < n; j++) {
+        if (idx === ii[j] || idx === ii[j] + nn[j] - 1) return true;
+      }
+
+      return false;
+    }; // Tests if arc endpoints have same x, y coords
+    // (arc may still have collapsed);
+
+
+    this.arcIsClosed = function (arcId) {
+      var i = this.indexOfVertex(arcId, 0),
+          j = this.indexOfVertex(arcId, -1);
+      return i != j && _xx[i] == _xx[j] && _yy[i] == _yy[j];
+    }; // Tests if first and last segments mirror each other
+    // A 3-vertex arc with same endpoints tests true
+
+
+    this.arcIsLollipop = function (arcId) {
+      var len = this.getArcLength(arcId),
+          i,
+          j;
+      if (len <= 2 || !this.arcIsClosed(arcId)) return false;
+      i = this.indexOfVertex(arcId, 1);
+      j = this.indexOfVertex(arcId, -2);
+      return _xx[i] == _xx[j] && _yy[i] == _yy[j];
+    };
+
+    this.arcIsDegenerate = function (arcId) {
+      var iter = this.getArcIter(arcId);
+      var i = 0,
+          x,
+          y;
+
+      while (iter.hasNext()) {
+        if (i > 0) {
+          if (x != iter.x || y != iter.y) return false;
+        }
+
+        x = iter.x;
+        y = iter.y;
+        i++;
+      }
+
+      return true;
+    };
+
+    this.getArcLength = function (arcId) {
+      return _nn[absArcId(arcId)];
+    };
+
+    this.getArcIter = function (arcId) {
+      var fw = arcId >= 0,
+          i = fw ? arcId : ~arcId,
+          iter = _zz && _zlimit ? _filteredArcIter : _arcIter;
+
+      if (i >= _nn.length) {
+        error("#getArcId() out-of-range arc id:", arcId);
+      }
+
+      return iter.init(_ii[i], _nn[i], fw, _zlimit);
+    };
+
+    this.getShapeIter = function (ids) {
+      return new ShapeIter(this).init(ids);
+    }; // Add simplification data to the dataset
+    // @thresholds is either a single typed array or an array of arrays of removal thresholds for each arc;
+    //
+
+
+    this.setThresholds = function (thresholds) {
+      var n = this.getPointCount(),
+          zz = null;
+
+      if (!thresholds) {// nop
+      } else if (thresholds.length == n) {
+        zz = thresholds;
+      } else if (thresholds.length == this.size()) {
+        zz = flattenThresholds(thresholds, n);
       } else {
-        // image already loaded...
-        onReady();
+        error("Invalid threshold data");
+      }
+
+      initZData(zz);
+      return this;
+    };
+
+    function flattenThresholds(arr, n) {
+      var zz = new Float64Array(n),
+          i = 0;
+      arr.forEach(function (arr) {
+        for (var j = 0, n = arr.length; j < n; i++, j++) {
+          zz[i] = arr[j];
+        }
+      });
+      if (i != n) error("Mismatched thresholds");
+      return zz;
+    } // bake in current simplification level, if any
+
+
+    this.flatten = function () {
+      if (_zlimit > 0) {
+        var data = getFilteredVertexData();
+        this.updateVertexData(data.nn, data.xx, data.yy);
+        _zlimit = 0;
+      } else {
+        _zz = null;
+      }
+    };
+
+    this.getRetainedInterval = function () {
+      return _zlimit;
+    };
+
+    this.setRetainedInterval = function (z) {
+      _zlimit = z;
+      return this;
+    };
+
+    this.getRetainedPct = function () {
+      return this.getPctByThreshold(_zlimit);
+    };
+
+    this.setRetainedPct = function (pct) {
+      if (pct >= 1) {
+        _zlimit = 0;
+      } else {
+        _zlimit = this.getThresholdByPct(pct);
+        _zlimit = internal.clampIntervalByPct(_zlimit, pct);
+      }
+
+      return this;
+    }; // Return array of z-values that can be removed for simplification
+    //
+
+
+    this.getRemovableThresholds = function (nth) {
+      if (!_zz) error("[arcs] Missing simplification data.");
+      var skip = nth | 1,
+          arr = new Float64Array(Math.ceil(_zz.length / skip)),
+          z;
+
+      for (var i = 0, j = 0, n = this.getPointCount(); i < n; i += skip) {
+        z = _zz[i];
+
+        if (z != Infinity) {
+          arr[j++] = z;
+        }
+      }
+
+      return arr.subarray(0, j);
+    };
+
+    this.getArcThresholds = function (arcId) {
+      if (!(arcId >= 0 && arcId < this.size())) {
+        error("[arcs] Invalid arc id:", arcId);
+      }
+
+      var start = _ii[arcId],
+          end = start + _nn[arcId];
+      return _zz.subarray(start, end);
+    }; // nth (optional): sample every nth threshold (use estimate for speed)
+
+
+    this.getPctByThreshold = function (val, nth) {
+      var arr, rank, pct;
+
+      if (val > 0) {
+        arr = this.getRemovableThresholds(nth);
+        rank = utils.findRankByValue(arr, val);
+        pct = arr.length > 0 ? 1 - (rank - 1) / arr.length : 1;
+      } else {
+        pct = 1;
+      }
+
+      return pct;
+    }; // nth (optional): sample every nth threshold (use estimate for speed)
+
+
+    this.getThresholdByPct = function (pct, nth) {
+      var tmp = this.getRemovableThresholds(nth),
+          rank,
+          z;
+
+      if (tmp.length === 0) {
+        // No removable points
+        rank = 0;
+      } else {
+        rank = Math.floor((1 - pct) * (tmp.length + 2));
+      }
+
+      if (rank <= 0) {
+        z = 0;
+      } else if (rank > tmp.length) {
+        z = Infinity;
+      } else {
+        z = utils.findValueByRank(tmp, rank);
+      }
+
+      return z;
+    };
+
+    this.arcIntersectsBBox = function (i, b1) {
+      var b2 = _bb,
+          j = i * 4;
+      return b2[j] <= b1[2] && b2[j + 2] >= b1[0] && b2[j + 3] >= b1[1] && b2[j + 1] <= b1[3];
+    };
+
+    this.arcIsContained = function (i, b1) {
+      var b2 = _bb,
+          j = i * 4;
+      return b2[j] >= b1[0] && b2[j + 2] <= b1[2] && b2[j + 1] >= b1[1] && b2[j + 3] <= b1[3];
+    };
+
+    this.arcIsSmaller = function (i, units) {
+      var bb = _bb,
+          j = i * 4;
+      return bb[j + 2] - bb[j] < units && bb[j + 3] - bb[j + 1] < units;
+    }; // TODO: allow datasets in lat-lng coord range to be flagged as planar
+
+
+    this.isPlanar = function () {
+      return !internal.probablyDecimalDegreeBounds(this.getBounds());
+    };
+
+    this.size = function () {
+      return _ii && _ii.length || 0;
+    };
+
+    this.getPointCount = function () {
+      return _xx && _xx.length || 0;
+    };
+
+    this.getBounds = function () {
+      return _allBounds.clone();
+    };
+
+    this.getSimpleShapeBounds = function (arcIds, bounds) {
+      bounds = bounds || new Bounds();
+
+      for (var i = 0, n = arcIds.length; i < n; i++) {
+        this.mergeArcBounds(arcIds[i], bounds);
+      }
+
+      return bounds;
+    };
+
+    this.getSimpleShapeBounds2 = function (arcIds, arr) {
+      var bbox = arr || [],
+          bb = _bb,
+          id = absArcId(arcIds[0]) * 4;
+      bbox[0] = bb[id];
+      bbox[1] = bb[++id];
+      bbox[2] = bb[++id];
+      bbox[3] = bb[++id];
+
+      for (var i = 1, n = arcIds.length; i < n; i++) {
+        id = absArcId(arcIds[i]) * 4;
+        if (bb[id] < bbox[0]) bbox[0] = bb[id];
+        if (bb[++id] < bbox[1]) bbox[1] = bb[id];
+        if (bb[++id] > bbox[2]) bbox[2] = bb[id];
+        if (bb[++id] > bbox[3]) bbox[3] = bb[id];
+      }
+
+      return bbox;
+    }; // TODO: move this and similar methods out of ArcCollection
+
+
+    this.getMultiShapeBounds = function (shapeIds, bounds) {
+      bounds = bounds || new Bounds();
+
+      if (shapeIds) {
+        // handle null shapes
+        for (var i = 0, n = shapeIds.length; i < n; i++) {
+          this.getSimpleShapeBounds(shapeIds[i], bounds);
+        }
+      }
+
+      return bounds;
+    };
+
+    this.mergeArcBounds = function (arcId, bounds) {
+      if (arcId < 0) arcId = ~arcId;
+      var offs = arcId * 4;
+      bounds.mergeBounds(_bb[offs], _bb[offs + 1], _bb[offs + 2], _bb[offs + 3]);
+    };
+  }
+
+  ArcCollection.prototype.inspect = function () {
+    var n = this.getPointCount(),
+        str;
+
+    if (n < 50) {
+      str = JSON.stringify(this.toArray());
+    } else {
+      str = '[ArcCollection (' + this.size() + ')]';
+    }
+
+    return str;
+  }; // Remove duplicate coords and NaNs
+
+
+  internal.dedupArcCoords = function (src, dest, arcLen, xx, yy, zz) {
+    var n = 0,
+        n2 = 0; // counters
+
+    var x, y, i, j, keep;
+
+    while (n < arcLen) {
+      j = src + n;
+      x = xx[j];
+      y = yy[j];
+      keep = x == x && y == y && (n2 === 0 || x != xx[j - 1] || y != yy[j - 1]);
+
+      if (keep) {
+        i = dest + n2;
+        xx[i] = x;
+        yy[i] = y;
+        n2++;
+      }
+
+      if (zz && n2 > 0 && (keep || zz[j] > zz[i])) {
+        zz[i] = zz[j];
+      }
+
+      n++;
+    }
+
+    return n2 > 1 ? n2 : 0;
+  };
+
+  geom.segmentIntersection = segmentIntersection;
+  geom.segmentHit = segmentHit;
+  geom.lineIntersection = lineIntersection;
+  geom.orient2D = orient2D;
+  geom.outsideRange = outsideRange; // Find the interection between two 2D segments
+  // Returns 0, 1 or two x, y locations as null, [x, y], or [x1, y1, x2, y2]
+  // Special cases:
+  // If the segments touch at an endpoint of both segments, it is not treated as an intersection
+  // If the segments touch at a T-intersection, it is treated as an intersection
+  // If the segments are collinear and partially overlapping, each subsumed endpoint
+  //    is counted as an intersection (there will be one or two)
+  //
+
+  function segmentIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
+    var hit = segmentHit(ax, ay, bx, by, cx, cy, dx, dy),
+        p = null;
+
+    if (hit) {
+      p = crossIntersection(ax, ay, bx, by, cx, cy, dx, dy);
+
+      if (!p) {
+        // collinear if p is null
+        p = collinearIntersection(ax, ay, bx, by, cx, cy, dx, dy);
+      } else if (endpointHit(ax, ay, bx, by, cx, cy, dx, dy)) {
+        p = null; // filter out segments that only intersect at an endpoint
       }
     }
 
-    function preloadImages() {
-      var swiper = this;
-      swiper.imagesToLoad = swiper.$el.find('img');
+    return p;
+  }
 
-      function onReady() {
-        if (typeof swiper === 'undefined' || swiper === null || !swiper || swiper.destroyed) {
-          return;
-        }
+  function lineIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
+    var den = determinant2D(bx - ax, by - ay, dx - cx, dy - cy);
+    var eps = 1e-18;
+    var m, p;
+    if (den === 0) return null;
+    m = orient2D(cx, cy, dx, dy, ax, ay) / den;
 
-        if (swiper.imagesLoaded !== undefined) {
-          swiper.imagesLoaded += 1;
-        }
+    if (den <= eps && den >= -eps) {
+      // tiny denominator = low precision; using one of the endpoints as intersection
+      p = findEndpointInRange(ax, ay, bx, by, cx, cy, dx, dy);
 
-        if (swiper.imagesLoaded === swiper.imagesToLoad.length) {
-          if (swiper.params.updateOnImagesReady) {
-            swiper.update();
-          }
-
-          swiper.emit('imagesReady');
-        }
+      if (!p) {
+        debug('[lineIntersection()]');
+        geom.debugSegmentIntersection([], ax, ay, bx, by, cx, cy, dx, dy);
       }
+    } else {
+      p = [ax + m * (bx - ax), ay + m * (by - ay)];
+    }
 
-      for (var i = 0; i < swiper.imagesToLoad.length; i += 1) {
-        var imageEl = swiper.imagesToLoad[i];
-        swiper.loadImage(imageEl, imageEl.currentSrc || imageEl.getAttribute('src'), imageEl.srcset || imageEl.getAttribute('srcset'), imageEl.sizes || imageEl.getAttribute('sizes'), true, onReady);
+    return p;
+  }
+
+  function findEndpointInRange(ax, ay, bx, by, cx, cy, dx, dy) {
+    var p = null;
+
+    if (!outsideRange(ax, cx, dx) && !outsideRange(ay, cy, dy)) {
+      p = [ax, ay];
+    } else if (!outsideRange(bx, cx, dx) && !outsideRange(by, cy, dy)) {
+      p = [bx, by];
+    } else if (!outsideRange(cx, ax, bx) && !outsideRange(cy, ay, by)) {
+      p = [cx, cy];
+    } else if (!outsideRange(dx, ax, bx) && !outsideRange(dy, ay, by)) {
+      p = [dx, dy];
+    }
+
+    return p;
+  } // Get intersection point if segments are non-collinear, else return null
+  // Assumes that segments have been intersect
+
+
+  function crossIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
+    var p = lineIntersection(ax, ay, bx, by, cx, cy, dx, dy);
+    var nearest;
+
+    if (p) {
+      // Re-order operands so intersection point is closest to a (better precision)
+      // Source: Jonathan Shewchuk http://www.cs.berkeley.edu/~jrs/meshpapers/robnotes.pdf
+      nearest = nearestPoint(p[0], p[1], ax, ay, bx, by, cx, cy, dx, dy);
+
+      if (nearest == 1) {
+        p = lineIntersection(bx, by, ax, ay, cx, cy, dx, dy);
+      } else if (nearest == 2) {
+        p = lineIntersection(cx, cy, dx, dy, ax, ay, bx, by);
+      } else if (nearest == 3) {
+        p = lineIntersection(dx, dy, cx, cy, ax, ay, bx, by);
       }
     }
 
-    var images = {
-      loadImage: loadImage,
-      preloadImages: preloadImages
-    };
-
-    function checkOverflow() {
-      var swiper = this;
-      var wasLocked = swiper.isLocked;
-      swiper.isLocked = swiper.snapGrid.length === 1;
-      swiper.allowSlideNext = !swiper.isLocked;
-      swiper.allowSlidePrev = !swiper.isLocked; // events
-
-      if (wasLocked !== swiper.isLocked) {
-        swiper.emit(swiper.isLocked ? 'lock' : 'unlock');
-      }
-
-      if (wasLocked && wasLocked !== swiper.isLocked) {
-        swiper.isEnd = false;
-        swiper.navigation.update();
-      }
+    if (p) {
+      clampIntersectionPoint(p, ax, ay, bx, by, cx, cy, dx, dy);
     }
 
-    var checkOverflow$1 = {
-      checkOverflow: checkOverflow
-    };
-    var defaults = {
-      init: true,
-      direction: 'horizontal',
-      touchEventsTarget: 'container',
-      initialSlide: 0,
-      speed: 300,
-      //
-      preventIntercationOnTransition: false,
-      // To support iOS's swipe-to-go-back gesture (when being used in-app, with UIWebView).
-      iOSEdgeSwipeDetection: false,
-      iOSEdgeSwipeThreshold: 20,
-      // Free mode
-      freeMode: false,
-      freeModeMomentum: true,
-      freeModeMomentumRatio: 1,
-      freeModeMomentumBounce: true,
-      freeModeMomentumBounceRatio: 1,
-      freeModeMomentumVelocityRatio: 1,
-      freeModeSticky: false,
-      freeModeMinimumVelocity: 0.02,
-      // Autoheight
-      autoHeight: false,
-      // Set wrapper width
-      setWrapperSize: false,
-      // Virtual Translate
-      virtualTranslate: false,
-      // Effects
-      effect: 'slide',
-      // 'slide' or 'fade' or 'cube' or 'coverflow' or 'flip'
-      // Breakpoints
-      breakpoints: undefined,
-      // Slides grid
-      spaceBetween: 0,
-      slidesPerView: 1,
-      slidesPerColumn: 1,
-      slidesPerColumnFill: 'column',
-      slidesPerGroup: 1,
-      centeredSlides: false,
-      slidesOffsetBefore: 0,
-      // in px
-      slidesOffsetAfter: 0,
-      // in px
-      normalizeSlideIndex: true,
-      // Disable swiper and hide navigation when container not overflow
-      watchOverflow: false,
-      // Round length
-      roundLengths: false,
-      // Touches
-      touchRatio: 1,
-      touchAngle: 45,
-      simulateTouch: true,
-      shortSwipes: true,
-      longSwipes: true,
-      longSwipesRatio: 0.5,
-      longSwipesMs: 300,
-      followFinger: true,
-      allowTouchMove: true,
-      threshold: 0,
-      touchMoveStopPropagation: true,
-      touchReleaseOnEdges: false,
-      // Unique Navigation Elements
-      uniqueNavElements: true,
-      // Resistance
-      resistance: true,
-      resistanceRatio: 0.85,
-      // Progress
-      watchSlidesProgress: false,
-      watchSlidesVisibility: false,
-      // Cursor
-      grabCursor: false,
-      // Clicks
-      preventClicks: true,
-      preventClicksPropagation: true,
-      slideToClickedSlide: false,
-      // Images
-      preloadImages: true,
-      updateOnImagesReady: true,
-      // loop
-      loop: false,
-      loopAdditionalSlides: 0,
-      loopedSlides: null,
-      loopFillGroupWithBlank: false,
-      // Swiping/no swiping
-      allowSlidePrev: true,
-      allowSlideNext: true,
-      swipeHandler: null,
-      // '.swipe-handler',
-      noSwiping: true,
-      noSwipingClass: 'swiper-no-swiping',
-      noSwipingSelector: null,
-      // Passive Listeners
-      passiveListeners: true,
-      // NS
-      containerModifierClass: 'swiper-container-',
-      // NEW
-      slideClass: 'swiper-slide',
-      slideBlankClass: 'swiper-slide-invisible-blank',
-      slideActiveClass: 'swiper-slide-active',
-      slideDuplicateActiveClass: 'swiper-slide-duplicate-active',
-      slideVisibleClass: 'swiper-slide-visible',
-      slideDuplicateClass: 'swiper-slide-duplicate',
-      slideNextClass: 'swiper-slide-next',
-      slideDuplicateNextClass: 'swiper-slide-duplicate-next',
-      slidePrevClass: 'swiper-slide-prev',
-      slideDuplicatePrevClass: 'swiper-slide-duplicate-prev',
-      wrapperClass: 'swiper-wrapper',
-      // Callbacks
-      runCallbacksOnInit: true
-    };
-    var prototypes = {
-      update: update,
-      translate: translate,
-      transition: transition$1,
-      slide: slide,
-      loop: loop,
-      grabCursor: grabCursor,
-      manipulation: manipulation,
-      events: events,
-      breakpoints: breakpoints,
-      checkOverflow: checkOverflow$1,
-      classes: classes,
-      images: images
-    };
-    var extendedDefaults = {};
-
-    var Swiper = function (SwiperClass$$1) {
-      function Swiper() {
-        var assign;
-        var args = [],
-            len = arguments.length;
-
-        while (len--) {
-          args[len] = arguments[len];
-        }
-
-        var el;
-        var params;
-
-        if (args.length === 1 && args[0].constructor && args[0].constructor === Object) {
-          params = args[0];
-        } else {
-          assign = args, el = assign[0], params = assign[1];
-        }
-
-        if (!params) {
-          params = {};
-        }
-
-        params = Utils.extend({}, params);
-
-        if (el && !params.el) {
-          params.el = el;
-        }
-
-        SwiperClass$$1.call(this, params);
-        Object.keys(prototypes).forEach(function (prototypeGroup) {
-          Object.keys(prototypes[prototypeGroup]).forEach(function (protoMethod) {
-            if (!Swiper.prototype[protoMethod]) {
-              Swiper.prototype[protoMethod] = prototypes[prototypeGroup][protoMethod];
-            }
-          });
-        }); // Swiper Instance
-
-        var swiper = this;
-
-        if (typeof swiper.modules === 'undefined') {
-          swiper.modules = {};
-        }
-
-        Object.keys(swiper.modules).forEach(function (moduleName) {
-          var module = swiper.modules[moduleName];
-
-          if (module.params) {
-            var moduleParamName = Object.keys(module.params)[0];
-            var moduleParams = module.params[moduleParamName];
-
-            if (_typeof(moduleParams) !== 'object') {
-              return;
-            }
-
-            if (!(moduleParamName in params && 'enabled' in moduleParams)) {
-              return;
-            }
-
-            if (params[moduleParamName] === true) {
-              params[moduleParamName] = {
-                enabled: true
-              };
-            }
-
-            if (_typeof(params[moduleParamName]) === 'object' && !('enabled' in params[moduleParamName])) {
-              params[moduleParamName].enabled = true;
-            }
-
-            if (!params[moduleParamName]) {
-              params[moduleParamName] = {
-                enabled: false
-              };
-            }
-          }
-        }); // Extend defaults with modules params
-
-        var swiperParams = Utils.extend({}, defaults);
-        swiper.useModulesParams(swiperParams); // Extend defaults with passed params
-
-        swiper.params = Utils.extend({}, swiperParams, extendedDefaults, params);
-        swiper.originalParams = Utils.extend({}, swiper.params);
-        swiper.passedParams = Utils.extend({}, params); // Save Dom lib
-
-        swiper.$ = $; // Find el
-
-        var $el = $(swiper.params.el);
-        el = $el[0];
-
-        if (!el) {
-          return undefined;
-        }
-
-        if ($el.length > 1) {
-          var swipers = [];
-          $el.each(function (index, containerEl) {
-            var newParams = Utils.extend({}, params, {
-              el: containerEl
-            });
-            swipers.push(new Swiper(newParams));
-          });
-          return swipers;
-        }
-
-        el.swiper = swiper;
-        $el.data('swiper', swiper); // Find Wrapper
-
-        var $wrapperEl = $el.children("." + swiper.params.wrapperClass); // Extend Swiper
-
-        Utils.extend(swiper, {
-          $el: $el,
-          el: el,
-          $wrapperEl: $wrapperEl,
-          wrapperEl: $wrapperEl[0],
-          // Classes
-          classNames: [],
-          // Slides
-          slides: $(),
-          slidesGrid: [],
-          snapGrid: [],
-          slidesSizesGrid: [],
-          // isDirection
-          isHorizontal: function isHorizontal() {
-            return swiper.params.direction === 'horizontal';
-          },
-          isVertical: function isVertical() {
-            return swiper.params.direction === 'vertical';
-          },
-          // RTL
-          rtl: el.dir.toLowerCase() === 'rtl' || $el.css('direction') === 'rtl',
-          rtlTranslate: swiper.params.direction === 'horizontal' && (el.dir.toLowerCase() === 'rtl' || $el.css('direction') === 'rtl'),
-          wrongRTL: $wrapperEl.css('display') === '-webkit-box',
-          // Indexes
-          activeIndex: 0,
-          realIndex: 0,
-          //
-          isBeginning: true,
-          isEnd: false,
-          // Props
-          translate: 0,
-          previousTranslate: 0,
-          progress: 0,
-          velocity: 0,
-          animating: false,
-          // Locks
-          allowSlideNext: swiper.params.allowSlideNext,
-          allowSlidePrev: swiper.params.allowSlidePrev,
-          // Touch Events
-          touchEvents: function touchEvents() {
-            var touch = ['touchstart', 'touchmove', 'touchend'];
-            var desktop = ['mousedown', 'mousemove', 'mouseup'];
-
-            if (Support.pointerEvents) {
-              desktop = ['pointerdown', 'pointermove', 'pointerup'];
-            } else if (Support.prefixedPointerEvents) {
-              desktop = ['MSPointerDown', 'MSPointerMove', 'MSPointerUp'];
-            }
-
-            swiper.touchEventsTouch = {
-              start: touch[0],
-              move: touch[1],
-              end: touch[2]
-            };
-            swiper.touchEventsDesktop = {
-              start: desktop[0],
-              move: desktop[1],
-              end: desktop[2]
-            };
-            return Support.touch || !swiper.params.simulateTouch ? swiper.touchEventsTouch : swiper.touchEventsDesktop;
-          }(),
-          touchEventsData: {
-            isTouched: undefined,
-            isMoved: undefined,
-            allowTouchCallbacks: undefined,
-            touchStartTime: undefined,
-            isScrolling: undefined,
-            currentTranslate: undefined,
-            startTranslate: undefined,
-            allowThresholdMove: undefined,
-            // Form elements to match
-            formElements: 'input, select, option, textarea, button, video',
-            // Last click time
-            lastClickTime: Utils.now(),
-            clickTimeout: undefined,
-            // Velocities
-            velocities: [],
-            allowMomentumBounce: undefined,
-            isTouchEvent: undefined,
-            startMoving: undefined
-          },
-          // Clicks
-          allowClick: true,
-          // Touches
-          allowTouchMove: swiper.params.allowTouchMove,
-          touches: {
-            startX: 0,
-            startY: 0,
-            currentX: 0,
-            currentY: 0,
-            diff: 0
-          },
-          // Images
-          imagesToLoad: [],
-          imagesLoaded: 0
-        }); // Install Modules
-
-        swiper.useModules(); // Init
-
-        if (swiper.params.init) {
-          swiper.init();
-        } // Return app instance
-
-
-        return swiper;
-      }
-
-      if (SwiperClass$$1) Swiper.__proto__ = SwiperClass$$1;
-      Swiper.prototype = Object.create(SwiperClass$$1 && SwiperClass$$1.prototype);
-      Swiper.prototype.constructor = Swiper;
-      var staticAccessors = {
-        extendedDefaults: {
-          configurable: true
-        },
-        defaults: {
-          configurable: true
-        },
-        Class: {
-          configurable: true
-        },
-        $: {
-          configurable: true
-        }
-      };
-
-      Swiper.prototype.slidesPerViewDynamic = function slidesPerViewDynamic() {
-        var swiper = this;
-        var params = swiper.params;
-        var slides = swiper.slides;
-        var slidesGrid = swiper.slidesGrid;
-        var swiperSize = swiper.size;
-        var activeIndex = swiper.activeIndex;
-        var spv = 1;
-
-        if (params.centeredSlides) {
-          var slideSize = slides[activeIndex].swiperSlideSize;
-          var breakLoop;
-
-          for (var i = activeIndex + 1; i < slides.length; i += 1) {
-            if (slides[i] && !breakLoop) {
-              slideSize += slides[i].swiperSlideSize;
-              spv += 1;
-
-              if (slideSize > swiperSize) {
-                breakLoop = true;
-              }
-            }
-          }
-
-          for (var i$1 = activeIndex - 1; i$1 >= 0; i$1 -= 1) {
-            if (slides[i$1] && !breakLoop) {
-              slideSize += slides[i$1].swiperSlideSize;
-              spv += 1;
-
-              if (slideSize > swiperSize) {
-                breakLoop = true;
-              }
-            }
-          }
-        } else {
-          for (var i$2 = activeIndex + 1; i$2 < slides.length; i$2 += 1) {
-            if (slidesGrid[i$2] - slidesGrid[activeIndex] < swiperSize) {
-              spv += 1;
-            }
-          }
-        }
-
-        return spv;
-      };
-
-      Swiper.prototype.update = function update$$1() {
-        var swiper = this;
-
-        if (!swiper || swiper.destroyed) {
-          return;
-        }
-
-        var snapGrid = swiper.snapGrid;
-        var params = swiper.params; // Breakpoints
-
-        if (params.breakpoints) {
-          swiper.setBreakpoint();
-        }
-
-        swiper.updateSize();
-        swiper.updateSlides();
-        swiper.updateProgress();
-        swiper.updateSlidesClasses();
-
-        function setTranslate() {
-          var translateValue = swiper.rtlTranslate ? swiper.translate * -1 : swiper.translate;
-          var newTranslate = Math.min(Math.max(translateValue, swiper.maxTranslate()), swiper.minTranslate());
-          swiper.setTranslate(newTranslate);
-          swiper.updateActiveIndex();
-          swiper.updateSlidesClasses();
-        }
-
-        var translated;
-
-        if (swiper.params.freeMode) {
-          setTranslate();
-
-          if (swiper.params.autoHeight) {
-            swiper.updateAutoHeight();
-          }
-        } else {
-          if ((swiper.params.slidesPerView === 'auto' || swiper.params.slidesPerView > 1) && swiper.isEnd && !swiper.params.centeredSlides) {
-            translated = swiper.slideTo(swiper.slides.length - 1, 0, false, true);
-          } else {
-            translated = swiper.slideTo(swiper.activeIndex, 0, false, true);
-          }
-
-          if (!translated) {
-            setTranslate();
-          }
-        }
-
-        if (params.watchOverflow && snapGrid !== swiper.snapGrid) {
-          swiper.checkOverflow();
-        }
-
-        swiper.emit('update');
-      };
-
-      Swiper.prototype.init = function init() {
-        var swiper = this;
-
-        if (swiper.initialized) {
-          return;
-        }
-
-        swiper.emit('beforeInit'); // Set breakpoint
-
-        if (swiper.params.breakpoints) {
-          swiper.setBreakpoint();
-        } // Add Classes
-
-
-        swiper.addClasses(); // Create loop
-
-        if (swiper.params.loop) {
-          swiper.loopCreate();
-        } // Update size
-
-
-        swiper.updateSize(); // Update slides
-
-        swiper.updateSlides();
-
-        if (swiper.params.watchOverflow) {
-          swiper.checkOverflow();
-        } // Set Grab Cursor
-
-
-        if (swiper.params.grabCursor) {
-          swiper.setGrabCursor();
-        }
-
-        if (swiper.params.preloadImages) {
-          swiper.preloadImages();
-        } // Slide To Initial Slide
-
-
-        if (swiper.params.loop) {
-          swiper.slideTo(swiper.params.initialSlide + swiper.loopedSlides, 0, swiper.params.runCallbacksOnInit);
-        } else {
-          swiper.slideTo(swiper.params.initialSlide, 0, swiper.params.runCallbacksOnInit);
-        } // Attach events
-
-
-        swiper.attachEvents(); // Init Flag
-
-        swiper.initialized = true; // Emit
-
-        swiper.emit('init');
-      };
-
-      Swiper.prototype.destroy = function destroy(deleteInstance, cleanStyles) {
-        if (deleteInstance === void 0) deleteInstance = true;
-        if (cleanStyles === void 0) cleanStyles = true;
-        var swiper = this;
-        var params = swiper.params;
-        var $el = swiper.$el;
-        var $wrapperEl = swiper.$wrapperEl;
-        var slides = swiper.slides;
-
-        if (typeof swiper.params === 'undefined' || swiper.destroyed) {
-          return null;
-        }
-
-        swiper.emit('beforeDestroy'); // Init Flag
-
-        swiper.initialized = false; // Detach events
-
-        swiper.detachEvents(); // Destroy loop
-
-        if (params.loop) {
-          swiper.loopDestroy();
-        } // Cleanup styles
-
-
-        if (cleanStyles) {
-          swiper.removeClasses();
-          $el.removeAttr('style');
-          $wrapperEl.removeAttr('style');
-
-          if (slides && slides.length) {
-            slides.removeClass([params.slideVisibleClass, params.slideActiveClass, params.slideNextClass, params.slidePrevClass].join(' ')).removeAttr('style').removeAttr('data-swiper-slide-index').removeAttr('data-swiper-column').removeAttr('data-swiper-row');
-          }
-        }
-
-        swiper.emit('destroy'); // Detach emitter events
-
-        Object.keys(swiper.eventsListeners).forEach(function (eventName) {
-          swiper.off(eventName);
-        });
-
-        if (deleteInstance !== false) {
-          swiper.$el[0].swiper = null;
-          swiper.$el.data('swiper', null);
-          Utils.deleteProps(swiper);
-        }
-
-        swiper.destroyed = true;
-        return null;
-      };
-
-      Swiper.extendDefaults = function extendDefaults(newDefaults) {
-        Utils.extend(extendedDefaults, newDefaults);
-      };
-
-      staticAccessors.extendedDefaults.get = function () {
-        return extendedDefaults;
-      };
-
-      staticAccessors.defaults.get = function () {
-        return defaults;
-      };
-
-      staticAccessors.Class.get = function () {
-        return SwiperClass$$1;
-      };
-
-      staticAccessors.$.get = function () {
-        return $;
-      };
-
-      Object.defineProperties(Swiper, staticAccessors);
-      return Swiper;
-    }(SwiperClass);
-
-    var Device$1 = {
-      name: 'device',
-      proto: {
-        device: Device
-      },
-      "static": {
-        device: Device
-      }
-    };
-    var Support$1 = {
-      name: 'support',
-      proto: {
-        support: Support
-      },
-      "static": {
-        support: Support
-      }
-    };
-    var Browser$1 = {
-      name: 'browser',
-      proto: {
-        browser: Browser
-      },
-      "static": {
-        browser: Browser
-      }
-    };
-    var Resize = {
-      name: 'resize',
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          resize: {
-            resizeHandler: function resizeHandler() {
-              if (!swiper || swiper.destroyed || !swiper.initialized) {
-                return;
-              }
-
-              swiper.emit('beforeResize');
-              swiper.emit('resize');
-            },
-            orientationChangeHandler: function orientationChangeHandler() {
-              if (!swiper || swiper.destroyed || !swiper.initialized) {
-                return;
-              }
-
-              swiper.emit('orientationchange');
-            }
-          }
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this; // Emit resize
-
-          win.addEventListener('resize', swiper.resize.resizeHandler); // Emit orientationchange
-
-          win.addEventListener('orientationchange', swiper.resize.orientationChangeHandler);
-        },
-        destroy: function destroy() {
-          var swiper = this;
-          win.removeEventListener('resize', swiper.resize.resizeHandler);
-          win.removeEventListener('orientationchange', swiper.resize.orientationChangeHandler);
-        }
-      }
-    };
-    var Observer = {
-      func: win.MutationObserver || win.WebkitMutationObserver,
-      attach: function attach(target, options) {
-        if (options === void 0) options = {};
-        var swiper = this;
-        var ObserverFunc = Observer.func;
-        var observer = new ObserverFunc(function (mutations) {
-          mutations.forEach(function (mutation) {
-            swiper.emit('observerUpdate', mutation);
-          });
-        });
-        observer.observe(target, {
-          attributes: typeof options.attributes === 'undefined' ? true : options.attributes,
-          childList: typeof options.childList === 'undefined' ? true : options.childList,
-          characterData: typeof options.characterData === 'undefined' ? true : options.characterData
-        });
-        swiper.observer.observers.push(observer);
-      },
-      init: function init() {
-        var swiper = this;
-
-        if (!Support.observer || !swiper.params.observer) {
-          return;
-        }
-
-        if (swiper.params.observeParents) {
-          var containerParents = swiper.$el.parents();
-
-          for (var i = 0; i < containerParents.length; i += 1) {
-            swiper.observer.attach(containerParents[i]);
-          }
-        } // Observe container
-
-
-        swiper.observer.attach(swiper.$el[0], {
-          childList: false
-        }); // Observe wrapper
-
-        swiper.observer.attach(swiper.$wrapperEl[0], {
-          attributes: false
-        });
-      },
-      destroy: function destroy() {
-        var swiper = this;
-        swiper.observer.observers.forEach(function (observer) {
-          observer.disconnect();
-        });
-        swiper.observer.observers = [];
-      }
-    };
-    var Observer$1 = {
-      name: 'observer',
-      params: {
-        observer: false,
-        observeParents: false
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          observer: {
-            init: Observer.init.bind(swiper),
-            attach: Observer.attach.bind(swiper),
-            destroy: Observer.destroy.bind(swiper),
-            observers: []
-          }
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
-          swiper.observer.init();
-        },
-        destroy: function destroy() {
-          var swiper = this;
-          swiper.observer.destroy();
-        }
-      }
-    };
-    var Virtual = {
-      update: function update(force) {
-        var swiper = this;
-        var ref = swiper.params;
-        var slidesPerView = ref.slidesPerView;
-        var slidesPerGroup = ref.slidesPerGroup;
-        var centeredSlides = ref.centeredSlides;
-        var ref$1 = swiper.virtual;
-        var previousFrom = ref$1.from;
-        var previousTo = ref$1.to;
-        var slides = ref$1.slides;
-        var previousSlidesGrid = ref$1.slidesGrid;
-        var renderSlide = ref$1.renderSlide;
-        var previousOffset = ref$1.offset;
-        swiper.updateActiveIndex();
-        var activeIndex = swiper.activeIndex || 0;
-        var offsetProp;
-
-        if (swiper.rtlTranslate) {
-          offsetProp = 'right';
-        } else {
-          offsetProp = swiper.isHorizontal() ? 'left' : 'top';
-        }
-
-        var slidesAfter;
-        var slidesBefore;
-
-        if (centeredSlides) {
-          slidesAfter = Math.floor(slidesPerView / 2) + slidesPerGroup;
-          slidesBefore = Math.floor(slidesPerView / 2) + slidesPerGroup;
-        } else {
-          slidesAfter = slidesPerView + (slidesPerGroup - 1);
-          slidesBefore = slidesPerGroup;
-        }
-
-        var from = Math.max((activeIndex || 0) - slidesBefore, 0);
-        var to = Math.min((activeIndex || 0) + slidesAfter, slides.length - 1);
-        var offset = (swiper.slidesGrid[from] || 0) - (swiper.slidesGrid[0] || 0);
-        Utils.extend(swiper.virtual, {
-          from: from,
-          to: to,
-          offset: offset,
-          slidesGrid: swiper.slidesGrid
-        });
-
-        function onRendered() {
-          swiper.updateSlides();
-          swiper.updateProgress();
-          swiper.updateSlidesClasses();
-
-          if (swiper.lazy && swiper.params.lazy.enabled) {
-            swiper.lazy.load();
-          }
-        }
-
-        if (previousFrom === from && previousTo === to && !force) {
-          if (swiper.slidesGrid !== previousSlidesGrid && offset !== previousOffset) {
-            swiper.slides.css(offsetProp, offset + "px");
-          }
-
-          swiper.updateProgress();
-          return;
-        }
-
-        if (swiper.params.virtual.renderExternal) {
-          swiper.params.virtual.renderExternal.call(swiper, {
-            offset: offset,
-            from: from,
-            to: to,
-            slides: function getSlides() {
-              var slidesToRender = [];
-
-              for (var i = from; i <= to; i += 1) {
-                slidesToRender.push(slides[i]);
-              }
-
-              return slidesToRender;
-            }()
-          });
-          onRendered();
-          return;
-        }
-
-        var prependIndexes = [];
-        var appendIndexes = [];
-
-        if (force) {
-          swiper.$wrapperEl.find("." + swiper.params.slideClass).remove();
-        } else {
-          for (var i = previousFrom; i <= previousTo; i += 1) {
-            if (i < from || i > to) {
-              swiper.$wrapperEl.find("." + swiper.params.slideClass + "[data-swiper-slide-index=\"" + i + "\"]").remove();
-            }
-          }
-        }
-
-        for (var i$1 = 0; i$1 < slides.length; i$1 += 1) {
-          if (i$1 >= from && i$1 <= to) {
-            if (typeof previousTo === 'undefined' || force) {
-              appendIndexes.push(i$1);
-            } else {
-              if (i$1 > previousTo) {
-                appendIndexes.push(i$1);
-              }
-
-              if (i$1 < previousFrom) {
-                prependIndexes.push(i$1);
-              }
-            }
-          }
-        }
-
-        appendIndexes.forEach(function (index) {
-          swiper.$wrapperEl.append(renderSlide(slides[index], index));
-        });
-        prependIndexes.sort(function (a, b) {
-          return a < b;
-        }).forEach(function (index) {
-          swiper.$wrapperEl.prepend(renderSlide(slides[index], index));
-        });
-        swiper.$wrapperEl.children('.swiper-slide').css(offsetProp, offset + "px");
-        onRendered();
-      },
-      renderSlide: function renderSlide(slide, index) {
-        var swiper = this;
-        var params = swiper.params.virtual;
-
-        if (params.cache && swiper.virtual.cache[index]) {
-          return swiper.virtual.cache[index];
-        }
-
-        var $slideEl = params.renderSlide ? $(params.renderSlide.call(swiper, slide, index)) : $("<div class=\"" + swiper.params.slideClass + "\" data-swiper-slide-index=\"" + index + "\">" + slide + "</div>");
-
-        if (!$slideEl.attr('data-swiper-slide-index')) {
-          $slideEl.attr('data-swiper-slide-index', index);
-        }
-
-        if (params.cache) {
-          swiper.virtual.cache[index] = $slideEl;
-        }
-
-        return $slideEl;
-      },
-      appendSlide: function appendSlide(slide) {
-        var swiper = this;
-        swiper.virtual.slides.push(slide);
-        swiper.virtual.update(true);
-      },
-      prependSlide: function prependSlide(slide) {
-        var swiper = this;
-        swiper.virtual.slides.unshift(slide);
-
-        if (swiper.params.virtual.cache) {
-          var cache = swiper.virtual.cache;
-          var newCache = {};
-          Object.keys(cache).forEach(function (cachedIndex) {
-            newCache[cachedIndex + 1] = cache[cachedIndex];
-          });
-          swiper.virtual.cache = newCache;
-        }
-
-        swiper.virtual.update(true);
-        swiper.slideNext(0);
-      }
-    };
-    var Virtual$1 = {
-      name: 'virtual',
-      params: {
-        virtual: {
-          enabled: false,
-          slides: [],
-          cache: true,
-          renderSlide: null,
-          renderExternal: null
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          virtual: {
-            update: Virtual.update.bind(swiper),
-            appendSlide: Virtual.appendSlide.bind(swiper),
-            prependSlide: Virtual.prependSlide.bind(swiper),
-            renderSlide: Virtual.renderSlide.bind(swiper),
-            slides: swiper.params.virtual.slides,
-            cache: {}
-          }
-        });
-      },
-      on: {
-        beforeInit: function beforeInit() {
-          var swiper = this;
-
-          if (!swiper.params.virtual.enabled) {
-            return;
-          }
-
-          swiper.classNames.push(swiper.params.containerModifierClass + "virtual");
-          var overwriteParams = {
-            watchSlidesProgress: true
-          };
-          Utils.extend(swiper.params, overwriteParams);
-          Utils.extend(swiper.originalParams, overwriteParams);
-          swiper.virtual.update();
-        },
-        setTranslate: function setTranslate() {
-          var swiper = this;
-
-          if (!swiper.params.virtual.enabled) {
-            return;
-          }
-
-          swiper.virtual.update();
-        }
-      }
-    };
-    var Keyboard = {
-      handle: function handle(event) {
-        var swiper = this;
-        var rtl = swiper.rtlTranslate;
-        var e = event;
-
-        if (e.originalEvent) {
-          e = e.originalEvent;
-        } // jquery fix
-
-
-        var kc = e.keyCode || e.charCode; // Directions locks
-
-        if (!swiper.allowSlideNext && (swiper.isHorizontal() && kc === 39 || swiper.isVertical() && kc === 40)) {
-          return false;
-        }
-
-        if (!swiper.allowSlidePrev && (swiper.isHorizontal() && kc === 37 || swiper.isVertical() && kc === 38)) {
-          return false;
-        }
-
-        if (e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) {
-          return undefined;
-        }
-
-        if (doc.activeElement && doc.activeElement.nodeName && (doc.activeElement.nodeName.toLowerCase() === 'input' || doc.activeElement.nodeName.toLowerCase() === 'textarea')) {
-          return undefined;
-        }
-
-        if (swiper.params.keyboard.onlyInViewport && (kc === 37 || kc === 39 || kc === 38 || kc === 40)) {
-          var inView = false; // Check that swiper should be inside of visible area of window
-
-          if (swiper.$el.parents("." + swiper.params.slideClass).length > 0 && swiper.$el.parents("." + swiper.params.slideActiveClass).length === 0) {
-            return undefined;
-          }
-
-          var windowWidth = win.innerWidth;
-          var windowHeight = win.innerHeight;
-          var swiperOffset = swiper.$el.offset();
-
-          if (rtl) {
-            swiperOffset.left -= swiper.$el[0].scrollLeft;
-          }
-
-          var swiperCoord = [[swiperOffset.left, swiperOffset.top], [swiperOffset.left + swiper.width, swiperOffset.top], [swiperOffset.left, swiperOffset.top + swiper.height], [swiperOffset.left + swiper.width, swiperOffset.top + swiper.height]];
-
-          for (var i = 0; i < swiperCoord.length; i += 1) {
-            var point = swiperCoord[i];
-
-            if (point[0] >= 0 && point[0] <= windowWidth && point[1] >= 0 && point[1] <= windowHeight) {
-              inView = true;
-            }
-          }
-
-          if (!inView) {
-            return undefined;
-          }
-        }
-
-        if (swiper.isHorizontal()) {
-          if (kc === 37 || kc === 39) {
-            if (e.preventDefault) {
-              e.preventDefault();
-            } else {
-              e.returnValue = false;
-            }
-          }
-
-          if (kc === 39 && !rtl || kc === 37 && rtl) {
-            swiper.slideNext();
-          }
-
-          if (kc === 37 && !rtl || kc === 39 && rtl) {
-            swiper.slidePrev();
-          }
-        } else {
-          if (kc === 38 || kc === 40) {
-            if (e.preventDefault) {
-              e.preventDefault();
-            } else {
-              e.returnValue = false;
-            }
-          }
-
-          if (kc === 40) {
-            swiper.slideNext();
-          }
-
-          if (kc === 38) {
-            swiper.slidePrev();
-          }
-        }
-
-        swiper.emit('keyPress', kc);
-        return undefined;
-      },
-      enable: function enable() {
-        var swiper = this;
-
-        if (swiper.keyboard.enabled) {
-          return;
-        }
-
-        $(doc).on('keydown', swiper.keyboard.handle);
-        swiper.keyboard.enabled = true;
-      },
-      disable: function disable() {
-        var swiper = this;
-
-        if (!swiper.keyboard.enabled) {
-          return;
-        }
-
-        $(doc).off('keydown', swiper.keyboard.handle);
-        swiper.keyboard.enabled = false;
-      }
-    };
-    var Keyboard$1 = {
-      name: 'keyboard',
-      params: {
-        keyboard: {
-          enabled: false,
-          onlyInViewport: true
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          keyboard: {
-            enabled: false,
-            enable: Keyboard.enable.bind(swiper),
-            disable: Keyboard.disable.bind(swiper),
-            handle: Keyboard.handle.bind(swiper)
-          }
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
-
-          if (swiper.params.keyboard.enabled) {
-            swiper.keyboard.enable();
-          }
-        },
-        destroy: function destroy() {
-          var swiper = this;
-
-          if (swiper.keyboard.enabled) {
-            swiper.keyboard.disable();
-          }
-        }
-      }
-    };
-
-    function isEventSupported() {
-      var eventName = 'onwheel';
-      var isSupported = eventName in doc;
-
-      if (!isSupported) {
-        var element = doc.createElement('div');
-        element.setAttribute(eventName, 'return;');
-        isSupported = typeof element[eventName] === 'function';
-      }
-
-      if (!isSupported && doc.implementation && doc.implementation.hasFeature && // always returns true in newer browsers as per the standard.
-      // @see http://dom.spec.whatwg.org/#dom-domimplementation-hasfeature
-      doc.implementation.hasFeature('', '') !== true) {
-        // This is the only way to test support for the `wheel` event in IE9+.
-        isSupported = doc.implementation.hasFeature('Events.wheel', '3.0');
-      }
-
-      return isSupported;
+    return p;
+  }
+
+  function clampIntersectionPoint(p, ax, ay, bx, by, cx, cy, dx, dy) {
+    // Handle intersection points that fall outside the x-y range of either
+    // segment by snapping to nearest endpoint coordinate. Out-of-range
+    // intersection points can be caused by floating point rounding errors
+    // when a segment is vertical or horizontal. This has caused problems when
+    // repeatedly applying bbox clipping along the same segment
+    var x = p[0],
+        y = p[1]; // assumes that segment ranges intersect
+
+    x = geom.clampToCloseRange(x, ax, bx);
+    x = geom.clampToCloseRange(x, cx, dx);
+    y = geom.clampToCloseRange(y, ay, by);
+    y = geom.clampToCloseRange(y, cy, dy);
+    p[0] = x;
+    p[1] = y;
+  }
+
+  geom.debugSegmentIntersection = function (p, ax, ay, bx, by, cx, cy, dx, dy) {
+    debug('[debugSegmentIntersection()]');
+    debug('  s1\n  dx:', Math.abs(ax - bx), '\n  dy:', Math.abs(ay - by));
+    debug('  s2\n  dx:', Math.abs(cx - dx), '\n  dy:', Math.abs(cy - dy));
+    debug('  s1 xx:', ax, bx);
+    debug('  s2 xx:', cx, dx);
+    debug('  s1 yy:', ay, by);
+    debug('  s2 yy:', cy, dy);
+    debug('  angle:', geom.signedAngle(ax, ay, bx, by, dx - cx + bx, dy - cy + by));
+  }; // a: coordinate of point
+  // b: endpoint coordinate of segment
+  // c: other endpoint of segment
+
+
+  function outsideRange(a, b, c) {
+    var out;
+
+    if (b < c) {
+      out = a < b || a > c;
+    } else if (b > c) {
+      out = a > b || a < c;
+    } else {
+      out = a != b;
     }
 
-    var Mousewheel = {
-      lastScrollTime: Utils.now(),
-      event: function getEvent() {
-        if (win.navigator.userAgent.indexOf('firefox') > -1) {
-          return 'DOMMouseScroll';
+    return out;
+  }
+
+  geom.clampToCloseRange = function (a, b, c) {
+    var lim;
+
+    if (geom.outsideRange(a, b, c)) {
+      lim = Math.abs(a - b) < Math.abs(a - c) ? b : c;
+
+      if (Math.abs(a - lim) > 1e-15) {
+        debug("[clampToCloseRange()] large clamping interval", a, b, c);
+      }
+
+      a = lim;
+    }
+
+    return a;
+  }; // Used by mapshaper-gaps.js
+  // TODO: make more robust, make sure result is compatible with segmentIntersection()
+  // (rounding errors currently must be handled downstream)
+
+
+  geom.findClosestPointOnSeg = function (px, py, ax, ay, bx, by) {
+    var dx = bx - ax,
+        dy = by - ay,
+        dotp = (px - ax) * dx + (py - ay) * dy,
+        abSq = dx * dx + dy * dy,
+        k = abSq === 0 ? -1 : dotp / abSq,
+        eps = 0.1,
+        // 1e-6, // snap to endpoint
+    p;
+
+    if (k <= eps) {
+      p = [ax, ay];
+    } else if (k >= 1 - eps) {
+      p = [bx, by];
+    } else {
+      p = [ax + k * dx, ay + k * dy];
+    }
+
+    return p;
+  }; // Determinant of matrix
+  //  | a  b |
+  //  | c  d |
+
+
+  function determinant2D(a, b, c, d) {
+    return a * d - b * c;
+  } // returns a positive value if the points a, b, and c are arranged in
+  // counterclockwise order, a negative value if the points are in clockwise
+  // order, and zero if the points are collinear.
+  // Source: Jonathan Shewchuk http://www.cs.berkeley.edu/~jrs/meshpapers/robnotes.pdf
+
+
+  function orient2D(ax, ay, bx, by, cx, cy) {
+    return determinant2D(ax - cx, ay - cy, bx - cx, by - cy);
+  } // Source: Sedgewick, _Algorithms in C_
+  // (Tried various other functions that failed owing to floating point errors)
+
+
+  function segmentHit(ax, ay, bx, by, cx, cy, dx, dy) {
+    return orient2D(ax, ay, bx, by, cx, cy) * orient2D(ax, ay, bx, by, dx, dy) <= 0 && orient2D(cx, cy, dx, dy, ax, ay) * orient2D(cx, cy, dx, dy, bx, by) <= 0;
+  }
+
+  function inside(x, minX, maxX) {
+    return x > minX && x < maxX;
+  }
+
+  function sortSeg(x1, y1, x2, y2) {
+    return x1 < x2 || x1 == x2 && y1 < y2 ? [x1, y1, x2, y2] : [x2, y2, x1, y1];
+  } // Assume segments s1 and s2 are collinear and overlap; find one or two internal endpoints
+
+
+  function collinearIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
+    var minX = Math.min(ax, bx, cx, dx),
+        maxX = Math.max(ax, bx, cx, dx),
+        minY = Math.min(ay, by, cy, dy),
+        maxY = Math.max(ay, by, cy, dy),
+        useY = maxY - minY > maxX - minX,
+        coords = [];
+
+    if (useY ? inside(ay, minY, maxY) : inside(ax, minX, maxX)) {
+      coords.push(ax, ay);
+    }
+
+    if (useY ? inside(by, minY, maxY) : inside(bx, minX, maxX)) {
+      coords.push(bx, by);
+    }
+
+    if (useY ? inside(cy, minY, maxY) : inside(cx, minX, maxX)) {
+      coords.push(cx, cy);
+    }
+
+    if (useY ? inside(dy, minY, maxY) : inside(dx, minX, maxX)) {
+      coords.push(dx, dy);
+    }
+
+    if (coords.length != 2 && coords.length != 4) {
+      coords = null;
+      debug("Invalid collinear segment intersection", coords);
+    } else if (coords.length == 4 && coords[0] == coords[2] && coords[1] == coords[3]) {
+      // segs that meet in the middle don't count
+      coords = null;
+    }
+
+    return coords;
+  }
+
+  function endpointHit(ax, ay, bx, by, cx, cy, dx, dy) {
+    return ax == cx && ay == cy || ax == dx && ay == dy || bx == cx && by == cy || bx == dx && by == dy;
+  } // @xx array of x coords
+  // @ids an array of segment endpoint ids [a0, b0, a1, b1, ...]
+  // Sort @ids in place so that xx[a(n)] <= xx[b(n)] and xx[a(n)] <= xx[a(n+1)]
+
+
+  internal.sortSegmentIds = function (xx, ids) {
+    internal.orderSegmentIds(xx, ids);
+    internal.quicksortSegmentIds(xx, ids, 0, ids.length - 2);
+  };
+
+  internal.orderSegmentIds = function (xx, ids, spherical) {
+    function swap(i, j) {
+      var tmp = ids[i];
+      ids[i] = ids[j];
+      ids[j] = tmp;
+    }
+
+    for (var i = 0, n = ids.length; i < n; i += 2) {
+      if (xx[ids[i]] > xx[ids[i + 1]]) {
+        swap(i, i + 1);
+      }
+    }
+  };
+
+  internal.insertionSortSegmentIds = function (arr, ids, start, end) {
+    var id, id2;
+
+    for (var j = start + 2; j <= end; j += 2) {
+      id = ids[j];
+      id2 = ids[j + 1];
+
+      for (var i = j - 2; i >= start && arr[id] < arr[ids[i]]; i -= 2) {
+        ids[i + 2] = ids[i];
+        ids[i + 3] = ids[i + 1];
+      }
+
+      ids[i + 2] = id;
+      ids[i + 3] = id2;
+    }
+  };
+
+  internal.quicksortSegmentIds = function (a, ids, lo, hi) {
+    var i = lo,
+        j = hi,
+        pivot,
+        tmp;
+
+    while (i < hi) {
+      pivot = a[ids[lo + hi >> 2 << 1]]; // avoid n^2 performance on sorted arrays
+
+      while (i <= j) {
+        while (a[ids[i]] < pivot) {
+          i += 2;
         }
 
-        return isEventSupported() ? 'wheel' : 'mousewheel';
-      }(),
-      normalize: function normalize(e) {
-        // Reasonable defaults
-        var PIXEL_STEP = 10;
-        var LINE_HEIGHT = 40;
-        var PAGE_HEIGHT = 800;
-        var sX = 0;
-        var sY = 0; // spinX, spinY
-
-        var pX = 0;
-        var pY = 0; // pixelX, pixelY
-        // Legacy
-
-        if ('detail' in e) {
-          sY = e.detail;
+        while (a[ids[j]] > pivot) {
+          j -= 2;
         }
 
-        if ('wheelDelta' in e) {
-          sY = -e.wheelDelta / 120;
+        if (i <= j) {
+          tmp = ids[i];
+          ids[i] = ids[j];
+          ids[j] = tmp;
+          tmp = ids[i + 1];
+          ids[i + 1] = ids[j + 1];
+          ids[j + 1] = tmp;
+          i += 2;
+          j -= 2;
         }
+      }
 
-        if ('wheelDeltaY' in e) {
-          sY = -e.wheelDeltaY / 120;
+      if (j - lo < 40) internal.insertionSortSegmentIds(a, ids, lo, j);else internal.quicksortSegmentIds(a, ids, lo, j);
+
+      if (hi - i < 40) {
+        internal.insertionSortSegmentIds(a, ids, i, hi);
+        return;
+      }
+
+      lo = i;
+      j = hi;
+    }
+  }; // Convert an array of intersections into an ArcCollection (for display)
+  //
+
+
+  internal.getIntersectionPoints = function (intersections) {
+    return intersections.map(function (obj) {
+      return [obj.x, obj.y];
+    });
+  }; // Identify intersecting segments in an ArcCollection
+  //
+  // To find all intersections:
+  // 1. Assign each segment to one or more horizontal stripes/bins
+  // 2. Find intersections inside each stripe
+  // 3. Concat and dedup
+  //
+
+
+  internal.findSegmentIntersections = function () {
+    // Re-use buffer for temp data -- Chrome's gc starts bogging down
+    // if large buffers are repeatedly created.
+    var buf;
+
+    function getUint32Array(count) {
+      var bytes = count * 4;
+
+      if (!buf || buf.byteLength < bytes) {
+        buf = new ArrayBuffer(bytes);
+      }
+
+      return new Uint32Array(buf, 0, count);
+    }
+
+    return function (arcs) {
+      var bounds = arcs.getBounds(),
+          // TODO: handle spherical bounds
+      spherical = !arcs.isPlanar() && containsBounds(internal.getWorldBounds(), bounds.toArray()),
+          ymin = bounds.ymin,
+          yrange = bounds.ymax - ymin,
+          stripeCount = internal.calcSegmentIntersectionStripeCount(arcs),
+          stripeSizes = new Uint32Array(stripeCount),
+          stripeId = stripeCount > 1 ? multiStripeId : singleStripeId,
+          i,
+          j;
+
+      function multiStripeId(y) {
+        return Math.floor((stripeCount - 1) * (y - ymin) / yrange);
+      }
+
+      function singleStripeId(y) {
+        return 0;
+      } // Count segments in each stripe
+
+
+      arcs.forEachSegment(function (id1, id2, xx, yy) {
+        var s1 = stripeId(yy[id1]),
+            s2 = stripeId(yy[id2]);
+
+        while (true) {
+          stripeSizes[s1] = stripeSizes[s1] + 2;
+          if (s1 == s2) break;
+          s1 += s2 > s1 ? 1 : -1;
         }
+      }); // Allocate arrays for segments in each stripe
 
-        if ('wheelDeltaX' in e) {
-          sX = -e.wheelDeltaX / 120;
-        } // side scrolling on FF with DOMMouseScroll
+      var stripeData = getUint32Array(utils.sum(stripeSizes)),
+          offs = 0;
+      var stripes = [];
+      utils.forEach(stripeSizes, function (stripeSize) {
+        var start = offs;
+        offs += stripeSize;
+        stripes.push(stripeData.subarray(start, offs));
+      }); // Assign segment ids to each stripe
 
+      utils.initializeArray(stripeSizes, 0);
+      arcs.forEachSegment(function (id1, id2, xx, yy) {
+        var s1 = stripeId(yy[id1]),
+            s2 = stripeId(yy[id2]),
+            count,
+            stripe;
 
-        if ('axis' in e && e.axis === e.HORIZONTAL_AXIS) {
-          sX = sY;
-          sY = 0;
+        while (true) {
+          count = stripeSizes[s1];
+          stripeSizes[s1] = count + 2;
+          stripe = stripes[s1];
+          stripe[count] = id1;
+          stripe[count + 1] = id2;
+          if (s1 == s2) break;
+          s1 += s2 > s1 ? 1 : -1;
         }
+      }); // Detect intersections among segments in each stripe.
 
-        pX = sX * PIXEL_STEP;
-        pY = sY * PIXEL_STEP;
+      var raw = arcs.getVertexData(),
+          intersections = [],
+          arr;
 
-        if ('deltaY' in e) {
-          pY = e.deltaY;
+      for (i = 0; i < stripeCount; i++) {
+        arr = internal.intersectSegments(stripes[i], raw.xx, raw.yy);
+
+        for (j = 0; j < arr.length; j++) {
+          intersections.push(arr[j]);
         }
+      }
 
-        if ('deltaX' in e) {
-          pX = e.deltaX;
-        }
+      return internal.dedupIntersections(intersections);
+    };
+  }();
 
-        if ((pX || pY) && e.deltaMode) {
-          if (e.deltaMode === 1) {
-            // delta in LINE units
-            pX *= LINE_HEIGHT;
-            pY *= LINE_HEIGHT;
-          } else {
-            // delta in PAGE units
-            pX *= PAGE_HEIGHT;
-            pY *= PAGE_HEIGHT;
-          }
-        } // Fall-back if spin cannot be determined
+  internal.sortIntersections = function (arr) {
+    arr.sort(function (a, b) {
+      return a.x - b.x || a.y - b.y;
+    });
+  };
 
+  internal.dedupIntersections = function (arr) {
+    var index = {};
+    return arr.filter(function (o) {
+      var key = internal.getIntersectionKey(o);
 
-        if (pX && !sX) {
-          sX = pX < 1 ? -1 : 1;
-        }
-
-        if (pY && !sY) {
-          sY = pY < 1 ? -1 : 1;
-        }
-
-        return {
-          spinX: sX,
-          spinY: sY,
-          pixelX: pX,
-          pixelY: pY
-        };
-      },
-      handleMouseEnter: function handleMouseEnter() {
-        var swiper = this;
-        swiper.mouseEntered = true;
-      },
-      handleMouseLeave: function handleMouseLeave() {
-        var swiper = this;
-        swiper.mouseEntered = false;
-      },
-      handle: function handle(event) {
-        var e = event;
-        var swiper = this;
-        var params = swiper.params.mousewheel;
-
-        if (!swiper.mouseEntered && !params.releaseOnEdges) {
-          return true;
-        }
-
-        if (e.originalEvent) {
-          e = e.originalEvent;
-        } // jquery fix
-
-
-        var delta = 0;
-        var rtlFactor = swiper.rtlTranslate ? -1 : 1;
-        var data = Mousewheel.normalize(e);
-
-        if (params.forceToAxis) {
-          if (swiper.isHorizontal()) {
-            if (Math.abs(data.pixelX) > Math.abs(data.pixelY)) {
-              delta = data.pixelX * rtlFactor;
-            } else {
-              return true;
-            }
-          } else if (Math.abs(data.pixelY) > Math.abs(data.pixelX)) {
-            delta = data.pixelY;
-          } else {
-            return true;
-          }
-        } else {
-          delta = Math.abs(data.pixelX) > Math.abs(data.pixelY) ? -data.pixelX * rtlFactor : -data.pixelY;
-        }
-
-        if (delta === 0) {
-          return true;
-        }
-
-        if (params.invert) {
-          delta = -delta;
-        }
-
-        if (!swiper.params.freeMode) {
-          if (Utils.now() - swiper.mousewheel.lastScrollTime > 60) {
-            if (delta < 0) {
-              if ((!swiper.isEnd || swiper.params.loop) && !swiper.animating) {
-                swiper.slideNext();
-                swiper.emit('scroll', e);
-              } else if (params.releaseOnEdges) {
-                return true;
-              }
-            } else if ((!swiper.isBeginning || swiper.params.loop) && !swiper.animating) {
-              swiper.slidePrev();
-              swiper.emit('scroll', e);
-            } else if (params.releaseOnEdges) {
-              return true;
-            }
-          }
-
-          swiper.mousewheel.lastScrollTime = new win.Date().getTime();
-        } else {
-          // Freemode or scrollContainer:
-          if (swiper.params.loop) {
-            swiper.loopFix();
-          }
-
-          var position = swiper.getTranslate() + delta * params.sensitivity;
-          var wasBeginning = swiper.isBeginning;
-          var wasEnd = swiper.isEnd;
-
-          if (position >= swiper.minTranslate()) {
-            position = swiper.minTranslate();
-          }
-
-          if (position <= swiper.maxTranslate()) {
-            position = swiper.maxTranslate();
-          }
-
-          swiper.setTransition(0);
-          swiper.setTranslate(position);
-          swiper.updateProgress();
-          swiper.updateActiveIndex();
-          swiper.updateSlidesClasses();
-
-          if (!wasBeginning && swiper.isBeginning || !wasEnd && swiper.isEnd) {
-            swiper.updateSlidesClasses();
-          }
-
-          if (swiper.params.freeModeSticky) {
-            clearTimeout(swiper.mousewheel.timeout);
-            swiper.mousewheel.timeout = Utils.nextTick(function () {
-              swiper.slideToClosest();
-            }, 300);
-          } // Emit event
-
-
-          swiper.emit('scroll', e); // Stop autoplay
-
-          if (swiper.params.autoplay && swiper.params.autoplayDisableOnInteraction) {
-            swiper.autoplay.stop();
-          } // Return page scroll on edge positions
-
-
-          if (position === swiper.minTranslate() || position === swiper.maxTranslate()) {
-            return true;
-          }
-        }
-
-        if (e.preventDefault) {
-          e.preventDefault();
-        } else {
-          e.returnValue = false;
-        }
-
+      if (key in index) {
         return false;
-      },
-      enable: function enable() {
-        var swiper = this;
-
-        if (!Mousewheel.event) {
-          return false;
-        }
-
-        if (swiper.mousewheel.enabled) {
-          return false;
-        }
-
-        var target = swiper.$el;
-
-        if (swiper.params.mousewheel.eventsTarged !== 'container') {
-          target = $(swiper.params.mousewheel.eventsTarged);
-        }
-
-        target.on('mouseenter', swiper.mousewheel.handleMouseEnter);
-        target.on('mouseleave', swiper.mousewheel.handleMouseLeave);
-        target.on(Mousewheel.event, swiper.mousewheel.handle);
-        swiper.mousewheel.enabled = true;
-        return true;
-      },
-      disable: function disable() {
-        var swiper = this;
-
-        if (!Mousewheel.event) {
-          return false;
-        }
-
-        if (!swiper.mousewheel.enabled) {
-          return false;
-        }
-
-        var target = swiper.$el;
-
-        if (swiper.params.mousewheel.eventsTarged !== 'container') {
-          target = $(swiper.params.mousewheel.eventsTarged);
-        }
-
-        target.off(Mousewheel.event, swiper.mousewheel.handle);
-        swiper.mousewheel.enabled = false;
-        return true;
       }
-    };
-    var Mousewheel$1 = {
-      name: 'mousewheel',
-      params: {
-        mousewheel: {
-          enabled: false,
-          releaseOnEdges: false,
-          invert: false,
-          forceToAxis: false,
-          sensitivity: 1,
-          eventsTarged: 'container'
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          mousewheel: {
-            enabled: false,
-            enable: Mousewheel.enable.bind(swiper),
-            disable: Mousewheel.disable.bind(swiper),
-            handle: Mousewheel.handle.bind(swiper),
-            handleMouseEnter: Mousewheel.handleMouseEnter.bind(swiper),
-            handleMouseLeave: Mousewheel.handleMouseLeave.bind(swiper),
-            lastScrollTime: Utils.now()
-          }
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
 
-          if (swiper.params.mousewheel.enabled) {
-            swiper.mousewheel.enable();
-          }
-        },
-        destroy: function destroy() {
-          var swiper = this;
+      index[key] = true;
+      return true;
+    });
+  }; // Get an indexable key from an intersection object
+  // Assumes that vertex ids of o.a and o.b are sorted
 
-          if (swiper.mousewheel.enabled) {
-            swiper.mousewheel.disable();
-          }
-        }
-      }
-    };
-    var Navigation = {
-      update: function update() {
-        // Update Navigation Buttons
-        var swiper = this;
-        var params = swiper.params.navigation;
 
-        if (swiper.params.loop) {
-          return;
-        }
+  internal.getIntersectionKey = function (o) {
+    return o.a.join(',') + ';' + o.b.join(',');
+  };
 
-        var ref = swiper.navigation;
-        var $nextEl = ref.$nextEl;
-        var $prevEl = ref.$prevEl;
+  internal.calcSegmentIntersectionStripeCount = function (arcs) {
+    var yrange = arcs.getBounds().height(),
+        segLen = internal.getAvgSegment2(arcs)[1],
+        count = 1;
 
-        if ($prevEl && $prevEl.length > 0) {
-          if (swiper.isBeginning) {
-            $prevEl.addClass(params.disabledClass);
-          } else {
-            $prevEl.removeClass(params.disabledClass);
-          }
-
-          $prevEl[swiper.params.watchOverflow && swiper.isLocked ? 'addClass' : 'removeClass'](params.lockClass);
-        }
-
-        if ($nextEl && $nextEl.length > 0) {
-          if (swiper.isEnd) {
-            $nextEl.addClass(params.disabledClass);
-          } else {
-            $nextEl.removeClass(params.disabledClass);
-          }
-
-          $nextEl[swiper.params.watchOverflow && swiper.isLocked ? 'addClass' : 'removeClass'](params.lockClass);
-        }
-      },
-      init: function init() {
-        var swiper = this;
-        var params = swiper.params.navigation;
-
-        if (!(params.nextEl || params.prevEl)) {
-          return;
-        }
-
-        var $nextEl;
-        var $prevEl;
-
-        if (params.nextEl) {
-          $nextEl = $(params.nextEl);
-
-          if (swiper.params.uniqueNavElements && typeof params.nextEl === 'string' && $nextEl.length > 1 && swiper.$el.find(params.nextEl).length === 1) {
-            $nextEl = swiper.$el.find(params.nextEl);
-          }
-        }
-
-        if (params.prevEl) {
-          $prevEl = $(params.prevEl);
-
-          if (swiper.params.uniqueNavElements && typeof params.prevEl === 'string' && $prevEl.length > 1 && swiper.$el.find(params.prevEl).length === 1) {
-            $prevEl = swiper.$el.find(params.prevEl);
-          }
-        }
-
-        if ($nextEl && $nextEl.length > 0) {
-          $nextEl.on('click', function (e) {
-            e.preventDefault();
-
-            if (swiper.isEnd && !swiper.params.loop) {
-              return;
-            }
-
-            swiper.slideNext();
-          });
-        }
-
-        if ($prevEl && $prevEl.length > 0) {
-          $prevEl.on('click', function (e) {
-            e.preventDefault();
-
-            if (swiper.isBeginning && !swiper.params.loop) {
-              return;
-            }
-
-            swiper.slidePrev();
-          });
-        }
-
-        Utils.extend(swiper.navigation, {
-          $nextEl: $nextEl,
-          nextEl: $nextEl && $nextEl[0],
-          $prevEl: $prevEl,
-          prevEl: $prevEl && $prevEl[0]
-        });
-      },
-      destroy: function destroy() {
-        var swiper = this;
-        var ref = swiper.navigation;
-        var $nextEl = ref.$nextEl;
-        var $prevEl = ref.$prevEl;
-
-        if ($nextEl && $nextEl.length) {
-          $nextEl.off('click');
-          $nextEl.removeClass(swiper.params.navigation.disabledClass);
-        }
-
-        if ($prevEl && $prevEl.length) {
-          $prevEl.off('click');
-          $prevEl.removeClass(swiper.params.navigation.disabledClass);
-        }
-      }
-    };
-    var Navigation$1 = {
-      name: 'navigation',
-      params: {
-        navigation: {
-          nextEl: null,
-          prevEl: null,
-          hideOnClick: false,
-          disabledClass: 'swiper-button-disabled',
-          hiddenClass: 'swiper-button-hidden',
-          lockClass: 'swiper-button-lock'
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          navigation: {
-            init: Navigation.init.bind(swiper),
-            update: Navigation.update.bind(swiper),
-            destroy: Navigation.destroy.bind(swiper)
-          }
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
-          swiper.navigation.init();
-          swiper.navigation.update();
-        },
-        toEdge: function toEdge() {
-          var swiper = this;
-          swiper.navigation.update();
-        },
-        fromEdge: function fromEdge() {
-          var swiper = this;
-          swiper.navigation.update();
-        },
-        destroy: function destroy() {
-          var swiper = this;
-          swiper.navigation.destroy();
-        },
-        click: function click(e) {
-          var swiper = this;
-          var ref = swiper.navigation;
-          var $nextEl = ref.$nextEl;
-          var $prevEl = ref.$prevEl;
-
-          if (swiper.params.navigation.hideOnClick && !$(e.target).is($prevEl) && !$(e.target).is($nextEl)) {
-            if ($nextEl) {
-              $nextEl.toggleClass(swiper.params.navigation.hiddenClass);
-            }
-
-            if ($prevEl) {
-              $prevEl.toggleClass(swiper.params.navigation.hiddenClass);
-            }
-          }
-        }
-      }
-    };
-    var Pagination = {
-      update: function update() {
-        // Render || Update Pagination bullets/items
-        var swiper = this;
-        var rtl = swiper.rtl;
-        var params = swiper.params.pagination;
-
-        if (!params.el || !swiper.pagination.el || !swiper.pagination.$el || swiper.pagination.$el.length === 0) {
-          return;
-        }
-
-        var slidesLength = swiper.virtual && swiper.params.virtual.enabled ? swiper.virtual.slides.length : swiper.slides.length;
-        var $el = swiper.pagination.$el; // Current/Total
-
-        var current;
-        var total = swiper.params.loop ? Math.ceil((slidesLength - swiper.loopedSlides * 2) / swiper.params.slidesPerGroup) : swiper.snapGrid.length;
-
-        if (swiper.params.loop) {
-          current = Math.ceil((swiper.activeIndex - swiper.loopedSlides) / swiper.params.slidesPerGroup);
-
-          if (current > slidesLength - 1 - swiper.loopedSlides * 2) {
-            current -= slidesLength - swiper.loopedSlides * 2;
-          }
-
-          if (current > total - 1) {
-            current -= total;
-          }
-
-          if (current < 0 && swiper.params.paginationType !== 'bullets') {
-            current = total + current;
-          }
-        } else if (typeof swiper.snapIndex !== 'undefined') {
-          current = swiper.snapIndex;
-        } else {
-          current = swiper.activeIndex || 0;
-        } // Types
-
-
-        if (params.type === 'bullets' && swiper.pagination.bullets && swiper.pagination.bullets.length > 0) {
-          var bullets = swiper.pagination.bullets;
-          var firstIndex;
-          var lastIndex;
-          var midIndex;
-
-          if (params.dynamicBullets) {
-            swiper.pagination.bulletSize = bullets.eq(0)[swiper.isHorizontal() ? 'outerWidth' : 'outerHeight'](true);
-            $el.css(swiper.isHorizontal() ? 'width' : 'height', swiper.pagination.bulletSize * (params.dynamicMainBullets + 4) + "px");
-
-            if (params.dynamicMainBullets > 1 && swiper.previousIndex !== undefined) {
-              swiper.pagination.dynamicBulletIndex += current - swiper.previousIndex;
-
-              if (swiper.pagination.dynamicBulletIndex > params.dynamicMainBullets - 1) {
-                swiper.pagination.dynamicBulletIndex = params.dynamicMainBullets - 1;
-              } else if (swiper.pagination.dynamicBulletIndex < 0) {
-                swiper.pagination.dynamicBulletIndex = 0;
-              }
-            }
-
-            firstIndex = current - swiper.pagination.dynamicBulletIndex;
-            lastIndex = firstIndex + (Math.min(bullets.length, params.dynamicMainBullets) - 1);
-            midIndex = (lastIndex + firstIndex) / 2;
-          }
-
-          bullets.removeClass(params.bulletActiveClass + " " + params.bulletActiveClass + "-next " + params.bulletActiveClass + "-next-next " + params.bulletActiveClass + "-prev " + params.bulletActiveClass + "-prev-prev " + params.bulletActiveClass + "-main");
-
-          if ($el.length > 1) {
-            bullets.each(function (index, bullet) {
-              var $bullet = $(bullet);
-              var bulletIndex = $bullet.index();
-
-              if (bulletIndex === current) {
-                $bullet.addClass(params.bulletActiveClass);
-              }
-
-              if (params.dynamicBullets) {
-                if (bulletIndex >= firstIndex && bulletIndex <= lastIndex) {
-                  $bullet.addClass(params.bulletActiveClass + "-main");
-                }
-
-                if (bulletIndex === firstIndex) {
-                  $bullet.prev().addClass(params.bulletActiveClass + "-prev").prev().addClass(params.bulletActiveClass + "-prev-prev");
-                }
-
-                if (bulletIndex === lastIndex) {
-                  $bullet.next().addClass(params.bulletActiveClass + "-next").next().addClass(params.bulletActiveClass + "-next-next");
-                }
-              }
-            });
-          } else {
-            var $bullet = bullets.eq(current);
-            $bullet.addClass(params.bulletActiveClass);
-
-            if (params.dynamicBullets) {
-              var $firstDisplayedBullet = bullets.eq(firstIndex);
-              var $lastDisplayedBullet = bullets.eq(lastIndex);
-
-              for (var i = firstIndex; i <= lastIndex; i += 1) {
-                bullets.eq(i).addClass(params.bulletActiveClass + "-main");
-              }
-
-              $firstDisplayedBullet.prev().addClass(params.bulletActiveClass + "-prev").prev().addClass(params.bulletActiveClass + "-prev-prev");
-              $lastDisplayedBullet.next().addClass(params.bulletActiveClass + "-next").next().addClass(params.bulletActiveClass + "-next-next");
-            }
-          }
-
-          if (params.dynamicBullets) {
-            var dynamicBulletsLength = Math.min(bullets.length, params.dynamicMainBullets + 4);
-            var bulletsOffset = (swiper.pagination.bulletSize * dynamicBulletsLength - swiper.pagination.bulletSize) / 2 - midIndex * swiper.pagination.bulletSize;
-            var offsetProp = rtl ? 'right' : 'left';
-            bullets.css(swiper.isHorizontal() ? offsetProp : 'top', bulletsOffset + "px");
-          }
-        }
-
-        if (params.type === 'fraction') {
-          $el.find("." + params.currentClass).text(params.formatFractionCurrent(current + 1));
-          $el.find("." + params.totalClass).text(params.formatFractionTotal(total));
-        }
-
-        if (params.type === 'progressbar') {
-          var progressbarDirection;
-
-          if (params.progressbarOpposite) {
-            progressbarDirection = swiper.isHorizontal() ? 'vertical' : 'horizontal';
-          } else {
-            progressbarDirection = swiper.isHorizontal() ? 'horizontal' : 'vertical';
-          }
-
-          var scale = (current + 1) / total;
-          var scaleX = 1;
-          var scaleY = 1;
-
-          if (progressbarDirection === 'horizontal') {
-            scaleX = scale;
-          } else {
-            scaleY = scale;
-          }
-
-          $el.find("." + params.progressbarFillClass).transform("translate3d(0,0,0) scaleX(" + scaleX + ") scaleY(" + scaleY + ")").transition(swiper.params.speed);
-        }
-
-        if (params.type === 'custom' && params.renderCustom) {
-          $el.html(params.renderCustom(swiper, current + 1, total));
-          swiper.emit('paginationRender', swiper, $el[0]);
-        } else {
-          swiper.emit('paginationUpdate', swiper, $el[0]);
-        }
-
-        $el[swiper.params.watchOverflow && swiper.isLocked ? 'addClass' : 'removeClass'](params.lockClass);
-      },
-      render: function render() {
-        // Render Container
-        var swiper = this;
-        var params = swiper.params.pagination;
-
-        if (!params.el || !swiper.pagination.el || !swiper.pagination.$el || swiper.pagination.$el.length === 0) {
-          return;
-        }
-
-        var slidesLength = swiper.virtual && swiper.params.virtual.enabled ? swiper.virtual.slides.length : swiper.slides.length;
-        var $el = swiper.pagination.$el;
-        var paginationHTML = '';
-
-        if (params.type === 'bullets') {
-          var numberOfBullets = swiper.params.loop ? Math.ceil((slidesLength - swiper.loopedSlides * 2) / swiper.params.slidesPerGroup) : swiper.snapGrid.length;
-
-          for (var i = 0; i < numberOfBullets; i += 1) {
-            if (params.renderBullet) {
-              paginationHTML += params.renderBullet.call(swiper, i, params.bulletClass);
-            } else {
-              paginationHTML += "<" + params.bulletElement + " class=\"" + params.bulletClass + "\"></" + params.bulletElement + ">";
-            }
-          }
-
-          $el.html(paginationHTML);
-          swiper.pagination.bullets = $el.find("." + params.bulletClass);
-        }
-
-        if (params.type === 'fraction') {
-          if (params.renderFraction) {
-            paginationHTML = params.renderFraction.call(swiper, params.currentClass, params.totalClass);
-          } else {
-            paginationHTML = "<span class=\"" + params.currentClass + "\"></span>" + ' / ' + "<span class=\"" + params.totalClass + "\"></span>";
-          }
-
-          $el.html(paginationHTML);
-        }
-
-        if (params.type === 'progressbar') {
-          if (params.renderProgressbar) {
-            paginationHTML = params.renderProgressbar.call(swiper, params.progressbarFillClass);
-          } else {
-            paginationHTML = "<span class=\"" + params.progressbarFillClass + "\"></span>";
-          }
-
-          $el.html(paginationHTML);
-        }
-
-        if (params.type !== 'custom') {
-          swiper.emit('paginationRender', swiper.pagination.$el[0]);
-        }
-      },
-      init: function init() {
-        var swiper = this;
-        var params = swiper.params.pagination;
-
-        if (!params.el) {
-          return;
-        }
-
-        var $el = $(params.el);
-
-        if ($el.length === 0) {
-          return;
-        }
-
-        if (swiper.params.uniqueNavElements && typeof params.el === 'string' && $el.length > 1 && swiper.$el.find(params.el).length === 1) {
-          $el = swiper.$el.find(params.el);
-        }
-
-        if (params.type === 'bullets' && params.clickable) {
-          $el.addClass(params.clickableClass);
-        }
-
-        $el.addClass(params.modifierClass + params.type);
-
-        if (params.type === 'bullets' && params.dynamicBullets) {
-          $el.addClass("" + params.modifierClass + params.type + "-dynamic");
-          swiper.pagination.dynamicBulletIndex = 0;
-
-          if (params.dynamicMainBullets < 1) {
-            params.dynamicMainBullets = 1;
-          }
-        }
-
-        if (params.type === 'progressbar' && params.progressbarOpposite) {
-          $el.addClass(params.progressbarOppositeClass);
-        }
-
-        if (params.clickable) {
-          $el.on('click', "." + params.bulletClass, function onClick(e) {
-            e.preventDefault();
-            var index = $(this).index() * swiper.params.slidesPerGroup;
-
-            if (swiper.params.loop) {
-              index += swiper.loopedSlides;
-            }
-
-            swiper.slideTo(index);
-          });
-        }
-
-        Utils.extend(swiper.pagination, {
-          $el: $el,
-          el: $el[0]
-        });
-      },
-      destroy: function destroy() {
-        var swiper = this;
-        var params = swiper.params.pagination;
-
-        if (!params.el || !swiper.pagination.el || !swiper.pagination.$el || swiper.pagination.$el.length === 0) {
-          return;
-        }
-
-        var $el = swiper.pagination.$el;
-        $el.removeClass(params.hiddenClass);
-        $el.removeClass(params.modifierClass + params.type);
-
-        if (swiper.pagination.bullets) {
-          swiper.pagination.bullets.removeClass(params.bulletActiveClass);
-        }
-
-        if (params.clickable) {
-          $el.off('click', "." + params.bulletClass);
-        }
-      }
-    };
-    var Pagination$1 = {
-      name: 'pagination',
-      params: {
-        pagination: {
-          el: null,
-          bulletElement: 'span',
-          clickable: false,
-          hideOnClick: false,
-          renderBullet: null,
-          renderProgressbar: null,
-          renderFraction: null,
-          renderCustom: null,
-          progressbarOpposite: false,
-          type: 'bullets',
-          // 'bullets' or 'progressbar' or 'fraction' or 'custom'
-          dynamicBullets: false,
-          dynamicMainBullets: 1,
-          formatFractionCurrent: function formatFractionCurrent(number) {
-            return number;
-          },
-          formatFractionTotal: function formatFractionTotal(number) {
-            return number;
-          },
-          bulletClass: 'swiper-pagination-bullet',
-          bulletActiveClass: 'swiper-pagination-bullet-active',
-          modifierClass: 'swiper-pagination-',
-          // NEW
-          currentClass: 'swiper-pagination-current',
-          totalClass: 'swiper-pagination-total',
-          hiddenClass: 'swiper-pagination-hidden',
-          progressbarFillClass: 'swiper-pagination-progressbar-fill',
-          progressbarOppositeClass: 'swiper-pagination-progressbar-opposite',
-          clickableClass: 'swiper-pagination-clickable',
-          // NEW
-          lockClass: 'swiper-pagination-lock'
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          pagination: {
-            init: Pagination.init.bind(swiper),
-            render: Pagination.render.bind(swiper),
-            update: Pagination.update.bind(swiper),
-            destroy: Pagination.destroy.bind(swiper),
-            dynamicBulletIndex: 0
-          }
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
-          swiper.pagination.init();
-          swiper.pagination.render();
-          swiper.pagination.update();
-        },
-        activeIndexChange: function activeIndexChange() {
-          var swiper = this;
-
-          if (swiper.params.loop) {
-            swiper.pagination.update();
-          } else if (typeof swiper.snapIndex === 'undefined') {
-            swiper.pagination.update();
-          }
-        },
-        snapIndexChange: function snapIndexChange() {
-          var swiper = this;
-
-          if (!swiper.params.loop) {
-            swiper.pagination.update();
-          }
-        },
-        slidesLengthChange: function slidesLengthChange() {
-          var swiper = this;
-
-          if (swiper.params.loop) {
-            swiper.pagination.render();
-            swiper.pagination.update();
-          }
-        },
-        snapGridLengthChange: function snapGridLengthChange() {
-          var swiper = this;
-
-          if (!swiper.params.loop) {
-            swiper.pagination.render();
-            swiper.pagination.update();
-          }
-        },
-        destroy: function destroy() {
-          var swiper = this;
-          swiper.pagination.destroy();
-        },
-        click: function click(e) {
-          var swiper = this;
-
-          if (swiper.params.pagination.el && swiper.params.pagination.hideOnClick && swiper.pagination.$el.length > 0 && !$(e.target).hasClass(swiper.params.pagination.bulletClass)) {
-            swiper.pagination.$el.toggleClass(swiper.params.pagination.hiddenClass);
-          }
-        }
-      }
-    };
-    var Scrollbar = {
-      setTranslate: function setTranslate() {
-        var swiper = this;
-
-        if (!swiper.params.scrollbar.el || !swiper.scrollbar.el) {
-          return;
-        }
-
-        var scrollbar = swiper.scrollbar;
-        var rtl = swiper.rtlTranslate;
-        var progress = swiper.progress;
-        var dragSize = scrollbar.dragSize;
-        var trackSize = scrollbar.trackSize;
-        var $dragEl = scrollbar.$dragEl;
-        var $el = scrollbar.$el;
-        var params = swiper.params.scrollbar;
-        var newSize = dragSize;
-        var newPos = (trackSize - dragSize) * progress;
-
-        if (rtl) {
-          newPos = -newPos;
-
-          if (newPos > 0) {
-            newSize = dragSize - newPos;
-            newPos = 0;
-          } else if (-newPos + dragSize > trackSize) {
-            newSize = trackSize + newPos;
-          }
-        } else if (newPos < 0) {
-          newSize = dragSize + newPos;
-          newPos = 0;
-        } else if (newPos + dragSize > trackSize) {
-          newSize = trackSize - newPos;
-        }
-
-        if (swiper.isHorizontal()) {
-          if (Support.transforms3d) {
-            $dragEl.transform("translate3d(" + newPos + "px, 0, 0)");
-          } else {
-            $dragEl.transform("translateX(" + newPos + "px)");
-          }
-
-          $dragEl[0].style.width = newSize + "px";
-        } else {
-          if (Support.transforms3d) {
-            $dragEl.transform("translate3d(0px, " + newPos + "px, 0)");
-          } else {
-            $dragEl.transform("translateY(" + newPos + "px)");
-          }
-
-          $dragEl[0].style.height = newSize + "px";
-        }
-
-        if (params.hide) {
-          clearTimeout(swiper.scrollbar.timeout);
-          $el[0].style.opacity = 1;
-          swiper.scrollbar.timeout = setTimeout(function () {
-            $el[0].style.opacity = 0;
-            $el.transition(400);
-          }, 1000);
-        }
-      },
-      setTransition: function setTransition(duration) {
-        var swiper = this;
-
-        if (!swiper.params.scrollbar.el || !swiper.scrollbar.el) {
-          return;
-        }
-
-        swiper.scrollbar.$dragEl.transition(duration);
-      },
-      updateSize: function updateSize() {
-        var swiper = this;
-
-        if (!swiper.params.scrollbar.el || !swiper.scrollbar.el) {
-          return;
-        }
-
-        var scrollbar = swiper.scrollbar;
-        var $dragEl = scrollbar.$dragEl;
-        var $el = scrollbar.$el;
-        $dragEl[0].style.width = '';
-        $dragEl[0].style.height = '';
-        var trackSize = swiper.isHorizontal() ? $el[0].offsetWidth : $el[0].offsetHeight;
-        var divider = swiper.size / swiper.virtualSize;
-        var moveDivider = divider * (trackSize / swiper.size);
-        var dragSize;
-
-        if (swiper.params.scrollbar.dragSize === 'auto') {
-          dragSize = trackSize * divider;
-        } else {
-          dragSize = parseInt(swiper.params.scrollbar.dragSize, 10);
-        }
-
-        if (swiper.isHorizontal()) {
-          $dragEl[0].style.width = dragSize + "px";
-        } else {
-          $dragEl[0].style.height = dragSize + "px";
-        }
-
-        if (divider >= 1) {
-          $el[0].style.display = 'none';
-        } else {
-          $el[0].style.display = '';
-        }
-
-        if (swiper.params.scrollbarHide) {
-          $el[0].style.opacity = 0;
-        }
-
-        Utils.extend(scrollbar, {
-          trackSize: trackSize,
-          divider: divider,
-          moveDivider: moveDivider,
-          dragSize: dragSize
-        });
-        scrollbar.$el[swiper.params.watchOverflow && swiper.isLocked ? 'addClass' : 'removeClass'](swiper.params.scrollbar.lockClass);
-      },
-      setDragPosition: function setDragPosition(e) {
-        var swiper = this;
-        var scrollbar = swiper.scrollbar;
-        var rtl = swiper.rtlTranslate;
-        var $el = scrollbar.$el;
-        var dragSize = scrollbar.dragSize;
-        var trackSize = scrollbar.trackSize;
-        var pointerPosition;
-
-        if (swiper.isHorizontal()) {
-          pointerPosition = e.type === 'touchstart' || e.type === 'touchmove' ? e.targetTouches[0].pageX : e.pageX || e.clientX;
-        } else {
-          pointerPosition = e.type === 'touchstart' || e.type === 'touchmove' ? e.targetTouches[0].pageY : e.pageY || e.clientY;
-        }
-
-        var positionRatio;
-        positionRatio = (pointerPosition - $el.offset()[swiper.isHorizontal() ? 'left' : 'top'] - dragSize / 2) / (trackSize - dragSize);
-        positionRatio = Math.max(Math.min(positionRatio, 1), 0);
-
-        if (rtl) {
-          positionRatio = 1 - positionRatio;
-        }
-
-        var position = swiper.minTranslate() + (swiper.maxTranslate() - swiper.minTranslate()) * positionRatio;
-        swiper.updateProgress(position);
-        swiper.setTranslate(position);
-        swiper.updateActiveIndex();
-        swiper.updateSlidesClasses();
-      },
-      onDragStart: function onDragStart(e) {
-        var swiper = this;
-        var params = swiper.params.scrollbar;
-        var scrollbar = swiper.scrollbar;
-        var $wrapperEl = swiper.$wrapperEl;
-        var $el = scrollbar.$el;
-        var $dragEl = scrollbar.$dragEl;
-        swiper.scrollbar.isTouched = true;
-        e.preventDefault();
-        e.stopPropagation();
-        $wrapperEl.transition(100);
-        $dragEl.transition(100);
-        scrollbar.setDragPosition(e);
-        clearTimeout(swiper.scrollbar.dragTimeout);
-        $el.transition(0);
-
-        if (params.hide) {
-          $el.css('opacity', 1);
-        }
-
-        swiper.emit('scrollbarDragStart', e);
-      },
-      onDragMove: function onDragMove(e) {
-        var swiper = this;
-        var scrollbar = swiper.scrollbar;
-        var $wrapperEl = swiper.$wrapperEl;
-        var $el = scrollbar.$el;
-        var $dragEl = scrollbar.$dragEl;
-
-        if (!swiper.scrollbar.isTouched) {
-          return;
-        }
-
-        if (e.preventDefault) {
-          e.preventDefault();
-        } else {
-          e.returnValue = false;
-        }
-
-        scrollbar.setDragPosition(e);
-        $wrapperEl.transition(0);
-        $el.transition(0);
-        $dragEl.transition(0);
-        swiper.emit('scrollbarDragMove', e);
-      },
-      onDragEnd: function onDragEnd(e) {
-        var swiper = this;
-        var params = swiper.params.scrollbar;
-        var scrollbar = swiper.scrollbar;
-        var $el = scrollbar.$el;
-
-        if (!swiper.scrollbar.isTouched) {
-          return;
-        }
-
-        swiper.scrollbar.isTouched = false;
-
-        if (params.hide) {
-          clearTimeout(swiper.scrollbar.dragTimeout);
-          swiper.scrollbar.dragTimeout = Utils.nextTick(function () {
-            $el.css('opacity', 0);
-            $el.transition(400);
-          }, 1000);
-        }
-
-        swiper.emit('scrollbarDragEnd', e);
-
-        if (params.snapOnRelease) {
-          swiper.slideToClosest();
-        }
-      },
-      enableDraggable: function enableDraggable() {
-        var swiper = this;
-
-        if (!swiper.params.scrollbar.el) {
-          return;
-        }
-
-        var scrollbar = swiper.scrollbar;
-        var touchEvents = swiper.touchEvents;
-        var touchEventsDesktop = swiper.touchEventsDesktop;
-        var params = swiper.params;
-        var $el = scrollbar.$el;
-        var target = $el[0];
-        var activeListener = Support.passiveListener && params.passiveListener ? {
-          passive: false,
-          capture: false
-        } : false;
-        var passiveListener = Support.passiveListener && params.passiveListener ? {
-          passive: true,
-          capture: false
-        } : false;
-
-        if (!Support.touch && (Support.pointerEvents || Support.prefixedPointerEvents)) {
-          target.addEventListener(touchEventsDesktop.start, swiper.scrollbar.onDragStart, activeListener);
-          doc.addEventListener(touchEventsDesktop.move, swiper.scrollbar.onDragMove, activeListener);
-          doc.addEventListener(touchEventsDesktop.end, swiper.scrollbar.onDragEnd, passiveListener);
-        } else {
-          if (Support.touch) {
-            target.addEventListener(touchEvents.start, swiper.scrollbar.onDragStart, activeListener);
-            target.addEventListener(touchEvents.move, swiper.scrollbar.onDragMove, activeListener);
-            target.addEventListener(touchEvents.end, swiper.scrollbar.onDragEnd, passiveListener);
-          }
-
-          if (params.simulateTouch && !Device.ios && !Device.android || params.simulateTouch && !Support.touch && Device.ios) {
-            target.addEventListener('mousedown', swiper.scrollbar.onDragStart, activeListener);
-            doc.addEventListener('mousemove', swiper.scrollbar.onDragMove, activeListener);
-            doc.addEventListener('mouseup', swiper.scrollbar.onDragEnd, passiveListener);
-          }
-        }
-      },
-      disableDraggable: function disableDraggable() {
-        var swiper = this;
-
-        if (!swiper.params.scrollbar.el) {
-          return;
-        }
-
-        var scrollbar = swiper.scrollbar;
-        var touchEvents = swiper.touchEvents;
-        var touchEventsDesktop = swiper.touchEventsDesktop;
-        var params = swiper.params;
-        var $el = scrollbar.$el;
-        var target = $el[0];
-        var activeListener = Support.passiveListener && params.passiveListener ? {
-          passive: false,
-          capture: false
-        } : false;
-        var passiveListener = Support.passiveListener && params.passiveListener ? {
-          passive: true,
-          capture: false
-        } : false;
-
-        if (!Support.touch && (Support.pointerEvents || Support.prefixedPointerEvents)) {
-          target.removeEventListener(touchEventsDesktop.start, swiper.scrollbar.onDragStart, activeListener);
-          doc.removeEventListener(touchEventsDesktop.move, swiper.scrollbar.onDragMove, activeListener);
-          doc.removeEventListener(touchEventsDesktop.end, swiper.scrollbar.onDragEnd, passiveListener);
-        } else {
-          if (Support.touch) {
-            target.removeEventListener(touchEvents.start, swiper.scrollbar.onDragStart, activeListener);
-            target.removeEventListener(touchEvents.move, swiper.scrollbar.onDragMove, activeListener);
-            target.removeEventListener(touchEvents.end, swiper.scrollbar.onDragEnd, passiveListener);
-          }
-
-          if (params.simulateTouch && !Device.ios && !Device.android || params.simulateTouch && !Support.touch && Device.ios) {
-            target.removeEventListener('mousedown', swiper.scrollbar.onDragStart, activeListener);
-            doc.removeEventListener('mousemove', swiper.scrollbar.onDragMove, activeListener);
-            doc.removeEventListener('mouseup', swiper.scrollbar.onDragEnd, passiveListener);
-          }
-        }
-      },
-      init: function init() {
-        var swiper = this;
-
-        if (!swiper.params.scrollbar.el) {
-          return;
-        }
-
-        var scrollbar = swiper.scrollbar;
-        var $swiperEl = swiper.$el;
-        var params = swiper.params.scrollbar;
-        var $el = $(params.el);
-
-        if (swiper.params.uniqueNavElements && typeof params.el === 'string' && $el.length > 1 && $swiperEl.find(params.el).length === 1) {
-          $el = $swiperEl.find(params.el);
-        }
-
-        var $dragEl = $el.find("." + swiper.params.scrollbar.dragClass);
-
-        if ($dragEl.length === 0) {
-          $dragEl = $("<div class=\"" + swiper.params.scrollbar.dragClass + "\"></div>");
-          $el.append($dragEl);
-        }
-
-        Utils.extend(scrollbar, {
-          $el: $el,
-          el: $el[0],
-          $dragEl: $dragEl,
-          dragEl: $dragEl[0]
-        });
-
-        if (params.draggable) {
-          scrollbar.enableDraggable();
-        }
-      },
-      destroy: function destroy() {
-        var swiper = this;
-        swiper.scrollbar.disableDraggable();
-      }
-    };
-    var Scrollbar$1 = {
-      name: 'scrollbar',
-      params: {
-        scrollbar: {
-          el: null,
-          dragSize: 'auto',
-          hide: false,
-          draggable: false,
-          snapOnRelease: true,
-          lockClass: 'swiper-scrollbar-lock',
-          dragClass: 'swiper-scrollbar-drag'
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          scrollbar: {
-            init: Scrollbar.init.bind(swiper),
-            destroy: Scrollbar.destroy.bind(swiper),
-            updateSize: Scrollbar.updateSize.bind(swiper),
-            setTranslate: Scrollbar.setTranslate.bind(swiper),
-            setTransition: Scrollbar.setTransition.bind(swiper),
-            enableDraggable: Scrollbar.enableDraggable.bind(swiper),
-            disableDraggable: Scrollbar.disableDraggable.bind(swiper),
-            setDragPosition: Scrollbar.setDragPosition.bind(swiper),
-            onDragStart: Scrollbar.onDragStart.bind(swiper),
-            onDragMove: Scrollbar.onDragMove.bind(swiper),
-            onDragEnd: Scrollbar.onDragEnd.bind(swiper),
-            isTouched: false,
-            timeout: null,
-            dragTimeout: null
-          }
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
-          swiper.scrollbar.init();
-          swiper.scrollbar.updateSize();
-          swiper.scrollbar.setTranslate();
-        },
-        update: function update() {
-          var swiper = this;
-          swiper.scrollbar.updateSize();
-        },
-        resize: function resize() {
-          var swiper = this;
-          swiper.scrollbar.updateSize();
-        },
-        observerUpdate: function observerUpdate() {
-          var swiper = this;
-          swiper.scrollbar.updateSize();
-        },
-        setTranslate: function setTranslate() {
-          var swiper = this;
-          swiper.scrollbar.setTranslate();
-        },
-        setTransition: function setTransition(duration) {
-          var swiper = this;
-          swiper.scrollbar.setTransition(duration);
-        },
-        destroy: function destroy() {
-          var swiper = this;
-          swiper.scrollbar.destroy();
-        }
-      }
-    };
-    var Parallax = {
-      setTransform: function setTransform(el, progress) {
-        var swiper = this;
-        var rtl = swiper.rtl;
-        var $el = $(el);
-        var rtlFactor = rtl ? -1 : 1;
-        var p = $el.attr('data-swiper-parallax') || '0';
-        var x = $el.attr('data-swiper-parallax-x');
-        var y = $el.attr('data-swiper-parallax-y');
-        var scale = $el.attr('data-swiper-parallax-scale');
-        var opacity = $el.attr('data-swiper-parallax-opacity');
-
-        if (x || y) {
-          x = x || '0';
-          y = y || '0';
-        } else if (swiper.isHorizontal()) {
-          x = p;
-          y = '0';
-        } else {
-          y = p;
-          x = '0';
-        }
-
-        if (x.indexOf('%') >= 0) {
-          x = parseInt(x, 10) * progress * rtlFactor + "%";
-        } else {
-          x = x * progress * rtlFactor + "px";
-        }
-
-        if (y.indexOf('%') >= 0) {
-          y = parseInt(y, 10) * progress + "%";
-        } else {
-          y = y * progress + "px";
-        }
-
-        if (typeof opacity !== 'undefined' && opacity !== null) {
-          var currentOpacity = opacity - (opacity - 1) * (1 - Math.abs(progress));
-          $el[0].style.opacity = currentOpacity;
-        }
-
-        if (typeof scale === 'undefined' || scale === null) {
-          $el.transform("translate3d(" + x + ", " + y + ", 0px)");
-        } else {
-          var currentScale = scale - (scale - 1) * (1 - Math.abs(progress));
-          $el.transform("translate3d(" + x + ", " + y + ", 0px) scale(" + currentScale + ")");
-        }
-      },
-      setTranslate: function setTranslate() {
-        var swiper = this;
-        var $el = swiper.$el;
-        var slides = swiper.slides;
-        var progress = swiper.progress;
-        var snapGrid = swiper.snapGrid;
-        $el.children('[data-swiper-parallax], [data-swiper-parallax-x], [data-swiper-parallax-y]').each(function (index, el) {
-          swiper.parallax.setTransform(el, progress);
-        });
-        slides.each(function (slideIndex, slideEl) {
-          var slideProgress = slideEl.progress;
-
-          if (swiper.params.slidesPerGroup > 1 && swiper.params.slidesPerView !== 'auto') {
-            slideProgress += Math.ceil(slideIndex / 2) - progress * (snapGrid.length - 1);
-          }
-
-          slideProgress = Math.min(Math.max(slideProgress, -1), 1);
-          $(slideEl).find('[data-swiper-parallax], [data-swiper-parallax-x], [data-swiper-parallax-y]').each(function (index, el) {
-            swiper.parallax.setTransform(el, slideProgress);
-          });
-        });
-      },
-      setTransition: function setTransition(duration) {
-        if (duration === void 0) duration = this.params.speed;
-        var swiper = this;
-        var $el = swiper.$el;
-        $el.find('[data-swiper-parallax], [data-swiper-parallax-x], [data-swiper-parallax-y]').each(function (index, parallaxEl) {
-          var $parallaxEl = $(parallaxEl);
-          var parallaxDuration = parseInt($parallaxEl.attr('data-swiper-parallax-duration'), 10) || duration;
-
-          if (duration === 0) {
-            parallaxDuration = 0;
-          }
-
-          $parallaxEl.transition(parallaxDuration);
-        });
-      }
-    };
-    var Parallax$1 = {
-      name: 'parallax',
-      params: {
-        parallax: {
-          enabled: false
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          parallax: {
-            setTransform: Parallax.setTransform.bind(swiper),
-            setTranslate: Parallax.setTranslate.bind(swiper),
-            setTransition: Parallax.setTransition.bind(swiper)
-          }
-        });
-      },
-      on: {
-        beforeInit: function beforeInit() {
-          var swiper = this;
-
-          if (!swiper.params.parallax.enabled) {
-            return;
-          }
-
-          swiper.params.watchSlidesProgress = true;
-        },
-        init: function init() {
-          var swiper = this;
-
-          if (!swiper.params.parallax) {
-            return;
-          }
-
-          swiper.parallax.setTranslate();
-        },
-        setTranslate: function setTranslate() {
-          var swiper = this;
-
-          if (!swiper.params.parallax) {
-            return;
-          }
-
-          swiper.parallax.setTranslate();
-        },
-        setTransition: function setTransition(duration) {
-          var swiper = this;
-
-          if (!swiper.params.parallax) {
-            return;
-          }
-
-          swiper.parallax.setTransition(duration);
-        }
-      }
-    };
-    var Zoom = {
-      // Calc Scale From Multi-touches
-      getDistanceBetweenTouches: function getDistanceBetweenTouches(e) {
-        if (e.targetTouches.length < 2) {
-          return 1;
-        }
-
-        var x1 = e.targetTouches[0].pageX;
-        var y1 = e.targetTouches[0].pageY;
-        var x2 = e.targetTouches[1].pageX;
-        var y2 = e.targetTouches[1].pageY;
-        var distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-        return distance;
-      },
-      // Events
-      onGestureStart: function onGestureStart(e) {
-        var swiper = this;
-        var params = swiper.params.zoom;
-        var zoom = swiper.zoom;
-        var gesture = zoom.gesture;
-        zoom.fakeGestureTouched = false;
-        zoom.fakeGestureMoved = false;
-
-        if (!Support.gestures) {
-          if (e.type !== 'touchstart' || e.type === 'touchstart' && e.targetTouches.length < 2) {
-            return;
-          }
-
-          zoom.fakeGestureTouched = true;
-          gesture.scaleStart = Zoom.getDistanceBetweenTouches(e);
-        }
-
-        if (!gesture.$slideEl || !gesture.$slideEl.length) {
-          gesture.$slideEl = $(e.target).closest('.swiper-slide');
-
-          if (gesture.$slideEl.length === 0) {
-            gesture.$slideEl = swiper.slides.eq(swiper.activeIndex);
-          }
-
-          gesture.$imageEl = gesture.$slideEl.find('img, svg, canvas');
-          gesture.$imageWrapEl = gesture.$imageEl.parent("." + params.containerClass);
-          gesture.maxRatio = gesture.$imageWrapEl.attr('data-swiper-zoom') || params.maxRatio;
-
-          if (gesture.$imageWrapEl.length === 0) {
-            gesture.$imageEl = undefined;
-            return;
-          }
-        }
-
-        gesture.$imageEl.transition(0);
-        swiper.zoom.isScaling = true;
-      },
-      onGestureChange: function onGestureChange(e) {
-        var swiper = this;
-        var params = swiper.params.zoom;
-        var zoom = swiper.zoom;
-        var gesture = zoom.gesture;
-
-        if (!Support.gestures) {
-          if (e.type !== 'touchmove' || e.type === 'touchmove' && e.targetTouches.length < 2) {
-            return;
-          }
-
-          zoom.fakeGestureMoved = true;
-          gesture.scaleMove = Zoom.getDistanceBetweenTouches(e);
-        }
-
-        if (!gesture.$imageEl || gesture.$imageEl.length === 0) {
-          return;
-        }
-
-        if (Support.gestures) {
-          swiper.zoom.scale = e.scale * zoom.currentScale;
-        } else {
-          zoom.scale = gesture.scaleMove / gesture.scaleStart * zoom.currentScale;
-        }
-
-        if (zoom.scale > gesture.maxRatio) {
-          zoom.scale = gesture.maxRatio - 1 + Math.pow(zoom.scale - gesture.maxRatio + 1, 0.5);
-        }
-
-        if (zoom.scale < params.minRatio) {
-          zoom.scale = params.minRatio + 1 - Math.pow(params.minRatio - zoom.scale + 1, 0.5);
-        }
-
-        gesture.$imageEl.transform("translate3d(0,0,0) scale(" + zoom.scale + ")");
-      },
-      onGestureEnd: function onGestureEnd(e) {
-        var swiper = this;
-        var params = swiper.params.zoom;
-        var zoom = swiper.zoom;
-        var gesture = zoom.gesture;
-
-        if (!Support.gestures) {
-          if (!zoom.fakeGestureTouched || !zoom.fakeGestureMoved) {
-            return;
-          }
-
-          if (e.type !== 'touchend' || e.type === 'touchend' && e.changedTouches.length < 2 && !Device.android) {
-            return;
-          }
-
-          zoom.fakeGestureTouched = false;
-          zoom.fakeGestureMoved = false;
-        }
-
-        if (!gesture.$imageEl || gesture.$imageEl.length === 0) {
-          return;
-        }
-
-        zoom.scale = Math.max(Math.min(zoom.scale, gesture.maxRatio), params.minRatio);
-        gesture.$imageEl.transition(swiper.params.speed).transform("translate3d(0,0,0) scale(" + zoom.scale + ")");
-        zoom.currentScale = zoom.scale;
-        zoom.isScaling = false;
-
-        if (zoom.scale === 1) {
-          gesture.$slideEl = undefined;
-        }
-      },
-      onTouchStart: function onTouchStart(e) {
-        var swiper = this;
-        var zoom = swiper.zoom;
-        var gesture = zoom.gesture;
-        var image = zoom.image;
-
-        if (!gesture.$imageEl || gesture.$imageEl.length === 0) {
-          return;
-        }
-
-        if (image.isTouched) {
-          return;
-        }
-
-        if (Device.android) {
-          e.preventDefault();
-        }
-
-        image.isTouched = true;
-        image.touchesStart.x = e.type === 'touchstart' ? e.targetTouches[0].pageX : e.pageX;
-        image.touchesStart.y = e.type === 'touchstart' ? e.targetTouches[0].pageY : e.pageY;
-      },
-      onTouchMove: function onTouchMove(e) {
-        var swiper = this;
-        var zoom = swiper.zoom;
-        var gesture = zoom.gesture;
-        var image = zoom.image;
-        var velocity = zoom.velocity;
-
-        if (!gesture.$imageEl || gesture.$imageEl.length === 0) {
-          return;
-        }
-
-        swiper.allowClick = false;
-
-        if (!image.isTouched || !gesture.$slideEl) {
-          return;
-        }
-
-        if (!image.isMoved) {
-          image.width = gesture.$imageEl[0].offsetWidth;
-          image.height = gesture.$imageEl[0].offsetHeight;
-          image.startX = Utils.getTranslate(gesture.$imageWrapEl[0], 'x') || 0;
-          image.startY = Utils.getTranslate(gesture.$imageWrapEl[0], 'y') || 0;
-          gesture.slideWidth = gesture.$slideEl[0].offsetWidth;
-          gesture.slideHeight = gesture.$slideEl[0].offsetHeight;
-          gesture.$imageWrapEl.transition(0);
-
-          if (swiper.rtl) {
-            image.startX = -image.startX;
-            image.startY = -image.startY;
-          }
-        } // Define if we need image drag
-
-
-        var scaledWidth = image.width * zoom.scale;
-        var scaledHeight = image.height * zoom.scale;
-
-        if (scaledWidth < gesture.slideWidth && scaledHeight < gesture.slideHeight) {
-          return;
-        }
-
-        image.minX = Math.min(gesture.slideWidth / 2 - scaledWidth / 2, 0);
-        image.maxX = -image.minX;
-        image.minY = Math.min(gesture.slideHeight / 2 - scaledHeight / 2, 0);
-        image.maxY = -image.minY;
-        image.touchesCurrent.x = e.type === 'touchmove' ? e.targetTouches[0].pageX : e.pageX;
-        image.touchesCurrent.y = e.type === 'touchmove' ? e.targetTouches[0].pageY : e.pageY;
-
-        if (!image.isMoved && !zoom.isScaling) {
-          if (swiper.isHorizontal() && (Math.floor(image.minX) === Math.floor(image.startX) && image.touchesCurrent.x < image.touchesStart.x || Math.floor(image.maxX) === Math.floor(image.startX) && image.touchesCurrent.x > image.touchesStart.x)) {
-            image.isTouched = false;
-            return;
-          } else if (!swiper.isHorizontal() && (Math.floor(image.minY) === Math.floor(image.startY) && image.touchesCurrent.y < image.touchesStart.y || Math.floor(image.maxY) === Math.floor(image.startY) && image.touchesCurrent.y > image.touchesStart.y)) {
-            image.isTouched = false;
-            return;
-          }
-        }
-
-        e.preventDefault();
-        e.stopPropagation();
-        image.isMoved = true;
-        image.currentX = image.touchesCurrent.x - image.touchesStart.x + image.startX;
-        image.currentY = image.touchesCurrent.y - image.touchesStart.y + image.startY;
-
-        if (image.currentX < image.minX) {
-          image.currentX = image.minX + 1 - Math.pow(image.minX - image.currentX + 1, 0.8);
-        }
-
-        if (image.currentX > image.maxX) {
-          image.currentX = image.maxX - 1 + Math.pow(image.currentX - image.maxX + 1, 0.8);
-        }
-
-        if (image.currentY < image.minY) {
-          image.currentY = image.minY + 1 - Math.pow(image.minY - image.currentY + 1, 0.8);
-        }
-
-        if (image.currentY > image.maxY) {
-          image.currentY = image.maxY - 1 + Math.pow(image.currentY - image.maxY + 1, 0.8);
-        } // Velocity
-
-
-        if (!velocity.prevPositionX) {
-          velocity.prevPositionX = image.touchesCurrent.x;
-        }
-
-        if (!velocity.prevPositionY) {
-          velocity.prevPositionY = image.touchesCurrent.y;
-        }
-
-        if (!velocity.prevTime) {
-          velocity.prevTime = Date.now();
-        }
-
-        velocity.x = (image.touchesCurrent.x - velocity.prevPositionX) / (Date.now() - velocity.prevTime) / 2;
-        velocity.y = (image.touchesCurrent.y - velocity.prevPositionY) / (Date.now() - velocity.prevTime) / 2;
-
-        if (Math.abs(image.touchesCurrent.x - velocity.prevPositionX) < 2) {
-          velocity.x = 0;
-        }
-
-        if (Math.abs(image.touchesCurrent.y - velocity.prevPositionY) < 2) {
-          velocity.y = 0;
-        }
-
-        velocity.prevPositionX = image.touchesCurrent.x;
-        velocity.prevPositionY = image.touchesCurrent.y;
-        velocity.prevTime = Date.now();
-        gesture.$imageWrapEl.transform("translate3d(" + image.currentX + "px, " + image.currentY + "px,0)");
-      },
-      onTouchEnd: function onTouchEnd() {
-        var swiper = this;
-        var zoom = swiper.zoom;
-        var gesture = zoom.gesture;
-        var image = zoom.image;
-        var velocity = zoom.velocity;
-
-        if (!gesture.$imageEl || gesture.$imageEl.length === 0) {
-          return;
-        }
-
-        if (!image.isTouched || !image.isMoved) {
-          image.isTouched = false;
-          image.isMoved = false;
-          return;
-        }
-
-        image.isTouched = false;
-        image.isMoved = false;
-        var momentumDurationX = 300;
-        var momentumDurationY = 300;
-        var momentumDistanceX = velocity.x * momentumDurationX;
-        var newPositionX = image.currentX + momentumDistanceX;
-        var momentumDistanceY = velocity.y * momentumDurationY;
-        var newPositionY = image.currentY + momentumDistanceY; // Fix duration
-
-        if (velocity.x !== 0) {
-          momentumDurationX = Math.abs((newPositionX - image.currentX) / velocity.x);
-        }
-
-        if (velocity.y !== 0) {
-          momentumDurationY = Math.abs((newPositionY - image.currentY) / velocity.y);
-        }
-
-        var momentumDuration = Math.max(momentumDurationX, momentumDurationY);
-        image.currentX = newPositionX;
-        image.currentY = newPositionY; // Define if we need image drag
-
-        var scaledWidth = image.width * zoom.scale;
-        var scaledHeight = image.height * zoom.scale;
-        image.minX = Math.min(gesture.slideWidth / 2 - scaledWidth / 2, 0);
-        image.maxX = -image.minX;
-        image.minY = Math.min(gesture.slideHeight / 2 - scaledHeight / 2, 0);
-        image.maxY = -image.minY;
-        image.currentX = Math.max(Math.min(image.currentX, image.maxX), image.minX);
-        image.currentY = Math.max(Math.min(image.currentY, image.maxY), image.minY);
-        gesture.$imageWrapEl.transition(momentumDuration).transform("translate3d(" + image.currentX + "px, " + image.currentY + "px,0)");
-      },
-      onTransitionEnd: function onTransitionEnd() {
-        var swiper = this;
-        var zoom = swiper.zoom;
-        var gesture = zoom.gesture;
-
-        if (gesture.$slideEl && swiper.previousIndex !== swiper.activeIndex) {
-          gesture.$imageEl.transform('translate3d(0,0,0) scale(1)');
-          gesture.$imageWrapEl.transform('translate3d(0,0,0)');
-          gesture.$slideEl = undefined;
-          gesture.$imageEl = undefined;
-          gesture.$imageWrapEl = undefined;
-          zoom.scale = 1;
-          zoom.currentScale = 1;
-        }
-      },
-      // Toggle Zoom
-      toggle: function toggle(e) {
-        var swiper = this;
-        var zoom = swiper.zoom;
-
-        if (zoom.scale && zoom.scale !== 1) {
-          // Zoom Out
-          zoom.out();
-        } else {
-          // Zoom In
-          zoom["in"](e);
-        }
-      },
-      "in": function in$1(e) {
-        var swiper = this;
-        var zoom = swiper.zoom;
-        var params = swiper.params.zoom;
-        var gesture = zoom.gesture;
-        var image = zoom.image;
-
-        if (!gesture.$slideEl) {
-          gesture.$slideEl = swiper.clickedSlide ? $(swiper.clickedSlide) : swiper.slides.eq(swiper.activeIndex);
-          gesture.$imageEl = gesture.$slideEl.find('img, svg, canvas');
-          gesture.$imageWrapEl = gesture.$imageEl.parent("." + params.containerClass);
-        }
-
-        if (!gesture.$imageEl || gesture.$imageEl.length === 0) {
-          return;
-        }
-
-        gesture.$slideEl.addClass("" + params.zoomedSlideClass);
-        var touchX;
-        var touchY;
-        var offsetX;
-        var offsetY;
-        var diffX;
-        var diffY;
-        var translateX;
-        var translateY;
-        var imageWidth;
-        var imageHeight;
-        var scaledWidth;
-        var scaledHeight;
-        var translateMinX;
-        var translateMinY;
-        var translateMaxX;
-        var translateMaxY;
-        var slideWidth;
-        var slideHeight;
-
-        if (typeof image.touchesStart.x === 'undefined' && e) {
-          touchX = e.type === 'touchend' ? e.changedTouches[0].pageX : e.pageX;
-          touchY = e.type === 'touchend' ? e.changedTouches[0].pageY : e.pageY;
-        } else {
-          touchX = image.touchesStart.x;
-          touchY = image.touchesStart.y;
-        }
-
-        zoom.scale = gesture.$imageWrapEl.attr('data-swiper-zoom') || params.maxRatio;
-        zoom.currentScale = gesture.$imageWrapEl.attr('data-swiper-zoom') || params.maxRatio;
-
-        if (e) {
-          slideWidth = gesture.$slideEl[0].offsetWidth;
-          slideHeight = gesture.$slideEl[0].offsetHeight;
-          offsetX = gesture.$slideEl.offset().left;
-          offsetY = gesture.$slideEl.offset().top;
-          diffX = offsetX + slideWidth / 2 - touchX;
-          diffY = offsetY + slideHeight / 2 - touchY;
-          imageWidth = gesture.$imageEl[0].offsetWidth;
-          imageHeight = gesture.$imageEl[0].offsetHeight;
-          scaledWidth = imageWidth * zoom.scale;
-          scaledHeight = imageHeight * zoom.scale;
-          translateMinX = Math.min(slideWidth / 2 - scaledWidth / 2, 0);
-          translateMinY = Math.min(slideHeight / 2 - scaledHeight / 2, 0);
-          translateMaxX = -translateMinX;
-          translateMaxY = -translateMinY;
-          translateX = diffX * zoom.scale;
-          translateY = diffY * zoom.scale;
-
-          if (translateX < translateMinX) {
-            translateX = translateMinX;
-          }
-
-          if (translateX > translateMaxX) {
-            translateX = translateMaxX;
-          }
-
-          if (translateY < translateMinY) {
-            translateY = translateMinY;
-          }
-
-          if (translateY > translateMaxY) {
-            translateY = translateMaxY;
-          }
-        } else {
-          translateX = 0;
-          translateY = 0;
-        }
-
-        gesture.$imageWrapEl.transition(300).transform("translate3d(" + translateX + "px, " + translateY + "px,0)");
-        gesture.$imageEl.transition(300).transform("translate3d(0,0,0) scale(" + zoom.scale + ")");
-      },
-      out: function out() {
-        var swiper = this;
-        var zoom = swiper.zoom;
-        var params = swiper.params.zoom;
-        var gesture = zoom.gesture;
-
-        if (!gesture.$slideEl) {
-          gesture.$slideEl = swiper.clickedSlide ? $(swiper.clickedSlide) : swiper.slides.eq(swiper.activeIndex);
-          gesture.$imageEl = gesture.$slideEl.find('img, svg, canvas');
-          gesture.$imageWrapEl = gesture.$imageEl.parent("." + params.containerClass);
-        }
-
-        if (!gesture.$imageEl || gesture.$imageEl.length === 0) {
-          return;
-        }
-
-        zoom.scale = 1;
-        zoom.currentScale = 1;
-        gesture.$imageWrapEl.transition(300).transform('translate3d(0,0,0)');
-        gesture.$imageEl.transition(300).transform('translate3d(0,0,0) scale(1)');
-        gesture.$slideEl.removeClass("" + params.zoomedSlideClass);
-        gesture.$slideEl = undefined;
-      },
-      // Attach/Detach Events
-      enable: function enable() {
-        var swiper = this;
-        var zoom = swiper.zoom;
-
-        if (zoom.enabled) {
-          return;
-        }
-
-        zoom.enabled = true;
-        var passiveListener = swiper.touchEvents.start === 'touchstart' && Support.passiveListener && swiper.params.passiveListeners ? {
-          passive: true,
-          capture: false
-        } : false; // Scale image
-
-        if (Support.gestures) {
-          swiper.$wrapperEl.on('gesturestart', '.swiper-slide', zoom.onGestureStart, passiveListener);
-          swiper.$wrapperEl.on('gesturechange', '.swiper-slide', zoom.onGestureChange, passiveListener);
-          swiper.$wrapperEl.on('gestureend', '.swiper-slide', zoom.onGestureEnd, passiveListener);
-        } else if (swiper.touchEvents.start === 'touchstart') {
-          swiper.$wrapperEl.on(swiper.touchEvents.start, '.swiper-slide', zoom.onGestureStart, passiveListener);
-          swiper.$wrapperEl.on(swiper.touchEvents.move, '.swiper-slide', zoom.onGestureChange, passiveListener);
-          swiper.$wrapperEl.on(swiper.touchEvents.end, '.swiper-slide', zoom.onGestureEnd, passiveListener);
-        } // Move image
-
-
-        swiper.$wrapperEl.on(swiper.touchEvents.move, "." + swiper.params.zoom.containerClass, zoom.onTouchMove);
-      },
-      disable: function disable() {
-        var swiper = this;
-        var zoom = swiper.zoom;
-
-        if (!zoom.enabled) {
-          return;
-        }
-
-        swiper.zoom.enabled = false;
-        var passiveListener = swiper.touchEvents.start === 'touchstart' && Support.passiveListener && swiper.params.passiveListeners ? {
-          passive: true,
-          capture: false
-        } : false; // Scale image
-
-        if (Support.gestures) {
-          swiper.$wrapperEl.off('gesturestart', '.swiper-slide', zoom.onGestureStart, passiveListener);
-          swiper.$wrapperEl.off('gesturechange', '.swiper-slide', zoom.onGestureChange, passiveListener);
-          swiper.$wrapperEl.off('gestureend', '.swiper-slide', zoom.onGestureEnd, passiveListener);
-        } else if (swiper.touchEvents.start === 'touchstart') {
-          swiper.$wrapperEl.off(swiper.touchEvents.start, '.swiper-slide', zoom.onGestureStart, passiveListener);
-          swiper.$wrapperEl.off(swiper.touchEvents.move, '.swiper-slide', zoom.onGestureChange, passiveListener);
-          swiper.$wrapperEl.off(swiper.touchEvents.end, '.swiper-slide', zoom.onGestureEnd, passiveListener);
-        } // Move image
-
-
-        swiper.$wrapperEl.off(swiper.touchEvents.move, "." + swiper.params.zoom.containerClass, zoom.onTouchMove);
-      }
-    };
-    var Zoom$1 = {
-      name: 'zoom',
-      params: {
-        zoom: {
-          enabled: false,
-          maxRatio: 3,
-          minRatio: 1,
-          toggle: true,
-          containerClass: 'swiper-zoom-container',
-          zoomedSlideClass: 'swiper-slide-zoomed'
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        var zoom = {
-          enabled: false,
-          scale: 1,
-          currentScale: 1,
-          isScaling: false,
-          gesture: {
-            $slideEl: undefined,
-            slideWidth: undefined,
-            slideHeight: undefined,
-            $imageEl: undefined,
-            $imageWrapEl: undefined,
-            maxRatio: 3
-          },
-          image: {
-            isTouched: undefined,
-            isMoved: undefined,
-            currentX: undefined,
-            currentY: undefined,
-            minX: undefined,
-            minY: undefined,
-            maxX: undefined,
-            maxY: undefined,
-            width: undefined,
-            height: undefined,
-            startX: undefined,
-            startY: undefined,
-            touchesStart: {},
-            touchesCurrent: {}
-          },
-          velocity: {
-            x: undefined,
-            y: undefined,
-            prevPositionX: undefined,
-            prevPositionY: undefined,
-            prevTime: undefined
-          }
-        };
-        'onGestureStart onGestureChange onGestureEnd onTouchStart onTouchMove onTouchEnd onTransitionEnd toggle enable disable in out'.split(' ').forEach(function (methodName) {
-          zoom[methodName] = Zoom[methodName].bind(swiper);
-        });
-        Utils.extend(swiper, {
-          zoom: zoom
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
-
-          if (swiper.params.zoom.enabled) {
-            swiper.zoom.enable();
-          }
-        },
-        destroy: function destroy() {
-          var swiper = this;
-          swiper.zoom.disable();
-        },
-        touchStart: function touchStart(e) {
-          var swiper = this;
-
-          if (!swiper.zoom.enabled) {
-            return;
-          }
-
-          swiper.zoom.onTouchStart(e);
-        },
-        touchEnd: function touchEnd(e) {
-          var swiper = this;
-
-          if (!swiper.zoom.enabled) {
-            return;
-          }
-
-          swiper.zoom.onTouchEnd(e);
-        },
-        doubleTap: function doubleTap(e) {
-          var swiper = this;
-
-          if (swiper.params.zoom.enabled && swiper.zoom.enabled && swiper.params.zoom.toggle) {
-            swiper.zoom.toggle(e);
-          }
-        },
-        transitionEnd: function transitionEnd() {
-          var swiper = this;
-
-          if (swiper.zoom.enabled && swiper.params.zoom.enabled) {
-            swiper.zoom.onTransitionEnd();
-          }
-        }
-      }
-    };
-    var Lazy = {
-      loadInSlide: function loadInSlide(index, loadInDuplicate) {
-        if (loadInDuplicate === void 0) loadInDuplicate = true;
-        var swiper = this;
-        var params = swiper.params.lazy;
-
-        if (typeof index === 'undefined') {
-          return;
-        }
-
-        if (swiper.slides.length === 0) {
-          return;
-        }
-
-        var isVirtual = swiper.virtual && swiper.params.virtual.enabled;
-        var $slideEl = isVirtual ? swiper.$wrapperEl.children("." + swiper.params.slideClass + "[data-swiper-slide-index=\"" + index + "\"]") : swiper.slides.eq(index);
-        var $images = $slideEl.find("." + params.elementClass + ":not(." + params.loadedClass + "):not(." + params.loadingClass + ")");
-
-        if ($slideEl.hasClass(params.elementClass) && !$slideEl.hasClass(params.loadedClass) && !$slideEl.hasClass(params.loadingClass)) {
-          $images = $images.add($slideEl[0]);
-        }
-
-        if ($images.length === 0) {
-          return;
-        }
-
-        $images.each(function (imageIndex, imageEl) {
-          var $imageEl = $(imageEl);
-          $imageEl.addClass(params.loadingClass);
-          var background = $imageEl.attr('data-background');
-          var src = $imageEl.attr('data-src');
-          var srcset = $imageEl.attr('data-srcset');
-          var sizes = $imageEl.attr('data-sizes');
-          swiper.loadImage($imageEl[0], src || background, srcset, sizes, false, function () {
-            if (typeof swiper === 'undefined' || swiper === null || !swiper || swiper && !swiper.params || swiper.destroyed) {
-              return;
-            }
-
-            if (background) {
-              $imageEl.css('background-image', "url(\"" + background + "\")");
-              $imageEl.removeAttr('data-background');
-            } else {
-              if (srcset) {
-                $imageEl.attr('srcset', srcset);
-                $imageEl.removeAttr('data-srcset');
-              }
-
-              if (sizes) {
-                $imageEl.attr('sizes', sizes);
-                $imageEl.removeAttr('data-sizes');
-              }
-
-              if (src) {
-                $imageEl.attr('src', src);
-                $imageEl.removeAttr('data-src');
-              }
-            }
-
-            $imageEl.addClass(params.loadedClass).removeClass(params.loadingClass);
-            $slideEl.find("." + params.preloaderClass).remove();
-
-            if (swiper.params.loop && loadInDuplicate) {
-              var slideOriginalIndex = $slideEl.attr('data-swiper-slide-index');
-
-              if ($slideEl.hasClass(swiper.params.slideDuplicateClass)) {
-                var originalSlide = swiper.$wrapperEl.children("[data-swiper-slide-index=\"" + slideOriginalIndex + "\"]:not(." + swiper.params.slideDuplicateClass + ")");
-                swiper.lazy.loadInSlide(originalSlide.index(), false);
-              } else {
-                var duplicatedSlide = swiper.$wrapperEl.children("." + swiper.params.slideDuplicateClass + "[data-swiper-slide-index=\"" + slideOriginalIndex + "\"]");
-                swiper.lazy.loadInSlide(duplicatedSlide.index(), false);
-              }
-            }
-
-            swiper.emit('lazyImageReady', $slideEl[0], $imageEl[0]);
-          });
-          swiper.emit('lazyImageLoad', $slideEl[0], $imageEl[0]);
-        });
-      },
-      load: function load() {
-        var swiper = this;
-        var $wrapperEl = swiper.$wrapperEl;
-        var swiperParams = swiper.params;
-        var slides = swiper.slides;
-        var activeIndex = swiper.activeIndex;
-        var isVirtual = swiper.virtual && swiperParams.virtual.enabled;
-        var params = swiperParams.lazy;
-        var slidesPerView = swiperParams.slidesPerView;
-
-        if (slidesPerView === 'auto') {
-          slidesPerView = 0;
-        }
-
-        function slideExist(index) {
-          if (isVirtual) {
-            if ($wrapperEl.children("." + swiperParams.slideClass + "[data-swiper-slide-index=\"" + index + "\"]").length) {
-              return true;
-            }
-          } else if (slides[index]) {
-            return true;
-          }
-
-          return false;
-        }
-
-        function slideIndex(slideEl) {
-          if (isVirtual) {
-            return $(slideEl).attr('data-swiper-slide-index');
-          }
-
-          return $(slideEl).index();
-        }
-
-        if (!swiper.lazy.initialImageLoaded) {
-          swiper.lazy.initialImageLoaded = true;
-        }
-
-        if (swiper.params.watchSlidesVisibility) {
-          $wrapperEl.children("." + swiperParams.slideVisibleClass).each(function (elIndex, slideEl) {
-            var index = isVirtual ? $(slideEl).attr('data-swiper-slide-index') : $(slideEl).index();
-            swiper.lazy.loadInSlide(index);
-          });
-        } else if (slidesPerView > 1) {
-          for (var i = activeIndex; i < activeIndex + slidesPerView; i += 1) {
-            if (slideExist(i)) {
-              swiper.lazy.loadInSlide(i);
-            }
-          }
-        } else {
-          swiper.lazy.loadInSlide(activeIndex);
-        }
-
-        if (params.loadPrevNext) {
-          if (slidesPerView > 1 || params.loadPrevNextAmount && params.loadPrevNextAmount > 1) {
-            var amount = params.loadPrevNextAmount;
-            var spv = slidesPerView;
-            var maxIndex = Math.min(activeIndex + spv + Math.max(amount, spv), slides.length);
-            var minIndex = Math.max(activeIndex - Math.max(spv, amount), 0); // Next Slides
-
-            for (var i$1 = activeIndex + slidesPerView; i$1 < maxIndex; i$1 += 1) {
-              if (slideExist(i$1)) {
-                swiper.lazy.loadInSlide(i$1);
-              }
-            } // Prev Slides
-
-
-            for (var i$2 = minIndex; i$2 < activeIndex; i$2 += 1) {
-              if (slideExist(i$2)) {
-                swiper.lazy.loadInSlide(i$2);
-              }
-            }
-          } else {
-            var nextSlide = $wrapperEl.children("." + swiperParams.slideNextClass);
-
-            if (nextSlide.length > 0) {
-              swiper.lazy.loadInSlide(slideIndex(nextSlide));
-            }
-
-            var prevSlide = $wrapperEl.children("." + swiperParams.slidePrevClass);
-
-            if (prevSlide.length > 0) {
-              swiper.lazy.loadInSlide(slideIndex(prevSlide));
-            }
-          }
-        }
-      }
-    };
-    var Lazy$1 = {
-      name: 'lazy',
-      params: {
-        lazy: {
-          enabled: false,
-          loadPrevNext: false,
-          loadPrevNextAmount: 1,
-          loadOnTransitionStart: false,
-          elementClass: 'swiper-lazy',
-          loadingClass: 'swiper-lazy-loading',
-          loadedClass: 'swiper-lazy-loaded',
-          preloaderClass: 'swiper-lazy-preloader'
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          lazy: {
-            initialImageLoaded: false,
-            load: Lazy.load.bind(swiper),
-            loadInSlide: Lazy.loadInSlide.bind(swiper)
-          }
-        });
-      },
-      on: {
-        beforeInit: function beforeInit() {
-          var swiper = this;
-
-          if (swiper.params.lazy.enabled && swiper.params.preloadImages) {
-            swiper.params.preloadImages = false;
-          }
-        },
-        init: function init() {
-          var swiper = this;
-
-          if (swiper.params.lazy.enabled && !swiper.params.loop && swiper.params.initialSlide === 0) {
-            swiper.lazy.load();
-          }
-        },
-        scroll: function scroll() {
-          var swiper = this;
-
-          if (swiper.params.freeMode && !swiper.params.freeModeSticky) {
-            swiper.lazy.load();
-          }
-        },
-        resize: function resize() {
-          var swiper = this;
-
-          if (swiper.params.lazy.enabled) {
-            swiper.lazy.load();
-          }
-        },
-        scrollbarDragMove: function scrollbarDragMove() {
-          var swiper = this;
-
-          if (swiper.params.lazy.enabled) {
-            swiper.lazy.load();
-          }
-        },
-        transitionStart: function transitionStart() {
-          var swiper = this;
-
-          if (swiper.params.lazy.enabled) {
-            if (swiper.params.lazy.loadOnTransitionStart || !swiper.params.lazy.loadOnTransitionStart && !swiper.lazy.initialImageLoaded) {
-              swiper.lazy.load();
-            }
-          }
-        },
-        transitionEnd: function transitionEnd() {
-          var swiper = this;
-
-          if (swiper.params.lazy.enabled && !swiper.params.lazy.loadOnTransitionStart) {
-            swiper.lazy.load();
-          }
-        }
-      }
-    };
-    /* eslint no-bitwise: ["error", { "allow": [">>"] }] */
-
-    var Controller = {
-      LinearSpline: function LinearSpline(x, y) {
-        var binarySearch = function search() {
-          var maxIndex;
-          var minIndex;
-          var guess;
-          return function (array, val) {
-            minIndex = -1;
-            maxIndex = array.length;
-
-            while (maxIndex - minIndex > 1) {
-              guess = maxIndex + minIndex >> 1;
-
-              if (array[guess] <= val) {
-                minIndex = guess;
-              } else {
-                maxIndex = guess;
-              }
-            }
-
-            return maxIndex;
-          };
-        }();
-
-        this.x = x;
-        this.y = y;
-        this.lastIndex = x.length - 1; // Given an x value (x2), return the expected y2 value:
-        // (x1,y1) is the known point before given value,
-        // (x3,y3) is the known point after given value.
-
-        var i1;
-        var i3;
-
-        this.interpolate = function interpolate(x2) {
-          if (!x2) {
-            return 0;
-          } // Get the indexes of x1 and x3 (the array indexes before and after given x2):
-
-
-          i3 = binarySearch(this.x, x2);
-          i1 = i3 - 1; // We have our indexes i1 & i3, so we can calculate already:
-          // y2 := ((x2−x1) × (y3−y1)) ÷ (x3−x1) + y1
-
-          return (x2 - this.x[i1]) * (this.y[i3] - this.y[i1]) / (this.x[i3] - this.x[i1]) + this.y[i1];
-        };
-
-        return this;
-      },
-      // xxx: for now i will just save one spline function to to
-      getInterpolateFunction: function getInterpolateFunction(c) {
-        var swiper = this;
-
-        if (!swiper.controller.spline) {
-          swiper.controller.spline = swiper.params.loop ? new Controller.LinearSpline(swiper.slidesGrid, c.slidesGrid) : new Controller.LinearSpline(swiper.snapGrid, c.snapGrid);
-        }
-      },
-      setTranslate: function setTranslate(setTranslate$1, byController) {
-        var swiper = this;
-        var controlled = swiper.controller.control;
-        var multiplier;
-        var controlledTranslate;
-
-        function setControlledTranslate(c) {
-          // this will create an Interpolate function based on the snapGrids
-          // x is the Grid of the scrolled scroller and y will be the controlled scroller
-          // it makes sense to create this only once and recall it for the interpolation
-          // the function does a lot of value caching for performance
-          var translate = swiper.rtlTranslate ? -swiper.translate : swiper.translate;
-
-          if (swiper.params.controller.by === 'slide') {
-            swiper.controller.getInterpolateFunction(c); // i am not sure why the values have to be multiplicated this way, tried to invert the snapGrid
-            // but it did not work out
-
-            controlledTranslate = -swiper.controller.spline.interpolate(-translate);
-          }
-
-          if (!controlledTranslate || swiper.params.controller.by === 'container') {
-            multiplier = (c.maxTranslate() - c.minTranslate()) / (swiper.maxTranslate() - swiper.minTranslate());
-            controlledTranslate = (translate - swiper.minTranslate()) * multiplier + c.minTranslate();
-          }
-
-          if (swiper.params.controller.inverse) {
-            controlledTranslate = c.maxTranslate() - controlledTranslate;
-          }
-
-          c.updateProgress(controlledTranslate);
-          c.setTranslate(controlledTranslate, swiper);
-          c.updateActiveIndex();
-          c.updateSlidesClasses();
-        }
-
-        if (Array.isArray(controlled)) {
-          for (var i = 0; i < controlled.length; i += 1) {
-            if (controlled[i] !== byController && controlled[i] instanceof Swiper) {
-              setControlledTranslate(controlled[i]);
-            }
-          }
-        } else if (controlled instanceof Swiper && byController !== controlled) {
-          setControlledTranslate(controlled);
-        }
-      },
-      setTransition: function setTransition(duration, byController) {
-        var swiper = this;
-        var controlled = swiper.controller.control;
-        var i;
-
-        function setControlledTransition(c) {
-          c.setTransition(duration, swiper);
-
-          if (duration !== 0) {
-            c.transitionStart();
-            c.$wrapperEl.transitionEnd(function () {
-              if (!controlled) {
-                return;
-              }
-
-              if (c.params.loop && swiper.params.controller.by === 'slide') {
-                c.loopFix();
-              }
-
-              c.transitionEnd();
-            });
-          }
-        }
-
-        if (Array.isArray(controlled)) {
-          for (i = 0; i < controlled.length; i += 1) {
-            if (controlled[i] !== byController && controlled[i] instanceof Swiper) {
-              setControlledTransition(controlled[i]);
-            }
-          }
-        } else if (controlled instanceof Swiper && byController !== controlled) {
-          setControlledTransition(controlled);
-        }
-      }
-    };
-    var Controller$1 = {
-      name: 'controller',
-      params: {
-        controller: {
-          control: undefined,
-          inverse: false,
-          by: 'slide' // or 'container'
-
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          controller: {
-            control: swiper.params.controller.control,
-            getInterpolateFunction: Controller.getInterpolateFunction.bind(swiper),
-            setTranslate: Controller.setTranslate.bind(swiper),
-            setTransition: Controller.setTransition.bind(swiper)
-          }
-        });
-      },
-      on: {
-        update: function update() {
-          var swiper = this;
-
-          if (!swiper.controller.control) {
-            return;
-          }
-
-          if (swiper.controller.spline) {
-            swiper.controller.spline = undefined;
-            delete swiper.controller.spline;
-          }
-        },
-        resize: function resize() {
-          var swiper = this;
-
-          if (!swiper.controller.control) {
-            return;
-          }
-
-          if (swiper.controller.spline) {
-            swiper.controller.spline = undefined;
-            delete swiper.controller.spline;
-          }
-        },
-        observerUpdate: function observerUpdate() {
-          var swiper = this;
-
-          if (!swiper.controller.control) {
-            return;
-          }
-
-          if (swiper.controller.spline) {
-            swiper.controller.spline = undefined;
-            delete swiper.controller.spline;
-          }
-        },
-        setTranslate: function setTranslate(translate, byController) {
-          var swiper = this;
-
-          if (!swiper.controller.control) {
-            return;
-          }
-
-          swiper.controller.setTranslate(translate, byController);
-        },
-        setTransition: function setTransition(duration, byController) {
-          var swiper = this;
-
-          if (!swiper.controller.control) {
-            return;
-          }
-
-          swiper.controller.setTransition(duration, byController);
-        }
-      }
-    };
-    var a11y = {
-      makeElFocusable: function makeElFocusable($el) {
-        $el.attr('tabIndex', '0');
-        return $el;
-      },
-      addElRole: function addElRole($el, role) {
-        $el.attr('role', role);
-        return $el;
-      },
-      addElLabel: function addElLabel($el, label) {
-        $el.attr('aria-label', label);
-        return $el;
-      },
-      disableEl: function disableEl($el) {
-        $el.attr('aria-disabled', true);
-        return $el;
-      },
-      enableEl: function enableEl($el) {
-        $el.attr('aria-disabled', false);
-        return $el;
-      },
-      onEnterKey: function onEnterKey(e) {
-        var swiper = this;
-        var params = swiper.params.a11y;
-
-        if (e.keyCode !== 13) {
-          return;
-        }
-
-        var $targetEl = $(e.target);
-
-        if (swiper.navigation && swiper.navigation.$nextEl && $targetEl.is(swiper.navigation.$nextEl)) {
-          if (!(swiper.isEnd && !swiper.params.loop)) {
-            swiper.slideNext();
-          }
-
-          if (swiper.isEnd) {
-            swiper.a11y.notify(params.lastSlideMessage);
-          } else {
-            swiper.a11y.notify(params.nextSlideMessage);
-          }
-        }
-
-        if (swiper.navigation && swiper.navigation.$prevEl && $targetEl.is(swiper.navigation.$prevEl)) {
-          if (!(swiper.isBeginning && !swiper.params.loop)) {
-            swiper.slidePrev();
-          }
-
-          if (swiper.isBeginning) {
-            swiper.a11y.notify(params.firstSlideMessage);
-          } else {
-            swiper.a11y.notify(params.prevSlideMessage);
-          }
-        }
-
-        if (swiper.pagination && $targetEl.is("." + swiper.params.pagination.bulletClass)) {
-          $targetEl[0].click();
-        }
-      },
-      notify: function notify(message) {
-        var swiper = this;
-        var notification = swiper.a11y.liveRegion;
-
-        if (notification.length === 0) {
-          return;
-        }
-
-        notification.html('');
-        notification.html(message);
-      },
-      updateNavigation: function updateNavigation() {
-        var swiper = this;
-
-        if (swiper.params.loop) {
-          return;
-        }
-
-        var ref = swiper.navigation;
-        var $nextEl = ref.$nextEl;
-        var $prevEl = ref.$prevEl;
-
-        if ($prevEl && $prevEl.length > 0) {
-          if (swiper.isBeginning) {
-            swiper.a11y.disableEl($prevEl);
-          } else {
-            swiper.a11y.enableEl($prevEl);
-          }
-        }
-
-        if ($nextEl && $nextEl.length > 0) {
-          if (swiper.isEnd) {
-            swiper.a11y.disableEl($nextEl);
-          } else {
-            swiper.a11y.enableEl($nextEl);
-          }
-        }
-      },
-      updatePagination: function updatePagination() {
-        var swiper = this;
-        var params = swiper.params.a11y;
-
-        if (swiper.pagination && swiper.params.pagination.clickable && swiper.pagination.bullets && swiper.pagination.bullets.length) {
-          swiper.pagination.bullets.each(function (bulletIndex, bulletEl) {
-            var $bulletEl = $(bulletEl);
-            swiper.a11y.makeElFocusable($bulletEl);
-            swiper.a11y.addElRole($bulletEl, 'button');
-            swiper.a11y.addElLabel($bulletEl, params.paginationBulletMessage.replace(/{{index}}/, $bulletEl.index() + 1));
-          });
-        }
-      },
-      init: function init() {
-        var swiper = this;
-        swiper.$el.append(swiper.a11y.liveRegion); // Navigation
-
-        var params = swiper.params.a11y;
-        var $nextEl;
-        var $prevEl;
-
-        if (swiper.navigation && swiper.navigation.$nextEl) {
-          $nextEl = swiper.navigation.$nextEl;
-        }
-
-        if (swiper.navigation && swiper.navigation.$prevEl) {
-          $prevEl = swiper.navigation.$prevEl;
-        }
-
-        if ($nextEl) {
-          swiper.a11y.makeElFocusable($nextEl);
-          swiper.a11y.addElRole($nextEl, 'button');
-          swiper.a11y.addElLabel($nextEl, params.nextSlideMessage);
-          $nextEl.on('keydown', swiper.a11y.onEnterKey);
-        }
-
-        if ($prevEl) {
-          swiper.a11y.makeElFocusable($prevEl);
-          swiper.a11y.addElRole($prevEl, 'button');
-          swiper.a11y.addElLabel($prevEl, params.prevSlideMessage);
-          $prevEl.on('keydown', swiper.a11y.onEnterKey);
-        } // Pagination
-
-
-        if (swiper.pagination && swiper.params.pagination.clickable && swiper.pagination.bullets && swiper.pagination.bullets.length) {
-          swiper.pagination.$el.on('keydown', "." + swiper.params.pagination.bulletClass, swiper.a11y.onEnterKey);
-        }
-      },
-      destroy: function destroy() {
-        var swiper = this;
-
-        if (swiper.a11y.liveRegion && swiper.a11y.liveRegion.length > 0) {
-          swiper.a11y.liveRegion.remove();
-        }
-
-        var $nextEl;
-        var $prevEl;
-
-        if (swiper.navigation && swiper.navigation.$nextEl) {
-          $nextEl = swiper.navigation.$nextEl;
-        }
-
-        if (swiper.navigation && swiper.navigation.$prevEl) {
-          $prevEl = swiper.navigation.$prevEl;
-        }
-
-        if ($nextEl) {
-          $nextEl.off('keydown', swiper.a11y.onEnterKey);
-        }
-
-        if ($prevEl) {
-          $prevEl.off('keydown', swiper.a11y.onEnterKey);
-        } // Pagination
-
-
-        if (swiper.pagination && swiper.params.pagination.clickable && swiper.pagination.bullets && swiper.pagination.bullets.length) {
-          swiper.pagination.$el.off('keydown', "." + swiper.params.pagination.bulletClass, swiper.a11y.onEnterKey);
-        }
-      }
-    };
-    var A11y = {
-      name: 'a11y',
-      params: {
-        a11y: {
-          enabled: true,
-          notificationClass: 'swiper-notification',
-          prevSlideMessage: 'Previous slide',
-          nextSlideMessage: 'Next slide',
-          firstSlideMessage: 'This is the first slide',
-          lastSlideMessage: 'This is the last slide',
-          paginationBulletMessage: 'Go to slide {{index}}'
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          a11y: {
-            liveRegion: $("<span class=\"" + swiper.params.a11y.notificationClass + "\" aria-live=\"assertive\" aria-atomic=\"true\"></span>")
-          }
-        });
-        Object.keys(a11y).forEach(function (methodName) {
-          swiper.a11y[methodName] = a11y[methodName].bind(swiper);
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
-
-          if (!swiper.params.a11y.enabled) {
-            return;
-          }
-
-          swiper.a11y.init();
-          swiper.a11y.updateNavigation();
-        },
-        toEdge: function toEdge() {
-          var swiper = this;
-
-          if (!swiper.params.a11y.enabled) {
-            return;
-          }
-
-          swiper.a11y.updateNavigation();
-        },
-        fromEdge: function fromEdge() {
-          var swiper = this;
-
-          if (!swiper.params.a11y.enabled) {
-            return;
-          }
-
-          swiper.a11y.updateNavigation();
-        },
-        paginationUpdate: function paginationUpdate() {
-          var swiper = this;
-
-          if (!swiper.params.a11y.enabled) {
-            return;
-          }
-
-          swiper.a11y.updatePagination();
-        },
-        destroy: function destroy() {
-          var swiper = this;
-
-          if (!swiper.params.a11y.enabled) {
-            return;
-          }
-
-          swiper.a11y.destroy();
-        }
-      }
-    };
-    var History = {
-      init: function init() {
-        var swiper = this;
-
-        if (!swiper.params.history) {
-          return;
-        }
-
-        if (!win.history || !win.history.pushState) {
-          swiper.params.history.enabled = false;
-          swiper.params.hashNavigation.enabled = true;
-          return;
-        }
-
-        var history = swiper.history;
-        history.initialized = true;
-        history.paths = History.getPathValues();
-
-        if (!history.paths.key && !history.paths.value) {
-          return;
-        }
-
-        history.scrollToSlide(0, history.paths.value, swiper.params.runCallbacksOnInit);
-
-        if (!swiper.params.history.replaceState) {
-          win.addEventListener('popstate', swiper.history.setHistoryPopState);
-        }
-      },
-      destroy: function destroy() {
-        var swiper = this;
-
-        if (!swiper.params.history.replaceState) {
-          win.removeEventListener('popstate', swiper.history.setHistoryPopState);
-        }
-      },
-      setHistoryPopState: function setHistoryPopState() {
-        var swiper = this;
-        swiper.history.paths = History.getPathValues();
-        swiper.history.scrollToSlide(swiper.params.speed, swiper.history.paths.value, false);
-      },
-      getPathValues: function getPathValues() {
-        var pathArray = win.location.pathname.slice(1).split('/').filter(function (part) {
-          return part !== '';
-        });
-        var total = pathArray.length;
-        var key = pathArray[total - 2];
-        var value = pathArray[total - 1];
-        return {
-          key: key,
-          value: value
-        };
-      },
-      setHistory: function setHistory(key, index) {
-        var swiper = this;
-
-        if (!swiper.history.initialized || !swiper.params.history.enabled) {
-          return;
-        }
-
-        var slide = swiper.slides.eq(index);
-        var value = History.slugify(slide.attr('data-history'));
-
-        if (!win.location.pathname.includes(key)) {
-          value = key + "/" + value;
-        }
-
-        var currentState = win.history.state;
-
-        if (currentState && currentState.value === value) {
-          return;
-        }
-
-        if (swiper.params.history.replaceState) {
-          win.history.replaceState({
-            value: value
-          }, null, value);
-        } else {
-          win.history.pushState({
-            value: value
-          }, null, value);
-        }
-      },
-      slugify: function slugify(text) {
-        return text.toString().toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '').replace(/--+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
-      },
-      scrollToSlide: function scrollToSlide(speed, value, runCallbacks) {
-        var swiper = this;
-
-        if (value) {
-          for (var i = 0, length = swiper.slides.length; i < length; i += 1) {
-            var slide = swiper.slides.eq(i);
-            var slideHistory = History.slugify(slide.attr('data-history'));
-
-            if (slideHistory === value && !slide.hasClass(swiper.params.slideDuplicateClass)) {
-              var index = slide.index();
-              swiper.slideTo(index, speed, runCallbacks);
-            }
-          }
-        } else {
-          swiper.slideTo(0, speed, runCallbacks);
-        }
-      }
-    };
-    var History$1 = {
-      name: 'history',
-      params: {
-        history: {
-          enabled: false,
-          replaceState: false,
-          key: 'slides'
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          history: {
-            init: History.init.bind(swiper),
-            setHistory: History.setHistory.bind(swiper),
-            setHistoryPopState: History.setHistoryPopState.bind(swiper),
-            scrollToSlide: History.scrollToSlide.bind(swiper),
-            destroy: History.destroy.bind(swiper)
-          }
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
-
-          if (swiper.params.history.enabled) {
-            swiper.history.init();
-          }
-        },
-        destroy: function destroy() {
-          var swiper = this;
-
-          if (swiper.params.history.enabled) {
-            swiper.history.destroy();
-          }
-        },
-        transitionEnd: function transitionEnd() {
-          var swiper = this;
-
-          if (swiper.history.initialized) {
-            swiper.history.setHistory(swiper.params.history.key, swiper.activeIndex);
-          }
-        }
-      }
-    };
-    var HashNavigation = {
-      onHashCange: function onHashCange() {
-        var swiper = this;
-        var newHash = doc.location.hash.replace('#', '');
-        var activeSlideHash = swiper.slides.eq(swiper.activeIndex).attr('data-hash');
-
-        if (newHash !== activeSlideHash) {
-          swiper.slideTo(swiper.$wrapperEl.children("." + swiper.params.slideClass + "[data-hash=\"" + newHash + "\"]").index());
-        }
-      },
-      setHash: function setHash() {
-        var swiper = this;
-
-        if (!swiper.hashNavigation.initialized || !swiper.params.hashNavigation.enabled) {
-          return;
-        }
-
-        if (swiper.params.hashNavigation.replaceState && win.history && win.history.replaceState) {
-          win.history.replaceState(null, null, "#" + swiper.slides.eq(swiper.activeIndex).attr('data-hash') || false);
-        } else {
-          var slide = swiper.slides.eq(swiper.activeIndex);
-          var hash = slide.attr('data-hash') || slide.attr('data-history');
-          doc.location.hash = hash || '';
-        }
-      },
-      init: function init() {
-        var swiper = this;
-
-        if (!swiper.params.hashNavigation.enabled || swiper.params.history && swiper.params.history.enabled) {
-          return;
-        }
-
-        swiper.hashNavigation.initialized = true;
-        var hash = doc.location.hash.replace('#', '');
-
-        if (hash) {
-          var speed = 0;
-
-          for (var i = 0, length = swiper.slides.length; i < length; i += 1) {
-            var slide = swiper.slides.eq(i);
-            var slideHash = slide.attr('data-hash') || slide.attr('data-history');
-
-            if (slideHash === hash && !slide.hasClass(swiper.params.slideDuplicateClass)) {
-              var index = slide.index();
-              swiper.slideTo(index, speed, swiper.params.runCallbacksOnInit, true);
-            }
-          }
-        }
-
-        if (swiper.params.hashNavigation.watchState) {
-          $(win).on('hashchange', swiper.hashNavigation.onHashCange);
-        }
-      },
-      destroy: function destroy() {
-        var swiper = this;
-
-        if (swiper.params.hashNavigation.watchState) {
-          $(win).off('hashchange', swiper.hashNavigation.onHashCange);
-        }
-      }
-    };
-    var HashNavigation$1 = {
-      name: 'hash-navigation',
-      params: {
-        hashNavigation: {
-          enabled: false,
-          replaceState: false,
-          watchState: false
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          hashNavigation: {
-            initialized: false,
-            init: HashNavigation.init.bind(swiper),
-            destroy: HashNavigation.destroy.bind(swiper),
-            setHash: HashNavigation.setHash.bind(swiper),
-            onHashCange: HashNavigation.onHashCange.bind(swiper)
-          }
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
-
-          if (swiper.params.hashNavigation.enabled) {
-            swiper.hashNavigation.init();
-          }
-        },
-        destroy: function destroy() {
-          var swiper = this;
-
-          if (swiper.params.hashNavigation.enabled) {
-            swiper.hashNavigation.destroy();
-          }
-        },
-        transitionEnd: function transitionEnd() {
-          var swiper = this;
-
-          if (swiper.hashNavigation.initialized) {
-            swiper.hashNavigation.setHash();
-          }
-        }
-      }
-    };
-    /* eslint no-underscore-dangle: "off" */
-
-    var Autoplay = {
-      run: function run() {
-        var swiper = this;
-        var $activeSlideEl = swiper.slides.eq(swiper.activeIndex);
-        var delay = swiper.params.autoplay.delay;
-
-        if ($activeSlideEl.attr('data-swiper-autoplay')) {
-          delay = $activeSlideEl.attr('data-swiper-autoplay') || swiper.params.autoplay.delay;
-        }
-
-        swiper.autoplay.timeout = Utils.nextTick(function () {
-          if (swiper.params.autoplay.reverseDirection) {
-            if (swiper.params.loop) {
-              swiper.loopFix();
-              swiper.slidePrev(swiper.params.speed, true, true);
-              swiper.emit('autoplay');
-            } else if (!swiper.isBeginning) {
-              swiper.slidePrev(swiper.params.speed, true, true);
-              swiper.emit('autoplay');
-            } else if (!swiper.params.autoplay.stopOnLastSlide) {
-              swiper.slideTo(swiper.slides.length - 1, swiper.params.speed, true, true);
-              swiper.emit('autoplay');
-            } else {
-              swiper.autoplay.stop();
-            }
-          } else if (swiper.params.loop) {
-            swiper.loopFix();
-            swiper.slideNext(swiper.params.speed, true, true);
-            swiper.emit('autoplay');
-          } else if (!swiper.isEnd) {
-            swiper.slideNext(swiper.params.speed, true, true);
-            swiper.emit('autoplay');
-          } else if (!swiper.params.autoplay.stopOnLastSlide) {
-            swiper.slideTo(0, swiper.params.speed, true, true);
-            swiper.emit('autoplay');
-          } else {
-            swiper.autoplay.stop();
-          }
-        }, delay);
-      },
-      start: function start() {
-        var swiper = this;
-
-        if (typeof swiper.autoplay.timeout !== 'undefined') {
-          return false;
-        }
-
-        if (swiper.autoplay.running) {
-          return false;
-        }
-
-        swiper.autoplay.running = true;
-        swiper.emit('autoplayStart');
-        swiper.autoplay.run();
-        return true;
-      },
-      stop: function stop() {
-        var swiper = this;
-
-        if (!swiper.autoplay.running) {
-          return false;
-        }
-
-        if (typeof swiper.autoplay.timeout === 'undefined') {
-          return false;
-        }
-
-        if (swiper.autoplay.timeout) {
-          clearTimeout(swiper.autoplay.timeout);
-          swiper.autoplay.timeout = undefined;
-        }
-
-        swiper.autoplay.running = false;
-        swiper.emit('autoplayStop');
-        return true;
-      },
-      pause: function pause(speed) {
-        var swiper = this;
-
-        if (!swiper.autoplay.running) {
-          return;
-        }
-
-        if (swiper.autoplay.paused) {
-          return;
-        }
-
-        if (swiper.autoplay.timeout) {
-          clearTimeout(swiper.autoplay.timeout);
-        }
-
-        swiper.autoplay.paused = true;
-
-        if (speed === 0 || !swiper.params.autoplay.waitForTransition) {
-          swiper.autoplay.paused = false;
-          swiper.autoplay.run();
-        } else {
-          swiper.$wrapperEl[0].addEventListener('transitionend', swiper.autoplay.onTransitionEnd);
-          swiper.$wrapperEl[0].addEventListener('webkitTransitionEnd', swiper.autoplay.onTransitionEnd);
-        }
-      }
-    };
-    var Autoplay$1 = {
-      name: 'autoplay',
-      params: {
-        autoplay: {
-          enabled: false,
-          delay: 3000,
-          waitForTransition: true,
-          disableOnInteraction: true,
-          stopOnLastSlide: false,
-          reverseDirection: false
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          autoplay: {
-            running: false,
-            paused: false,
-            run: Autoplay.run.bind(swiper),
-            start: Autoplay.start.bind(swiper),
-            stop: Autoplay.stop.bind(swiper),
-            pause: Autoplay.pause.bind(swiper),
-            onTransitionEnd: function onTransitionEnd(e) {
-              if (!swiper || swiper.destroyed || !swiper.$wrapperEl) {
-                return;
-              }
-
-              if (e.target !== this) {
-                return;
-              }
-
-              swiper.$wrapperEl[0].removeEventListener('transitionend', swiper.autoplay.onTransitionEnd);
-              swiper.$wrapperEl[0].removeEventListener('webkitTransitionEnd', swiper.autoplay.onTransitionEnd);
-              swiper.autoplay.paused = false;
-
-              if (!swiper.autoplay.running) {
-                swiper.autoplay.stop();
-              } else {
-                swiper.autoplay.run();
-              }
-            }
-          }
-        });
-      },
-      on: {
-        init: function init() {
-          var swiper = this;
-
-          if (swiper.params.autoplay.enabled) {
-            swiper.autoplay.start();
-          }
-        },
-        beforeTransitionStart: function beforeTransitionStart(speed, internal) {
-          var swiper = this;
-
-          if (swiper.autoplay.running) {
-            if (internal || !swiper.params.autoplay.disableOnInteraction) {
-              swiper.autoplay.pause(speed);
-            } else {
-              swiper.autoplay.stop();
-            }
-          }
-        },
-        sliderFirstMove: function sliderFirstMove() {
-          var swiper = this;
-
-          if (swiper.autoplay.running) {
-            if (swiper.params.autoplay.disableOnInteraction) {
-              swiper.autoplay.stop();
-            } else {
-              swiper.autoplay.pause();
-            }
-          }
-        },
-        destroy: function destroy() {
-          var swiper = this;
-
-          if (swiper.autoplay.running) {
-            swiper.autoplay.stop();
-          }
-        }
-      }
-    };
-    var Fade = {
-      setTranslate: function setTranslate() {
-        var swiper = this;
-        var slides = swiper.slides;
-
-        for (var i = 0; i < slides.length; i += 1) {
-          var $slideEl = swiper.slides.eq(i);
-          var offset = $slideEl[0].swiperSlideOffset;
-          var tx = -offset;
-
-          if (!swiper.params.virtualTranslate) {
-            tx -= swiper.translate;
-          }
-
-          var ty = 0;
-
-          if (!swiper.isHorizontal()) {
-            ty = tx;
-            tx = 0;
-          }
-
-          var slideOpacity = swiper.params.fadeEffect.crossFade ? Math.max(1 - Math.abs($slideEl[0].progress), 0) : 1 + Math.min(Math.max($slideEl[0].progress, -1), 0);
-          $slideEl.css({
-            opacity: slideOpacity
-          }).transform("translate3d(" + tx + "px, " + ty + "px, 0px)");
-        }
-      },
-      setTransition: function setTransition(duration) {
-        var swiper = this;
-        var slides = swiper.slides;
-        var $wrapperEl = swiper.$wrapperEl;
-        slides.transition(duration);
-
-        if (swiper.params.virtualTranslate && duration !== 0) {
-          var eventTriggered = false;
-          slides.transitionEnd(function () {
-            if (eventTriggered) {
-              return;
-            }
-
-            if (!swiper || swiper.destroyed) {
-              return;
-            }
-
-            eventTriggered = true;
-            swiper.animating = false;
-            var triggerEvents = ['webkitTransitionEnd', 'transitionend'];
-
-            for (var i = 0; i < triggerEvents.length; i += 1) {
-              $wrapperEl.trigger(triggerEvents[i]);
-            }
-          });
-        }
-      }
-    };
-    var EffectFade = {
-      name: 'effect-fade',
-      params: {
-        fadeEffect: {
-          crossFade: false
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          fadeEffect: {
-            setTranslate: Fade.setTranslate.bind(swiper),
-            setTransition: Fade.setTransition.bind(swiper)
-          }
-        });
-      },
-      on: {
-        beforeInit: function beforeInit() {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'fade') {
-            return;
-          }
-
-          swiper.classNames.push(swiper.params.containerModifierClass + "fade");
-          var overwriteParams = {
-            slidesPerView: 1,
-            slidesPerColumn: 1,
-            slidesPerGroup: 1,
-            watchSlidesProgress: true,
-            spaceBetween: 0,
-            virtualTranslate: true
-          };
-          Utils.extend(swiper.params, overwriteParams);
-          Utils.extend(swiper.originalParams, overwriteParams);
-        },
-        setTranslate: function setTranslate() {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'fade') {
-            return;
-          }
-
-          swiper.fadeEffect.setTranslate();
-        },
-        setTransition: function setTransition(duration) {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'fade') {
-            return;
-          }
-
-          swiper.fadeEffect.setTransition(duration);
-        }
-      }
-    };
-    var Cube = {
-      setTranslate: function setTranslate() {
-        var swiper = this;
-        var $el = swiper.$el;
-        var $wrapperEl = swiper.$wrapperEl;
-        var slides = swiper.slides;
-        var swiperWidth = swiper.width;
-        var swiperHeight = swiper.height;
-        var rtl = swiper.rtlTranslate;
-        var swiperSize = swiper.size;
-        var params = swiper.params.cubeEffect;
-        var isHorizontal = swiper.isHorizontal();
-        var isVirtual = swiper.virtual && swiper.params.virtual.enabled;
-        var wrapperRotate = 0;
-        var $cubeShadowEl;
-
-        if (params.shadow) {
-          if (isHorizontal) {
-            $cubeShadowEl = $wrapperEl.find('.swiper-cube-shadow');
-
-            if ($cubeShadowEl.length === 0) {
-              $cubeShadowEl = $('<div class="swiper-cube-shadow"></div>');
-              $wrapperEl.append($cubeShadowEl);
-            }
-
-            $cubeShadowEl.css({
-              height: swiperWidth + "px"
-            });
-          } else {
-            $cubeShadowEl = $el.find('.swiper-cube-shadow');
-
-            if ($cubeShadowEl.length === 0) {
-              $cubeShadowEl = $('<div class="swiper-cube-shadow"></div>');
-              $el.append($cubeShadowEl);
-            }
-          }
-        }
-
-        for (var i = 0; i < slides.length; i += 1) {
-          var $slideEl = slides.eq(i);
-          var slideIndex = i;
-
-          if (isVirtual) {
-            slideIndex = parseInt($slideEl.attr('data-swiper-slide-index'), 10);
-          }
-
-          var slideAngle = slideIndex * 90;
-          var round = Math.floor(slideAngle / 360);
-
-          if (rtl) {
-            slideAngle = -slideAngle;
-            round = Math.floor(-slideAngle / 360);
-          }
-
-          var progress = Math.max(Math.min($slideEl[0].progress, 1), -1);
-          var tx = 0;
-          var ty = 0;
-          var tz = 0;
-
-          if (slideIndex % 4 === 0) {
-            tx = -round * 4 * swiperSize;
-            tz = 0;
-          } else if ((slideIndex - 1) % 4 === 0) {
-            tx = 0;
-            tz = -round * 4 * swiperSize;
-          } else if ((slideIndex - 2) % 4 === 0) {
-            tx = swiperSize + round * 4 * swiperSize;
-            tz = swiperSize;
-          } else if ((slideIndex - 3) % 4 === 0) {
-            tx = -swiperSize;
-            tz = 3 * swiperSize + swiperSize * 4 * round;
-          }
-
-          if (rtl) {
-            tx = -tx;
-          }
-
-          if (!isHorizontal) {
-            ty = tx;
-            tx = 0;
-          }
-
-          var transform = "rotateX(" + (isHorizontal ? 0 : -slideAngle) + "deg) rotateY(" + (isHorizontal ? slideAngle : 0) + "deg) translate3d(" + tx + "px, " + ty + "px, " + tz + "px)";
-
-          if (progress <= 1 && progress > -1) {
-            wrapperRotate = slideIndex * 90 + progress * 90;
-
-            if (rtl) {
-              wrapperRotate = -slideIndex * 90 - progress * 90;
-            }
-          }
-
-          $slideEl.transform(transform);
-
-          if (params.slideShadows) {
-            // Set shadows
-            var shadowBefore = isHorizontal ? $slideEl.find('.swiper-slide-shadow-left') : $slideEl.find('.swiper-slide-shadow-top');
-            var shadowAfter = isHorizontal ? $slideEl.find('.swiper-slide-shadow-right') : $slideEl.find('.swiper-slide-shadow-bottom');
-
-            if (shadowBefore.length === 0) {
-              shadowBefore = $("<div class=\"swiper-slide-shadow-" + (isHorizontal ? 'left' : 'top') + "\"></div>");
-              $slideEl.append(shadowBefore);
-            }
-
-            if (shadowAfter.length === 0) {
-              shadowAfter = $("<div class=\"swiper-slide-shadow-" + (isHorizontal ? 'right' : 'bottom') + "\"></div>");
-              $slideEl.append(shadowAfter);
-            }
-
-            if (shadowBefore.length) {
-              shadowBefore[0].style.opacity = Math.max(-progress, 0);
-            }
-
-            if (shadowAfter.length) {
-              shadowAfter[0].style.opacity = Math.max(progress, 0);
-            }
-          }
-        }
-
-        $wrapperEl.css({
-          '-webkit-transform-origin': "50% 50% -" + swiperSize / 2 + "px",
-          '-moz-transform-origin': "50% 50% -" + swiperSize / 2 + "px",
-          '-ms-transform-origin': "50% 50% -" + swiperSize / 2 + "px",
-          'transform-origin': "50% 50% -" + swiperSize / 2 + "px"
-        });
-
-        if (params.shadow) {
-          if (isHorizontal) {
-            $cubeShadowEl.transform("translate3d(0px, " + (swiperWidth / 2 + params.shadowOffset) + "px, " + -swiperWidth / 2 + "px) rotateX(90deg) rotateZ(0deg) scale(" + params.shadowScale + ")");
-          } else {
-            var shadowAngle = Math.abs(wrapperRotate) - Math.floor(Math.abs(wrapperRotate) / 90) * 90;
-            var multiplier = 1.5 - (Math.sin(shadowAngle * 2 * Math.PI / 360) / 2 + Math.cos(shadowAngle * 2 * Math.PI / 360) / 2);
-            var scale1 = params.shadowScale;
-            var scale2 = params.shadowScale / multiplier;
-            var offset = params.shadowOffset;
-            $cubeShadowEl.transform("scale3d(" + scale1 + ", 1, " + scale2 + ") translate3d(0px, " + (swiperHeight / 2 + offset) + "px, " + -swiperHeight / 2 / scale2 + "px) rotateX(-90deg)");
-          }
-        }
-
-        var zFactor = Browser.isSafari || Browser.isUiWebView ? -swiperSize / 2 : 0;
-        $wrapperEl.transform("translate3d(0px,0," + zFactor + "px) rotateX(" + (swiper.isHorizontal() ? 0 : wrapperRotate) + "deg) rotateY(" + (swiper.isHorizontal() ? -wrapperRotate : 0) + "deg)");
-      },
-      setTransition: function setTransition(duration) {
-        var swiper = this;
-        var $el = swiper.$el;
-        var slides = swiper.slides;
-        slides.transition(duration).find('.swiper-slide-shadow-top, .swiper-slide-shadow-right, .swiper-slide-shadow-bottom, .swiper-slide-shadow-left').transition(duration);
-
-        if (swiper.params.cubeEffect.shadow && !swiper.isHorizontal()) {
-          $el.find('.swiper-cube-shadow').transition(duration);
-        }
-      }
-    };
-    var EffectCube = {
-      name: 'effect-cube',
-      params: {
-        cubeEffect: {
-          slideShadows: true,
-          shadow: true,
-          shadowOffset: 20,
-          shadowScale: 0.94
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          cubeEffect: {
-            setTranslate: Cube.setTranslate.bind(swiper),
-            setTransition: Cube.setTransition.bind(swiper)
-          }
-        });
-      },
-      on: {
-        beforeInit: function beforeInit() {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'cube') {
-            return;
-          }
-
-          swiper.classNames.push(swiper.params.containerModifierClass + "cube");
-          swiper.classNames.push(swiper.params.containerModifierClass + "3d");
-          var overwriteParams = {
-            slidesPerView: 1,
-            slidesPerColumn: 1,
-            slidesPerGroup: 1,
-            watchSlidesProgress: true,
-            resistanceRatio: 0,
-            spaceBetween: 0,
-            centeredSlides: false,
-            virtualTranslate: true
-          };
-          Utils.extend(swiper.params, overwriteParams);
-          Utils.extend(swiper.originalParams, overwriteParams);
-        },
-        setTranslate: function setTranslate() {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'cube') {
-            return;
-          }
-
-          swiper.cubeEffect.setTranslate();
-        },
-        setTransition: function setTransition(duration) {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'cube') {
-            return;
-          }
-
-          swiper.cubeEffect.setTransition(duration);
-        }
-      }
-    };
-    var Flip = {
-      setTranslate: function setTranslate() {
-        var swiper = this;
-        var slides = swiper.slides;
-        var rtl = swiper.rtlTranslate;
-
-        for (var i = 0; i < slides.length; i += 1) {
-          var $slideEl = slides.eq(i);
-          var progress = $slideEl[0].progress;
-
-          if (swiper.params.flipEffect.limitRotation) {
-            progress = Math.max(Math.min($slideEl[0].progress, 1), -1);
-          }
-
-          var offset = $slideEl[0].swiperSlideOffset;
-          var rotate = -180 * progress;
-          var rotateY = rotate;
-          var rotateX = 0;
-          var tx = -offset;
-          var ty = 0;
-
-          if (!swiper.isHorizontal()) {
-            ty = tx;
-            tx = 0;
-            rotateX = -rotateY;
-            rotateY = 0;
-          } else if (rtl) {
-            rotateY = -rotateY;
-          }
-
-          $slideEl[0].style.zIndex = -Math.abs(Math.round(progress)) + slides.length;
-
-          if (swiper.params.flipEffect.slideShadows) {
-            // Set shadows
-            var shadowBefore = swiper.isHorizontal() ? $slideEl.find('.swiper-slide-shadow-left') : $slideEl.find('.swiper-slide-shadow-top');
-            var shadowAfter = swiper.isHorizontal() ? $slideEl.find('.swiper-slide-shadow-right') : $slideEl.find('.swiper-slide-shadow-bottom');
-
-            if (shadowBefore.length === 0) {
-              shadowBefore = $("<div class=\"swiper-slide-shadow-" + (swiper.isHorizontal() ? 'left' : 'top') + "\"></div>");
-              $slideEl.append(shadowBefore);
-            }
-
-            if (shadowAfter.length === 0) {
-              shadowAfter = $("<div class=\"swiper-slide-shadow-" + (swiper.isHorizontal() ? 'right' : 'bottom') + "\"></div>");
-              $slideEl.append(shadowAfter);
-            }
-
-            if (shadowBefore.length) {
-              shadowBefore[0].style.opacity = Math.max(-progress, 0);
-            }
-
-            if (shadowAfter.length) {
-              shadowAfter[0].style.opacity = Math.max(progress, 0);
-            }
-          }
-
-          $slideEl.transform("translate3d(" + tx + "px, " + ty + "px, 0px) rotateX(" + rotateX + "deg) rotateY(" + rotateY + "deg)");
-        }
-      },
-      setTransition: function setTransition(duration) {
-        var swiper = this;
-        var slides = swiper.slides;
-        var activeIndex = swiper.activeIndex;
-        var $wrapperEl = swiper.$wrapperEl;
-        slides.transition(duration).find('.swiper-slide-shadow-top, .swiper-slide-shadow-right, .swiper-slide-shadow-bottom, .swiper-slide-shadow-left').transition(duration);
-
-        if (swiper.params.virtualTranslate && duration !== 0) {
-          var eventTriggered = false; // eslint-disable-next-line
-
-          slides.eq(activeIndex).transitionEnd(function onTransitionEnd() {
-            if (eventTriggered) {
-              return;
-            }
-
-            if (!swiper || swiper.destroyed) {
-              return;
-            } // if (!$(this).hasClass(swiper.params.slideActiveClass)) return;
-
-
-            eventTriggered = true;
-            swiper.animating = false;
-            var triggerEvents = ['webkitTransitionEnd', 'transitionend'];
-
-            for (var i = 0; i < triggerEvents.length; i += 1) {
-              $wrapperEl.trigger(triggerEvents[i]);
-            }
-          });
-        }
-      }
-    };
-    var EffectFlip = {
-      name: 'effect-flip',
-      params: {
-        flipEffect: {
-          slideShadows: true,
-          limitRotation: true
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          flipEffect: {
-            setTranslate: Flip.setTranslate.bind(swiper),
-            setTransition: Flip.setTransition.bind(swiper)
-          }
-        });
-      },
-      on: {
-        beforeInit: function beforeInit() {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'flip') {
-            return;
-          }
-
-          swiper.classNames.push(swiper.params.containerModifierClass + "flip");
-          swiper.classNames.push(swiper.params.containerModifierClass + "3d");
-          var overwriteParams = {
-            slidesPerView: 1,
-            slidesPerColumn: 1,
-            slidesPerGroup: 1,
-            watchSlidesProgress: true,
-            spaceBetween: 0,
-            virtualTranslate: true
-          };
-          Utils.extend(swiper.params, overwriteParams);
-          Utils.extend(swiper.originalParams, overwriteParams);
-        },
-        setTranslate: function setTranslate() {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'flip') {
-            return;
-          }
-
-          swiper.flipEffect.setTranslate();
-        },
-        setTransition: function setTransition(duration) {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'flip') {
-            return;
-          }
-
-          swiper.flipEffect.setTransition(duration);
-        }
-      }
-    };
-    var Coverflow = {
-      setTranslate: function setTranslate() {
-        var swiper = this;
-        var swiperWidth = swiper.width;
-        var swiperHeight = swiper.height;
-        var slides = swiper.slides;
-        var $wrapperEl = swiper.$wrapperEl;
-        var slidesSizesGrid = swiper.slidesSizesGrid;
-        var params = swiper.params.coverflowEffect;
-        var isHorizontal = swiper.isHorizontal();
-        var transform = swiper.translate;
-        var center = isHorizontal ? -transform + swiperWidth / 2 : -transform + swiperHeight / 2;
-        var rotate = isHorizontal ? params.rotate : -params.rotate;
-        var translate = params.depth; // Each slide offset from center
-
-        for (var i = 0, length = slides.length; i < length; i += 1) {
-          var $slideEl = slides.eq(i);
-          var slideSize = slidesSizesGrid[i];
-          var slideOffset = $slideEl[0].swiperSlideOffset;
-          var offsetMultiplier = (center - slideOffset - slideSize / 2) / slideSize * params.modifier;
-          var rotateY = isHorizontal ? rotate * offsetMultiplier : 0;
-          var rotateX = isHorizontal ? 0 : rotate * offsetMultiplier; // var rotateZ = 0
-
-          var translateZ = -translate * Math.abs(offsetMultiplier);
-          var translateY = isHorizontal ? 0 : params.stretch * offsetMultiplier;
-          var translateX = isHorizontal ? params.stretch * offsetMultiplier : 0; // Fix for ultra small values
-
-          if (Math.abs(translateX) < 0.001) {
-            translateX = 0;
-          }
-
-          if (Math.abs(translateY) < 0.001) {
-            translateY = 0;
-          }
-
-          if (Math.abs(translateZ) < 0.001) {
-            translateZ = 0;
-          }
-
-          if (Math.abs(rotateY) < 0.001) {
-            rotateY = 0;
-          }
-
-          if (Math.abs(rotateX) < 0.001) {
-            rotateX = 0;
-          }
-
-          var slideTransform = "translate3d(" + translateX + "px," + translateY + "px," + translateZ + "px)  rotateX(" + rotateX + "deg) rotateY(" + rotateY + "deg)";
-          $slideEl.transform(slideTransform);
-          $slideEl[0].style.zIndex = -Math.abs(Math.round(offsetMultiplier)) + 1;
-
-          if (params.slideShadows) {
-            // Set shadows
-            var $shadowBeforeEl = isHorizontal ? $slideEl.find('.swiper-slide-shadow-left') : $slideEl.find('.swiper-slide-shadow-top');
-            var $shadowAfterEl = isHorizontal ? $slideEl.find('.swiper-slide-shadow-right') : $slideEl.find('.swiper-slide-shadow-bottom');
-
-            if ($shadowBeforeEl.length === 0) {
-              $shadowBeforeEl = $("<div class=\"swiper-slide-shadow-" + (isHorizontal ? 'left' : 'top') + "\"></div>");
-              $slideEl.append($shadowBeforeEl);
-            }
-
-            if ($shadowAfterEl.length === 0) {
-              $shadowAfterEl = $("<div class=\"swiper-slide-shadow-" + (isHorizontal ? 'right' : 'bottom') + "\"></div>");
-              $slideEl.append($shadowAfterEl);
-            }
-
-            if ($shadowBeforeEl.length) {
-              $shadowBeforeEl[0].style.opacity = offsetMultiplier > 0 ? offsetMultiplier : 0;
-            }
-
-            if ($shadowAfterEl.length) {
-              $shadowAfterEl[0].style.opacity = -offsetMultiplier > 0 ? -offsetMultiplier : 0;
-            }
-          }
-        } // Set correct perspective for IE10
-
-
-        if (Support.pointerEvents || Support.prefixedPointerEvents) {
-          var ws = $wrapperEl[0].style;
-          ws.perspectiveOrigin = center + "px 50%";
-        }
-      },
-      setTransition: function setTransition(duration) {
-        var swiper = this;
-        swiper.slides.transition(duration).find('.swiper-slide-shadow-top, .swiper-slide-shadow-right, .swiper-slide-shadow-bottom, .swiper-slide-shadow-left').transition(duration);
-      }
-    };
-    var EffectCoverflow = {
-      name: 'effect-coverflow',
-      params: {
-        coverflowEffect: {
-          rotate: 50,
-          stretch: 0,
-          depth: 100,
-          modifier: 1,
-          slideShadows: true
-        }
-      },
-      create: function create() {
-        var swiper = this;
-        Utils.extend(swiper, {
-          coverflowEffect: {
-            setTranslate: Coverflow.setTranslate.bind(swiper),
-            setTransition: Coverflow.setTransition.bind(swiper)
-          }
-        });
-      },
-      on: {
-        beforeInit: function beforeInit() {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'coverflow') {
-            return;
-          }
-
-          swiper.classNames.push(swiper.params.containerModifierClass + "coverflow");
-          swiper.classNames.push(swiper.params.containerModifierClass + "3d");
-          swiper.params.watchSlidesProgress = true;
-          swiper.originalParams.watchSlidesProgress = true;
-        },
-        setTranslate: function setTranslate() {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'coverflow') {
-            return;
-          }
-
-          swiper.coverflowEffect.setTranslate();
-        },
-        setTransition: function setTransition(duration) {
-          var swiper = this;
-
-          if (swiper.params.effect !== 'coverflow') {
-            return;
-          }
-
-          swiper.coverflowEffect.setTransition(duration);
-        }
-      }
-    }; // Swiper Class
-
-    var components = [Device$1, Support$1, Browser$1, Resize, Observer$1, Virtual$1, Keyboard$1, Mousewheel$1, Navigation$1, Pagination$1, Scrollbar$1, Parallax$1, Zoom$1, Lazy$1, Controller$1, A11y, History$1, HashNavigation$1, Autoplay$1, EffectFade, EffectCube, EffectFlip, EffectCoverflow];
-
-    if (typeof Swiper.use === 'undefined') {
-      Swiper.use = Swiper.Class.use;
-      Swiper.installModule = Swiper.Class.installModule;
+    if (segLen > 0 && yrange > 0) {
+      count = Math.ceil(yrange / segLen / 20);
     }
 
-    Swiper.use(components);
-    return Swiper;
+    return count || 1;
+  }; // Find intersections among a group of line segments
+  //
+  // TODO: handle case where a segment starts and ends at the same point (i.e. duplicate coords);
+  //
+  // @ids: Array of indexes: [s0p0, s0p1, s1p0, s1p1, ...] where xx[sip0] <= xx[sip1]
+  // @xx, @yy: Arrays of x- and y-coordinates
+  //
+
+
+  internal.intersectSegments = function (ids, xx, yy) {
+    var lim = ids.length - 2,
+        intersections = [];
+    var s1p1, s1p2, s2p1, s2p2, s1p1x, s1p2x, s2p1x, s2p2x, s1p1y, s1p2y, s2p1y, s2p2y, hit, seg1, seg2, i, j; // Sort segments by xmin, to allow efficient exclusion of segments with
+    // non-overlapping x extents.
+
+    internal.sortSegmentIds(xx, ids); // sort by ascending xmin
+
+    i = 0;
+
+    while (i < lim) {
+      s1p1 = ids[i];
+      s1p2 = ids[i + 1];
+      s1p1x = xx[s1p1];
+      s1p2x = xx[s1p2];
+      s1p1y = yy[s1p1];
+      s1p2y = yy[s1p2]; // count++;
+
+      j = i;
+
+      while (j < lim) {
+        j += 2;
+        s2p1 = ids[j];
+        s2p1x = xx[s2p1];
+        if (s1p2x < s2p1x) break; // x extent of seg 2 is greater than seg 1: done with seg 1
+        //if (s1p2x <= s2p1x) break; // this misses point-segment intersections when s1 or s2 is vertical
+
+        s2p1y = yy[s2p1];
+        s2p2 = ids[j + 1];
+        s2p2x = xx[s2p2];
+        s2p2y = yy[s2p2]; // skip segments with non-overlapping y ranges
+
+        if (s1p1y >= s2p1y) {
+          if (s1p1y > s2p2y && s1p2y > s2p1y && s1p2y > s2p2y) continue;
+        } else {
+          if (s1p1y < s2p2y && s1p2y < s2p1y && s1p2y < s2p2y) continue;
+        } // skip segments that are adjacent in a path (optimization)
+        // TODO: consider if this eliminates some cases that should
+        // be detected, e.g. spikes formed by unequal segments
+
+
+        if (s1p1 == s2p1 || s1p1 == s2p2 || s1p2 == s2p1 || s1p2 == s2p2) {
+          continue;
+        } // test two candidate segments for intersection
+
+
+        hit = segmentIntersection(s1p1x, s1p1y, s1p2x, s1p2y, s2p1x, s2p1y, s2p2x, s2p2y);
+
+        if (hit) {
+          seg1 = [s1p1, s1p2];
+          seg2 = [s2p1, s2p2];
+          intersections.push(internal.formatIntersection(hit, seg1, seg2, xx, yy));
+
+          if (hit.length == 4) {
+            // two collinear segments may have two endpoint intersections
+            intersections.push(internal.formatIntersection(hit.slice(2), seg1, seg2, xx, yy));
+          }
+        }
+      }
+
+      i += 2;
+    }
+
+    return intersections; // @p is an [x, y] location along a segment defined by ids @id1 and @id2
+    // return array [i, j] where i and j are the same endpoint ids with i <= j
+    // if @p coincides with an endpoint, return the id of that endpoint twice
+
+    function getEndpointIds(id1, id2, p) {
+      var i = id1 < id2 ? id1 : id2,
+          j = i === id1 ? id2 : id1;
+
+      if (xx[i] == p[0] && yy[i] == p[1]) {
+        j = i;
+      } else if (xx[j] == p[0] && yy[j] == p[1]) {
+        i = j;
+      }
+
+      return [i, j];
+    }
+  };
+
+  internal.formatIntersection = function (xy, s1, s2, xx, yy) {
+    var x = xy[0],
+        y = xy[1],
+        a,
+        b;
+    s1 = internal.formatIntersectingSegment(x, y, s1[0], s1[1], xx, yy);
+    s2 = internal.formatIntersectingSegment(x, y, s2[0], s2[1], xx, yy);
+    a = s1[0] < s2[0] ? s1 : s2;
+    b = a == s1 ? s2 : s1;
+    return {
+      x: x,
+      y: y,
+      a: a,
+      b: b
+    };
+  };
+
+  internal.formatIntersectingSegment = function (x, y, id1, id2, xx, yy) {
+    var i = id1 < id2 ? id1 : id2,
+        j = i === id1 ? id2 : id1;
+
+    if (xx[i] == x && yy[i] == y) {
+      j = i;
+    } else if (xx[j] == x && yy[j] == y) {
+      i = j;
+    }
+
+    return [i, j];
+  }; // Utility functions for working with ArcCollection and arrays of arc ids.
+  // Return average segment length (with simplification)
+
+
+  internal.getAvgSegment = function (arcs) {
+    var sum = 0;
+    var count = arcs.forEachSegment(function (i, j, xx, yy) {
+      var dx = xx[i] - xx[j],
+          dy = yy[i] - yy[j];
+      sum += Math.sqrt(dx * dx + dy * dy);
+    });
+    return sum / count || 0;
+  }; // Return average magnitudes of dx, dy (with simplification)
+
+
+  internal.getAvgSegment2 = function (arcs) {
+    var dx = 0,
+        dy = 0;
+    var count = arcs.forEachSegment(function (i, j, xx, yy) {
+      dx += Math.abs(xx[i] - xx[j]);
+      dy += Math.abs(yy[i] - yy[j]);
+    });
+    return [dx / count || 0, dy / count || 0];
+  };
+  /*
+  this.getAvgSegmentSph2 = function() {
+  var sumx = 0, sumy = 0;
+  var count = this.forEachSegment(function(i, j, xx, yy) {
+  var lat1 = yy[i],
+      lat2 = yy[j];
+  sumy += geom.degreesToMeters(Math.abs(lat1 - lat2));
+  sumx += geom.degreesToMeters(Math.abs(xx[i] - xx[j]) *
+      Math.cos((lat1 + lat2) * 0.5 * geom.D2R);
+  });
+  return [sumx / count || 0, sumy / count || 0];
+  };
+  */
+
+
+  internal.getDirectedArcPresenceTest = function (shapes, n) {
+    var flags = new Uint8Array(n);
+    internal.forEachArcId(shapes, function (id) {
+      var absId = absArcId(id);
+      if (absId < n === false) error('index error');
+      flags[absId] |= id < 0 ? 2 : 1;
+    });
+    return function (arcId) {
+      var absId = absArcId(arcId);
+      return arcId < 0 ? (flags[absId] & 2) == 2 : (flags[absId] & 1) == 1;
+    };
+  };
+
+  internal.getArcPresenceTest = function (shapes, arcs) {
+    var counts = new Uint8Array(arcs.size());
+    internal.countArcsInShapes(shapes, counts);
+    return function (id) {
+      if (id < 0) id = ~id;
+      return counts[id] > 0;
+    };
+  };
+
+  internal.getArcPresenceTest2 = function (layers, arcs) {
+    var counts = internal.countArcsInLayers(layers, arcs);
+    return function (arcId) {
+      return counts[absArcId(arcId)] > 0;
+    };
+  }; // @counts A typed array for accumulating count of each abs arc id
+  //   (assume it won't overflow)
+
+
+  internal.countArcsInShapes = function (shapes, counts) {
+    internal.traversePaths(shapes, null, function (obj) {
+      var arcs = obj.arcs,
+          id;
+
+      for (var i = 0; i < arcs.length; i++) {
+        id = arcs[i];
+        if (id < 0) id = ~id;
+        counts[id]++;
+      }
+    });
+  }; // Count arcs in a collection of layers
+
+
+  internal.countArcsInLayers = function (layers, arcs) {
+    var counts = new Uint32Array(arcs.size());
+    layers.forEach(function (lyr) {
+      internal.countArcsInShapes(lyr.shapes, counts);
+    });
+    return counts;
+  }; // Returns subset of shapes in @shapes that contain one or more arcs in @arcIds
+
+
+  internal.findShapesByArcId = function (shapes, arcIds, numArcs) {
+    var index = numArcs ? new Uint8Array(numArcs) : [],
+        found = [];
+    arcIds.forEach(function (id) {
+      index[absArcId(id)] = 1;
+    });
+    shapes.forEach(function (shp, shpId) {
+      var isHit = false;
+      internal.forEachArcId(shp || [], function (id) {
+        isHit = isHit || index[absArcId(id)] == 1;
+      });
+
+      if (isHit) {
+        found.push(shpId);
+      }
+    });
+    return found;
+  };
+
+  internal.reversePath = function (ids) {
+    ids.reverse();
+
+    for (var i = 0, n = ids.length; i < n; i++) {
+      ids[i] = ~ids[i];
+    }
+  };
+
+  internal.clampIntervalByPct = function (z, pct) {
+    if (pct <= 0) z = Infinity;else if (pct >= 1) z = 0;
+    return z;
+  };
+
+  internal.findNextRemovableVertices = function (zz, zlim, start, end) {
+    var i = internal.findNextRemovableVertex(zz, zlim, start, end),
+        arr,
+        k;
+
+    if (i > -1) {
+      k = zz[i];
+      arr = [i];
+
+      while (++i < end) {
+        if (zz[i] == k) {
+          arr.push(i);
+        }
+      }
+    }
+
+    return arr || null;
+  }; // Return id of the vertex between @start and @end with the highest
+  // threshold that is less than @zlim, or -1 if none
+  //
+
+
+  internal.findNextRemovableVertex = function (zz, zlim, start, end) {
+    var tmp,
+        jz = 0,
+        j = -1,
+        z;
+
+    if (start > end) {
+      tmp = start;
+      start = end;
+      end = tmp;
+    }
+
+    for (var i = start + 1; i < end; i++) {
+      z = zz[i];
+
+      if (z < zlim && z > jz) {
+        j = i;
+        jz = z;
+      }
+    }
+
+    return j;
+  }; // Visit each arc id in a path, shape or array of shapes
+  // Use non-undefined return values of callback @cb as replacements.
+
+
+  internal.forEachArcId = function (arr, cb) {
+    var item;
+
+    for (var i = 0; i < arr.length; i++) {
+      item = arr[i];
+
+      if (item instanceof Array) {
+        internal.forEachArcId(item, cb);
+      } else if (utils.isInteger(item)) {
+        var val = cb(item);
+
+        if (val !== void 0) {
+          arr[i] = val;
+        }
+      } else if (item) {
+        error("Non-integer arc id in:", arr);
+      }
+    }
+  };
+
+  internal.forEachSegmentInShape = function (shape, arcs, cb) {
+    for (var i = 0, n = shape ? shape.length : 0; i < n; i++) {
+      internal.forEachSegmentInPath(shape[i], arcs, cb);
+    }
+  };
+
+  internal.forEachSegmentInPath = function (ids, arcs, cb) {
+    for (var i = 0, n = ids.length; i < n; i++) {
+      arcs.forEachArcSegment(ids[i], cb);
+    }
+  };
+
+  internal.traversePaths = function traversePaths(shapes, cbArc, cbPart, cbShape) {
+    var segId = 0;
+    shapes.forEach(function (parts, shapeId) {
+      if (!parts || parts.length === 0) return; // null shape
+
+      var arcIds, arcId;
+
+      if (cbShape) {
+        cbShape(shapeId);
+      }
+
+      for (var i = 0, m = parts.length; i < m; i++) {
+        arcIds = parts[i];
+
+        if (cbPart) {
+          cbPart({
+            i: i,
+            shapeId: shapeId,
+            shape: parts,
+            arcs: arcIds
+          });
+        }
+
+        if (cbArc) {
+          for (var j = 0, n = arcIds.length; j < n; j++, segId++) {
+            arcId = arcIds[j];
+            cbArc({
+              i: j,
+              shapeId: shapeId,
+              partId: i,
+              arcId: arcId,
+              segId: segId
+            });
+          }
+        }
+      }
+    });
+  };
+
+  internal.arcHasLength = function (id, coords) {
+    var iter = coords.getArcIter(id),
+        x,
+        y;
+
+    if (iter.hasNext()) {
+      x = iter.x;
+      y = iter.y;
+
+      while (iter.hasNext()) {
+        if (iter.x != x || iter.y != y) return true;
+      }
+    }
+
+    return false;
+  };
+
+  internal.filterEmptyArcs = function (shape, coords) {
+    if (!shape) return null;
+    var shape2 = [];
+    shape.forEach(function (ids) {
+      var path = [];
+
+      for (var i = 0; i < ids.length; i++) {
+        if (internal.arcHasLength(ids[i], coords)) {
+          path.push(ids[i]);
+        }
+      }
+
+      if (path.length > 0) shape2.push(path);
+    });
+    return shape2.length > 0 ? shape2 : null;
+  }; // Bundle holes with their containing rings for Topo/GeoJSON polygon export.
+  // Assumes outer rings are CW and inner (hole) rings are CCW, unless
+  //   the reverseWinding flag is set.
+  // @paths array of objects with path metadata -- see internal.exportPathData()
+  //
+  // TODO: Improve reliability. Currently uses winding order, area and bbox to
+  //   identify holes and their enclosures -- could be confused by some strange
+  //   geometry.
+  //
+
+
+  internal.groupPolygonRings = function (paths, reverseWinding) {
+    var holes = [],
+        groups = [],
+        sign = reverseWinding ? -1 : 1,
+        ringIndex;
+    (paths || []).forEach(function (path) {
+      if (path.area * sign > 0) {
+        groups.push([path]);
+      } else if (path.area * sign < 0) {
+        holes.push(path);
+      } else {// Zero-area ring, skipping
+      }
+    });
+
+    if (holes.length === 0) {
+      return groups;
+    } // Using a spatial index to improve performance when the current feature
+    // contains many holes and space-filling rings.
+    // (Thanks to @simonepri for providing an example implementation in PR #248)
+
+
+    ringIndex = __webpack_require__(/*! rbush */ "./node_modules/rbush/rbush.min.js")();
+    ringIndex.load(groups.map(function (group, i) {
+      var bounds = group[0].bounds;
+      return {
+        minX: bounds.xmin,
+        minY: bounds.ymin,
+        maxX: bounds.xmax,
+        maxY: bounds.ymax,
+        idx: i
+      };
+    })); // Group each hole with its containing ring
+
+    holes.forEach(function (hole) {
+      var containerId = -1,
+          containerArea = 0,
+          holeArea = hole.area * -sign,
+          // Find rings that might contain this hole
+      candidates = ringIndex.search({
+        minX: hole.bounds.xmin,
+        minY: hole.bounds.ymin,
+        maxX: hole.bounds.xmax,
+        maxY: hole.bounds.ymax
+      }),
+          ring,
+          ringId,
+          ringArea,
+          isContained; // Group this hole with the smallest-area ring that contains it.
+      // (Assumes that if a ring's bbox contains a hole, then the ring also
+      //  contains the hole).
+
+      for (var i = 0, n = candidates.length; i < n; i++) {
+        ringId = candidates[i].idx;
+        ring = groups[ringId][0];
+        ringArea = ring.area * sign;
+        isContained = ring.bounds.contains(hole.bounds) && ringArea > holeArea;
+
+        if (isContained && (containerArea === 0 || ringArea < containerArea)) {
+          containerArea = ringArea;
+          containerId = ringId;
+        }
+      }
+
+      if (containerId == -1) {
+        debug("[groupPolygonRings()] polygon hole is missing a containing ring, dropping.");
+      } else {
+        groups[containerId].push(hole);
+      }
+    });
+    return groups;
+  };
+
+  internal.getPathMetadata = function (shape, arcs, type) {
+    var data = [],
+        ids;
+
+    for (var i = 0, n = shape && shape.length; i < n; i++) {
+      ids = shape[i];
+      data.push({
+        ids: ids,
+        area: type == 'polygon' ? geom.getPlanarPathArea(ids, arcs) : 0,
+        bounds: arcs.getSimpleShapeBounds(ids)
+      });
+    }
+
+    return data;
+  };
+
+  internal.quantizeArcs = function (arcs, quanta) {
+    // Snap coordinates to a grid of @quanta locations on both axes
+    // This may snap nearby points to the same coordinates.
+    // Consider a cleanup pass to remove dupes, make sure collapsed arcs are
+    //   removed on export.
+    //
+    var bb1 = arcs.getBounds(),
+        bb2 = new Bounds(0, 0, quanta - 1, quanta - 1),
+        fw = bb1.getTransform(bb2),
+        inv = fw.invert();
+    arcs.transformPoints(function (x, y) {
+      var p = fw.transform(x, y);
+      return inv.transform(Math.round(p[0]), Math.round(p[1]));
+    });
+  };
+
+  api.internal = internal; //this.mapshaper = api;
+  // Expose internal objects for testing
+
+  utils.extend(api.internal, {
+    ArcCollection: ArcCollection,
+    ArcIter: ArcIter
   });
 
-  return this;
-};
-
-var global = new Global().dispatch();
-/* harmony default export */ __webpack_exports__["default"] = (global.Swiper);
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../node_modules/webpack/buildin/harmony-module.js */ "./node_modules/webpack/buildin/harmony-module.js")(module)))
-
-/***/ }),
-
-/***/ "./lib/BusinessMember.js":
-/*!*******************************!*\
-  !*** ./lib/BusinessMember.js ***!
-  \*******************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return BusinessMember; });
-/* harmony import */ var _Member__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./Member */ "./lib/Member.js");
-
-
-function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
-
-function _possibleConstructorReturn(self, call) { if (call && (_typeof(call) === "object" || typeof call === "function")) { return call; } return _assertThisInitialized(self); }
-
-function _assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf(o); }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) _setPrototypeOf(subClass, superClass); }
-
-function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf(o, p); }
-
-
-
-var BusinessMember =
-/*#__PURE__*/
-function (_Member) {
-  _inherits(BusinessMember, _Member);
-
-  function BusinessMember(firstName, lastName, company) {
-    var _this;
-
-    _classCallCheck(this, BusinessMember);
-
-    _this = _possibleConstructorReturn(this, _getPrototypeOf(BusinessMember).call(this, firstName, lastName)); // 親クラスのコンストラクタは、コンストラクタの1行目で記載する必要がある
-
-    _this.company = company;
-    return _this;
-  }
-
-  _createClass(BusinessMember, [{
-    key: "getName",
-    value: function getName() {
-      return this.lastName + ' ' + this.firstName + '/' + this.company;
-    }
-  }, {
-    key: "company",
-    get: function get() {
-      return this._company;
-    },
-    set: function set(value) {
-      this._company = value;
-    }
-  }]);
-
-  return BusinessMember;
-}(_Member__WEBPACK_IMPORTED_MODULE_0__["default"]);
-
-
-
-/***/ }),
-
-/***/ "./lib/Member.js":
-/*!***********************!*\
-  !*** ./lib/Member.js ***!
-  \***********************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return Member; });
-
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
-
-var Member =
-/*#__PURE__*/
-function () {
-  function Member(firstName, lastName) {
-    _classCallCheck(this, Member);
-
-    this.firstName = firstName;
-    this.lastName = lastName;
-  }
-
-  _createClass(Member, [{
-    key: "getName",
-    value: function getName() {
-      return this.lastName + ' ' + this.firstName;
-    }
-  }, {
-    key: "firstName",
-    get: function get() {
-      return this._firstName;
-    },
-    set: function set(value) {
-      this._firstName = value;
-    }
-  }, {
-    key: "lastName",
-    get: function get() {
-      return this._lastName;
-    },
-    set: function set(value) {
-      this._lastName = value;
-    }
-  }]);
-
-  return Member;
-}();
-
-
+  if (true) {
+    //define("mapshaper", api);
+    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_RESULT__ = (function () {
+      return api;
+    }).apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__),
+				__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+  } else {}
+})();
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./node_modules/buffer/index.js */ "./node_modules/buffer/index.js").Buffer))
 
 /***/ }),
 
@@ -12818,6 +8167,3301 @@ function union() {
 
 /* harmony default export */ __webpack_exports__["default"] = (union);
 
+
+/***/ }),
+
+/***/ "./node_modules/babel-loader/lib/index.js!./index.js":
+/*!**************************************************!*\
+  !*** ./node_modules/babel-loader/lib!./index.js ***!
+  \**************************************************/
+/*! exports provided: default */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* WEBPACK VAR INJECTION */(function(module) {/* harmony import */ var _turf_helpers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @turf/helpers */ "./node_modules/@turf/helpers/main.es.js");
+/* harmony import */ var _turf_union__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @turf/union */ "./node_modules/@turf/union/main.es.js");
+/* harmony import */ var _turf_convex__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @turf/convex */ "./node_modules/@turf/convex/main.es.js");
+/* harmony import */ var _turf_difference__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @turf/difference */ "./node_modules/@turf/difference/main.es.js");
+/* harmony import */ var _turf_boolean_point_in_polygon__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @turf/boolean-point-in-polygon */ "./node_modules/@turf/boolean-point-in-polygon/main.es.js");
+/* harmony import */ var _turf_centroid__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @turf/centroid */ "./node_modules/@turf/centroid/main.es.js");
+/* harmony import */ var _turf_line_intersect__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @turf/line-intersect */ "./node_modules/@turf/line-intersect/main.es.js");
+/* harmony import */ var _turf_intersect__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @turf/intersect */ "./node_modules/@turf/intersect/main.es.js");
+/* harmony import */ var _mapshaper_maplat__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./mapshaper-maplat */ "./mapshaper-maplat.js");
+/* harmony import */ var _mapshaper_maplat__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__webpack_require__.n(_mapshaper_maplat__WEBPACK_IMPORTED_MODULE_8__);
+/* harmony import */ var _constrained_tin__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./constrained-tin */ "./constrained-tin.js");
+
+
+function _typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
+
+
+
+
+
+
+
+
+
+
+var internal = _mapshaper_maplat__WEBPACK_IMPORTED_MODULE_8___default.a.internal;
+
+var Tin = function Tin(options) {
+  options = options || {};
+
+  if (options.bounds) {
+    this.setBounds(options.bounds);
+  } else {
+    this.setWh(options.wh);
+    this.vertexMode = options.vertexMode || Tin.VERTEX_PLAIN;
+  }
+
+  this.strictMode = options.strictMode || Tin.MODE_AUTO;
+  this.yaxisMode = options.yaxisMode || Tin.YAXIS_INVERT;
+  this.importance = options.importance || 0;
+  this.priority = options.priority || 0;
+
+  if (options.points) {
+    this.setPoints(options.points);
+  }
+
+  if (options.edges) {
+    this.setEdges(options.edges);
+  }
+};
+
+Tin.VERTEX_PLAIN = 'plain';
+Tin.VERTEX_BIRDEYE = 'birdeye';
+Tin.MODE_STRICT = 'strict';
+Tin.MODE_AUTO = 'auto';
+Tin.MODE_LOOSE = 'loose';
+Tin.STATUS_STRICT = 'strict';
+Tin.STATUS_ERROR = 'strict_error';
+Tin.STATUS_LOOSE = 'loose';
+Tin.YAXIS_FOLLOW = 'follow';
+Tin.YAXIS_INVERT = 'invert';
+
+Tin.prototype.setPoints = function (points) {
+  if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
+    points = points.map(function (point) {
+      return [point[0], [point[1][0], -1 * point[1][1]]];
+    });
+  }
+
+  this.points = points;
+  this.tins = undefined;
+};
+
+Tin.prototype.setEdges = function (edges) {
+  if (!edges) edges = [];
+  this.edges = edges;
+  this.edgeNodes = undefined;
+  this.tins = undefined;
+};
+
+Tin.prototype.setBounds = function (bounds) {
+  this.bounds = bounds;
+  var minx, miny, maxx, maxy, coords;
+
+  for (var i = 0; i < bounds.length; i++) {
+    var xy = bounds[i];
+
+    if (i == 0) {
+      minx = maxx = xy[0];
+      miny = maxy = xy[1];
+      coords = [xy];
+    } else {
+      if (xy[0] < minx) minx = xy[0];
+      if (xy[0] > maxx) maxx = xy[0];
+      if (xy[1] < miny) miny = xy[1];
+      if (xy[1] > maxy) maxy = xy[1];
+      coords.push(xy);
+    }
+  }
+
+  coords.push(bounds[0]);
+  this.boundsPolygon = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["polygon"])([coords]);
+  this.xy = [minx, miny];
+  this.wh = [maxx - minx, maxy - miny];
+  this.vertexMode = Tin.VERTEX_PLAIN;
+  this.tins = undefined;
+};
+
+Tin.prototype.setCompiled = function (compiled) {
+  if (!compiled.tins && compiled.points && compiled.tins_points) {
+    // 新コンパイルロジック
+    // pointsはそのままpoints, weightBufferも
+    this.points = compiled.points;
+    this.pointsWeightBuffer = compiled.weight_buffer; // kinksやtinsの存在状況でstrict_statusを判定
+
+    if (compiled.strict_status) {
+      this.strict_status = compiled.strict_status;
+    } else if (compiled.kinks_points) {
+      this.strict_status = Tin.STATUS_ERROR;
+    } else if (compiled.tins_points.length == 2) {
+      this.strict_status = Tin.STATUS_LOOSE;
+    } else {
+      this.strict_status = Tin.STATUS_STRICT;
+    } // vertices_paramsを復元
+
+
+    this.vertices_params = {
+      'forw': [compiled.vertices_params[0]],
+      'bakw': [compiled.vertices_params[1]]
+    };
+    this.vertices_params.forw[1] = [0, 1, 2, 3].map(function (idx) {
+      var idxNxt = (idx + 1) % 4;
+      var tri = indexesToTri(['cent', 'bbox' + idx, 'bbox' + idxNxt], compiled.points, compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, false);
+      return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])([tri]);
+    });
+    this.vertices_params.bakw[1] = [0, 1, 2, 3].map(function (idx) {
+      var idxNxt = (idx + 1) % 4;
+      var tri = indexesToTri(['cent', 'bbox' + idx, 'bbox' + idxNxt], compiled.points, compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, true);
+      return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])([tri]);
+    }); // centroidを復元
+
+    this.centroid = {
+      'forw': Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(compiled.centroid_point[0], {
+        'target': {
+          'geom': compiled.centroid_point[1],
+          'index': 'cent'
+        }
+      }),
+      'bakw': Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(compiled.centroid_point[1], {
+        'target': {
+          'geom': compiled.centroid_point[0],
+          'index': 'cent'
+        }
+      })
+    }; // edgesを復元
+
+    this.edges = compiled.edges || [];
+    this.edgeNodes = compiled.edgeNodes || []; // tinsを復元
+
+    var bakwI = compiled.tins_points.length == 1 ? 0 : 1;
+    this.tins = {
+      'forw': Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])(compiled.tins_points[0].map(function (idxes) {
+        return indexesToTri(idxes, compiled.points, compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, false);
+      })),
+      'bakw': Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])(compiled.tins_points[bakwI].map(function (idxes) {
+        return indexesToTri(idxes, compiled.points, compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, true);
+      })) // kinksを復元
+
+    };
+
+    if (compiled.kinks_points) {
+      this.kinks = {
+        'bakw': Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])(compiled.kinks_points.map(function (coord) {
+          return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(coord);
+        }))
+      };
+    } // yaxisModeを復元
+
+
+    if (compiled.yaxisMode) {
+      this.yaxisMode = compiled.yaxisMode;
+    } else {
+      this.yaxisMode = Tin.YAXIS_INVERT;
+    } // boundsを復元
+
+
+    if (compiled.bounds) {
+      this.bounds = compiled.bounds;
+      this.boundsPolygon = compiled.boundsPolygon;
+      this.xy = compiled.xy;
+      this.wh = compiled.wh;
+    } else {
+      this.xy = [0, 0];
+      if (compiled.xy) this.wh = compiled.wh;
+      this.bounds = undefined;
+      this.boundsPolygon = undefined;
+    }
+  } else {
+    // 旧コンパイルロジック
+    this.tins = compiled.tins;
+    this.strict_status = compiled.strict_status;
+    this.pointsWeightBuffer = compiled.weight_buffer;
+    this.vertices_params = compiled.vertices_params;
+    this.centroid = compiled.centroid;
+    this.kinks = compiled.kinks;
+    var points = [];
+
+    for (var i = 0; i < this.tins.forw.features.length; i++) {
+      var tri = this.tins.forw.features[i];
+      ['a', 'b', 'c'].map(function (key, idx) {
+        var forw = tri.geometry.coordinates[0][idx];
+        var bakw = tri.properties[key].geom;
+        var pIdx = tri.properties[key].index;
+        points[pIdx] = [forw, bakw];
+      });
+    }
+
+    this.points = points;
+  } // 翻訳したオブジェクトを返す
+
+
+  return {
+    'tins': this.tins,
+    'strict_status': this.strict_status,
+    'weight_buffer': this.pointsWeightBuffer,
+    'vertices_params': this.vertices_params,
+    'centroid': this.centroid,
+    'kinks': this.kinks
+  };
+};
+
+Tin.prototype.getCompiled = function () {
+  var compiled = {};
+  /* old logic
+  compiled.tins = this.tins;
+  compiled.strict_status = this.strict_status;
+  compiled.weight_buffer = this.pointsWeightBuffer;
+  compiled.vertices_params = this.vertices_params;
+  compiled.centroid = this.centroid;
+  compiled.kinks = this.kinks;*/
+  // 新compileロジック
+  // points, weightBufferはそのまま保存
+
+  compiled.points = this.points;
+  compiled.weight_buffer = this.pointsWeightBuffer; // centroidは座標の対応のみ保存
+
+  compiled.centroid_point = [this.centroid.forw.geometry.coordinates, this.centroid.forw.properties.target.geom]; // vertices_paramsの最初の値はそのまま保存
+
+  compiled.vertices_params = [this.vertices_params.forw[0], this.vertices_params.bakw[0]]; // vertices_paramsの2番目の値（セントロイドと地図頂点の三角形ポリゴン）は、地図頂点座標のみ記録
+
+  compiled.vertices_points = [];
+  var vertices = this.vertices_params.forw[1];
+  [0, 1, 2, 3].map(function (i) {
+    var vertex_data = vertices[i].features[0];
+    var forw = vertex_data.geometry.coordinates[0][1];
+    var bakw = vertex_data.properties.b.geom;
+    compiled.vertices_points[i] = [forw, bakw];
+  });
+  compiled.strict_status = this.strict_status; // tinは座標インデックスのみ記録
+
+  compiled.tins_points = [[]];
+  this.tins.forw.features.map(function (tin) {
+    compiled.tins_points[0].push(['a', 'b', 'c'].map(function (idx) {
+      return tin.properties[idx].index;
+    }));
+  }); // 自動モードでエラーがある時（loose）は、逆方向のtinも記録。
+  // 厳格モードでエラーがある時（strict_error）は、エラー点情報(kinks)を記録。
+
+  if (this.strict_status == Tin.STATUS_LOOSE) {
+    compiled.tins_points[1] = [];
+    this.tins.bakw.features.map(function (tin) {
+      compiled.tins_points[1].push(['a', 'b', 'c'].map(function (idx) {
+        return tin.properties[idx].index;
+      }));
+    });
+  } else if (this.strict_status == Tin.STATUS_ERROR) {
+    compiled.kinks_points = this.kinks.bakw.features.map(function (kink) {
+      return kink.geometry.coordinates;
+    });
+  } // yaxisMode対応
+
+
+  if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
+    compiled.yaxisMode = Tin.YAXIS_FOLLOW;
+  } // bounds対応
+
+
+  if (this.bounds) {
+    compiled.bounds = this.bounds;
+    compiled.boundsPolygon = this.boundsPolygon;
+    compiled.xy = this.xy;
+    compiled.wh = this.wh;
+  } else {
+    compiled.wh = this.wh;
+  } // edge対応
+
+
+  compiled.edges = this.edges;
+  compiled.edgeNodes = this.edgeNodes;
+  return compiled;
+};
+
+Tin.prototype.setWh = function (wh) {
+  this.wh = wh;
+  this.xy = [0, 0];
+  this.bounds = undefined;
+  this.boundsPolygon = undefined;
+  this.tins = undefined;
+};
+
+Tin.prototype.setVertexMode = function (mode) {
+  this.vertexMode = mode;
+  this.tins = undefined;
+};
+
+Tin.prototype.setStrictMode = function (mode) {
+  this.strictMode = mode;
+  this.tins = undefined;
+};
+
+Tin.prototype.calcurateStrictTinAsync = function () {
+  var self = this;
+  var edges = self.pointsSet.edges;
+  return Promise.all(self.tins.forw.features.map(function (tri) {
+    return Promise.resolve(counterTri(tri));
+  })).then(function (tris) {
+    self.tins.bakw = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])(tris);
+  }).then(function () {
+    var searchIndex = {};
+    return Promise.all(self.tins.forw.features.map(function (forTri, index) {
+      var bakTri = self.tins.bakw.features[index];
+      return Promise.resolve(insertSearchIndex(searchIndex, {
+        forw: forTri,
+        bakw: bakTri
+      }));
+    })).then(function () {
+      return searchIndex;
+    })["catch"](function (err) {
+      throw err;
+    });
+  }).then(function (searchIndex) {
+    return [overlapCheckAsync(searchIndex), searchIndex];
+  }).then(function (prevResult) {
+    var overlapped = prevResult[0];
+    var searchIndex = prevResult[1];
+    if (overlapped.bakw) Object.keys(overlapped.bakw).map(function (key) {
+      if (overlapped.bakw[key] == 'Not include case') return;
+      var trises = searchIndex[key];
+      var forUnion = Object(_turf_union__WEBPACK_IMPORTED_MODULE_1__["default"])(trises[0].forw, trises[1].forw);
+      var forConvex = Object(_turf_convex__WEBPACK_IMPORTED_MODULE_2__["default"])(Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])([trises[0].forw, trises[1].forw]));
+      var forDiff = Object(_turf_difference__WEBPACK_IMPORTED_MODULE_3__["default"])(forConvex, forUnion);
+      if (forDiff) return;
+      var splittedKey = key.split('-');
+
+      if (splittedKey[0].match(/^[0-9]+$/) && splittedKey[1].match(/^[0-9]+$/)) {
+        var numberKey = splittedKey.map(function (key) {
+          return parseInt(key);
+        }).sort(function (a, b) {
+          return a < b ? -1 : 1;
+        });
+
+        for (var i = 0; i < edges.length - 1; i++) {
+          if (numberKey[0] == edges[i][0] && numberKey[1] == edges[i][1]) return;
+        }
+      }
+
+      var sharedVtx = splittedKey.map(function (val) {
+        return ['a', 'b', 'c'].map(function (alpha, index) {
+          var prop = trises[0].bakw.properties[alpha];
+          var geom = trises[0].bakw.geometry.coordinates[0][index];
+          return {
+            geom: geom,
+            prop: prop
+          };
+        }).filter(function (vtx) {
+          return vtx.prop.index == val;
+        })[0];
+      });
+      var nonSharedVtx = trises.map(function (tris) {
+        return ['a', 'b', 'c'].map(function (alpha, index) {
+          var prop = tris.bakw.properties[alpha];
+          var geom = tris.bakw.geometry.coordinates[0][index];
+          return {
+            geom: geom,
+            prop: prop
+          };
+        }).filter(function (vtx) {
+          return vtx.prop.index != sharedVtx[0].prop.index && vtx.prop.index != sharedVtx[1].prop.index;
+        })[0];
+      });
+      removeSearchIndex(searchIndex, trises[0], self.tins);
+      removeSearchIndex(searchIndex, trises[1], self.tins);
+      sharedVtx.map(function (sVtx) {
+        var newTriCoords = [sVtx.geom, nonSharedVtx[0].geom, nonSharedVtx[1].geom, sVtx.geom];
+        var newTriProp = {
+          a: sVtx.prop,
+          b: nonSharedVtx[0].prop,
+          c: nonSharedVtx[1].prop
+        };
+        var newBakTri = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["polygon"])([newTriCoords], newTriProp);
+        var newForTri = counterTri(newBakTri);
+        insertSearchIndex(searchIndex, {
+          forw: newForTri,
+          bakw: newBakTri
+        }, self.tins);
+      });
+    });
+    return Promise.all(['forw', 'bakw'].map(function (direc) {
+      return new Promise(function (resolve) {
+        var coords = self.tins[direc].features.map(function (poly) {
+          return poly.geometry.coordinates[0];
+        });
+        var xy = findIntersections(coords);
+        var retXy = internal.dedupIntersections(xy).reduce(function (prev, apoint, index, array) {
+          if (!prev) prev = {};
+          prev[apoint.x + ':' + apoint.y] = apoint;
+          if (index != array.length - 1) return prev;
+          return Object.keys(prev).map(function (key) {
+            return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])([prev[key].x, prev[key].y]);
+          });
+        }, []);
+        resolve(retXy);
+      })["catch"](function (err) {
+        throw err;
+      });
+    })).then(function (result) {
+      if (result[0].length == 0 && result[1].length == 0) {
+        self.strict_status = Tin.STATUS_STRICT;
+        delete self.kinks;
+      } else {
+        self.strict_status = Tin.STATUS_ERROR;
+        self.kinks = {};
+        if (result[0].length > 0) self.kinks.forw = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])(result[0]);
+        if (result[1].length > 0) self.kinks.bakw = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])(result[1]);
+      }
+    })["catch"](function (err) {
+      throw err;
+    });
+  })["catch"](function (err) {
+    throw err;
+  });
+};
+
+Tin.prototype.generatePointsSet = function () {
+  var self = this;
+  var pointsArray = {
+    forw: [],
+    bakw: []
+  };
+
+  for (var i = 0; i < self.points.length; i++) {
+    var mapxy = self.points[i][0];
+    var mercs = self.points[i][1];
+    var forPoint = createPoint(mapxy, mercs, i);
+    pointsArray.forw.push(forPoint);
+    pointsArray.bakw.push(counterPoint(forPoint));
+  }
+
+  var edges = [];
+  var edgeNodeIndex = 0;
+  self.edgeNodes = [];
+  if (!self.edges) self.edges = [];
+
+  for (var i = 0; i < self.edges.length; i++) {
+    var startEnd = self.edges[i].startEnd;
+    var illstNodes = Object.assign([], self.edges[i].illstNodes);
+    var mercNodes = Object.assign([], self.edges[i].mercNodes);
+
+    if (illstNodes.length === 0 && mercNodes.length === 0) {
+      edges.push(startEnd);
+      continue;
+    }
+
+    illstNodes.unshift(self.points[startEnd[0]][0]);
+    illstNodes.push(self.points[startEnd[1]][0]);
+    mercNodes.unshift(self.points[startEnd[0]][1]);
+    mercNodes.push(self.points[startEnd[1]][1]);
+    var lengths = [illstNodes, mercNodes].map(function (nodes, i) {
+      var eachLengths = nodes.map(function (node, index, arr) {
+        if (index === 0) return 0;
+        var prev = arr[index - 1];
+        return Math.sqrt(Math.pow(node[0] - prev[0], 2) + Math.pow(node[1] - prev[1], 2));
+      });
+      var sumLengths = eachLengths.reduce(function (prev, node, index) {
+        if (index === 0) return [0];
+        prev.push(prev[index - 1] + node);
+        return prev;
+      }, []);
+      return sumLengths.map(function (eachSum, index, arr) {
+        var ratio = eachSum / arr[arr.length - 1];
+        return [nodes[index], eachLengths[index], sumLengths[index], ratio];
+      });
+    });
+    lengths.map(function (thisLengths, i) {
+      var anotherLengths = lengths[i ? 0 : 1];
+      return thisLengths.filter(function (val, index) {
+        return index === 0 || index === thisLengths.length - 1 || val[4] === 'handled' ? false : true;
+      }).map(function (lengthItem) {
+        var node = lengthItem[0];
+        var ratio = lengthItem[3];
+        var anotherSets = anotherLengths.reduce(function (prev, item, index, arr) {
+          if (prev) return prev;
+          var next = arr[index + 1];
+
+          if (item[3] === ratio) {
+            item[4] = 'handled';
+            return [item];
+          }
+
+          if (item[3] < ratio && next[3] > ratio) return [item, next];
+          return;
+        }, undefined);
+
+        if (anotherSets.length === 1) {
+          return i === 0 ? [node, anotherSets[0][0], ratio] : [anotherSets[0][0], node, ratio];
+        } else {
+          var anotherPrev = anotherSets[0];
+          var anotherNext = anotherSets[1];
+          var ratioDelta = ratio - anotherPrev[3];
+          var ratioAnother = anotherNext[3] - anotherPrev[3];
+          var ratioInEdge = ratioDelta / ratioAnother;
+          var anotherNode = [(anotherNext[0][0] - anotherPrev[0][0]) * ratioInEdge + anotherPrev[0][0], (anotherNext[0][1] - anotherPrev[0][1]) * ratioInEdge + anotherPrev[0][1]];
+          return i === 0 ? [node, anotherNode, ratio] : [anotherNode, node, ratio];
+        }
+      });
+    }).reduce(function (prev, nodes) {
+      return prev.concat(nodes);
+    }, []).sort(function (a, b) {
+      return a[2] < b[2] ? -1 : 1;
+    }).map(function (node, index, arr) {
+      self.edgeNodes[edgeNodeIndex] = [node[0], node[1]];
+      var forPoint = createPoint(node[0], node[1], 'edgeNode' + edgeNodeIndex);
+      edgeNodeIndex++;
+      pointsArray.forw.push(forPoint);
+      pointsArray.bakw.push(counterPoint(forPoint));
+
+      if (index === 0) {
+        edges.push([startEnd[0], pointsArray.forw.length - 1]);
+      } else {
+        edges.push([pointsArray.forw.length - 2, pointsArray.forw.length - 1]);
+      }
+
+      if (index === arr.length - 1) {
+        edges.push([pointsArray.forw.length - 1, startEnd[1]]);
+      }
+    });
+  }
+
+  return {
+    forw: Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])(pointsArray.forw),
+    bakw: Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])(pointsArray.bakw),
+    edges: edges
+  };
+};
+
+Tin.prototype.updateTinAsync = function () {
+  var self = this;
+  var strict = this.strictMode;
+  var minx = self.xy[0] - 0.05 * self.wh[0];
+  var maxx = self.xy[0] + 1.05 * self.wh[0];
+  var miny = self.xy[1] - 0.05 * self.wh[1];
+  var maxy = self.xy[1] + 1.05 * self.wh[1];
+  var insideCheck = this.bounds ? function (xy) {
+    return Object(_turf_boolean_point_in_polygon__WEBPACK_IMPORTED_MODULE_4__["default"])(xy, self.boundsPolygon);
+  } : function (xy) {
+    return xy[0] >= self.xy[0] && xy[0] <= self.xy[0] + self.wh[0] && xy[1] >= self.xy[1] && xy[1] <= self.xy[1] + self.wh[1];
+  };
+  var inside = this.points.reduce(function (prev, curr) {
+    return prev && insideCheck(curr[0]);
+  }, true);
+
+  if (!inside) {
+    return new Promise(function (resolve, reject) {
+      reject('SOME POINTS OUTSIDE');
+    });
+  }
+
+  return new Promise(function (resolve, reject) {
+    if (strict != Tin.MODE_STRICT && strict != Tin.MODE_LOOSE) strict = Tin.MODE_AUTO;
+    var bbox = [];
+
+    if (self.wh) {
+      bbox = [[minx, miny], [maxx, miny], [minx, maxy], [maxx, maxy]];
+    }
+
+    var pointsSet = self.generatePointsSet();
+    resolve([pointsSet, bbox]);
+  }).then(function (prevResults) {
+    var pointsSet = prevResults[0]; // Forward TIN for calcurating Backward Centroid and Backward Vertices
+
+    return Promise.all([new Promise(function (resolve) {
+      resolve(Object(_constrained_tin__WEBPACK_IMPORTED_MODULE_9__["default"])(pointsSet.forw, pointsSet.edges, 'target'));
+    }), new Promise(function (resolve) {
+      resolve(Object(_constrained_tin__WEBPACK_IMPORTED_MODULE_9__["default"])(pointsSet.bakw, pointsSet.edges, 'target'));
+    }), new Promise(function (resolve) {
+      resolve(Object(_turf_centroid__WEBPACK_IMPORTED_MODULE_5__["default"])(pointsSet.forw));
+    }), Promise.resolve(prevResults)])["catch"](function (err) {
+      throw err;
+    });
+  }).then(function (prevResults) {
+    var tinForCentroid = prevResults[0];
+    var tinBakCentroid = prevResults[1];
+    var forCentroidFt = prevResults[2];
+    var pointsSetBbox = prevResults[3];
+    var pointsSet = pointsSetBbox[0];
+    if (tinForCentroid.features.length == 0 || tinBakCentroid.features.length == 0) throw 'TOO LINEAR1'; // Calcurating Forward/Backward Centroid
+
+    var centroid = {
+      forw: forCentroidFt.geometry.coordinates
+    };
+    centroid.bakw = transformArr(forCentroidFt, tinForCentroid);
+    self.centroid = {
+      forw: createPoint(centroid.forw, centroid.bakw, 'cent')
+    };
+    self.centroid.bakw = counterPoint(self.centroid.forw);
+    var convexBuf = {};
+    return Promise.all([new Promise(function (resolve) {
+      var forConvex = Object(_turf_convex__WEBPACK_IMPORTED_MODULE_2__["default"])(pointsSet.forw).geometry.coordinates[0];
+      var vconvex;
+
+      try {
+        vconvex = forConvex.map(function (forw) {
+          return {
+            forw: forw,
+            bakw: transformArr(Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(forw), tinForCentroid)
+          };
+        });
+      } catch (e) {
+        throw 'TOO LINEAR2';
+      }
+
+      vconvex.map(function (vertex) {
+        convexBuf[vertex.forw[0] + ':' + vertex.forw[1]] = vertex;
+      });
+      resolve();
+    }), new Promise(function (resolve) {
+      var bakConvex = Object(_turf_convex__WEBPACK_IMPORTED_MODULE_2__["default"])(pointsSet.bakw).geometry.coordinates[0];
+      var vconvex;
+
+      try {
+        vconvex = bakConvex.map(function (bakw) {
+          return {
+            bakw: bakw,
+            forw: transformArr(Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(bakw), tinBakCentroid)
+          };
+        });
+      } catch (e) {
+        throw 'TOO LINEAR2';
+      }
+
+      vconvex.map(function (vertex) {
+        convexBuf[vertex.forw[0] + ':' + vertex.forw[1]] = vertex;
+      });
+      resolve();
+    })]).then(function () {
+      return [centroid, convexBuf, pointsSetBbox];
+    })["catch"](function (err) {
+      throw err;
+    });
+  }).then(function (prevResults) {
+    var centroid = prevResults[0];
+    var convexBuf = prevResults[1];
+    var pointsSetBbox = prevResults[2]; // Calcurating Convex full to get Convex full polygon's vertices
+
+    var expandConvex = Object.keys(convexBuf).reduce(function (prev, key, index, array) {
+      var forVertex = convexBuf[key].forw;
+      var bakVertex = convexBuf[key].bakw; // Convexhullの各頂点に対し、重心からの差分を取る
+
+      var vertexDelta = {
+        forw: [forVertex[0] - centroid.forw[0], forVertex[1] - centroid.forw[1]]
+      };
+      vertexDelta.bakw = [bakVertex[0] - centroid.bakw[0], bakVertex[1] - centroid.bakw[1]]; // X軸方向、Y軸方向それぞれに対し、地図外郭XY座標との重心との比を取る
+
+      var xRate = vertexDelta.forw[0] == 0 ? Infinity : ((vertexDelta.forw[0] < 0 ? minx : maxx) - centroid.forw[0]) / vertexDelta.forw[0];
+      var yRate = vertexDelta.forw[1] == 0 ? Infinity : ((vertexDelta.forw[1] < 0 ? miny : maxy) - centroid.forw[1]) / vertexDelta.forw[1]; // xRate, yRateが同じ値であれば重心と地図頂点を結ぶ線上に乗る
+
+      if (Math.abs(xRate) / Math.abs(yRate) < 1.1) {
+        var point = {
+          forw: [vertexDelta.forw[0] * xRate + centroid.forw[0], vertexDelta.forw[1] * xRate + centroid.forw[1]],
+          bakw: [vertexDelta.bakw[0] * xRate + centroid.bakw[0], vertexDelta.bakw[1] * xRate + centroid.bakw[1]]
+        };
+        if (vertexDelta.forw[0] < 0) prev[3].push(point);else prev[1].push(point);
+      }
+
+      if (Math.abs(yRate) / Math.abs(xRate) < 1.1) {
+        var point = {
+          forw: [vertexDelta.forw[0] * yRate + centroid.forw[0], vertexDelta.forw[1] * yRate + centroid.forw[1]],
+          bakw: [vertexDelta.bakw[0] * yRate + centroid.bakw[0], vertexDelta.bakw[1] * yRate + centroid.bakw[1]]
+        };
+        if (vertexDelta.forw[1] < 0) prev[0].push(point);else prev[2].push(point);
+      }
+
+      return prev;
+    }, [[], [], [], []]); // Calcurating Average scaling factors and rotation factors per orthants
+
+    var orthant = Object.keys(convexBuf).reduce(function (prev, key, idx, array) {
+      var forVertex = convexBuf[key].forw;
+      var bakVertex = convexBuf[key].bakw;
+      var vertexDelta = {
+        forw: [forVertex[0] - centroid.forw[0], forVertex[1] - centroid.forw[1]]
+      };
+      vertexDelta.bakw = [bakVertex[0] - centroid.bakw[0], centroid.bakw[1] - bakVertex[1]];
+      if (vertexDelta.forw[0] == 0 || vertexDelta.forw[1] == 0) return prev;
+      var index = 0;
+      if (vertexDelta.forw[0] > 0) index += 1;
+      if (vertexDelta.forw[1] > 0) index += 2;
+      prev[index].push([vertexDelta.forw, vertexDelta.bakw]);
+
+      if (idx == array.length - 1) {
+        // If some orthants have no Convex full polygon's vertices, use same average factor to every orthants
+        return prev.length == prev.filter(function (val) {
+          return val.length > 0;
+        }).length && self.vertexMode == Tin.VERTEX_BIRDEYE ? prev : prev.reduce(function (pre, cur) {
+          var ret = [pre[0].concat(cur)];
+          return ret;
+        }, [[]]);
+      }
+
+      return prev;
+    }, [[], [], [], []]).map(function (item) {
+      // Finalize calcuration of Average scaling factors and rotation factors
+      return item.reduce(function (prev, curr, index, arr) {
+        if (!prev) prev = [Infinity, 0, 0]; // if (!prev) prev = [0, 0, 0];
+        // var distanceSum = prev[0] + Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) /
+        //     Math.sqrt(Math.pow(curr[1][0], 2) + Math.pow(curr[1][1], 2));
+
+        var distanceSum = Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) / Math.sqrt(Math.pow(curr[1][0], 2) + Math.pow(curr[1][1], 2));
+        distanceSum = distanceSum < prev[0] ? distanceSum : prev[0];
+        var thetaDelta = Math.atan2(curr[0][0], curr[0][1]) - Math.atan2(curr[1][0], curr[1][1]);
+        var sumThetaX = prev[1] + Math.cos(thetaDelta);
+        var sumThetaY = prev[2] + Math.sin(thetaDelta);
+
+        if (index == arr.length - 1) {
+          // return [distanceSum / arr.length, Math.atan2(sumThetaY, sumThetaX)];
+          return [distanceSum, Math.atan2(sumThetaY, sumThetaX)];
+        }
+
+        return [distanceSum, sumThetaX, sumThetaY];
+      }, null);
+    }); // "Using same average factor to every orthants" case
+
+    if (orthant.length == 1) orthant = [orthant[0], orthant[0], orthant[0], orthant[0]];
+    return [orthant, centroid, expandConvex, pointsSetBbox];
+  }).then(function (prevResults) {
+    var orthant = prevResults[0];
+    var centroid = prevResults[1];
+    var expandConvex = prevResults[2];
+    var pointsSet = prevResults[3][0];
+    var bbox = prevResults[3][1]; // Calcurating Backward Bounding box of map
+
+    var verticesSet = orthant.map(function (delta, index) {
+      var forVertex = bbox[index];
+      var forDelta = [forVertex[0] - centroid.forw[0], forVertex[1] - centroid.forw[1]];
+      var forDistance = Math.sqrt(Math.pow(forDelta[0], 2) + Math.pow(forDelta[1], 2));
+      var bakDistance = forDistance / delta[0];
+      var forTheta = Math.atan2(forDelta[0], forDelta[1]);
+      var bakTheta = forTheta - delta[1];
+      var bakVertex = [centroid.bakw[0] + bakDistance * Math.sin(bakTheta), centroid.bakw[1] - bakDistance * Math.cos(bakTheta)];
+      return {
+        forw: forVertex,
+        bakw: bakVertex
+      };
+    });
+    var swap = verticesSet[2];
+    verticesSet[2] = verticesSet[3];
+    verticesSet[3] = swap; // Bounding Boxの頂点を、全てのgcpが内部に入るように引き延ばす
+
+    var expandRate = [1, 1, 1, 1];
+
+    for (var i = 0; i < 4; i++) {
+      var j = (i + 1) % 4;
+      var side = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["lineString"])([verticesSet[i].bakw, verticesSet[j].bakw]);
+      var expands = expandConvex[i];
+      expands.map(function (expand) {
+        var expandLine = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["lineString"])([centroid.bakw, expand.bakw]);
+        var intersect = Object(_turf_line_intersect__WEBPACK_IMPORTED_MODULE_6__["default"])(side, expandLine);
+
+        if (intersect.features.length > 0 && intersect.features[0].geometry) {
+          var intersect = intersect.features[0];
+          var expandDist = Math.sqrt(Math.pow(expand.bakw[0] - centroid.bakw[0], 2) + Math.pow(expand.bakw[1] - centroid.bakw[1], 2));
+          var onSideDist = Math.sqrt(Math.pow(intersect.geometry.coordinates[0] - centroid.bakw[0], 2) + Math.pow(intersect.geometry.coordinates[1] - centroid.bakw[1], 2));
+          var rate = expandDist / onSideDist;
+          if (rate > expandRate[i]) expandRate[i] = rate;
+          if (rate > expandRate[j]) expandRate[j] = rate;
+        }
+      });
+    }
+
+    verticesSet = verticesSet.map(function (vertex, index) {
+      var rate = expandRate[index];
+      var point = [(vertex.bakw[0] - centroid.bakw[0]) * rate + centroid.bakw[0], (vertex.bakw[1] - centroid.bakw[1]) * rate + centroid.bakw[1]];
+      return {
+        forw: vertex.forw,
+        bakw: point
+      };
+    });
+    return [verticesSet, pointsSet];
+  }).then(function (prevResults) {
+    var verticesSet = prevResults[0];
+    var pointsSet = prevResults[1];
+    var verticesList = {
+      forw: [],
+      bakw: []
+    };
+
+    for (var i = 0; i < verticesSet.length; i++) {
+      var forVertex = verticesSet[i].forw;
+      var bakVertex = verticesSet[i].bakw;
+      var forVertexFt = createPoint(forVertex, bakVertex, 'bbox' + i);
+      var bakVertexFt = counterPoint(forVertexFt);
+      pointsSet.forw.features.push(forVertexFt);
+      pointsSet.bakw.features.push(bakVertexFt);
+      verticesList.forw.push(forVertexFt);
+      verticesList.bakw.push(bakVertexFt);
+    }
+
+    self.pointsSet = pointsSet;
+    self.tins = {
+      forw: rotateVerticesTriangle(Object(_constrained_tin__WEBPACK_IMPORTED_MODULE_9__["default"])(pointsSet.forw, pointsSet.edges, 'target'))
+    };
+    var prom;
+
+    if (strict == Tin.MODE_STRICT || strict == Tin.MODE_AUTO) {
+      prom = self.calcurateStrictTinAsync();
+    } else {
+      prom = Promise.resolve();
+    }
+
+    return prom.then(function () {
+      if (strict == Tin.MODE_LOOSE || strict == Tin.MODE_AUTO && self.strict_status == Tin.STATUS_ERROR) {
+        self.tins.bakw = rotateVerticesTriangle(Object(_constrained_tin__WEBPACK_IMPORTED_MODULE_9__["default"])(pointsSet.bakw, pointsSet.edges, 'target'));
+        delete self.kinks;
+        self.strict_status = Tin.STATUS_LOOSE;
+      }
+
+      self.vertices_params = {
+        forw: vertexCalc(verticesList.forw, self.centroid.forw),
+        bakw: vertexCalc(verticesList.bakw, self.centroid.bakw)
+      };
+      return self.calculatePointsWeightAsync();
+    })["catch"](function (err) {
+      throw err;
+    });
+  })["catch"](function (err) {
+    throw err;
+  });
+};
+
+Tin.prototype.transform = function (apoint, backward, ignoreBounds) {
+  if (backward && this.strict_status == Tin.STATUS_ERROR) throw 'Backward transform is not allowed if strict_status == "strict_error"'; // if (!this.tins) this.updateTin();
+
+  if (this.yaxisMode == Tin.YAXIS_FOLLOW && backward) {
+    apoint = [apoint[0], -1 * apoint[1]];
+  }
+
+  var tpoint = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(apoint);
+
+  if (this.bounds && !backward && !ignoreBounds) {
+    if (!Object(_turf_boolean_point_in_polygon__WEBPACK_IMPORTED_MODULE_4__["default"])(tpoint, this.boundsPolygon)) return false;
+  }
+
+  var tins = backward ? this.tins.bakw : this.tins.forw;
+  var verticesParams = backward ? this.vertices_params.bakw : this.vertices_params.forw;
+  var centroid = backward ? this.centroid.bakw : this.centroid.forw;
+  var weightBuffer = backward ? this.pointsWeightBuffer.bakw : this.pointsWeightBuffer.forw;
+  var ret = transformArr(tpoint, tins, verticesParams, centroid, weightBuffer);
+
+  if (this.bounds && backward && !ignoreBounds) {
+    var rpoint = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(ret);
+    if (!Object(_turf_boolean_point_in_polygon__WEBPACK_IMPORTED_MODULE_4__["default"])(rpoint, this.boundsPolygon)) return false;
+  } else if (this.yaxisMode == Tin.YAXIS_FOLLOW && !backward) {
+    ret = [ret[0], -1 * ret[1]];
+  }
+
+  return ret;
+};
+
+Tin.prototype.calculatePointsWeightAsync = function () {
+  var self = this;
+  var calcTargets = ['forw'];
+  if (self.strict_status == Tin.STATUS_LOOSE) calcTargets.push('bakw');
+  var weightBuffer = {};
+  return Promise.all(calcTargets.map(function (target) {
+    weightBuffer[target] = {};
+    var alreadyChecked = {};
+    var tin = self.tins[target];
+    return Promise.all(tin.features.map(function (tri) {
+      var vtxes = ['a', 'b', 'c'];
+      return new Promise(function (resolve) {
+        for (var i = 0; i < 3; i++) {
+          var j = (i + 1) % 3;
+          var vi = vtxes[i];
+          var vj = vtxes[j];
+          var indexi = tri.properties[vi].index;
+          var indexj = tri.properties[vj].index;
+          var key = [indexi, indexj].sort().join('-');
+
+          if (!alreadyChecked[key]) {
+            var fromi = tri.geometry.coordinates[0][i];
+            var fromj = tri.geometry.coordinates[0][j];
+            var toi = tri.properties[vi].geom;
+            var toj = tri.properties[vj].geom;
+            alreadyChecked[key] = 1;
+            var weight = Math.sqrt(Math.pow(toi[0] - toj[0], 2) + Math.pow(toi[1] - toj[1], 2)) / Math.sqrt(Math.pow(fromi[0] - fromj[0], 2) + Math.pow(fromi[1] - fromj[1], 2));
+            if (!weightBuffer[target][indexi]) weightBuffer[target][indexi] = {};
+            if (!weightBuffer[target][indexj]) weightBuffer[target][indexj] = {};
+            weightBuffer[target][indexi][key] = weight;
+            weightBuffer[target][indexj][key] = weight;
+          }
+        }
+
+        resolve();
+      });
+    }))["catch"](function (err) {
+      throw err;
+    });
+  })).then(function () {
+    var pointsWeightBuffer = {};
+    calcTargets.map(function (target) {
+      pointsWeightBuffer[target] = {};
+      if (self.strict_status == Tin.STATUS_STRICT) pointsWeightBuffer['bakw'] = {};
+      Object.keys(weightBuffer[target]).map(function (vtx) {
+        pointsWeightBuffer[target][vtx] = Object.keys(weightBuffer[target][vtx]).reduce(function (prev, key, idx, arr) {
+          prev = prev + weightBuffer[target][vtx][key];
+          return idx == arr.length - 1 ? prev / arr.length : prev;
+        }, 0);
+        if (self.strict_status == Tin.STATUS_STRICT) pointsWeightBuffer['bakw'][vtx] = 1 / pointsWeightBuffer[target][vtx];
+      });
+      pointsWeightBuffer[target]['cent'] = [0, 1, 2, 3].reduce(function (prev, curr) {
+        var key = 'bbox' + curr;
+        prev = prev + pointsWeightBuffer[target][key];
+        return curr == 3 ? prev / 4 : prev;
+      }, 0);
+      if (self.strict_status == Tin.STATUS_STRICT) pointsWeightBuffer['bakw']['cent'] = 1 / pointsWeightBuffer[target]['cent'];
+    });
+    self.pointsWeightBuffer = pointsWeightBuffer;
+  })["catch"](function (err) {
+    throw err;
+  });
+};
+
+function rotateVerticesTriangle(tins) {
+  var features = tins.features;
+
+  for (var i = 0; i < features.length; i++) {
+    var feature = features[i];
+
+    if ((feature.properties.a.index + '').substring(0, 4) == 'bbox' && (feature.properties.b.index + '').substring(0, 4) == 'bbox') {
+      features[i] = {
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[feature.geometry.coordinates[0][2], feature.geometry.coordinates[0][0], feature.geometry.coordinates[0][1], feature.geometry.coordinates[0][2]]]
+        },
+        properties: {
+          a: {
+            geom: feature.properties.c.geom,
+            index: feature.properties.c.index
+          },
+          b: {
+            geom: feature.properties.a.geom,
+            index: feature.properties.a.index
+          },
+          c: {
+            geom: feature.properties.b.geom,
+            index: feature.properties.b.index
+          }
+        },
+        type: 'Feature'
+      };
+    } else if ((feature.properties.c.index + '').substring(0, 4) == 'bbox' && (feature.properties.a.index + '').substring(0, 4) == 'bbox') {
+      features[i] = {
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[feature.geometry.coordinates[0][1], feature.geometry.coordinates[0][2], feature.geometry.coordinates[0][0], feature.geometry.coordinates[0][1]]]
+        },
+        properties: {
+          a: {
+            geom: feature.properties.b.geom,
+            index: feature.properties.b.index
+          },
+          b: {
+            geom: feature.properties.c.geom,
+            index: feature.properties.c.index
+          },
+          c: {
+            geom: feature.properties.a.geom,
+            index: feature.properties.a.index
+          }
+        },
+        type: 'Feature'
+      };
+    }
+  }
+
+  return tins;
+}
+
+function findIntersections(coords) {
+  var arcs = new internal.ArcCollection(coords);
+  return internal.findSegmentIntersections(arcs);
+}
+
+function vertexCalc(list, centroid) {
+  var centCoord = centroid.geometry.coordinates;
+  return [0, 1, 2, 3].map(function (i) {
+    var j = (i + 1) % 4;
+    var itemi = list[i];
+    var itemj = list[j];
+    var coord = itemi.geometry.coordinates;
+    var radian = Math.atan2(coord[0] - centCoord[0], coord[1] - centCoord[1]);
+    var coordinates = [centroid, itemi, itemj, centroid].map(function (point) {
+      return point.geometry.coordinates;
+    });
+    var properties = {
+      a: {
+        geom: centroid.properties.target.geom,
+        index: centroid.properties.target.index
+      },
+      b: {
+        geom: itemi.properties.target.geom,
+        index: itemi.properties.target.index
+      },
+      c: {
+        geom: itemj.properties.target.geom,
+        index: itemj.properties.target.index
+      }
+    };
+    var tin = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["featureCollection"])([Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["polygon"])([coordinates], properties)]);
+    return [radian, tin];
+  }).reduce(function (prev, curr) {
+    prev[0].push(curr[0]);
+    prev[1].push(curr[1]);
+    return prev;
+  }, [[], []]);
+}
+
+function normalizeRadian(target, noNegative) {
+  var rangeFunc = noNegative ? function (val) {
+    return !(val >= 0 && val < Math.PI * 2);
+  } : function (val) {
+    return !(val > -1 * Math.PI && val <= Math.PI);
+  };
+
+  while (rangeFunc(target)) {
+    target = target + 2 * Math.PI * (target > 0 ? -1 : 1);
+  }
+
+  return target;
+}
+
+function decideUseVertex(radian, radianList) {
+  var idel = normalizeRadian(radian - radianList[0]);
+  var minTheta = Math.PI * 2;
+  var minIndex;
+
+  for (var i = 0; i < radianList.length; i++) {
+    var j = (i + 1) % radianList.length;
+    var jdel = normalizeRadian(radian - radianList[j]);
+    var minDel = Math.min(Math.abs(idel), Math.abs(jdel));
+
+    if (idel * jdel <= 0 && minDel < minTheta) {
+      minTheta = minDel;
+      minIndex = i;
+    }
+
+    idel = jdel;
+  }
+
+  return minIndex;
+}
+
+function createPoint(xy, geom, index) {
+  return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(xy, {
+    target: {
+      geom: geom,
+      index: index
+    }
+  });
+}
+
+function counterPoint(apoint) {
+  return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(apoint.properties.target.geom, {
+    target: {
+      geom: apoint.geometry.coordinates,
+      index: apoint.properties.target.index
+    }
+  });
+}
+
+function transformTin(of, tri, weightBuffer) {
+  return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(transformTinArr(of, tri, weightBuffer));
+}
+
+function transformTinArr(of, tri, weightBuffer) {
+  var a = tri.geometry.coordinates[0][0];
+  var b = tri.geometry.coordinates[0][1];
+  var c = tri.geometry.coordinates[0][2];
+  var o = of.geometry.coordinates;
+  var ad = tri.properties.a.geom;
+  var bd = tri.properties.b.geom;
+  var cd = tri.properties.c.geom;
+  var ab = [b[0] - a[0], b[1] - a[1]];
+  var ac = [c[0] - a[0], c[1] - a[1]];
+  var ao = [o[0] - a[0], o[1] - a[1]];
+  var abd = [bd[0] - ad[0], bd[1] - ad[1]];
+  var acd = [cd[0] - ad[0], cd[1] - ad[1]];
+  var abv = (ac[1] * ao[0] - ac[0] * ao[1]) / (ab[0] * ac[1] - ab[1] * ac[0]);
+  var acv = (ab[0] * ao[1] - ab[1] * ao[0]) / (ab[0] * ac[1] - ab[1] * ac[0]); // Considering weight
+
+  if (weightBuffer) {
+    var aW = weightBuffer[tri.properties.a.index];
+    var bW = weightBuffer[tri.properties.b.index];
+    var cW = weightBuffer[tri.properties.c.index];
+    var nabv;
+
+    if (abv < 0 || acv < 0 || 1 - abv - acv < 0) {
+      var normB = abv / (abv + acv);
+      var normC = acv / (abv + acv);
+      nabv = abv / bW / (normB / bW + normC / cW);
+      acv = acv / cW / (normB / bW + normC / cW);
+    } else {
+      nabv = abv / bW / (abv / bW + acv / cW + (1 - abv - acv) / aW);
+      acv = acv / cW / (abv / bW + acv / cW + (1 - abv - acv) / aW);
+    }
+
+    abv = nabv;
+  }
+
+  var od = [abv * abd[0] + acv * acd[0] + ad[0], abv * abd[1] + acv * acd[1] + ad[1]];
+  return od;
+}
+
+function useVertices(o, verticesParams, centroid, weightBuffer) {
+  return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["point"])(useVerticesArr(o, verticesParams, centroid));
+}
+
+function useVerticesArr(o, verticesParams, centroid, weightBuffer) {
+  var coord = o.geometry.coordinates;
+  var centCoord = centroid.geometry.coordinates;
+  var radian = Math.atan2(coord[0] - centCoord[0], coord[1] - centCoord[1]);
+  var index = decideUseVertex(radian, verticesParams[0]);
+  var tin = verticesParams[1][index];
+  return transformTinArr(o, tin.features[0], weightBuffer);
+}
+
+function hit(point, tins) {
+  for (var i = 0; i < tins.features.length; i++) {
+    var inside = Object(_turf_boolean_point_in_polygon__WEBPACK_IMPORTED_MODULE_4__["default"])(point, tins.features[i]);
+
+    if (inside) {
+      return tins.features[i];
+    }
+  }
+}
+
+function transform(point, tins, verticesParams, centroid, weightBuffer) {
+  return point(transformArr(point, tins, verticesParams, centroid, weightBuffer));
+}
+
+function transformArr(point, tins, verticesParams, centroid, weightBuffer) {
+  var tin = hit(point, tins);
+  return tin ? transformTinArr(point, tin, weightBuffer) : useVerticesArr(point, verticesParams, centroid, weightBuffer);
+}
+
+function counterTri(tri) {
+  var coordinates = ['a', 'b', 'c', 'a'].map(function (key) {
+    return tri.properties[key].geom;
+  });
+  var geoms = tri.geometry.coordinates[0];
+  var props = tri.properties;
+  var properties = {
+    a: {
+      geom: geoms[0],
+      index: props['a'].index
+    },
+    b: {
+      geom: geoms[1],
+      index: props['b'].index
+    },
+    c: {
+      geom: geoms[2],
+      index: props['c'].index
+    }
+  };
+  return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["polygon"])([coordinates], properties);
+}
+
+function buildTri(points) {
+  var coordinates = [0, 1, 2, 0].map(function (i) {
+    return points[i][0][0];
+  });
+  var properties = {
+    a: {
+      geom: points[0][0][1],
+      index: points[0][1]
+    },
+    b: {
+      geom: points[1][0][1],
+      index: points[1][1]
+    },
+    c: {
+      geom: points[2][0][1],
+      index: points[2][1]
+    }
+  };
+  return Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_0__["polygon"])([coordinates], properties);
+}
+
+function indexesToTri(indexes, points, edgeNodes, cent, bboxes, bakw) {
+  var points = indexes.map(function (index) {
+    var point_base = isFinite(index) ? points[index] : index == 'cent' ? cent : index == 'bbox0' ? bboxes[0] : index == 'bbox1' ? bboxes[1] : index == 'bbox2' ? bboxes[2] : index == 'bbox3' ? bboxes[3] : function () {
+      var match = index.match(/edgeNode(\d+)/);
+
+      if (match) {
+        var nodeIndex = parseInt(match[1]);
+        return edgeNodes[nodeIndex];
+      }
+
+      return undefined;
+    }();
+    return bakw ? [[point_base[1], point_base[0]], index] : [[point_base[0], point_base[1]], index];
+  });
+  return buildTri(points);
+}
+
+function overlapCheckAsync(searchIndex) {
+  var retValue = {
+    forw: {},
+    bakw: {}
+  };
+  return Promise.all(Object.keys(searchIndex).map(function (key) {
+    return new Promise(function (resolve) {
+      var searchResult = searchIndex[key];
+      if (searchResult.length < 2) return resolve();
+      ['forw', 'bakw'].map(function (dir) {
+        var result = Object(_turf_intersect__WEBPACK_IMPORTED_MODULE_7__["default"])(searchResult[0][dir], searchResult[1][dir]);
+        if (!result || result.geometry.type == 'Point' || result.geometry.type == 'LineString') return resolve();
+        var diff1 = Object(_turf_difference__WEBPACK_IMPORTED_MODULE_3__["default"])(searchResult[0][dir], result);
+        var diff2 = Object(_turf_difference__WEBPACK_IMPORTED_MODULE_3__["default"])(searchResult[1][dir], result);
+        /* if (!diff1 || !diff2) {
+            searchResult[dir][key] = 'Include case';
+        } else {
+            searchResult[dir][key] = 'Not include case';
+        }*/
+
+        resolve();
+      });
+    });
+  })).then(function () {
+    if (Object.keys(retValue.forw).length == 0) delete retValue.forw;
+    if (Object.keys(retValue.bakw).length == 0) delete retValue.bakw;
+    return retValue;
+  })["catch"](function (err) {
+    throw err;
+  });
+}
+
+function insertSearchIndex(searchIndex, tris, tins) {
+  var keys = calcSearchKeys(tris.forw);
+  var bakKeys = calcSearchKeys(tris.bakw);
+  if (JSON.stringify(keys) != JSON.stringify(bakKeys)) throw JSON.stringify(tris, null, 2) + '\n' + JSON.stringify(keys) + '\n' + JSON.stringify(bakKeys);
+
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    if (!searchIndex[key]) searchIndex[key] = [];
+    searchIndex[key].push(tris);
+  }
+
+  if (tins) {
+    tins.forw.features.push(tris.forw);
+    tins.bakw.features.push(tris.bakw);
+  }
+}
+
+function removeSearchIndex(searchIndex, tris, tins) {
+  var keys = calcSearchKeys(tris.forw);
+  var bakKeys = calcSearchKeys(tris.bakw);
+  if (JSON.stringify(keys) != JSON.stringify(bakKeys)) throw JSON.stringify(tris, null, 2) + '\n' + JSON.stringify(keys) + '\n' + JSON.stringify(bakKeys);
+
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    var newArray = searchIndex[key].filter(function (eachTris) {
+      return eachTris.forw != tris.forw;
+    });
+    if (newArray.length == 0) delete searchIndex[key];else searchIndex[key] = newArray;
+  }
+
+  if (tins) {
+    var newArray = tins.forw.features.filter(function (eachTri) {
+      return eachTri != tris.forw;
+    });
+    tins.forw.features = newArray;
+    newArray = tins.bakw.features.filter(function (eachTri) {
+      return eachTri != tris.bakw;
+    });
+    tins.bakw.features = newArray;
+  }
+}
+
+function calcSearchKeys(tri) {
+  var vtx = ['a', 'b', 'c'].map(function (key) {
+    return tri.properties[key].index;
+  });
+  return [[0, 1], [0, 2], [1, 2], [0, 1, 2]].map(function (set) {
+    var index = set.map(function (i) {
+      return vtx[i];
+    }).sort().join('-');
+    return index;
+  }).sort();
+}
+
+/* harmony default export */ __webpack_exports__["default"] = (Tin);
+
+if (( false ? undefined : _typeof(module)) === "object" && module.exports) {
+  module.exports = Tin;
+}
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./node_modules/webpack/buildin/harmony-module.js */ "./node_modules/webpack/buildin/harmony-module.js")(module)))
+
+/***/ }),
+
+/***/ "./node_modules/base64-js/index.js":
+/*!*****************************************!*\
+  !*** ./node_modules/base64-js/index.js ***!
+  \*****************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+exports.byteLength = byteLength
+exports.toByteArray = toByteArray
+exports.fromByteArray = fromByteArray
+
+var lookup = []
+var revLookup = []
+var Arr = typeof Uint8Array !== 'undefined' ? Uint8Array : Array
+
+var code = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+for (var i = 0, len = code.length; i < len; ++i) {
+  lookup[i] = code[i]
+  revLookup[code.charCodeAt(i)] = i
+}
+
+// Support decoding URL-safe base64 strings, as Node.js does.
+// See: https://en.wikipedia.org/wiki/Base64#URL_applications
+revLookup['-'.charCodeAt(0)] = 62
+revLookup['_'.charCodeAt(0)] = 63
+
+function getLens (b64) {
+  var len = b64.length
+
+  if (len % 4 > 0) {
+    throw new Error('Invalid string. Length must be a multiple of 4')
+  }
+
+  // Trim off extra bytes after placeholder bytes are found
+  // See: https://github.com/beatgammit/base64-js/issues/42
+  var validLen = b64.indexOf('=')
+  if (validLen === -1) validLen = len
+
+  var placeHoldersLen = validLen === len
+    ? 0
+    : 4 - (validLen % 4)
+
+  return [validLen, placeHoldersLen]
+}
+
+// base64 is 4/3 + up to two characters of the original data
+function byteLength (b64) {
+  var lens = getLens(b64)
+  var validLen = lens[0]
+  var placeHoldersLen = lens[1]
+  return ((validLen + placeHoldersLen) * 3 / 4) - placeHoldersLen
+}
+
+function _byteLength (b64, validLen, placeHoldersLen) {
+  return ((validLen + placeHoldersLen) * 3 / 4) - placeHoldersLen
+}
+
+function toByteArray (b64) {
+  var tmp
+  var lens = getLens(b64)
+  var validLen = lens[0]
+  var placeHoldersLen = lens[1]
+
+  var arr = new Arr(_byteLength(b64, validLen, placeHoldersLen))
+
+  var curByte = 0
+
+  // if there are placeholders, only get up to the last complete 4 chars
+  var len = placeHoldersLen > 0
+    ? validLen - 4
+    : validLen
+
+  var i
+  for (i = 0; i < len; i += 4) {
+    tmp =
+      (revLookup[b64.charCodeAt(i)] << 18) |
+      (revLookup[b64.charCodeAt(i + 1)] << 12) |
+      (revLookup[b64.charCodeAt(i + 2)] << 6) |
+      revLookup[b64.charCodeAt(i + 3)]
+    arr[curByte++] = (tmp >> 16) & 0xFF
+    arr[curByte++] = (tmp >> 8) & 0xFF
+    arr[curByte++] = tmp & 0xFF
+  }
+
+  if (placeHoldersLen === 2) {
+    tmp =
+      (revLookup[b64.charCodeAt(i)] << 2) |
+      (revLookup[b64.charCodeAt(i + 1)] >> 4)
+    arr[curByte++] = tmp & 0xFF
+  }
+
+  if (placeHoldersLen === 1) {
+    tmp =
+      (revLookup[b64.charCodeAt(i)] << 10) |
+      (revLookup[b64.charCodeAt(i + 1)] << 4) |
+      (revLookup[b64.charCodeAt(i + 2)] >> 2)
+    arr[curByte++] = (tmp >> 8) & 0xFF
+    arr[curByte++] = tmp & 0xFF
+  }
+
+  return arr
+}
+
+function tripletToBase64 (num) {
+  return lookup[num >> 18 & 0x3F] +
+    lookup[num >> 12 & 0x3F] +
+    lookup[num >> 6 & 0x3F] +
+    lookup[num & 0x3F]
+}
+
+function encodeChunk (uint8, start, end) {
+  var tmp
+  var output = []
+  for (var i = start; i < end; i += 3) {
+    tmp =
+      ((uint8[i] << 16) & 0xFF0000) +
+      ((uint8[i + 1] << 8) & 0xFF00) +
+      (uint8[i + 2] & 0xFF)
+    output.push(tripletToBase64(tmp))
+  }
+  return output.join('')
+}
+
+function fromByteArray (uint8) {
+  var tmp
+  var len = uint8.length
+  var extraBytes = len % 3 // if we have 1 byte left, pad 2 bytes
+  var parts = []
+  var maxChunkLength = 16383 // must be multiple of 3
+
+  // go through the array every three bytes, we'll deal with trailing stuff later
+  for (var i = 0, len2 = len - extraBytes; i < len2; i += maxChunkLength) {
+    parts.push(encodeChunk(
+      uint8, i, (i + maxChunkLength) > len2 ? len2 : (i + maxChunkLength)
+    ))
+  }
+
+  // pad the end with zeros, but make sure to not forget the extra bytes
+  if (extraBytes === 1) {
+    tmp = uint8[len - 1]
+    parts.push(
+      lookup[tmp >> 2] +
+      lookup[(tmp << 4) & 0x3F] +
+      '=='
+    )
+  } else if (extraBytes === 2) {
+    tmp = (uint8[len - 2] << 8) + uint8[len - 1]
+    parts.push(
+      lookup[tmp >> 10] +
+      lookup[(tmp >> 4) & 0x3F] +
+      lookup[(tmp << 2) & 0x3F] +
+      '='
+    )
+  }
+
+  return parts.join('')
+}
+
+
+/***/ }),
+
+/***/ "./node_modules/buffer/index.js":
+/*!**************************************!*\
+  !*** ./node_modules/buffer/index.js ***!
+  \**************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/* WEBPACK VAR INJECTION */(function(global) {/*!
+ * The buffer module from node.js, for the browser.
+ *
+ * @author   Feross Aboukhadijeh <feross@feross.org> <http://feross.org>
+ * @license  MIT
+ */
+/* eslint-disable no-proto */
+
+
+
+var base64 = __webpack_require__(/*! base64-js */ "./node_modules/base64-js/index.js")
+var ieee754 = __webpack_require__(/*! ieee754 */ "./node_modules/ieee754/index.js")
+var isArray = __webpack_require__(/*! isarray */ "./node_modules/isarray/index.js")
+
+exports.Buffer = Buffer
+exports.SlowBuffer = SlowBuffer
+exports.INSPECT_MAX_BYTES = 50
+
+/**
+ * If `Buffer.TYPED_ARRAY_SUPPORT`:
+ *   === true    Use Uint8Array implementation (fastest)
+ *   === false   Use Object implementation (most compatible, even IE6)
+ *
+ * Browsers that support typed arrays are IE 10+, Firefox 4+, Chrome 7+, Safari 5.1+,
+ * Opera 11.6+, iOS 4.2+.
+ *
+ * Due to various browser bugs, sometimes the Object implementation will be used even
+ * when the browser supports typed arrays.
+ *
+ * Note:
+ *
+ *   - Firefox 4-29 lacks support for adding new properties to `Uint8Array` instances,
+ *     See: https://bugzilla.mozilla.org/show_bug.cgi?id=695438.
+ *
+ *   - Chrome 9-10 is missing the `TypedArray.prototype.subarray` function.
+ *
+ *   - IE10 has a broken `TypedArray.prototype.subarray` function which returns arrays of
+ *     incorrect length in some situations.
+
+ * We detect these buggy browsers and set `Buffer.TYPED_ARRAY_SUPPORT` to `false` so they
+ * get the Object implementation, which is slower but behaves correctly.
+ */
+Buffer.TYPED_ARRAY_SUPPORT = global.TYPED_ARRAY_SUPPORT !== undefined
+  ? global.TYPED_ARRAY_SUPPORT
+  : typedArraySupport()
+
+/*
+ * Export kMaxLength after typed array support is determined.
+ */
+exports.kMaxLength = kMaxLength()
+
+function typedArraySupport () {
+  try {
+    var arr = new Uint8Array(1)
+    arr.__proto__ = {__proto__: Uint8Array.prototype, foo: function () { return 42 }}
+    return arr.foo() === 42 && // typed array instances can be augmented
+        typeof arr.subarray === 'function' && // chrome 9-10 lack `subarray`
+        arr.subarray(1, 1).byteLength === 0 // ie10 has broken `subarray`
+  } catch (e) {
+    return false
+  }
+}
+
+function kMaxLength () {
+  return Buffer.TYPED_ARRAY_SUPPORT
+    ? 0x7fffffff
+    : 0x3fffffff
+}
+
+function createBuffer (that, length) {
+  if (kMaxLength() < length) {
+    throw new RangeError('Invalid typed array length')
+  }
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    // Return an augmented `Uint8Array` instance, for best performance
+    that = new Uint8Array(length)
+    that.__proto__ = Buffer.prototype
+  } else {
+    // Fallback: Return an object instance of the Buffer class
+    if (that === null) {
+      that = new Buffer(length)
+    }
+    that.length = length
+  }
+
+  return that
+}
+
+/**
+ * The Buffer constructor returns instances of `Uint8Array` that have their
+ * prototype changed to `Buffer.prototype`. Furthermore, `Buffer` is a subclass of
+ * `Uint8Array`, so the returned instances will have all the node `Buffer` methods
+ * and the `Uint8Array` methods. Square bracket notation works as expected -- it
+ * returns a single octet.
+ *
+ * The `Uint8Array` prototype remains unmodified.
+ */
+
+function Buffer (arg, encodingOrOffset, length) {
+  if (!Buffer.TYPED_ARRAY_SUPPORT && !(this instanceof Buffer)) {
+    return new Buffer(arg, encodingOrOffset, length)
+  }
+
+  // Common case.
+  if (typeof arg === 'number') {
+    if (typeof encodingOrOffset === 'string') {
+      throw new Error(
+        'If encoding is specified then the first argument must be a string'
+      )
+    }
+    return allocUnsafe(this, arg)
+  }
+  return from(this, arg, encodingOrOffset, length)
+}
+
+Buffer.poolSize = 8192 // not used by this implementation
+
+// TODO: Legacy, not needed anymore. Remove in next major version.
+Buffer._augment = function (arr) {
+  arr.__proto__ = Buffer.prototype
+  return arr
+}
+
+function from (that, value, encodingOrOffset, length) {
+  if (typeof value === 'number') {
+    throw new TypeError('"value" argument must not be a number')
+  }
+
+  if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) {
+    return fromArrayBuffer(that, value, encodingOrOffset, length)
+  }
+
+  if (typeof value === 'string') {
+    return fromString(that, value, encodingOrOffset)
+  }
+
+  return fromObject(that, value)
+}
+
+/**
+ * Functionally equivalent to Buffer(arg, encoding) but throws a TypeError
+ * if value is a number.
+ * Buffer.from(str[, encoding])
+ * Buffer.from(array)
+ * Buffer.from(buffer)
+ * Buffer.from(arrayBuffer[, byteOffset[, length]])
+ **/
+Buffer.from = function (value, encodingOrOffset, length) {
+  return from(null, value, encodingOrOffset, length)
+}
+
+if (Buffer.TYPED_ARRAY_SUPPORT) {
+  Buffer.prototype.__proto__ = Uint8Array.prototype
+  Buffer.__proto__ = Uint8Array
+  if (typeof Symbol !== 'undefined' && Symbol.species &&
+      Buffer[Symbol.species] === Buffer) {
+    // Fix subarray() in ES2016. See: https://github.com/feross/buffer/pull/97
+    Object.defineProperty(Buffer, Symbol.species, {
+      value: null,
+      configurable: true
+    })
+  }
+}
+
+function assertSize (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('"size" argument must be a number')
+  } else if (size < 0) {
+    throw new RangeError('"size" argument must not be negative')
+  }
+}
+
+function alloc (that, size, fill, encoding) {
+  assertSize(size)
+  if (size <= 0) {
+    return createBuffer(that, size)
+  }
+  if (fill !== undefined) {
+    // Only pay attention to encoding if it's a string. This
+    // prevents accidentally sending in a number that would
+    // be interpretted as a start offset.
+    return typeof encoding === 'string'
+      ? createBuffer(that, size).fill(fill, encoding)
+      : createBuffer(that, size).fill(fill)
+  }
+  return createBuffer(that, size)
+}
+
+/**
+ * Creates a new filled Buffer instance.
+ * alloc(size[, fill[, encoding]])
+ **/
+Buffer.alloc = function (size, fill, encoding) {
+  return alloc(null, size, fill, encoding)
+}
+
+function allocUnsafe (that, size) {
+  assertSize(size)
+  that = createBuffer(that, size < 0 ? 0 : checked(size) | 0)
+  if (!Buffer.TYPED_ARRAY_SUPPORT) {
+    for (var i = 0; i < size; ++i) {
+      that[i] = 0
+    }
+  }
+  return that
+}
+
+/**
+ * Equivalent to Buffer(num), by default creates a non-zero-filled Buffer instance.
+ * */
+Buffer.allocUnsafe = function (size) {
+  return allocUnsafe(null, size)
+}
+/**
+ * Equivalent to SlowBuffer(num), by default creates a non-zero-filled Buffer instance.
+ */
+Buffer.allocUnsafeSlow = function (size) {
+  return allocUnsafe(null, size)
+}
+
+function fromString (that, string, encoding) {
+  if (typeof encoding !== 'string' || encoding === '') {
+    encoding = 'utf8'
+  }
+
+  if (!Buffer.isEncoding(encoding)) {
+    throw new TypeError('"encoding" must be a valid string encoding')
+  }
+
+  var length = byteLength(string, encoding) | 0
+  that = createBuffer(that, length)
+
+  var actual = that.write(string, encoding)
+
+  if (actual !== length) {
+    // Writing a hex string, for example, that contains invalid characters will
+    // cause everything after the first invalid character to be ignored. (e.g.
+    // 'abxxcd' will be treated as 'ab')
+    that = that.slice(0, actual)
+  }
+
+  return that
+}
+
+function fromArrayLike (that, array) {
+  var length = array.length < 0 ? 0 : checked(array.length) | 0
+  that = createBuffer(that, length)
+  for (var i = 0; i < length; i += 1) {
+    that[i] = array[i] & 255
+  }
+  return that
+}
+
+function fromArrayBuffer (that, array, byteOffset, length) {
+  array.byteLength // this throws if `array` is not a valid ArrayBuffer
+
+  if (byteOffset < 0 || array.byteLength < byteOffset) {
+    throw new RangeError('\'offset\' is out of bounds')
+  }
+
+  if (array.byteLength < byteOffset + (length || 0)) {
+    throw new RangeError('\'length\' is out of bounds')
+  }
+
+  if (byteOffset === undefined && length === undefined) {
+    array = new Uint8Array(array)
+  } else if (length === undefined) {
+    array = new Uint8Array(array, byteOffset)
+  } else {
+    array = new Uint8Array(array, byteOffset, length)
+  }
+
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    // Return an augmented `Uint8Array` instance, for best performance
+    that = array
+    that.__proto__ = Buffer.prototype
+  } else {
+    // Fallback: Return an object instance of the Buffer class
+    that = fromArrayLike(that, array)
+  }
+  return that
+}
+
+function fromObject (that, obj) {
+  if (Buffer.isBuffer(obj)) {
+    var len = checked(obj.length) | 0
+    that = createBuffer(that, len)
+
+    if (that.length === 0) {
+      return that
+    }
+
+    obj.copy(that, 0, 0, len)
+    return that
+  }
+
+  if (obj) {
+    if ((typeof ArrayBuffer !== 'undefined' &&
+        obj.buffer instanceof ArrayBuffer) || 'length' in obj) {
+      if (typeof obj.length !== 'number' || isnan(obj.length)) {
+        return createBuffer(that, 0)
+      }
+      return fromArrayLike(that, obj)
+    }
+
+    if (obj.type === 'Buffer' && isArray(obj.data)) {
+      return fromArrayLike(that, obj.data)
+    }
+  }
+
+  throw new TypeError('First argument must be a string, Buffer, ArrayBuffer, Array, or array-like object.')
+}
+
+function checked (length) {
+  // Note: cannot use `length < kMaxLength()` here because that fails when
+  // length is NaN (which is otherwise coerced to zero.)
+  if (length >= kMaxLength()) {
+    throw new RangeError('Attempt to allocate Buffer larger than maximum ' +
+                         'size: 0x' + kMaxLength().toString(16) + ' bytes')
+  }
+  return length | 0
+}
+
+function SlowBuffer (length) {
+  if (+length != length) { // eslint-disable-line eqeqeq
+    length = 0
+  }
+  return Buffer.alloc(+length)
+}
+
+Buffer.isBuffer = function isBuffer (b) {
+  return !!(b != null && b._isBuffer)
+}
+
+Buffer.compare = function compare (a, b) {
+  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
+    throw new TypeError('Arguments must be Buffers')
+  }
+
+  if (a === b) return 0
+
+  var x = a.length
+  var y = b.length
+
+  for (var i = 0, len = Math.min(x, y); i < len; ++i) {
+    if (a[i] !== b[i]) {
+      x = a[i]
+      y = b[i]
+      break
+    }
+  }
+
+  if (x < y) return -1
+  if (y < x) return 1
+  return 0
+}
+
+Buffer.isEncoding = function isEncoding (encoding) {
+  switch (String(encoding).toLowerCase()) {
+    case 'hex':
+    case 'utf8':
+    case 'utf-8':
+    case 'ascii':
+    case 'latin1':
+    case 'binary':
+    case 'base64':
+    case 'ucs2':
+    case 'ucs-2':
+    case 'utf16le':
+    case 'utf-16le':
+      return true
+    default:
+      return false
+  }
+}
+
+Buffer.concat = function concat (list, length) {
+  if (!isArray(list)) {
+    throw new TypeError('"list" argument must be an Array of Buffers')
+  }
+
+  if (list.length === 0) {
+    return Buffer.alloc(0)
+  }
+
+  var i
+  if (length === undefined) {
+    length = 0
+    for (i = 0; i < list.length; ++i) {
+      length += list[i].length
+    }
+  }
+
+  var buffer = Buffer.allocUnsafe(length)
+  var pos = 0
+  for (i = 0; i < list.length; ++i) {
+    var buf = list[i]
+    if (!Buffer.isBuffer(buf)) {
+      throw new TypeError('"list" argument must be an Array of Buffers')
+    }
+    buf.copy(buffer, pos)
+    pos += buf.length
+  }
+  return buffer
+}
+
+function byteLength (string, encoding) {
+  if (Buffer.isBuffer(string)) {
+    return string.length
+  }
+  if (typeof ArrayBuffer !== 'undefined' && typeof ArrayBuffer.isView === 'function' &&
+      (ArrayBuffer.isView(string) || string instanceof ArrayBuffer)) {
+    return string.byteLength
+  }
+  if (typeof string !== 'string') {
+    string = '' + string
+  }
+
+  var len = string.length
+  if (len === 0) return 0
+
+  // Use a for loop to avoid recursion
+  var loweredCase = false
+  for (;;) {
+    switch (encoding) {
+      case 'ascii':
+      case 'latin1':
+      case 'binary':
+        return len
+      case 'utf8':
+      case 'utf-8':
+      case undefined:
+        return utf8ToBytes(string).length
+      case 'ucs2':
+      case 'ucs-2':
+      case 'utf16le':
+      case 'utf-16le':
+        return len * 2
+      case 'hex':
+        return len >>> 1
+      case 'base64':
+        return base64ToBytes(string).length
+      default:
+        if (loweredCase) return utf8ToBytes(string).length // assume utf8
+        encoding = ('' + encoding).toLowerCase()
+        loweredCase = true
+    }
+  }
+}
+Buffer.byteLength = byteLength
+
+function slowToString (encoding, start, end) {
+  var loweredCase = false
+
+  // No need to verify that "this.length <= MAX_UINT32" since it's a read-only
+  // property of a typed array.
+
+  // This behaves neither like String nor Uint8Array in that we set start/end
+  // to their upper/lower bounds if the value passed is out of range.
+  // undefined is handled specially as per ECMA-262 6th Edition,
+  // Section 13.3.3.7 Runtime Semantics: KeyedBindingInitialization.
+  if (start === undefined || start < 0) {
+    start = 0
+  }
+  // Return early if start > this.length. Done here to prevent potential uint32
+  // coercion fail below.
+  if (start > this.length) {
+    return ''
+  }
+
+  if (end === undefined || end > this.length) {
+    end = this.length
+  }
+
+  if (end <= 0) {
+    return ''
+  }
+
+  // Force coersion to uint32. This will also coerce falsey/NaN values to 0.
+  end >>>= 0
+  start >>>= 0
+
+  if (end <= start) {
+    return ''
+  }
+
+  if (!encoding) encoding = 'utf8'
+
+  while (true) {
+    switch (encoding) {
+      case 'hex':
+        return hexSlice(this, start, end)
+
+      case 'utf8':
+      case 'utf-8':
+        return utf8Slice(this, start, end)
+
+      case 'ascii':
+        return asciiSlice(this, start, end)
+
+      case 'latin1':
+      case 'binary':
+        return latin1Slice(this, start, end)
+
+      case 'base64':
+        return base64Slice(this, start, end)
+
+      case 'ucs2':
+      case 'ucs-2':
+      case 'utf16le':
+      case 'utf-16le':
+        return utf16leSlice(this, start, end)
+
+      default:
+        if (loweredCase) throw new TypeError('Unknown encoding: ' + encoding)
+        encoding = (encoding + '').toLowerCase()
+        loweredCase = true
+    }
+  }
+}
+
+// The property is used by `Buffer.isBuffer` and `is-buffer` (in Safari 5-7) to detect
+// Buffer instances.
+Buffer.prototype._isBuffer = true
+
+function swap (b, n, m) {
+  var i = b[n]
+  b[n] = b[m]
+  b[m] = i
+}
+
+Buffer.prototype.swap16 = function swap16 () {
+  var len = this.length
+  if (len % 2 !== 0) {
+    throw new RangeError('Buffer size must be a multiple of 16-bits')
+  }
+  for (var i = 0; i < len; i += 2) {
+    swap(this, i, i + 1)
+  }
+  return this
+}
+
+Buffer.prototype.swap32 = function swap32 () {
+  var len = this.length
+  if (len % 4 !== 0) {
+    throw new RangeError('Buffer size must be a multiple of 32-bits')
+  }
+  for (var i = 0; i < len; i += 4) {
+    swap(this, i, i + 3)
+    swap(this, i + 1, i + 2)
+  }
+  return this
+}
+
+Buffer.prototype.swap64 = function swap64 () {
+  var len = this.length
+  if (len % 8 !== 0) {
+    throw new RangeError('Buffer size must be a multiple of 64-bits')
+  }
+  for (var i = 0; i < len; i += 8) {
+    swap(this, i, i + 7)
+    swap(this, i + 1, i + 6)
+    swap(this, i + 2, i + 5)
+    swap(this, i + 3, i + 4)
+  }
+  return this
+}
+
+Buffer.prototype.toString = function toString () {
+  var length = this.length | 0
+  if (length === 0) return ''
+  if (arguments.length === 0) return utf8Slice(this, 0, length)
+  return slowToString.apply(this, arguments)
+}
+
+Buffer.prototype.equals = function equals (b) {
+  if (!Buffer.isBuffer(b)) throw new TypeError('Argument must be a Buffer')
+  if (this === b) return true
+  return Buffer.compare(this, b) === 0
+}
+
+Buffer.prototype.inspect = function inspect () {
+  var str = ''
+  var max = exports.INSPECT_MAX_BYTES
+  if (this.length > 0) {
+    str = this.toString('hex', 0, max).match(/.{2}/g).join(' ')
+    if (this.length > max) str += ' ... '
+  }
+  return '<Buffer ' + str + '>'
+}
+
+Buffer.prototype.compare = function compare (target, start, end, thisStart, thisEnd) {
+  if (!Buffer.isBuffer(target)) {
+    throw new TypeError('Argument must be a Buffer')
+  }
+
+  if (start === undefined) {
+    start = 0
+  }
+  if (end === undefined) {
+    end = target ? target.length : 0
+  }
+  if (thisStart === undefined) {
+    thisStart = 0
+  }
+  if (thisEnd === undefined) {
+    thisEnd = this.length
+  }
+
+  if (start < 0 || end > target.length || thisStart < 0 || thisEnd > this.length) {
+    throw new RangeError('out of range index')
+  }
+
+  if (thisStart >= thisEnd && start >= end) {
+    return 0
+  }
+  if (thisStart >= thisEnd) {
+    return -1
+  }
+  if (start >= end) {
+    return 1
+  }
+
+  start >>>= 0
+  end >>>= 0
+  thisStart >>>= 0
+  thisEnd >>>= 0
+
+  if (this === target) return 0
+
+  var x = thisEnd - thisStart
+  var y = end - start
+  var len = Math.min(x, y)
+
+  var thisCopy = this.slice(thisStart, thisEnd)
+  var targetCopy = target.slice(start, end)
+
+  for (var i = 0; i < len; ++i) {
+    if (thisCopy[i] !== targetCopy[i]) {
+      x = thisCopy[i]
+      y = targetCopy[i]
+      break
+    }
+  }
+
+  if (x < y) return -1
+  if (y < x) return 1
+  return 0
+}
+
+// Finds either the first index of `val` in `buffer` at offset >= `byteOffset`,
+// OR the last index of `val` in `buffer` at offset <= `byteOffset`.
+//
+// Arguments:
+// - buffer - a Buffer to search
+// - val - a string, Buffer, or number
+// - byteOffset - an index into `buffer`; will be clamped to an int32
+// - encoding - an optional encoding, relevant is val is a string
+// - dir - true for indexOf, false for lastIndexOf
+function bidirectionalIndexOf (buffer, val, byteOffset, encoding, dir) {
+  // Empty buffer means no match
+  if (buffer.length === 0) return -1
+
+  // Normalize byteOffset
+  if (typeof byteOffset === 'string') {
+    encoding = byteOffset
+    byteOffset = 0
+  } else if (byteOffset > 0x7fffffff) {
+    byteOffset = 0x7fffffff
+  } else if (byteOffset < -0x80000000) {
+    byteOffset = -0x80000000
+  }
+  byteOffset = +byteOffset  // Coerce to Number.
+  if (isNaN(byteOffset)) {
+    // byteOffset: it it's undefined, null, NaN, "foo", etc, search whole buffer
+    byteOffset = dir ? 0 : (buffer.length - 1)
+  }
+
+  // Normalize byteOffset: negative offsets start from the end of the buffer
+  if (byteOffset < 0) byteOffset = buffer.length + byteOffset
+  if (byteOffset >= buffer.length) {
+    if (dir) return -1
+    else byteOffset = buffer.length - 1
+  } else if (byteOffset < 0) {
+    if (dir) byteOffset = 0
+    else return -1
+  }
+
+  // Normalize val
+  if (typeof val === 'string') {
+    val = Buffer.from(val, encoding)
+  }
+
+  // Finally, search either indexOf (if dir is true) or lastIndexOf
+  if (Buffer.isBuffer(val)) {
+    // Special case: looking for empty string/buffer always fails
+    if (val.length === 0) {
+      return -1
+    }
+    return arrayIndexOf(buffer, val, byteOffset, encoding, dir)
+  } else if (typeof val === 'number') {
+    val = val & 0xFF // Search for a byte value [0-255]
+    if (Buffer.TYPED_ARRAY_SUPPORT &&
+        typeof Uint8Array.prototype.indexOf === 'function') {
+      if (dir) {
+        return Uint8Array.prototype.indexOf.call(buffer, val, byteOffset)
+      } else {
+        return Uint8Array.prototype.lastIndexOf.call(buffer, val, byteOffset)
+      }
+    }
+    return arrayIndexOf(buffer, [ val ], byteOffset, encoding, dir)
+  }
+
+  throw new TypeError('val must be string, number or Buffer')
+}
+
+function arrayIndexOf (arr, val, byteOffset, encoding, dir) {
+  var indexSize = 1
+  var arrLength = arr.length
+  var valLength = val.length
+
+  if (encoding !== undefined) {
+    encoding = String(encoding).toLowerCase()
+    if (encoding === 'ucs2' || encoding === 'ucs-2' ||
+        encoding === 'utf16le' || encoding === 'utf-16le') {
+      if (arr.length < 2 || val.length < 2) {
+        return -1
+      }
+      indexSize = 2
+      arrLength /= 2
+      valLength /= 2
+      byteOffset /= 2
+    }
+  }
+
+  function read (buf, i) {
+    if (indexSize === 1) {
+      return buf[i]
+    } else {
+      return buf.readUInt16BE(i * indexSize)
+    }
+  }
+
+  var i
+  if (dir) {
+    var foundIndex = -1
+    for (i = byteOffset; i < arrLength; i++) {
+      if (read(arr, i) === read(val, foundIndex === -1 ? 0 : i - foundIndex)) {
+        if (foundIndex === -1) foundIndex = i
+        if (i - foundIndex + 1 === valLength) return foundIndex * indexSize
+      } else {
+        if (foundIndex !== -1) i -= i - foundIndex
+        foundIndex = -1
+      }
+    }
+  } else {
+    if (byteOffset + valLength > arrLength) byteOffset = arrLength - valLength
+    for (i = byteOffset; i >= 0; i--) {
+      var found = true
+      for (var j = 0; j < valLength; j++) {
+        if (read(arr, i + j) !== read(val, j)) {
+          found = false
+          break
+        }
+      }
+      if (found) return i
+    }
+  }
+
+  return -1
+}
+
+Buffer.prototype.includes = function includes (val, byteOffset, encoding) {
+  return this.indexOf(val, byteOffset, encoding) !== -1
+}
+
+Buffer.prototype.indexOf = function indexOf (val, byteOffset, encoding) {
+  return bidirectionalIndexOf(this, val, byteOffset, encoding, true)
+}
+
+Buffer.prototype.lastIndexOf = function lastIndexOf (val, byteOffset, encoding) {
+  return bidirectionalIndexOf(this, val, byteOffset, encoding, false)
+}
+
+function hexWrite (buf, string, offset, length) {
+  offset = Number(offset) || 0
+  var remaining = buf.length - offset
+  if (!length) {
+    length = remaining
+  } else {
+    length = Number(length)
+    if (length > remaining) {
+      length = remaining
+    }
+  }
+
+  // must be an even number of digits
+  var strLen = string.length
+  if (strLen % 2 !== 0) throw new TypeError('Invalid hex string')
+
+  if (length > strLen / 2) {
+    length = strLen / 2
+  }
+  for (var i = 0; i < length; ++i) {
+    var parsed = parseInt(string.substr(i * 2, 2), 16)
+    if (isNaN(parsed)) return i
+    buf[offset + i] = parsed
+  }
+  return i
+}
+
+function utf8Write (buf, string, offset, length) {
+  return blitBuffer(utf8ToBytes(string, buf.length - offset), buf, offset, length)
+}
+
+function asciiWrite (buf, string, offset, length) {
+  return blitBuffer(asciiToBytes(string), buf, offset, length)
+}
+
+function latin1Write (buf, string, offset, length) {
+  return asciiWrite(buf, string, offset, length)
+}
+
+function base64Write (buf, string, offset, length) {
+  return blitBuffer(base64ToBytes(string), buf, offset, length)
+}
+
+function ucs2Write (buf, string, offset, length) {
+  return blitBuffer(utf16leToBytes(string, buf.length - offset), buf, offset, length)
+}
+
+Buffer.prototype.write = function write (string, offset, length, encoding) {
+  // Buffer#write(string)
+  if (offset === undefined) {
+    encoding = 'utf8'
+    length = this.length
+    offset = 0
+  // Buffer#write(string, encoding)
+  } else if (length === undefined && typeof offset === 'string') {
+    encoding = offset
+    length = this.length
+    offset = 0
+  // Buffer#write(string, offset[, length][, encoding])
+  } else if (isFinite(offset)) {
+    offset = offset | 0
+    if (isFinite(length)) {
+      length = length | 0
+      if (encoding === undefined) encoding = 'utf8'
+    } else {
+      encoding = length
+      length = undefined
+    }
+  // legacy write(string, encoding, offset, length) - remove in v0.13
+  } else {
+    throw new Error(
+      'Buffer.write(string, encoding, offset[, length]) is no longer supported'
+    )
+  }
+
+  var remaining = this.length - offset
+  if (length === undefined || length > remaining) length = remaining
+
+  if ((string.length > 0 && (length < 0 || offset < 0)) || offset > this.length) {
+    throw new RangeError('Attempt to write outside buffer bounds')
+  }
+
+  if (!encoding) encoding = 'utf8'
+
+  var loweredCase = false
+  for (;;) {
+    switch (encoding) {
+      case 'hex':
+        return hexWrite(this, string, offset, length)
+
+      case 'utf8':
+      case 'utf-8':
+        return utf8Write(this, string, offset, length)
+
+      case 'ascii':
+        return asciiWrite(this, string, offset, length)
+
+      case 'latin1':
+      case 'binary':
+        return latin1Write(this, string, offset, length)
+
+      case 'base64':
+        // Warning: maxLength not taken into account in base64Write
+        return base64Write(this, string, offset, length)
+
+      case 'ucs2':
+      case 'ucs-2':
+      case 'utf16le':
+      case 'utf-16le':
+        return ucs2Write(this, string, offset, length)
+
+      default:
+        if (loweredCase) throw new TypeError('Unknown encoding: ' + encoding)
+        encoding = ('' + encoding).toLowerCase()
+        loweredCase = true
+    }
+  }
+}
+
+Buffer.prototype.toJSON = function toJSON () {
+  return {
+    type: 'Buffer',
+    data: Array.prototype.slice.call(this._arr || this, 0)
+  }
+}
+
+function base64Slice (buf, start, end) {
+  if (start === 0 && end === buf.length) {
+    return base64.fromByteArray(buf)
+  } else {
+    return base64.fromByteArray(buf.slice(start, end))
+  }
+}
+
+function utf8Slice (buf, start, end) {
+  end = Math.min(buf.length, end)
+  var res = []
+
+  var i = start
+  while (i < end) {
+    var firstByte = buf[i]
+    var codePoint = null
+    var bytesPerSequence = (firstByte > 0xEF) ? 4
+      : (firstByte > 0xDF) ? 3
+      : (firstByte > 0xBF) ? 2
+      : 1
+
+    if (i + bytesPerSequence <= end) {
+      var secondByte, thirdByte, fourthByte, tempCodePoint
+
+      switch (bytesPerSequence) {
+        case 1:
+          if (firstByte < 0x80) {
+            codePoint = firstByte
+          }
+          break
+        case 2:
+          secondByte = buf[i + 1]
+          if ((secondByte & 0xC0) === 0x80) {
+            tempCodePoint = (firstByte & 0x1F) << 0x6 | (secondByte & 0x3F)
+            if (tempCodePoint > 0x7F) {
+              codePoint = tempCodePoint
+            }
+          }
+          break
+        case 3:
+          secondByte = buf[i + 1]
+          thirdByte = buf[i + 2]
+          if ((secondByte & 0xC0) === 0x80 && (thirdByte & 0xC0) === 0x80) {
+            tempCodePoint = (firstByte & 0xF) << 0xC | (secondByte & 0x3F) << 0x6 | (thirdByte & 0x3F)
+            if (tempCodePoint > 0x7FF && (tempCodePoint < 0xD800 || tempCodePoint > 0xDFFF)) {
+              codePoint = tempCodePoint
+            }
+          }
+          break
+        case 4:
+          secondByte = buf[i + 1]
+          thirdByte = buf[i + 2]
+          fourthByte = buf[i + 3]
+          if ((secondByte & 0xC0) === 0x80 && (thirdByte & 0xC0) === 0x80 && (fourthByte & 0xC0) === 0x80) {
+            tempCodePoint = (firstByte & 0xF) << 0x12 | (secondByte & 0x3F) << 0xC | (thirdByte & 0x3F) << 0x6 | (fourthByte & 0x3F)
+            if (tempCodePoint > 0xFFFF && tempCodePoint < 0x110000) {
+              codePoint = tempCodePoint
+            }
+          }
+      }
+    }
+
+    if (codePoint === null) {
+      // we did not generate a valid codePoint so insert a
+      // replacement char (U+FFFD) and advance only 1 byte
+      codePoint = 0xFFFD
+      bytesPerSequence = 1
+    } else if (codePoint > 0xFFFF) {
+      // encode to utf16 (surrogate pair dance)
+      codePoint -= 0x10000
+      res.push(codePoint >>> 10 & 0x3FF | 0xD800)
+      codePoint = 0xDC00 | codePoint & 0x3FF
+    }
+
+    res.push(codePoint)
+    i += bytesPerSequence
+  }
+
+  return decodeCodePointsArray(res)
+}
+
+// Based on http://stackoverflow.com/a/22747272/680742, the browser with
+// the lowest limit is Chrome, with 0x10000 args.
+// We go 1 magnitude less, for safety
+var MAX_ARGUMENTS_LENGTH = 0x1000
+
+function decodeCodePointsArray (codePoints) {
+  var len = codePoints.length
+  if (len <= MAX_ARGUMENTS_LENGTH) {
+    return String.fromCharCode.apply(String, codePoints) // avoid extra slice()
+  }
+
+  // Decode in chunks to avoid "call stack size exceeded".
+  var res = ''
+  var i = 0
+  while (i < len) {
+    res += String.fromCharCode.apply(
+      String,
+      codePoints.slice(i, i += MAX_ARGUMENTS_LENGTH)
+    )
+  }
+  return res
+}
+
+function asciiSlice (buf, start, end) {
+  var ret = ''
+  end = Math.min(buf.length, end)
+
+  for (var i = start; i < end; ++i) {
+    ret += String.fromCharCode(buf[i] & 0x7F)
+  }
+  return ret
+}
+
+function latin1Slice (buf, start, end) {
+  var ret = ''
+  end = Math.min(buf.length, end)
+
+  for (var i = start; i < end; ++i) {
+    ret += String.fromCharCode(buf[i])
+  }
+  return ret
+}
+
+function hexSlice (buf, start, end) {
+  var len = buf.length
+
+  if (!start || start < 0) start = 0
+  if (!end || end < 0 || end > len) end = len
+
+  var out = ''
+  for (var i = start; i < end; ++i) {
+    out += toHex(buf[i])
+  }
+  return out
+}
+
+function utf16leSlice (buf, start, end) {
+  var bytes = buf.slice(start, end)
+  var res = ''
+  for (var i = 0; i < bytes.length; i += 2) {
+    res += String.fromCharCode(bytes[i] + bytes[i + 1] * 256)
+  }
+  return res
+}
+
+Buffer.prototype.slice = function slice (start, end) {
+  var len = this.length
+  start = ~~start
+  end = end === undefined ? len : ~~end
+
+  if (start < 0) {
+    start += len
+    if (start < 0) start = 0
+  } else if (start > len) {
+    start = len
+  }
+
+  if (end < 0) {
+    end += len
+    if (end < 0) end = 0
+  } else if (end > len) {
+    end = len
+  }
+
+  if (end < start) end = start
+
+  var newBuf
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    newBuf = this.subarray(start, end)
+    newBuf.__proto__ = Buffer.prototype
+  } else {
+    var sliceLen = end - start
+    newBuf = new Buffer(sliceLen, undefined)
+    for (var i = 0; i < sliceLen; ++i) {
+      newBuf[i] = this[i + start]
+    }
+  }
+
+  return newBuf
+}
+
+/*
+ * Need to make sure that buffer isn't trying to write out of bounds.
+ */
+function checkOffset (offset, ext, length) {
+  if ((offset % 1) !== 0 || offset < 0) throw new RangeError('offset is not uint')
+  if (offset + ext > length) throw new RangeError('Trying to access beyond buffer length')
+}
+
+Buffer.prototype.readUIntLE = function readUIntLE (offset, byteLength, noAssert) {
+  offset = offset | 0
+  byteLength = byteLength | 0
+  if (!noAssert) checkOffset(offset, byteLength, this.length)
+
+  var val = this[offset]
+  var mul = 1
+  var i = 0
+  while (++i < byteLength && (mul *= 0x100)) {
+    val += this[offset + i] * mul
+  }
+
+  return val
+}
+
+Buffer.prototype.readUIntBE = function readUIntBE (offset, byteLength, noAssert) {
+  offset = offset | 0
+  byteLength = byteLength | 0
+  if (!noAssert) {
+    checkOffset(offset, byteLength, this.length)
+  }
+
+  var val = this[offset + --byteLength]
+  var mul = 1
+  while (byteLength > 0 && (mul *= 0x100)) {
+    val += this[offset + --byteLength] * mul
+  }
+
+  return val
+}
+
+Buffer.prototype.readUInt8 = function readUInt8 (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 1, this.length)
+  return this[offset]
+}
+
+Buffer.prototype.readUInt16LE = function readUInt16LE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 2, this.length)
+  return this[offset] | (this[offset + 1] << 8)
+}
+
+Buffer.prototype.readUInt16BE = function readUInt16BE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 2, this.length)
+  return (this[offset] << 8) | this[offset + 1]
+}
+
+Buffer.prototype.readUInt32LE = function readUInt32LE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
+
+  return ((this[offset]) |
+      (this[offset + 1] << 8) |
+      (this[offset + 2] << 16)) +
+      (this[offset + 3] * 0x1000000)
+}
+
+Buffer.prototype.readUInt32BE = function readUInt32BE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
+
+  return (this[offset] * 0x1000000) +
+    ((this[offset + 1] << 16) |
+    (this[offset + 2] << 8) |
+    this[offset + 3])
+}
+
+Buffer.prototype.readIntLE = function readIntLE (offset, byteLength, noAssert) {
+  offset = offset | 0
+  byteLength = byteLength | 0
+  if (!noAssert) checkOffset(offset, byteLength, this.length)
+
+  var val = this[offset]
+  var mul = 1
+  var i = 0
+  while (++i < byteLength && (mul *= 0x100)) {
+    val += this[offset + i] * mul
+  }
+  mul *= 0x80
+
+  if (val >= mul) val -= Math.pow(2, 8 * byteLength)
+
+  return val
+}
+
+Buffer.prototype.readIntBE = function readIntBE (offset, byteLength, noAssert) {
+  offset = offset | 0
+  byteLength = byteLength | 0
+  if (!noAssert) checkOffset(offset, byteLength, this.length)
+
+  var i = byteLength
+  var mul = 1
+  var val = this[offset + --i]
+  while (i > 0 && (mul *= 0x100)) {
+    val += this[offset + --i] * mul
+  }
+  mul *= 0x80
+
+  if (val >= mul) val -= Math.pow(2, 8 * byteLength)
+
+  return val
+}
+
+Buffer.prototype.readInt8 = function readInt8 (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 1, this.length)
+  if (!(this[offset] & 0x80)) return (this[offset])
+  return ((0xff - this[offset] + 1) * -1)
+}
+
+Buffer.prototype.readInt16LE = function readInt16LE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 2, this.length)
+  var val = this[offset] | (this[offset + 1] << 8)
+  return (val & 0x8000) ? val | 0xFFFF0000 : val
+}
+
+Buffer.prototype.readInt16BE = function readInt16BE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 2, this.length)
+  var val = this[offset + 1] | (this[offset] << 8)
+  return (val & 0x8000) ? val | 0xFFFF0000 : val
+}
+
+Buffer.prototype.readInt32LE = function readInt32LE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
+
+  return (this[offset]) |
+    (this[offset + 1] << 8) |
+    (this[offset + 2] << 16) |
+    (this[offset + 3] << 24)
+}
+
+Buffer.prototype.readInt32BE = function readInt32BE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
+
+  return (this[offset] << 24) |
+    (this[offset + 1] << 16) |
+    (this[offset + 2] << 8) |
+    (this[offset + 3])
+}
+
+Buffer.prototype.readFloatLE = function readFloatLE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
+  return ieee754.read(this, offset, true, 23, 4)
+}
+
+Buffer.prototype.readFloatBE = function readFloatBE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
+  return ieee754.read(this, offset, false, 23, 4)
+}
+
+Buffer.prototype.readDoubleLE = function readDoubleLE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 8, this.length)
+  return ieee754.read(this, offset, true, 52, 8)
+}
+
+Buffer.prototype.readDoubleBE = function readDoubleBE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 8, this.length)
+  return ieee754.read(this, offset, false, 52, 8)
+}
+
+function checkInt (buf, value, offset, ext, max, min) {
+  if (!Buffer.isBuffer(buf)) throw new TypeError('"buffer" argument must be a Buffer instance')
+  if (value > max || value < min) throw new RangeError('"value" argument is out of bounds')
+  if (offset + ext > buf.length) throw new RangeError('Index out of range')
+}
+
+Buffer.prototype.writeUIntLE = function writeUIntLE (value, offset, byteLength, noAssert) {
+  value = +value
+  offset = offset | 0
+  byteLength = byteLength | 0
+  if (!noAssert) {
+    var maxBytes = Math.pow(2, 8 * byteLength) - 1
+    checkInt(this, value, offset, byteLength, maxBytes, 0)
+  }
+
+  var mul = 1
+  var i = 0
+  this[offset] = value & 0xFF
+  while (++i < byteLength && (mul *= 0x100)) {
+    this[offset + i] = (value / mul) & 0xFF
+  }
+
+  return offset + byteLength
+}
+
+Buffer.prototype.writeUIntBE = function writeUIntBE (value, offset, byteLength, noAssert) {
+  value = +value
+  offset = offset | 0
+  byteLength = byteLength | 0
+  if (!noAssert) {
+    var maxBytes = Math.pow(2, 8 * byteLength) - 1
+    checkInt(this, value, offset, byteLength, maxBytes, 0)
+  }
+
+  var i = byteLength - 1
+  var mul = 1
+  this[offset + i] = value & 0xFF
+  while (--i >= 0 && (mul *= 0x100)) {
+    this[offset + i] = (value / mul) & 0xFF
+  }
+
+  return offset + byteLength
+}
+
+Buffer.prototype.writeUInt8 = function writeUInt8 (value, offset, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) checkInt(this, value, offset, 1, 0xff, 0)
+  if (!Buffer.TYPED_ARRAY_SUPPORT) value = Math.floor(value)
+  this[offset] = (value & 0xff)
+  return offset + 1
+}
+
+function objectWriteUInt16 (buf, value, offset, littleEndian) {
+  if (value < 0) value = 0xffff + value + 1
+  for (var i = 0, j = Math.min(buf.length - offset, 2); i < j; ++i) {
+    buf[offset + i] = (value & (0xff << (8 * (littleEndian ? i : 1 - i)))) >>>
+      (littleEndian ? i : 1 - i) * 8
+  }
+}
+
+Buffer.prototype.writeUInt16LE = function writeUInt16LE (value, offset, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) checkInt(this, value, offset, 2, 0xffff, 0)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value & 0xff)
+    this[offset + 1] = (value >>> 8)
+  } else {
+    objectWriteUInt16(this, value, offset, true)
+  }
+  return offset + 2
+}
+
+Buffer.prototype.writeUInt16BE = function writeUInt16BE (value, offset, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) checkInt(this, value, offset, 2, 0xffff, 0)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value >>> 8)
+    this[offset + 1] = (value & 0xff)
+  } else {
+    objectWriteUInt16(this, value, offset, false)
+  }
+  return offset + 2
+}
+
+function objectWriteUInt32 (buf, value, offset, littleEndian) {
+  if (value < 0) value = 0xffffffff + value + 1
+  for (var i = 0, j = Math.min(buf.length - offset, 4); i < j; ++i) {
+    buf[offset + i] = (value >>> (littleEndian ? i : 3 - i) * 8) & 0xff
+  }
+}
+
+Buffer.prototype.writeUInt32LE = function writeUInt32LE (value, offset, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) checkInt(this, value, offset, 4, 0xffffffff, 0)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset + 3] = (value >>> 24)
+    this[offset + 2] = (value >>> 16)
+    this[offset + 1] = (value >>> 8)
+    this[offset] = (value & 0xff)
+  } else {
+    objectWriteUInt32(this, value, offset, true)
+  }
+  return offset + 4
+}
+
+Buffer.prototype.writeUInt32BE = function writeUInt32BE (value, offset, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) checkInt(this, value, offset, 4, 0xffffffff, 0)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value >>> 24)
+    this[offset + 1] = (value >>> 16)
+    this[offset + 2] = (value >>> 8)
+    this[offset + 3] = (value & 0xff)
+  } else {
+    objectWriteUInt32(this, value, offset, false)
+  }
+  return offset + 4
+}
+
+Buffer.prototype.writeIntLE = function writeIntLE (value, offset, byteLength, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) {
+    var limit = Math.pow(2, 8 * byteLength - 1)
+
+    checkInt(this, value, offset, byteLength, limit - 1, -limit)
+  }
+
+  var i = 0
+  var mul = 1
+  var sub = 0
+  this[offset] = value & 0xFF
+  while (++i < byteLength && (mul *= 0x100)) {
+    if (value < 0 && sub === 0 && this[offset + i - 1] !== 0) {
+      sub = 1
+    }
+    this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
+  }
+
+  return offset + byteLength
+}
+
+Buffer.prototype.writeIntBE = function writeIntBE (value, offset, byteLength, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) {
+    var limit = Math.pow(2, 8 * byteLength - 1)
+
+    checkInt(this, value, offset, byteLength, limit - 1, -limit)
+  }
+
+  var i = byteLength - 1
+  var mul = 1
+  var sub = 0
+  this[offset + i] = value & 0xFF
+  while (--i >= 0 && (mul *= 0x100)) {
+    if (value < 0 && sub === 0 && this[offset + i + 1] !== 0) {
+      sub = 1
+    }
+    this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
+  }
+
+  return offset + byteLength
+}
+
+Buffer.prototype.writeInt8 = function writeInt8 (value, offset, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) checkInt(this, value, offset, 1, 0x7f, -0x80)
+  if (!Buffer.TYPED_ARRAY_SUPPORT) value = Math.floor(value)
+  if (value < 0) value = 0xff + value + 1
+  this[offset] = (value & 0xff)
+  return offset + 1
+}
+
+Buffer.prototype.writeInt16LE = function writeInt16LE (value, offset, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) checkInt(this, value, offset, 2, 0x7fff, -0x8000)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value & 0xff)
+    this[offset + 1] = (value >>> 8)
+  } else {
+    objectWriteUInt16(this, value, offset, true)
+  }
+  return offset + 2
+}
+
+Buffer.prototype.writeInt16BE = function writeInt16BE (value, offset, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) checkInt(this, value, offset, 2, 0x7fff, -0x8000)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value >>> 8)
+    this[offset + 1] = (value & 0xff)
+  } else {
+    objectWriteUInt16(this, value, offset, false)
+  }
+  return offset + 2
+}
+
+Buffer.prototype.writeInt32LE = function writeInt32LE (value, offset, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value & 0xff)
+    this[offset + 1] = (value >>> 8)
+    this[offset + 2] = (value >>> 16)
+    this[offset + 3] = (value >>> 24)
+  } else {
+    objectWriteUInt32(this, value, offset, true)
+  }
+  return offset + 4
+}
+
+Buffer.prototype.writeInt32BE = function writeInt32BE (value, offset, noAssert) {
+  value = +value
+  offset = offset | 0
+  if (!noAssert) checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
+  if (value < 0) value = 0xffffffff + value + 1
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value >>> 24)
+    this[offset + 1] = (value >>> 16)
+    this[offset + 2] = (value >>> 8)
+    this[offset + 3] = (value & 0xff)
+  } else {
+    objectWriteUInt32(this, value, offset, false)
+  }
+  return offset + 4
+}
+
+function checkIEEE754 (buf, value, offset, ext, max, min) {
+  if (offset + ext > buf.length) throw new RangeError('Index out of range')
+  if (offset < 0) throw new RangeError('Index out of range')
+}
+
+function writeFloat (buf, value, offset, littleEndian, noAssert) {
+  if (!noAssert) {
+    checkIEEE754(buf, value, offset, 4, 3.4028234663852886e+38, -3.4028234663852886e+38)
+  }
+  ieee754.write(buf, value, offset, littleEndian, 23, 4)
+  return offset + 4
+}
+
+Buffer.prototype.writeFloatLE = function writeFloatLE (value, offset, noAssert) {
+  return writeFloat(this, value, offset, true, noAssert)
+}
+
+Buffer.prototype.writeFloatBE = function writeFloatBE (value, offset, noAssert) {
+  return writeFloat(this, value, offset, false, noAssert)
+}
+
+function writeDouble (buf, value, offset, littleEndian, noAssert) {
+  if (!noAssert) {
+    checkIEEE754(buf, value, offset, 8, 1.7976931348623157E+308, -1.7976931348623157E+308)
+  }
+  ieee754.write(buf, value, offset, littleEndian, 52, 8)
+  return offset + 8
+}
+
+Buffer.prototype.writeDoubleLE = function writeDoubleLE (value, offset, noAssert) {
+  return writeDouble(this, value, offset, true, noAssert)
+}
+
+Buffer.prototype.writeDoubleBE = function writeDoubleBE (value, offset, noAssert) {
+  return writeDouble(this, value, offset, false, noAssert)
+}
+
+// copy(targetBuffer, targetStart=0, sourceStart=0, sourceEnd=buffer.length)
+Buffer.prototype.copy = function copy (target, targetStart, start, end) {
+  if (!start) start = 0
+  if (!end && end !== 0) end = this.length
+  if (targetStart >= target.length) targetStart = target.length
+  if (!targetStart) targetStart = 0
+  if (end > 0 && end < start) end = start
+
+  // Copy 0 bytes; we're done
+  if (end === start) return 0
+  if (target.length === 0 || this.length === 0) return 0
+
+  // Fatal error conditions
+  if (targetStart < 0) {
+    throw new RangeError('targetStart out of bounds')
+  }
+  if (start < 0 || start >= this.length) throw new RangeError('sourceStart out of bounds')
+  if (end < 0) throw new RangeError('sourceEnd out of bounds')
+
+  // Are we oob?
+  if (end > this.length) end = this.length
+  if (target.length - targetStart < end - start) {
+    end = target.length - targetStart + start
+  }
+
+  var len = end - start
+  var i
+
+  if (this === target && start < targetStart && targetStart < end) {
+    // descending copy from end
+    for (i = len - 1; i >= 0; --i) {
+      target[i + targetStart] = this[i + start]
+    }
+  } else if (len < 1000 || !Buffer.TYPED_ARRAY_SUPPORT) {
+    // ascending copy from start
+    for (i = 0; i < len; ++i) {
+      target[i + targetStart] = this[i + start]
+    }
+  } else {
+    Uint8Array.prototype.set.call(
+      target,
+      this.subarray(start, start + len),
+      targetStart
+    )
+  }
+
+  return len
+}
+
+// Usage:
+//    buffer.fill(number[, offset[, end]])
+//    buffer.fill(buffer[, offset[, end]])
+//    buffer.fill(string[, offset[, end]][, encoding])
+Buffer.prototype.fill = function fill (val, start, end, encoding) {
+  // Handle string cases:
+  if (typeof val === 'string') {
+    if (typeof start === 'string') {
+      encoding = start
+      start = 0
+      end = this.length
+    } else if (typeof end === 'string') {
+      encoding = end
+      end = this.length
+    }
+    if (val.length === 1) {
+      var code = val.charCodeAt(0)
+      if (code < 256) {
+        val = code
+      }
+    }
+    if (encoding !== undefined && typeof encoding !== 'string') {
+      throw new TypeError('encoding must be a string')
+    }
+    if (typeof encoding === 'string' && !Buffer.isEncoding(encoding)) {
+      throw new TypeError('Unknown encoding: ' + encoding)
+    }
+  } else if (typeof val === 'number') {
+    val = val & 255
+  }
+
+  // Invalid ranges are not set to a default, so can range check early.
+  if (start < 0 || this.length < start || this.length < end) {
+    throw new RangeError('Out of range index')
+  }
+
+  if (end <= start) {
+    return this
+  }
+
+  start = start >>> 0
+  end = end === undefined ? this.length : end >>> 0
+
+  if (!val) val = 0
+
+  var i
+  if (typeof val === 'number') {
+    for (i = start; i < end; ++i) {
+      this[i] = val
+    }
+  } else {
+    var bytes = Buffer.isBuffer(val)
+      ? val
+      : utf8ToBytes(new Buffer(val, encoding).toString())
+    var len = bytes.length
+    for (i = 0; i < end - start; ++i) {
+      this[i + start] = bytes[i % len]
+    }
+  }
+
+  return this
+}
+
+// HELPER FUNCTIONS
+// ================
+
+var INVALID_BASE64_RE = /[^+\/0-9A-Za-z-_]/g
+
+function base64clean (str) {
+  // Node strips out invalid characters like \n and \t from the string, base64-js does not
+  str = stringtrim(str).replace(INVALID_BASE64_RE, '')
+  // Node converts strings with length < 2 to ''
+  if (str.length < 2) return ''
+  // Node allows for non-padded base64 strings (missing trailing ===), base64-js does not
+  while (str.length % 4 !== 0) {
+    str = str + '='
+  }
+  return str
+}
+
+function stringtrim (str) {
+  if (str.trim) return str.trim()
+  return str.replace(/^\s+|\s+$/g, '')
+}
+
+function toHex (n) {
+  if (n < 16) return '0' + n.toString(16)
+  return n.toString(16)
+}
+
+function utf8ToBytes (string, units) {
+  units = units || Infinity
+  var codePoint
+  var length = string.length
+  var leadSurrogate = null
+  var bytes = []
+
+  for (var i = 0; i < length; ++i) {
+    codePoint = string.charCodeAt(i)
+
+    // is surrogate component
+    if (codePoint > 0xD7FF && codePoint < 0xE000) {
+      // last char was a lead
+      if (!leadSurrogate) {
+        // no lead yet
+        if (codePoint > 0xDBFF) {
+          // unexpected trail
+          if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
+          continue
+        } else if (i + 1 === length) {
+          // unpaired lead
+          if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
+          continue
+        }
+
+        // valid lead
+        leadSurrogate = codePoint
+
+        continue
+      }
+
+      // 2 leads in a row
+      if (codePoint < 0xDC00) {
+        if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
+        leadSurrogate = codePoint
+        continue
+      }
+
+      // valid surrogate pair
+      codePoint = (leadSurrogate - 0xD800 << 10 | codePoint - 0xDC00) + 0x10000
+    } else if (leadSurrogate) {
+      // valid bmp char, but last char was a lead
+      if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
+    }
+
+    leadSurrogate = null
+
+    // encode utf8
+    if (codePoint < 0x80) {
+      if ((units -= 1) < 0) break
+      bytes.push(codePoint)
+    } else if (codePoint < 0x800) {
+      if ((units -= 2) < 0) break
+      bytes.push(
+        codePoint >> 0x6 | 0xC0,
+        codePoint & 0x3F | 0x80
+      )
+    } else if (codePoint < 0x10000) {
+      if ((units -= 3) < 0) break
+      bytes.push(
+        codePoint >> 0xC | 0xE0,
+        codePoint >> 0x6 & 0x3F | 0x80,
+        codePoint & 0x3F | 0x80
+      )
+    } else if (codePoint < 0x110000) {
+      if ((units -= 4) < 0) break
+      bytes.push(
+        codePoint >> 0x12 | 0xF0,
+        codePoint >> 0xC & 0x3F | 0x80,
+        codePoint >> 0x6 & 0x3F | 0x80,
+        codePoint & 0x3F | 0x80
+      )
+    } else {
+      throw new Error('Invalid code point')
+    }
+  }
+
+  return bytes
+}
+
+function asciiToBytes (str) {
+  var byteArray = []
+  for (var i = 0; i < str.length; ++i) {
+    // Node's code seems to be doing this and not & 0x7F..
+    byteArray.push(str.charCodeAt(i) & 0xFF)
+  }
+  return byteArray
+}
+
+function utf16leToBytes (str, units) {
+  var c, hi, lo
+  var byteArray = []
+  for (var i = 0; i < str.length; ++i) {
+    if ((units -= 2) < 0) break
+
+    c = str.charCodeAt(i)
+    hi = c >> 8
+    lo = c % 256
+    byteArray.push(lo)
+    byteArray.push(hi)
+  }
+
+  return byteArray
+}
+
+function base64ToBytes (str) {
+  return base64.toByteArray(base64clean(str))
+}
+
+function blitBuffer (src, dst, offset, length) {
+  for (var i = 0; i < length; ++i) {
+    if ((i + offset >= dst.length) || (i >= src.length)) break
+    dst[i + offset] = src[i]
+  }
+  return i
+}
+
+function isnan (val) {
+  return val !== val // eslint-disable-line no-self-compare
+}
+
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../webpack/buildin/global.js */ "./node_modules/webpack/buildin/global.js")))
 
 /***/ }),
 
@@ -23180,6 +21824,18 @@ module.exports = __webpack_require__(/*! ../modules/_core */ "./node_modules/cor
 
 /***/ }),
 
+/***/ "./node_modules/expose-loader/index.js?Tin!./index.js-exposed":
+/*!***********************************************************!*\
+  !*** ./node_modules/expose-loader?Tin!./index.js-exposed ***!
+  \***********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+/* WEBPACK VAR INJECTION */(function(global) {module.exports = global["Tin"] = __webpack_require__(/*! -!./node_modules/babel-loader/lib!./index.js */ "./node_modules/babel-loader/lib/index.js!./index.js");
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./node_modules/webpack/buildin/global.js */ "./node_modules/webpack/buildin/global.js")))
+
+/***/ }),
+
 /***/ "./node_modules/geojson-rbush/index.js":
 /*!*********************************************!*\
   !*** ./node_modules/geojson-rbush/index.js ***!
@@ -24149,6 +22805,117 @@ function multiSelect(arr, left, right, n, compare) {
 
 /***/ }),
 
+/***/ "./node_modules/ieee754/index.js":
+/*!***************************************!*\
+  !*** ./node_modules/ieee754/index.js ***!
+  \***************************************/
+/*! no static exports found */
+/***/ (function(module, exports) {
+
+exports.read = function (buffer, offset, isLE, mLen, nBytes) {
+  var e, m
+  var eLen = (nBytes * 8) - mLen - 1
+  var eMax = (1 << eLen) - 1
+  var eBias = eMax >> 1
+  var nBits = -7
+  var i = isLE ? (nBytes - 1) : 0
+  var d = isLE ? -1 : 1
+  var s = buffer[offset + i]
+
+  i += d
+
+  e = s & ((1 << (-nBits)) - 1)
+  s >>= (-nBits)
+  nBits += eLen
+  for (; nBits > 0; e = (e * 256) + buffer[offset + i], i += d, nBits -= 8) {}
+
+  m = e & ((1 << (-nBits)) - 1)
+  e >>= (-nBits)
+  nBits += mLen
+  for (; nBits > 0; m = (m * 256) + buffer[offset + i], i += d, nBits -= 8) {}
+
+  if (e === 0) {
+    e = 1 - eBias
+  } else if (e === eMax) {
+    return m ? NaN : ((s ? -1 : 1) * Infinity)
+  } else {
+    m = m + Math.pow(2, mLen)
+    e = e - eBias
+  }
+  return (s ? -1 : 1) * m * Math.pow(2, e - mLen)
+}
+
+exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
+  var e, m, c
+  var eLen = (nBytes * 8) - mLen - 1
+  var eMax = (1 << eLen) - 1
+  var eBias = eMax >> 1
+  var rt = (mLen === 23 ? Math.pow(2, -24) - Math.pow(2, -77) : 0)
+  var i = isLE ? 0 : (nBytes - 1)
+  var d = isLE ? 1 : -1
+  var s = value < 0 || (value === 0 && 1 / value < 0) ? 1 : 0
+
+  value = Math.abs(value)
+
+  if (isNaN(value) || value === Infinity) {
+    m = isNaN(value) ? 1 : 0
+    e = eMax
+  } else {
+    e = Math.floor(Math.log(value) / Math.LN2)
+    if (value * (c = Math.pow(2, -e)) < 1) {
+      e--
+      c *= 2
+    }
+    if (e + eBias >= 1) {
+      value += rt / c
+    } else {
+      value += rt * Math.pow(2, 1 - eBias)
+    }
+    if (value * c >= 2) {
+      e++
+      c /= 2
+    }
+
+    if (e + eBias >= eMax) {
+      m = 0
+      e = eMax
+    } else if (e + eBias >= 1) {
+      m = ((value * c) - 1) * Math.pow(2, mLen)
+      e = e + eBias
+    } else {
+      m = value * Math.pow(2, eBias - 1) * Math.pow(2, mLen)
+      e = 0
+    }
+  }
+
+  for (; mLen >= 8; buffer[offset + i] = m & 0xff, i += d, m /= 256, mLen -= 8) {}
+
+  e = (e << mLen) | m
+  eLen += mLen
+  for (; eLen > 0; buffer[offset + i] = e & 0xff, i += d, e /= 256, eLen -= 8) {}
+
+  buffer[offset + i - d] |= s * 128
+}
+
+
+/***/ }),
+
+/***/ "./node_modules/isarray/index.js":
+/*!***************************************!*\
+  !*** ./node_modules/isarray/index.js ***!
+  \***************************************/
+/*! no static exports found */
+/***/ (function(module, exports) {
+
+var toString = {}.toString;
+
+module.exports = Array.isArray || function (arr) {
+  return toString.call(arr) == '[object Array]';
+};
+
+
+/***/ }),
+
 /***/ "./node_modules/monotone-convex-hull-2d/index.js":
 /*!*******************************************************!*\
   !*** ./node_modules/monotone-convex-hull-2d/index.js ***!
@@ -24266,6 +23033,18 @@ module.exports = function (point, vs) {
     
     return inside;
 };
+
+
+/***/ }),
+
+/***/ "./node_modules/rbush/rbush.min.js":
+/*!*****************************************!*\
+  !*** ./node_modules/rbush/rbush.min.js ***!
+  \*****************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+!function(t,i){ true?module.exports=i():undefined}(this,function(){"use strict";function t(t,r,e,a,h){!function t(n,r,e,a,h){for(;a>e;){if(a-e>600){var o=a-e+1,s=r-e+1,l=Math.log(o),f=.5*Math.exp(2*l/3),u=.5*Math.sqrt(l*f*(o-f)/o)*(s-o/2<0?-1:1),m=Math.max(e,Math.floor(r-s*f/o+u)),c=Math.min(a,Math.floor(r+(o-s)*f/o+u));t(n,r,m,c,h)}var p=n[r],d=e,x=a;for(i(n,e,r),h(n[a],p)>0&&i(n,e,a);d<x;){for(i(n,d,x),d++,x--;h(n[d],p)<0;)d++;for(;h(n[x],p)>0;)x--}0===h(n[e],p)?i(n,e,x):i(n,++x,a),x<=r&&(e=x+1),r<=x&&(a=x-1)}}(t,r,e||0,a||t.length-1,h||n)}function i(t,i,n){var r=t[i];t[i]=t[n],t[n]=r}function n(t,i){return t<i?-1:t>i?1:0}var r=function(t){void 0===t&&(t=9),this._maxEntries=Math.max(4,t),this._minEntries=Math.max(2,Math.ceil(.4*this._maxEntries)),this.clear()};function e(t,i,n){if(!n)return i.indexOf(t);for(var r=0;r<i.length;r++)if(n(t,i[r]))return r;return-1}function a(t,i){h(t,0,t.children.length,i,t)}function h(t,i,n,r,e){e||(e=p(null)),e.minX=1/0,e.minY=1/0,e.maxX=-1/0,e.maxY=-1/0;for(var a=i;a<n;a++){var h=t.children[a];o(e,t.leaf?r(h):h)}return e}function o(t,i){return t.minX=Math.min(t.minX,i.minX),t.minY=Math.min(t.minY,i.minY),t.maxX=Math.max(t.maxX,i.maxX),t.maxY=Math.max(t.maxY,i.maxY),t}function s(t,i){return t.minX-i.minX}function l(t,i){return t.minY-i.minY}function f(t){return(t.maxX-t.minX)*(t.maxY-t.minY)}function u(t){return t.maxX-t.minX+(t.maxY-t.minY)}function m(t,i){return t.minX<=i.minX&&t.minY<=i.minY&&i.maxX<=t.maxX&&i.maxY<=t.maxY}function c(t,i){return i.minX<=t.maxX&&i.minY<=t.maxY&&i.maxX>=t.minX&&i.maxY>=t.minY}function p(t){return{children:t,height:1,leaf:!0,minX:1/0,minY:1/0,maxX:-1/0,maxY:-1/0}}function d(i,n,r,e,a){for(var h=[n,r];h.length;)if(!((r=h.pop())-(n=h.pop())<=e)){var o=n+Math.ceil((r-n)/e/2)*e;t(i,o,n,r,a),h.push(n,o,o,r)}}return r.prototype.all=function(){return this._all(this.data,[])},r.prototype.search=function(t){var i=this.data,n=[];if(!c(t,i))return n;for(var r=this.toBBox,e=[];i;){for(var a=0;a<i.children.length;a++){var h=i.children[a],o=i.leaf?r(h):h;c(t,o)&&(i.leaf?n.push(h):m(t,o)?this._all(h,n):e.push(h))}i=e.pop()}return n},r.prototype.collides=function(t){var i=this.data;if(!c(t,i))return!1;for(var n=[];i;){for(var r=0;r<i.children.length;r++){var e=i.children[r],a=i.leaf?this.toBBox(e):e;if(c(t,a)){if(i.leaf||m(t,a))return!0;n.push(e)}}i=n.pop()}return!1},r.prototype.load=function(t){if(!t||!t.length)return this;if(t.length<this._minEntries){for(var i=0;i<t.length;i++)this.insert(t[i]);return this}var n=this._build(t.slice(),0,t.length-1,0);if(this.data.children.length)if(this.data.height===n.height)this._splitRoot(this.data,n);else{if(this.data.height<n.height){var r=this.data;this.data=n,n=r}this._insert(n,this.data.height-n.height-1,!0)}else this.data=n;return this},r.prototype.insert=function(t){return t&&this._insert(t,this.data.height-1),this},r.prototype.clear=function(){return this.data=p([]),this},r.prototype.remove=function(t,i){if(!t)return this;for(var n,r,a,h=this.data,o=this.toBBox(t),s=[],l=[];h||s.length;){if(h||(h=s.pop(),r=s[s.length-1],n=l.pop(),a=!0),h.leaf){var f=e(t,h.children,i);if(-1!==f)return h.children.splice(f,1),s.push(h),this._condense(s),this}a||h.leaf||!m(h,o)?r?(n++,h=r.children[n],a=!1):h=null:(s.push(h),l.push(n),n=0,r=h,h=h.children[0])}return this},r.prototype.toBBox=function(t){return t},r.prototype.compareMinX=function(t,i){return t.minX-i.minX},r.prototype.compareMinY=function(t,i){return t.minY-i.minY},r.prototype.toJSON=function(){return this.data},r.prototype.fromJSON=function(t){return this.data=t,this},r.prototype._all=function(t,i){for(var n=[];t;)t.leaf?i.push.apply(i,t.children):n.push.apply(n,t.children),t=n.pop();return i},r.prototype._build=function(t,i,n,r){var e,h=n-i+1,o=this._maxEntries;if(h<=o)return a(e=p(t.slice(i,n+1)),this.toBBox),e;r||(r=Math.ceil(Math.log(h)/Math.log(o)),o=Math.ceil(h/Math.pow(o,r-1))),(e=p([])).leaf=!1,e.height=r;var s=Math.ceil(h/o),l=s*Math.ceil(Math.sqrt(o));d(t,i,n,l,this.compareMinX);for(var f=i;f<=n;f+=l){var u=Math.min(f+l-1,n);d(t,f,u,s,this.compareMinY);for(var m=f;m<=u;m+=s){var c=Math.min(m+s-1,u);e.children.push(this._build(t,m,c,r-1))}}return a(e,this.toBBox),e},r.prototype._chooseSubtree=function(t,i,n,r){for(;r.push(i),!i.leaf&&r.length-1!==n;){for(var e=1/0,a=1/0,h=void 0,o=0;o<i.children.length;o++){var s=i.children[o],l=f(s),u=(m=t,c=s,(Math.max(c.maxX,m.maxX)-Math.min(c.minX,m.minX))*(Math.max(c.maxY,m.maxY)-Math.min(c.minY,m.minY))-l);u<a?(a=u,e=l<e?l:e,h=s):u===a&&l<e&&(e=l,h=s)}i=h||i.children[0]}var m,c;return i},r.prototype._insert=function(t,i,n){var r=n?t:this.toBBox(t),e=[],a=this._chooseSubtree(r,this.data,i,e);for(a.children.push(t),o(a,r);i>=0&&e[i].children.length>this._maxEntries;)this._split(e,i),i--;this._adjustParentBBoxes(r,e,i)},r.prototype._split=function(t,i){var n=t[i],r=n.children.length,e=this._minEntries;this._chooseSplitAxis(n,e,r);var h=this._chooseSplitIndex(n,e,r),o=p(n.children.splice(h,n.children.length-h));o.height=n.height,o.leaf=n.leaf,a(n,this.toBBox),a(o,this.toBBox),i?t[i-1].children.push(o):this._splitRoot(n,o)},r.prototype._splitRoot=function(t,i){this.data=p([t,i]),this.data.height=t.height+1,this.data.leaf=!1,a(this.data,this.toBBox)},r.prototype._chooseSplitIndex=function(t,i,n){for(var r,e,a,o,s,l,u,m=1/0,c=1/0,p=i;p<=n-i;p++){var d=h(t,0,p,this.toBBox),x=h(t,p,n,this.toBBox),v=(e=d,a=x,o=void 0,s=void 0,l=void 0,u=void 0,o=Math.max(e.minX,a.minX),s=Math.max(e.minY,a.minY),l=Math.min(e.maxX,a.maxX),u=Math.min(e.maxY,a.maxY),Math.max(0,l-o)*Math.max(0,u-s)),M=f(d)+f(x);v<m?(m=v,r=p,c=M<c?M:c):v===m&&M<c&&(c=M,r=p)}return r||n-i},r.prototype._chooseSplitAxis=function(t,i,n){var r=t.leaf?this.compareMinX:s,e=t.leaf?this.compareMinY:l;this._allDistMargin(t,i,n,r)<this._allDistMargin(t,i,n,e)&&t.children.sort(r)},r.prototype._allDistMargin=function(t,i,n,r){t.children.sort(r);for(var e=this.toBBox,a=h(t,0,i,e),s=h(t,n-i,n,e),l=u(a)+u(s),f=i;f<n-i;f++){var m=t.children[f];o(a,t.leaf?e(m):m),l+=u(a)}for(var c=n-i-1;c>=i;c--){var p=t.children[c];o(s,t.leaf?e(p):p),l+=u(s)}return l},r.prototype._adjustParentBBoxes=function(t,i,n){for(var r=n;r>=0;r--)o(i[r],t)},r.prototype._condense=function(t){for(var i=t.length-1,n=void 0;i>=0;i--)0===t[i].children.length?i>0?(n=t[i-1].children).splice(n.indexOf(t[i]),1):this.clear():a(t[i],this.toBBox)},r});
 
 
 /***/ }),
@@ -25787,17 +24566,34 @@ function fastTwoSum(a, b, result) {
 
 /***/ }),
 
-/***/ "./node_modules/webpack/buildin/amd-options.js":
-/*!****************************************!*\
-  !*** (webpack)/buildin/amd-options.js ***!
-  \****************************************/
+/***/ "./node_modules/webpack/buildin/global.js":
+/*!***********************************!*\
+  !*** (webpack)/buildin/global.js ***!
+  \***********************************/
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-/* WEBPACK VAR INJECTION */(function(__webpack_amd_options__) {/* globals __webpack_amd_options__ */
-module.exports = __webpack_amd_options__;
+var g;
 
-/* WEBPACK VAR INJECTION */}.call(this, {}))
+// This works in non-strict mode
+g = (function() {
+	return this;
+})();
+
+try {
+	// This works if eval is allowed (see CSP)
+	g = g || new Function("return this")();
+} catch (e) {
+	// This works if the window reference is available
+	if (typeof window === "object") g = window;
+}
+
+// g can still be undefined, but nothing to do about it...
+// We return undefined, instead of nothing here, so it's
+// easier to handle this case. if(!global) { ...}
+
+module.exports = g;
+
 
 /***/ }),
 
@@ -25836,142 +24632,29 @@ module.exports = function(originalModule) {
 
 /***/ }),
 
-/***/ "./src/add.js":
-/*!********************!*\
-  !*** ./src/add.js ***!
-  \********************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/***/ "./web-bridge.js":
+/*!***********************!*\
+  !*** ./web-bridge.js ***!
+  \***********************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
 
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony default export */ __webpack_exports__["default"] = (function (a, b) {
-  return a + b;
-});
-
-/***/ }),
-
-/***/ "./src/index.js":
-/*!**********************!*\
-  !*** ./src/index.js ***!
-  \**********************/
-/*! no exports provided */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony import */ var _turf_helpers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @turf/helpers */ "./node_modules/@turf/helpers/main.es.js");
-/* harmony import */ var _turf_union__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @turf/union */ "./node_modules/@turf/union/main.es.js");
-/* harmony import */ var _turf_convex__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @turf/convex */ "./node_modules/@turf/convex/main.es.js");
-/* harmony import */ var _turf_difference__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @turf/difference */ "./node_modules/@turf/difference/main.es.js");
-/* harmony import */ var _turf_boolean_point_in_polygon__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @turf/boolean-point-in-polygon */ "./node_modules/@turf/boolean-point-in-polygon/main.es.js");
-/* harmony import */ var _turf_centroid__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @turf/centroid */ "./node_modules/@turf/centroid/main.es.js");
-/* harmony import */ var _turf_line_intersect__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @turf/line-intersect */ "./node_modules/@turf/line-intersect/main.es.js");
-/* harmony import */ var _turf_intersect__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @turf/intersect */ "./node_modules/@turf/intersect/main.es.js");
-/* harmony import */ var _lib_BusinessMember__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../lib/BusinessMember */ "./lib/BusinessMember.js");
-/* harmony import */ var _legacy_sprintf__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../legacy/sprintf */ "./legacy/sprintf.js");
-/* harmony import */ var _legacy_swiper__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../legacy/swiper */ "./legacy/swiper.js");
-/* harmony import */ var _add__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./add */ "./src/add.js");
-
-
-function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { Promise.resolve(value).then(_next, _throw); } }
-
-function _asyncToGenerator(fn) { return function () { var self = this, args = arguments; return new Promise(function (resolve, reject) { var gen = fn.apply(self, args); function _next(value) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "next", value); } function _throw(err) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "throw", err); } _next(undefined); }); }; }
-
-
-
-
-
-
-
-
-
-
-
-
-
-console.info(Object(_add__WEBPACK_IMPORTED_MODULE_11__["default"])(2, 3));
-console.info(['hoge', 'fuga', 'piyo'].includes('piyo'));
-
-var wait = function wait(ms) {
-  return new Promise(function (resolve) {
-    return setTimeout(resolve, ms);
-  });
-};
-
-_asyncToGenerator(
-/*#__PURE__*/
-regeneratorRuntime.mark(function _callee() {
-  return regeneratorRuntime.wrap(function _callee$(_context) {
-    while (1) {
-      switch (_context.prev = _context.next) {
-        case 0:
-          console.log('start');
-          _context.next = 3;
-          return wait(2000);
-
-        case 3:
-          console.log('end');
-
-        case 4:
-        case "end":
-          return _context.stop();
-      }
-    }
-  }, _callee);
-}))();
-
-var pro = new Promise(function (resolve, reject) {
-  setTimeout(function () {
-    resolve('ok');
-  }, 500);
-});
-pro.then(function (response) {
-  var user = new _lib_BusinessMember__WEBPACK_IMPORTED_MODULE_8__["default"]('taro', 'yamada', 'G社');
-  console.log(user.getName());
-});
-console.log(Object(_legacy_sprintf__WEBPACK_IMPORTED_MODULE_9__["default"])('Hello %s', 'World')); //booleanPointInPolygon();
-
-console.log(Object.assign({
-  a: 1,
-  b: 2,
-  c: 3
-}, {
-  a: 4,
-  b: 5,
-  d: 6
-}));
-var worker1 = new Worker('dist/worker1.js');
-var worker2 = new Worker('dist/worker2.js');
-document.getElementById('button1').addEventListener('click', function () {
-  worker1.postMessage(5);
-});
-document.getElementById('button2').addEventListener('click', function () {
-  worker2.postMessage(5);
-});
-
-worker1.onmessage = function (event) {
-  console.log(event.data);
-};
-
-worker2.onmessage = function (event) {
-  console.log(event.data);
-};
+__webpack_require__(/*! expose-loader?Tin!./index */ "./node_modules/expose-loader/index.js?Tin!./index.js-exposed");
 
 /***/ }),
 
 /***/ 0:
-/*!********************************************!*\
-  !*** multi @babel/polyfill ./src/index.js ***!
-  \********************************************/
+/*!*********************************************!*\
+  !*** multi @babel/polyfill ./web-bridge.js ***!
+  \*********************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
 __webpack_require__(/*! @babel/polyfill */"./node_modules/@babel/polyfill/lib/index.js");
-module.exports = __webpack_require__(/*! ./src/index.js */"./src/index.js");
+module.exports = __webpack_require__(/*! ./web-bridge.js */"./web-bridge.js");
 
 
 /***/ })
 
 /******/ });
-//# sourceMappingURL=main.js.map
+//# sourceMappingURL=maplat_tin.js.map
