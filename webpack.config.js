@@ -1,10 +1,14 @@
 module.exports = {
     mode: 'development',
     devtool: 'source-map',
-    entry: ['@babel/polyfill', './index.js'], // polyfill はIE11などで必要
+    entry: {
+        main: ['@babel/polyfill', './src/index.js'], // polyfill はIE11などで必要
+        worker1: './src/worker1',
+        worker2: './src/worker2',
+    },
     output: {
         path: `${__dirname}/dist`,
-        filename: 'main.js'
+        filename: '[name].js'
     },
     module: {
         rules: [
