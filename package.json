@@ -1,12 +1,16 @@
 {
   "name": "maplat_tin",
-  "version": "0.4.4-1",
+  "version": "0.4.5",
   "description": "JavaScript library which performs bijective conversion mutually between the coordinate systems of two planes based on the control points.",
-  "main": "index.js",
+  "main": "lib/index.js",
+  "files": [
+    "lib/"
+  ],
   "scripts": {
-    "www_build": "webpack --config webpack.www.js",
-    "npm_build": "webpack --config webpack.npm.js",
-    "test": "jasmine"
+    "www_build": "webpack",
+    "npm_build": "babel src/ --out-dir lib/ --source-maps",
+    "test": "jasmine",
+    "prepublish": "npm run www_build; npm run npm_build"
   },
   "repository": {
     "type": "git",
@@ -26,11 +30,13 @@
     "@turf/turf": "^5.1.6"
   },
   "devDependencies": {
+    "@babel/cli": "^7.5.5",
     "@babel/core": "^7.5.5",
     "@babel/polyfill": "^7.4.4",
     "@babel/preset-env": "^7.5.5",
     "@babel/register": "^7.5.5",
     "babel-loader": "^8.0.6",
+    "core-js": "^3.2.1",
     "jasmine": "^3.4.0",
     "webpack": "^4.39.3",
     "webpack-cli": "^3.3.7"

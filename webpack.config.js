@@ -1,7 +1,7 @@
 module.exports = {
     mode: 'development',
     devtool: 'source-map',
-    entry: ['@babel/polyfill', './tmpl/web-bridge.js'],
+    entry: ['./tmpl/web-bridge.js'],
     output: {
         path: `${__dirname}/www`,
         filename: 'maplat_tin.js'
@@ -18,7 +18,8 @@ module.exports = {
                             [
                                 "@babel/preset-env",
                                 {
-                                    "useBuiltIns": "entry"
+                                    "useBuiltIns": "usage",
+                                    "corejs": 3
                                 }
                             ]
                         ]

@@ -9,10 +9,9 @@ import centroid from '@turf/centroid';
 import lineIntersect from '@turf/line-intersect';
 import intersect from '@turf/intersect';
 
-import mapshaper from './mapshaper-maplat';
+import internal from './mapshaper-maplat';
 import constrainedTin from './constrained-tin';
 
-var internal = mapshaper.internal;
 var Tin = function(options) {
     options = options || {};
     if (options.bounds) {

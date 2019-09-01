@@ -1,3 +1,4 @@
+var exportAPI;
 (function () {
     VERSION = '0.4.87';
 
@@ -3850,6 +3851,7 @@ this.getAvgSegmentSph2 = function() {
 
 
     api.internal = internal;
+    exportAPI = internal;
     //this.mapshaper = api;
 
 // Expose internal objects for testing
@@ -3861,9 +3863,11 @@ this.getAvgSegmentSph2 = function() {
     if (typeof define === "function" && define.amd) {
         //define("mapshaper", api);
         define([], function () {
-            return api;
+            return exportAPI;
         });
     } else if (typeof module === "object" && module.exports) {
-        module.exports = api;
+        module.exports = exportAPI;
     }
 }());
+
+export default exportAPI;
