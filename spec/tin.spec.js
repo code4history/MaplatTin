@@ -1,7 +1,5 @@
-var Tin = require('../index');
+var Tin = require('../src/index');
 var testHelper = require('./TestHelper');
-
-console.log(Tin);
 
 describe('Tin 動作テスト', function() {
   describe('実データテスト', function() {

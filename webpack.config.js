@@ -1,5 +1,8 @@
+const webpack = require('webpack');
+const pjson = require('./package.json');
+
 module.exports = {
-    mode: 'development',
+    mode: 'production',
     devtool: 'source-map',
     entry: ['./tmpl/web-bridge.js'],
     output: {
@@ -27,5 +30,10 @@ module.exports = {
                 }
             }
         ]
-    }
+    },
+    plugins: [
+        new webpack.BannerPlugin({
+            banner: `${pjson.name} v${pjson.version} | ${pjson.author} | license: ${pjson.license}`
+        })
+    ]
 };

@@ -1,6 +1,5 @@
 package-lock.json
 tmpl
-src
 spec
 index.html
 webpack.config.js
