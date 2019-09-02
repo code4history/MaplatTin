@@ -12,7 +12,7 @@ import intersect from '@turf/intersect';
 import internal from './mapshaper-maplat';
 import constrainedTin from './constrained-tin';
 
-var Tin = function(options) {
+const Tin = function(options) {
     options = options || {};
     if (options.bounds) {
         this.setBounds(options.bounds);
@@ -44,8 +44,8 @@ Tin.YAXIS_INVERT = 'invert';
 
 Tin.prototype.setPoints = function(points) {
     if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
-        points = points.map(function(point) {
-            return [point[0], [point[1][0], -1 * point[1][1]]];
+        points = points.map((point) => {
+            [point[0], [point[1][0], -1 * point[1][1]]]
         });
     }
     this.points = points;
@@ -61,9 +61,9 @@ Tin.prototype.setEdges = function(edges) {
 
 Tin.prototype.setBounds = function(bounds) {
     this.bounds = bounds;
-    var minx, miny, maxx, maxy, coords;
-    for (var i=0; i<bounds.length; i++) {
-        var xy = bounds[i];
+    let minx, miny, maxx, maxy, coords;
+    for (let i=0; i<bounds.length; i++) {
+        const xy = bounds[i];
         if (i==0) {
             minx = maxx = xy[0];
             miny = maxy = xy[1];
@@ -105,15 +105,15 @@ Tin.prototype.setCompiled = function(compiled) {
             'forw' : [ compiled.vertices_params[0] ],
             'bakw' : [ compiled.vertices_params[1] ]
         };
-        this.vertices_params.forw[1] = [0, 1, 2, 3].map(function(idx) {
-            var idxNxt = (idx + 1) % 4;
-            var tri = indexesToTri(['cent', 'bbox' + idx, 'bbox' + idxNxt], compiled.points,
+        this.vertices_params.forw[1] = [0, 1, 2, 3].map((idx) => {
+            const idxNxt = (idx + 1) % 4;
+            const tri = indexesToTri(['cent', `bbox${idx}`, `bbox${idxNxt}`], compiled.points,
                 compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, false);
             return featureCollection([tri]);
         });
-        this.vertices_params.bakw[1] = [0, 1, 2, 3].map(function(idx) {
-            var idxNxt = (idx + 1) % 4;
-            var tri = indexesToTri(['cent', 'bbox' + idx, 'bbox' + idxNxt], compiled.points,
+        this.vertices_params.bakw[1] = [0, 1, 2, 3].map((idx) => {
+            const idxNxt = (idx + 1) % 4;
+            const tri = indexesToTri(['cent', `bbox${idx}`, `bbox${idxNxt}`], compiled.points,
                 compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, true);
             return featureCollection([tri]);
         });
@@ -126,21 +126,19 @@ Tin.prototype.setCompiled = function(compiled) {
         this.edges = compiled.edges || [];
         this.edgeNodes = compiled.edgeNodes || [];
         // tinsを復元
-        var bakwI = compiled.tins_points.length == 1 ? 0 : 1;
+        const bakwI = compiled.tins_points.length == 1 ? 0 : 1;
         this.tins = {
-            'forw': featureCollection(compiled.tins_points[0].map(function(idxes) {
-                return indexesToTri(idxes, compiled.points, compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, false);
-            })),
-            'bakw': featureCollection(compiled.tins_points[bakwI].map(function(idxes) {
-                return indexesToTri(idxes, compiled.points, compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, true);
-            }))
+            'forw': featureCollection(compiled.tins_points[0].map((idxes) =>
+                indexesToTri(idxes, compiled.points, compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, false)
+            )),
+            'bakw': featureCollection(compiled.tins_points[bakwI].map((idxes) =>
+                indexesToTri(idxes, compiled.points, compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, true)
+            ))
         }
         // kinksを復元
         if (compiled.kinks_points) {
             this.kinks = {
-                'bakw': featureCollection(compiled.kinks_points.map(function(coord) {
-                    return point(coord)
-                }))
+                'bakw': featureCollection(compiled.kinks_points.map((coord) => point(coord)))
             };
         }
         // yaxisModeを復元
@@ -169,13 +167,13 @@ Tin.prototype.setCompiled = function(compiled) {
         this.vertices_params = compiled.vertices_params;
         this.centroid = compiled.centroid;
         this.kinks = compiled.kinks;
-        var points = [];
-        for (var i = 0; i < this.tins.forw.features.length; i++) {
-            var tri = this.tins.forw.features[i];
-            ['a', 'b', 'c'].map(function(key, idx) {
-                var forw = tri.geometry.coordinates[0][idx];
-                var bakw = tri.properties[key].geom;
-                var pIdx = tri.properties[key].index;
+        const points = [];
+        for (let i = 0; i < this.tins.forw.features.length; i++) {
+            const tri = this.tins.forw.features[i];
+            ['a', 'b', 'c'].map((key, idx) => {
+                const forw = tri.geometry.coordinates[0][idx];
+                const bakw = tri.properties[key].geom;
+                const pIdx = tri.properties[key].index;
                 points[pIdx] = [forw, bakw];
             });
         }
@@ -194,7 +192,7 @@ Tin.prototype.setCompiled = function(compiled) {
 };
 
 Tin.prototype.getCompiled = function() {
-    var compiled = {};
+    const compiled = {};
     /* old logic
     compiled.tins = this.tins;
     compiled.strict_status = this.strict_status;
@@ -214,11 +212,11 @@ Tin.prototype.getCompiled = function() {
     compiled.vertices_params = [this.vertices_params.forw[0], this.vertices_params.bakw[0]];
     // vertices_paramsの2番目の値（セントロイドと地図頂点の三角形ポリゴン）は、地図頂点座標のみ記録
     compiled.vertices_points = [];
-    var vertices = this.vertices_params.forw[1];
-    [0, 1, 2, 3].map(function(i) {
-        var vertex_data = vertices[i].features[0];
-        var forw = vertex_data.geometry.coordinates[0][1];
-        var bakw = vertex_data.properties.b.geom;
+    const vertices = this.vertices_params.forw[1];
+    [0, 1, 2, 3].map((i) => {
+        const vertex_data = vertices[i].features[0];
+        const forw = vertex_data.geometry.coordinates[0][1];
+        const bakw = vertex_data.properties.b.geom;
         compiled.vertices_points[i] = [forw, bakw];
     });
     compiled.strict_status = this.strict_status;
