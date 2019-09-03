@@ -222,24 +222,18 @@ Tin.prototype.getCompiled = function() {
     compiled.strict_status = this.strict_status;
     // tinは座標インデックスのみ記録
     compiled.tins_points = [[]];
-    this.tins.forw.features.map(function(tin) {
-        compiled.tins_points[0].push(['a', 'b', 'c'].map(function(idx) {
-            return tin.properties[idx].index;
-        }));
+    this.tins.forw.features.map((tin) => {
+        compiled.tins_points[0].push(['a', 'b', 'c'].map((idx) => tin.properties[idx].index));
     });
     // 自動モードでエラーがある時（loose）は、逆方向のtinも記録。
     // 厳格モードでエラーがある時（strict_error）は、エラー点情報(kinks)を記録。
     if (this.strict_status == Tin.STATUS_LOOSE) {
         compiled.tins_points[1] = [];
-        this.tins.bakw.features.map(function(tin) {
-            compiled.tins_points[1].push(['a', 'b', 'c'].map(function(idx) {
-                return tin.properties[idx].index;
-            }));
+        this.tins.bakw.features.map((tin) => {
+            compiled.tins_points[1].push(['a', 'b', 'c'].map((idx) => tin.properties[idx].index));
         });
     } else if (this.strict_status == Tin.STATUS_ERROR) {
-        compiled.kinks_points = this.kinks.bakw.features.map(function(kink) {
-            return kink.geometry.coordinates;
-        });
+        compiled.kinks_points = this.kinks.bakw.features.map((kink) => kink.geometry.coordinates);
     }
 
     // yaxisMode対応
@@ -280,20 +274,17 @@ Tin.prototype.setStrictMode = function(mode) {
 };
 
 Tin.prototype.calcurateStrictTinAsync = function() {
-    var self = this;
-    var edges = self.pointsSet.edges;
-    return Promise.all(self.tins.forw.features.map(function(tri) {
-        return Promise.resolve(counterTri(tri));
-    })).then(function(tris) {
+    const self = this;
+    const edges = self.pointsSet.edges;
+    return Promise.all(self.tins.forw.features.map((tri) => Promise.resolve(counterTri(tri))))
+    .then((tris) => {
         self.tins.bakw = featureCollection(tris);
-    }).then(function() {
-        var searchIndex = {};
-        return Promise.all(self.tins.forw.features.map(function(forTri, index) {
-            var bakTri = self.tins.bakw.features[index];
+    }).then(() => {
+        const searchIndex = {};
+        return Promise.all(self.tins.forw.features.map((forTri, index) => {
+            const bakTri = self.tins.bakw.features[index];
             return Promise.resolve(insertSearchIndex(searchIndex, {forw: forTri, bakw: bakTri}));
-        })).then(function() {
-            return searchIndex;
-        }).catch(function(err) {
+        })).then(() => searchIndex).catch((err) => {
             throw err;
         });
     }).then(function(searchIndex) {
