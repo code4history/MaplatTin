@@ -287,73 +287,63 @@ Tin.prototype.calcurateStrictTinAsync = function() {
         })).then(() => searchIndex).catch((err) => {
             throw err;
         });
-    }).then(function(searchIndex) {
-        return [overlapCheckAsync(searchIndex), searchIndex];
-    }).then(function(prevResult) {
-        var overlapped = prevResult[0];
-        var searchIndex = prevResult[1];
-        if (overlapped.bakw) Object.keys(overlapped.bakw).map(function(key) {
+    }).then((searchIndex) => [overlapCheckAsync(searchIndex), searchIndex])
+    .then((prevResult) => {
+        const overlapped = prevResult[0];
+        const searchIndex = prevResult[1];
+        if (overlapped.bakw) Object.keys(overlapped.bakw).map((key) => {
             if (overlapped.bakw[key] == 'Not include case') return;
-            var trises = searchIndex[key];
-            var forUnion = union(trises[0].forw, trises[1].forw);
-            var forConvex = convex(featureCollection([trises[0].forw, trises[1].forw]));
-            var forDiff = difference(forConvex, forUnion);
+            const trises = searchIndex[key];
+            const forUnion = union(trises[0].forw, trises[1].forw);
+            const forConvex = convex(featureCollection([trises[0].forw, trises[1].forw]));
+            const forDiff = difference(forConvex, forUnion);
             if (forDiff) return;
-            var splittedKey = key.split('-');
+            const splittedKey = key.split('-');
             if (splittedKey[0].match(/^[0-9]+$/) && splittedKey[1].match(/^[0-9]+$/)) {
-                var numberKey = splittedKey.map(function(key) { return parseInt(key) })
-                    .sort(function(a, b) { return a < b ? -1 : 1 });
-                for (var i = 0; i < edges.length - 1; i++) {
+                const numberKey = splittedKey.map((key) => parseInt(key))
+                    .sort((a, b) => a < b ? -1 : 1);
+                for (let i = 0; i < edges.length - 1; i++) {
                     if (numberKey[0] == edges[i][0] && numberKey[1] == edges[i][1]) return;
                 }
             }
-            var sharedVtx = splittedKey.map(function(val) {
-                return ['a', 'b', 'c'].map(function(alpha, index) {
-                    var prop = trises[0].bakw.properties[alpha];
-                    var geom = trises[0].bakw.geometry.coordinates[0][index];
-                    return {geom: geom, prop: prop};
-                }).filter(function(vtx) {
-                    return vtx.prop.index == val;
-                })[0];
-            });
-            var nonSharedVtx = trises.map(function(tris) {
-                return ['a', 'b', 'c'].map(function(alpha, index) {
-                    var prop = tris.bakw.properties[alpha];
-                    var geom = tris.bakw.geometry.coordinates[0][index];
-                    return {geom: geom, prop: prop};
-                }).filter(function(vtx) {
-                    return vtx.prop.index != sharedVtx[0].prop.index &&
-                        vtx.prop.index != sharedVtx[1].prop.index;
-                })[0];
-            });
+            const sharedVtx = splittedKey.map((val) => 
+                ['a', 'b', 'c'].map((alpha, index) => {
+                    const prop = trises[0].bakw.properties[alpha];
+                    const geom = trises[0].bakw.geometry.coordinates[0][index];
+                    return {geom, prop};
+                }).filter((vtx) => vtx.prop.index == val)[0]
+            );
+            const nonSharedVtx = trises.map((tris) => 
+                ['a', 'b', 'c'].map((alpha, index) => {
+                    const prop = tris.bakw.properties[alpha];
+                    const geom = tris.bakw.geometry.coordinates[0][index];
+                    return {geom, prop};
+                }).filter((vtx) => vtx.prop.index != sharedVtx[0].prop.index && vtx.prop.index != sharedVtx[1].prop.index)[0]
+            );
             removeSearchIndex(searchIndex, trises[0], self.tins);
             removeSearchIndex(searchIndex, trises[1], self.tins);
-            sharedVtx.map(function(sVtx) {
-                var newTriCoords = [sVtx.geom, nonSharedVtx[0].geom, nonSharedVtx[1].geom, sVtx.geom];
-                var newTriProp = {a: sVtx.prop, b: nonSharedVtx[0].prop, c: nonSharedVtx[1].prop};
-                var newBakTri = polygon([newTriCoords], newTriProp);
-                var newForTri = counterTri(newBakTri);
+            sharedVtx.map((sVtx) => {
+                const newTriCoords = [sVtx.geom, nonSharedVtx[0].geom, nonSharedVtx[1].geom, sVtx.geom];
+                const newTriProp = {a: sVtx.prop, b: nonSharedVtx[0].prop, c: nonSharedVtx[1].prop};
+                const newBakTri = polygon([newTriCoords], newTriProp);
+                const newForTri = counterTri(newBakTri);
                 insertSearchIndex(searchIndex, {forw: newForTri, bakw: newBakTri}, self.tins);
             });
         });
 
-        return Promise.all(['forw', 'bakw'].map(function(direc) {
-            return new Promise(function(resolve) {
-                var coords = self.tins[direc].features.map(function(poly) { return poly.geometry.coordinates[0]; });
-                var xy = findIntersections(coords);
-                var retXy = internal.dedupIntersections(xy).reduce(function(prev, apoint, index, array) {
+        return Promise.all(['forw', 'bakw'].map((direc) => 
+            new Promise((resolve) => {
+                const coords = self.tins[direc].features.map((poly) => poly.geometry.coordinates[0]);
+                const xy = findIntersections(coords);
+                const retXy = internal.dedupIntersections(xy).reduce((prev, apoint, index, array) => {
                     if (!prev) prev = {};
-                    prev[apoint.x + ':' + apoint.y] = apoint;
+                    prev[`${apoint.x}:${apoint.y}`] = apoint;
                     if (index != array.length - 1) return prev;
-                    return Object.keys(prev).map(function(key) {
-                        return point([prev[key].x, prev[key].y]);
-                    });
+                    return Object.keys(prev).map((key) => point([prev[key].x, prev[key].y]));
                 }, []);
                 resolve(retXy);
-            }).catch(function(err) {
-                throw err;
-            });
-        })).then(function(result) {
+            }).catch((err) => { throw err })
+        )).then((result) => {
             if (result[0].length == 0 && result[1].length == 0) {
                 self.strict_status = Tin.STATUS_STRICT;
                 delete self.kinks;
@@ -363,32 +353,28 @@ Tin.prototype.calcurateStrictTinAsync = function() {
                 if (result[0].length > 0) self.kinks.forw = featureCollection(result[0]);
                 if (result[1].length > 0) self.kinks.bakw = featureCollection(result[1]);
             }
-        }).catch(function(err) {
-            throw err;
-        });
-    }).catch(function(err) {
-        throw err;
-    });
+        }).catch((err) => { throw err });
+    }).catch((err) => { throw err });
 };
 
 Tin.prototype.generatePointsSet = function() {
-    var self = this;
-    var pointsArray = {forw: [], bakw: []};
-    for (var i=0; i < self.points.length; i++) {
-        var mapxy = self.points[i][0];
-        var mercs = self.points[i][1];
-        var forPoint = createPoint(mapxy, mercs, i);
+    const self = this;
+    const pointsArray = {forw: [], bakw: []};
+    for (let i=0; i < self.points.length; i++) {
+        const mapxy = self.points[i][0];
+        const mercs = self.points[i][1];
+        const forPoint = createPoint(mapxy, mercs, i);
         pointsArray.forw.push(forPoint);
         pointsArray.bakw.push(counterPoint(forPoint));
     }
-    var edges = [];
-    var edgeNodeIndex = 0;
+    const edges = [];
+    let edgeNodeIndex = 0;
     self.edgeNodes = [];
     if (!self.edges) self.edges = [];
-    for (var i=0; i < self.edges.length; i++) {
-        var startEnd = self.edges[i].startEnd;
-        var illstNodes = Object.assign([], self.edges[i].illstNodes);
-        var mercNodes = Object.assign([], self.edges[i].mercNodes);
+    for (let i=0; i < self.edges.length; i++) {
+        const startEnd = self.edges[i].startEnd;
+        const illstNodes = Object.assign([], self.edges[i].illstNodes);
+        const mercNodes = Object.assign([], self.edges[i].mercNodes);
         if (illstNodes.length === 0 && mercNodes.length === 0) {
             edges.push(startEnd);
             continue;
@@ -397,32 +383,32 @@ Tin.prototype.generatePointsSet = function() {
         illstNodes.push(self.points[startEnd[1]][0]);
         mercNodes.unshift(self.points[startEnd[0]][1]);
         mercNodes.push(self.points[startEnd[1]][1]);
-        var lengths = [illstNodes, mercNodes].map(function(nodes, i) {
-            var eachLengths = nodes.map(function(node, index, arr) {
+        const lengths = [illstNodes, mercNodes].map((nodes) => {
+            const eachLengths = nodes.map((node, index, arr) => {
                 if (index === 0) return 0;
-                var prev = arr[index - 1];
+                const prev = arr[index - 1];
                 return Math.sqrt(Math.pow(node[0] - prev[0], 2) + Math.pow(node[1] - prev[1], 2));
             });
-            var sumLengths = eachLengths.reduce(function(prev, node, index) {
+            const sumLengths = eachLengths.reduce((prev, node, index) => {
                 if (index === 0) return [0];
                 prev.push(prev[index - 1] + node);
                 return prev;
             }, []);
-            return sumLengths.map(function(eachSum, index, arr) {
-                var ratio = eachSum / arr[arr.length -1];
+            return sumLengths.map((eachSum, index, arr) => {
+                const ratio = eachSum / arr[arr.length -1];
                 return [nodes[index], eachLengths[index], sumLengths[index], ratio];
             });
         });
-        lengths.map(function(thisLengths, i) {
-            var anotherLengths = lengths[i ? 0 : 1];
-            return thisLengths.filter(function(val, index) {
-                return index === 0 || index === thisLengths.length - 1 || val[4] === 'handled' ? false : true;
-            }).map(function(lengthItem) {
-                var node = lengthItem[0];
-                var ratio = lengthItem[3];
-                var anotherSets = anotherLengths.reduce(function(prev, item, index, arr) {
+        lengths.map((thisLengths, i) => {
+            const anotherLengths = lengths[i ? 0 : 1];
+            return thisLengths.filter((val, index) =>
+                index === 0 || index === thisLengths.length - 1 || val[4] === 'handled' ? false : true
+            ).map((lengthItem) => {
+                const node = lengthItem[0];
+                const ratio = lengthItem[3];
+                const anotherSets = anotherLengths.reduce((prev, item, index, arr) => {
                     if (prev) return prev;
-                    var next = arr[index + 1];
+                    const next = arr[index + 1];
                     if (item[3] === ratio) {
                         item[4] = 'handled';
                         return [item];
@@ -433,23 +419,21 @@ Tin.prototype.generatePointsSet = function() {
                 if (anotherSets.length === 1) {
                     return i === 0 ? [node, anotherSets[0][0], ratio] : [anotherSets[0][0], node, ratio];
                 } else {
-                    var anotherPrev = anotherSets[0];
-                    var anotherNext = anotherSets[1];
-                    var ratioDelta = ratio - anotherPrev[3];
-                    var ratioAnother = anotherNext[3] - anotherPrev[3];
-                    var ratioInEdge = ratioDelta / ratioAnother;
-                    var anotherNode = [(anotherNext[0][0] - anotherPrev[0][0]) * ratioInEdge + anotherPrev[0][0],
+                    const anotherPrev = anotherSets[0];
+                    const anotherNext = anotherSets[1];
+                    const ratioDelta = ratio - anotherPrev[3];
+                    const ratioAnother = anotherNext[3] - anotherPrev[3];
+                    const ratioInEdge = ratioDelta / ratioAnother;
+                    const anotherNode = [(anotherNext[0][0] - anotherPrev[0][0]) * ratioInEdge + anotherPrev[0][0],
                         (anotherNext[0][1] - anotherPrev[0][1]) * ratioInEdge + anotherPrev[0][1]];
                     return i === 0 ? [node, anotherNode, ratio] : [anotherNode, node, ratio];
                 }
             });
-        }).reduce(function(prev, nodes) {
-            return prev.concat(nodes);
-        }, []).sort(function(a, b) {
-            return a[2] < b[2] ? -1 : 1;
-        }).map(function(node, index, arr) {
+        }).reduce((prev, nodes) => prev.concat(nodes), [])
+        .sort((a, b) => a[2] < b[2] ? -1 : 1)
+        .map((node, index, arr) => {
             self.edgeNodes[edgeNodeIndex] = [node[0], node[1]];
-            var forPoint = createPoint(node[0], node[1], 'edgeNode' + edgeNodeIndex);
+            const forPoint = createPoint(node[0], node[1], `edgeNode${edgeNodeIndex}`);
             edgeNodeIndex++;
             pointsArray.forw.push(forPoint);
             pointsArray.bakw.push(counterPoint(forPoint));
@@ -463,132 +447,124 @@ Tin.prototype.generatePointsSet = function() {
             }
         });
     }
-    return {forw: featureCollection(pointsArray.forw), bakw: featureCollection(pointsArray.bakw), edges: edges};
+    return {forw: featureCollection(pointsArray.forw), bakw: featureCollection(pointsArray.bakw), edges};
 };
 
 Tin.prototype.updateTinAsync = function() {
-    var self = this;
-    var strict = this.strictMode;
-    var minx = self.xy[0] - 0.05 * self.wh[0];
-    var maxx = self.xy[0] + 1.05 * self.wh[0];
-    var miny = self.xy[1] - 0.05 * self.wh[1];
-    var maxy = self.xy[1] + 1.05 * self.wh[1];
+    const self = this;
+    let strict = this.strictMode;
+    const minx = self.xy[0] - 0.05 * self.wh[0];
+    const maxx = self.xy[0] + 1.05 * self.wh[0];
+    const miny = self.xy[1] - 0.05 * self.wh[1];
+    const maxy = self.xy[1] + 1.05 * self.wh[1];
 
-    var insideCheck = this.bounds ? function(xy) {
-        return booleanPointInPolygon(xy, self.boundsPolygon);
-    } : function(xy) {
-        return xy[0] >= self.xy[0] && xy[0] <= self.xy[0] + self.wh[0] && xy[1] >= self.xy[1] && xy[1] <= self.xy[1] + self.wh[1];
-    };
-    var inside = this.points.reduce(function(prev, curr) {
-        return prev && insideCheck(curr[0]);
-    }, true);
+    const insideCheck = this.bounds ? (xy) => booleanPointInPolygon(xy, self.boundsPolygon) : 
+        (xy) => xy[0] >= self.xy[0] && xy[0] <= self.xy[0] + self.wh[0] && xy[1] >= self.xy[1] && xy[1] <= self.xy[1] + self.wh[1];
+    const inside = this.points.reduce((prev, curr) => prev && insideCheck(curr[0]), true);
     if (!inside) {
-        return new Promise(function(resolve, reject) {
+        return new Promise((resolve, reject) => {
             reject('SOME POINTS OUTSIDE');
         });
     }
 
-    return new Promise(function(resolve, reject) {
+    return new Promise((resolve) => {
         if (strict != Tin.MODE_STRICT && strict != Tin.MODE_LOOSE) strict = Tin.MODE_AUTO;
 
-        var bbox = [];
+        let bbox = [];
         if (self.wh) {
             bbox = [
                 [minx, miny], [maxx, miny],
                 [minx, maxy], [maxx, maxy]
             ];
         }
-        var pointsSet = self.generatePointsSet();
+        const pointsSet = self.generatePointsSet();
         resolve([pointsSet, bbox]);
-    }).then(function(prevResults) {
-        var pointsSet = prevResults[0];
+    }).then((prevResults) => {
+        const pointsSet = prevResults[0];
 
         // Forward TIN for calcurating Backward Centroid and Backward Vertices
         return Promise.all([
-            new Promise(function(resolve) {
+            new Promise((resolve) => {
                 resolve(constrainedTin(pointsSet.forw, pointsSet.edges, 'target'));
             }),
-            new Promise(function(resolve) {
+            new Promise((resolve) => {
                 resolve(constrainedTin(pointsSet.bakw, pointsSet.edges, 'target'));
             }),
-            new Promise(function(resolve) {
+            new Promise((resolve) => {
                 resolve(centroid(pointsSet.forw));
             }),
             Promise.resolve(prevResults)
-        ]).catch(function(err) {
+        ]).catch((err) => {
             throw err;
         });
-    }).then(function(prevResults) {
-        var tinForCentroid = prevResults[0];
-        var tinBakCentroid = prevResults[1];
-        var forCentroidFt = prevResults[2];
-        var pointsSetBbox = prevResults[3];
-        var pointsSet = pointsSetBbox[0];
+    }).then((prevResults) => {
+        const tinForCentroid = prevResults[0];
+        const tinBakCentroid = prevResults[1];
+        const forCentroidFt = prevResults[2];
+        const pointsSetBbox = prevResults[3];
+        const pointsSet = pointsSetBbox[0];
         if (tinForCentroid.features.length == 0 || tinBakCentroid.features.length == 0) throw 'TOO LINEAR1';
 
         // Calcurating Forward/Backward Centroid
-        var centroid = {forw: forCentroidFt.geometry.coordinates};
+        const centroid = {forw: forCentroidFt.geometry.coordinates};
         centroid.bakw = transformArr(forCentroidFt, tinForCentroid);
         self.centroid = {forw: createPoint(centroid.forw, centroid.bakw, 'cent')};
         self.centroid.bakw = counterPoint(self.centroid.forw);
 
-        var convexBuf = {};
+        const convexBuf = {};
         return Promise.all([
-            new Promise(function(resolve) {
-                var forConvex = convex(pointsSet.forw).geometry.coordinates[0];
-                var vconvex;
+            new Promise((resolve) => {
+                const forConvex = convex(pointsSet.forw).geometry.coordinates[0];
+                let vconvex;
                 try {
-                    vconvex = forConvex.map(function(forw) {return {forw: forw,
-                        bakw: transformArr(point(forw), tinForCentroid)}; });
+                    vconvex = forConvex.map((forw) => ({forw, bakw: transformArr(point(forw), tinForCentroid)}));
                 } catch(e) {
                     throw 'TOO LINEAR2';
                 }
-                vconvex.map(function(vertex) { convexBuf[vertex.forw[0] + ':' + vertex.forw[1]] = vertex; });
+                vconvex.map((vertex) => { convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = vertex; });
                 resolve();
             }),
-            new Promise(function(resolve) {
-                var bakConvex = convex(pointsSet.bakw).geometry.coordinates[0];
-                var vconvex;
+            new Promise(((resolve) => {
+                const bakConvex = convex(pointsSet.bakw).geometry.coordinates[0];
+                let vconvex;
                 try {
-                    vconvex = bakConvex.map(function(bakw) {return {bakw: bakw,
-                        forw: transformArr(point(bakw), tinBakCentroid)}; });
+                    vconvex = bakConvex.map((bakw) => ({bakw,
+                        forw: transformArr(point(bakw), tinBakCentroid)}));
                 } catch(e) {
                     throw 'TOO LINEAR2';
                 }
-                vconvex.map(function(vertex) { convexBuf[vertex.forw[0] + ':' + vertex.forw[1]] = vertex; });
+                vconvex.map((vertex) => { convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = vertex; });
                 resolve();
-            })
-        ]).then(function() {
-            return [centroid, convexBuf, pointsSetBbox];
-        }).catch(function(err) {
+            }))
+        ]).then(() => [centroid, convexBuf, pointsSetBbox]).catch((err) => {
             throw err;
         });
-    }).then(function(prevResults) {
-        var centroid = prevResults[0];
-        var convexBuf = prevResults[1];
-        var pointsSetBbox = prevResults[2];
+    }).then((prevResults) => {
+        const centroid = prevResults[0];
+        const convexBuf = prevResults[1];
+        const pointsSetBbox = prevResults[2];
 
         // Calcurating Convex full to get Convex full polygon's vertices
-        var expandConvex = Object.keys(convexBuf).reduce(function(prev, key, index, array) {
-            var forVertex = convexBuf[key].forw;
-            var bakVertex = convexBuf[key].bakw;
+        const expandConvex = Object.keys(convexBuf).reduce((prev, key, _, array) => { // eslint-disable-line no-unused-vars
+            const forVertex = convexBuf[key].forw;
+            const bakVertex = convexBuf[key].bakw;
             // Convexhullの各頂点に対し、重心からの差分を取る
-            var vertexDelta = {forw: [forVertex[0] - centroid.forw[0], forVertex[1] - centroid.forw[1]]};
+            const vertexDelta = {forw: [forVertex[0] - centroid.forw[0], forVertex[1] - centroid.forw[1]]};
             vertexDelta.bakw = [bakVertex[0] - centroid.bakw[0], bakVertex[1] - centroid.bakw[1]];
             // X軸方向、Y軸方向それぞれに対し、地図外郭XY座標との重心との比を取る
-            var xRate = vertexDelta.forw[0] == 0 ? Infinity :
+            const xRate = vertexDelta.forw[0] == 0 ? Infinity :
                 ((vertexDelta.forw[0] < 0 ? minx : maxx) - centroid.forw[0]) / vertexDelta.forw[0];
-            var yRate = vertexDelta.forw[1] == 0 ? Infinity :
+            const yRate = vertexDelta.forw[1] == 0 ? Infinity :
                 ((vertexDelta.forw[1] < 0 ? miny : maxy) - centroid.forw[1]) / vertexDelta.forw[1];
             // xRate, yRateが同じ値であれば重心と地図頂点を結ぶ線上に乗る
             if (Math.abs(xRate) / Math.abs(yRate) < 1.1 ) {
-                var point = {forw: [vertexDelta.forw[0] * xRate + centroid.forw[0], vertexDelta.forw[1] * xRate + centroid.forw[1]],
+                const point = {forw: [vertexDelta.forw[0] * xRate + centroid.forw[0], vertexDelta.forw[1] * xRate + centroid.forw[1]],
                     bakw: [vertexDelta.bakw[0] * xRate + centroid.bakw[0], vertexDelta.bakw[1] * xRate + centroid.bakw[1]]};
                 if (vertexDelta.forw[0] < 0) prev[3].push(point);
                 else prev[1].push(point);
             }
             if (Math.abs(yRate) / Math.abs(xRate) < 1.1 ) {
-                var point = {forw: [vertexDelta.forw[0] * yRate + centroid.forw[0], vertexDelta.forw[1] * yRate + centroid.forw[1]],
+                const point = {forw: [vertexDelta.forw[0] * yRate + centroid.forw[0], vertexDelta.forw[1] * yRate + centroid.forw[1]],
                     bakw: [vertexDelta.bakw[0] * yRate + centroid.bakw[0], vertexDelta.bakw[1] * yRate + centroid.bakw[1]]};
                 if (vertexDelta.forw[1] < 0) prev[0].push(point);
                 else prev[2].push(point);
@@ -597,117 +573,115 @@ Tin.prototype.updateTinAsync = function() {
         }, [[], [], [], []]);
 
         // Calcurating Average scaling factors and rotation factors per orthants
-        var orthant = Object.keys(convexBuf).reduce(function(prev, key, idx, array) {
-            var forVertex = convexBuf[key].forw;
-            var bakVertex = convexBuf[key].bakw;
-            var vertexDelta = {forw: [forVertex[0] - centroid.forw[0], forVertex[1] - centroid.forw[1]]};
+        let orthant = Object.keys(convexBuf).reduce((prev, key, idx, array) => {
+            const forVertex = convexBuf[key].forw;
+            const bakVertex = convexBuf[key].bakw;
+            const vertexDelta = {forw: [forVertex[0] - centroid.forw[0], forVertex[1] - centroid.forw[1]]};
             vertexDelta.bakw = [bakVertex[0] - centroid.bakw[0], centroid.bakw[1] - bakVertex[1]];
 
             if (vertexDelta.forw[0] == 0 || vertexDelta.forw[1] == 0) return prev;
-            var index = 0;
+            let index = 0;
             if (vertexDelta.forw[0] > 0) index += 1;
             if (vertexDelta.forw[1] > 0) index += 2;
             prev[index].push([vertexDelta.forw, vertexDelta.bakw]);
             if (idx == array.length -1) {
                 // If some orthants have no Convex full polygon's vertices, use same average factor to every orthants
-                return (prev.length == prev.filter(function(val) {
-                    return val.length > 0;
-                }).length && self.vertexMode == Tin.VERTEX_BIRDEYE) ? prev : prev.reduce(function(pre, cur) {
-                    var ret = [pre[0].concat(cur)];
+                return (prev.length == prev.filter((val) => val.length > 0).length && self.vertexMode == Tin.VERTEX_BIRDEYE) ? prev : prev.reduce((pre, cur) => {
+                    const ret = [pre[0].concat(cur)];
                     return ret;
                 }, [[]]);
             }
             return prev;
-        }, [[], [], [], []]).map(function(item) {
+        }, [[], [], [], []]).map((item) => 
             // Finalize calcuration of Average scaling factors and rotation factors
-            return item.reduce(function(prev, curr, index, arr) {
+             item.reduce((prev, curr, index, arr) => {
                 if (!prev) prev = [Infinity, 0, 0];
                 // if (!prev) prev = [0, 0, 0];
                 // var distanceSum = prev[0] + Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) /
                 //     Math.sqrt(Math.pow(curr[1][0], 2) + Math.pow(curr[1][1], 2));
-                var distanceSum = Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) /
+                let distanceSum = Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) /
                     Math.sqrt(Math.pow(curr[1][0], 2) + Math.pow(curr[1][1], 2));
                 distanceSum = distanceSum < prev[0] ? distanceSum : prev[0];
-                var thetaDelta = Math.atan2(curr[0][0], curr[0][1]) - Math.atan2(curr[1][0], curr[1][1]);
-                var sumThetaX = prev[1] + Math.cos(thetaDelta);
-                var sumThetaY = prev[2] + Math.sin(thetaDelta);
+                const thetaDelta = Math.atan2(curr[0][0], curr[0][1]) - Math.atan2(curr[1][0], curr[1][1]);
+                const sumThetaX = prev[1] + Math.cos(thetaDelta);
+                const sumThetaY = prev[2] + Math.sin(thetaDelta);
                 if (index == arr.length - 1) {
                     // return [distanceSum / arr.length, Math.atan2(sumThetaY, sumThetaX)];
                     return [distanceSum, Math.atan2(sumThetaY, sumThetaX)];
                 }
                 return [distanceSum, sumThetaX, sumThetaY];
-            }, null);
-        });
+            }, null)
+        );
 
         // "Using same average factor to every orthants" case
         if (orthant.length == 1) orthant = [orthant[0], orthant[0], orthant[0], orthant[0]];
 
         return [orthant, centroid, expandConvex, pointsSetBbox];
-    }).then(function(prevResults) {
-        var orthant = prevResults[0];
-        var centroid = prevResults[1];
-        var expandConvex = prevResults[2];
-        var pointsSet = prevResults[3][0];
-        var bbox = prevResults[3][1];
+    }).then((prevResults) => {
+        const orthant = prevResults[0];
+        const centroid = prevResults[1];
+        const expandConvex = prevResults[2];
+        const pointsSet = prevResults[3][0];
+        const bbox = prevResults[3][1];
 
         // Calcurating Backward Bounding box of map
-        var verticesSet = orthant.map(function(delta, index) {
-            var forVertex = bbox[index];
-            var forDelta = [forVertex[0] - centroid.forw[0], forVertex[1] - centroid.forw[1]];
-            var forDistance = Math.sqrt(Math.pow(forDelta[0], 2) + Math.pow(forDelta[1], 2));
-            var bakDistance = forDistance / delta[0];
+        let verticesSet = orthant.map((delta, index) => {
+            const forVertex = bbox[index];
+            const forDelta = [forVertex[0] - centroid.forw[0], forVertex[1] - centroid.forw[1]];
+            const forDistance = Math.sqrt(Math.pow(forDelta[0], 2) + Math.pow(forDelta[1], 2));
+            const bakDistance = forDistance / delta[0];
 
-            var forTheta = Math.atan2(forDelta[0], forDelta[1]);
-            var bakTheta = forTheta - delta[1];
+            const forTheta = Math.atan2(forDelta[0], forDelta[1]);
+            const bakTheta = forTheta - delta[1];
 
-            var bakVertex = [centroid.bakw[0] + bakDistance * Math.sin(bakTheta),
+            const bakVertex = [centroid.bakw[0] + bakDistance * Math.sin(bakTheta),
                 centroid.bakw[1] - bakDistance * Math.cos(bakTheta)];
 
             return {forw: forVertex, bakw: bakVertex};
         });
-        var swap = verticesSet[2];
+        const swap = verticesSet[2];
         verticesSet[2] = verticesSet[3];
         verticesSet[3] = swap;
 
         // Bounding Boxの頂点を、全てのgcpが内部に入るように引き延ばす
-        var expandRate = [1, 1, 1, 1];
-        for (var i = 0; i < 4; i++) {
-            var j = (i + 1) % 4;
-            var side = lineString([verticesSet[i].bakw, verticesSet[j].bakw]);
-            var expands = expandConvex[i];
-            expands.map(function (expand) {
-                var expandLine = lineString([centroid.bakw, expand.bakw]);
-                var intersect = lineIntersect(side, expandLine);
+        const expandRate = [1, 1, 1, 1];
+        for (let i = 0; i < 4; i++) {
+            const j = (i + 1) % 4;
+            const side = lineString([verticesSet[i].bakw, verticesSet[j].bakw]);
+            const expands = expandConvex[i];
+            expands.map((expand) => {
+                const expandLine = lineString([centroid.bakw, expand.bakw]);
+                const intersect = lineIntersect(side, expandLine);
                 if (intersect.features.length > 0 && intersect.features[0].geometry) {
-                    var intersect = intersect.features[0];
-                    var expandDist = Math.sqrt(Math.pow(expand.bakw[0] - centroid.bakw[0], 2) +
+                    const intersect_ = intersect.features[0];
+                    const expandDist = Math.sqrt(Math.pow(expand.bakw[0] - centroid.bakw[0], 2) +
                         Math.pow(expand.bakw[1] - centroid.bakw[1], 2));
-                    var onSideDist = Math.sqrt(Math.pow(intersect.geometry.coordinates[0] - centroid.bakw[0], 2) +
-                        Math.pow(intersect.geometry.coordinates[1] - centroid.bakw[1], 2));
-                    var rate = expandDist / onSideDist;
+                    const onSideDist = Math.sqrt(Math.pow(intersect_.geometry.coordinates[0] - centroid.bakw[0], 2) +
+                        Math.pow(intersect_.geometry.coordinates[1] - centroid.bakw[1], 2));
+                    const rate = expandDist / onSideDist;
                     if (rate > expandRate[i]) expandRate[i] = rate;
                     if (rate > expandRate[j]) expandRate[j] = rate;
                 }
             });
         }
-        verticesSet = verticesSet.map(function(vertex, index) {
-            var rate = expandRate[index];
-            var point = [(vertex.bakw[0] - centroid.bakw[0]) * rate + centroid.bakw[0],
+        verticesSet = verticesSet.map((vertex, index) => {
+            const rate = expandRate[index];
+            const point = [(vertex.bakw[0] - centroid.bakw[0]) * rate + centroid.bakw[0],
                 (vertex.bakw[1] - centroid.bakw[1]) * rate + centroid.bakw[1]];
             return {forw: vertex.forw, bakw: point};
         });
         return [verticesSet, pointsSet];
-    }).then(function(prevResults) {
-        var verticesSet = prevResults[0];
-        var pointsSet = prevResults[1];
+    }).then((prevResults) => {
+        const verticesSet = prevResults[0];
+        const pointsSet = prevResults[1];
 
-        var verticesList = {forw: [], bakw: []};
+        const verticesList = {forw: [], bakw: []};
 
-        for (var i = 0; i < verticesSet.length; i++ ) {
-            var forVertex = verticesSet[i].forw;
-            var bakVertex = verticesSet[i].bakw;
-            var forVertexFt = createPoint(forVertex, bakVertex, 'bbox' + i);
-            var bakVertexFt = counterPoint(forVertexFt);
+        for (let i = 0; i < verticesSet.length; i++ ) {
+            const forVertex = verticesSet[i].forw;
+            const bakVertex = verticesSet[i].bakw;
+            const forVertexFt = createPoint(forVertex, bakVertex, `bbox${i}`);
+            const bakVertexFt = counterPoint(forVertexFt);
             pointsSet.forw.features.push(forVertexFt);
             pointsSet.bakw.features.push(bakVertexFt);
             verticesList.forw.push(forVertexFt);
@@ -716,13 +690,13 @@ Tin.prototype.updateTinAsync = function() {
 
         self.pointsSet = pointsSet;
         self.tins = {forw: rotateVerticesTriangle(constrainedTin(pointsSet.forw, pointsSet.edges, 'target'))};
-        var prom;
+        let prom;
         if (strict == Tin.MODE_STRICT || strict == Tin.MODE_AUTO) {
             prom = self.calcurateStrictTinAsync();
         } else {
             prom = Promise.resolve();
         }
-        return prom.then(function() {
+        return prom.then(() => {
             if (strict == Tin.MODE_LOOSE || (strict == Tin.MODE_AUTO && self.strict_status == Tin.STATUS_ERROR)) {
                 self.tins.bakw = rotateVerticesTriangle(constrainedTin(pointsSet.bakw, pointsSet.edges, 'target'));
                 delete self.kinks;
@@ -732,10 +706,10 @@ Tin.prototype.updateTinAsync = function() {
                 bakw: vertexCalc(verticesList.bakw, self.centroid.bakw)};
 
             return self.calculatePointsWeightAsync();
-        }).catch(function(err) {
+        }).catch((err) => {
             throw err;
         });
-    }).catch(function(err) {
+    }).catch((err) => {
         throw err;
     });
 };
@@ -746,17 +720,17 @@ Tin.prototype.transform = function(apoint, backward, ignoreBounds) {
     if (this.yaxisMode == Tin.YAXIS_FOLLOW && backward) {
         apoint = [apoint[0], -1 * apoint[1]];
     }
-    var tpoint = point(apoint);
+    const tpoint = point(apoint);
     if (this.bounds && !backward && !ignoreBounds) {
         if (!booleanPointInPolygon(tpoint, this.boundsPolygon)) return false;
     }
-    var tins = backward ? this.tins.bakw : this.tins.forw;
-    var verticesParams = backward ? this.vertices_params.bakw : this.vertices_params.forw;
-    var centroid = backward ? this.centroid.bakw : this.centroid.forw;
-    var weightBuffer = backward ? this.pointsWeightBuffer.bakw : this.pointsWeightBuffer.forw;
-    var ret = transformArr(tpoint, tins, verticesParams, centroid, weightBuffer);
+    const tins = backward ? this.tins.bakw : this.tins.forw;
+    const verticesParams = backward ? this.vertices_params.bakw : this.vertices_params.forw;
+    const centroid = backward ? this.centroid.bakw : this.centroid.forw;
+    const weightBuffer = backward ? this.pointsWeightBuffer.bakw : this.pointsWeightBuffer.forw;
+    let ret = transformArr(tpoint, tins, verticesParams, centroid, weightBuffer);
     if (this.bounds && backward && !ignoreBounds) {
-        var rpoint = point(ret);
+        const rpoint = point(ret);
         if (!booleanPointInPolygon(rpoint, this.boundsPolygon)) return false;
     } else if (this.yaxisMode == Tin.YAXIS_FOLLOW && !backward) {
         ret = [ret[0], -1 * ret[1]];
@@ -765,32 +739,32 @@ Tin.prototype.transform = function(apoint, backward, ignoreBounds) {
 };
 
 Tin.prototype.calculatePointsWeightAsync = function() {
-    var self = this;
-    var calcTargets = ['forw'];
+    const self = this;
+    const calcTargets = ['forw'];
     if (self.strict_status == Tin.STATUS_LOOSE) calcTargets.push('bakw');
-    var weightBuffer = {};
-    return Promise.all(calcTargets.map(function(target) {
+    const weightBuffer = {};
+    return Promise.all(calcTargets.map((target) => {
         weightBuffer[target] = {};
-        var alreadyChecked = {};
-        var tin = self.tins[target];
-        return Promise.all(tin.features.map(function(tri) {
-            var vtxes = ['a', 'b', 'c'];
-            return new Promise(function(resolve) {
-                for (var i = 0; i < 3; i++) {
-                    var j = (i + 1) % 3;
-                    var vi = vtxes[i];
-                    var vj = vtxes[j];
-                    var indexi = tri.properties[vi].index;
-                    var indexj = tri.properties[vj].index;
-                    var key = [indexi, indexj].sort().join('-');
+        const alreadyChecked = {};
+        const tin = self.tins[target];
+        return Promise.all(tin.features.map((tri) => {
+            const vtxes = ['a', 'b', 'c'];
+            return new Promise(((resolve) => {
+                for (let i = 0; i < 3; i++) {
+                    const j = (i + 1) % 3;
+                    const vi = vtxes[i];
+                    const vj = vtxes[j];
+                    const indexi = tri.properties[vi].index;
+                    const indexj = tri.properties[vj].index;
+                    const key = [indexi, indexj].sort().join('-');
                     if (!alreadyChecked[key]) {
-                        var fromi = tri.geometry.coordinates[0][i];
-                        var fromj = tri.geometry.coordinates[0][j];
-                        var toi = tri.properties[vi].geom;
-                        var toj = tri.properties[vj].geom;
+                        const fromi = tri.geometry.coordinates[0][i];
+                        const fromj = tri.geometry.coordinates[0][j];
+                        const toi = tri.properties[vi].geom;
+                        const toj = tri.properties[vj].geom;
                         alreadyChecked[key] = 1;
 
-                        var weight = Math.sqrt(Math.pow(toi[0] - toj[0], 2) + Math.pow(toi[1] - toj[1], 2)) /
+                        const weight = Math.sqrt(Math.pow(toi[0] - toj[0], 2) + Math.pow(toi[1] - toj[1], 2)) /
                             Math.sqrt(Math.pow(fromi[0] - fromj[0], 2) + Math.pow(fromi[1] - fromj[1], 2));
 
                         if (!weightBuffer[target][indexi]) weightBuffer[target][indexi] = {};
@@ -800,41 +774,41 @@ Tin.prototype.calculatePointsWeightAsync = function() {
                     }
                 }
                 resolve();
-            });
-        })).catch(function(err) {
+            }));
+        })).catch((err) => {
             throw err;
         });
-    })).then(function() {
-        var pointsWeightBuffer = {};
-        calcTargets.map(function(target) {
+    })).then(() => {
+        const pointsWeightBuffer = {};
+        calcTargets.map((target) => {
             pointsWeightBuffer[target] = {};
             if (self.strict_status == Tin.STATUS_STRICT) pointsWeightBuffer['bakw'] = {};
-            Object.keys(weightBuffer[target]).map(function(vtx) {
-                pointsWeightBuffer[target][vtx] = Object.keys(weightBuffer[target][vtx]).reduce(function(prev, key, idx, arr) {
+            Object.keys(weightBuffer[target]).map((vtx) => {
+                pointsWeightBuffer[target][vtx] = Object.keys(weightBuffer[target][vtx]).reduce((prev, key, idx, arr) => {
                     prev = prev + weightBuffer[target][vtx][key];
                     return idx == arr.length - 1 ? prev / arr.length : prev;
                 }, 0);
                 if (self.strict_status == Tin.STATUS_STRICT) pointsWeightBuffer['bakw'][vtx] = 1 / pointsWeightBuffer[target][vtx];
             });
-            pointsWeightBuffer[target]['cent'] = [0, 1, 2, 3].reduce(function(prev, curr) {
-                var key = 'bbox' + curr;
+            pointsWeightBuffer[target]['cent'] = [0, 1, 2, 3].reduce((prev, curr) => {
+                const key = `bbox${curr}`;
                 prev = prev + pointsWeightBuffer[target][key];
                 return curr == 3 ? prev / 4 : prev;
             }, 0);
             if (self.strict_status == Tin.STATUS_STRICT) pointsWeightBuffer['bakw']['cent'] = 1 / pointsWeightBuffer[target]['cent'];
         });
         self.pointsWeightBuffer = pointsWeightBuffer;
-    }).catch(function(err) {
+    }).catch((err) => {
         throw err;
     });
 };
 
 function rotateVerticesTriangle(tins) {
-    var features = tins.features;
-    for (var i=0; i<features.length; i++) {
-        var feature = features[i];
-        if ((feature.properties.a.index + '').substring(0, 4) == 'bbox' &&
-            (feature.properties.b.index + '').substring(0, 4) == 'bbox') {
+    const features = tins.features;
+    for (let i=0; i<features.length; i++) {
+        const feature = features[i];
+        if ((`${feature.properties.a.index}`).substring(0, 4) == 'bbox' &&
+            (`${feature.properties.b.index}`).substring(0, 4) == 'bbox') {
             features[i] = {
                 geometry: {
                     type: 'Polygon',
@@ -859,8 +833,8 @@ function rotateVerticesTriangle(tins) {
                 },
                 type: 'Feature'
             };
-        } else if ((feature.properties.c.index + '').substring(0, 4) == 'bbox' &&
-            (feature.properties.a.index + '').substring(0, 4) == 'bbox') {
+        } else if ((`${feature.properties.c.index}`).substring(0, 4) == 'bbox' &&
+            (`${feature.properties.a.index}`).substring(0, 4) == 'bbox') {
             features[i] = {
                 geometry: {
                     type: 'Polygon',
@@ -891,30 +865,28 @@ function rotateVerticesTriangle(tins) {
 }
 
 function findIntersections(coords) {
-    var arcs = new internal.ArcCollection(coords);
+    const arcs = new internal.ArcCollection(coords);
     return internal.findSegmentIntersections(arcs);
 }
 
 function vertexCalc(list, centroid) {
-    var centCoord = centroid.geometry.coordinates;
-    return [0, 1, 2, 3].map(function(i) {
-        var j = (i + 1) % 4;
-        var itemi = list[i];
-        var itemj = list[j];
-        var coord = itemi.geometry.coordinates;
-        var radian = Math.atan2(coord[0] - centCoord[0], coord[1] - centCoord[1]);
-        var coordinates = [centroid, itemi, itemj, centroid].map(function(point) {
-            return point.geometry.coordinates;
-        });
-        var properties = {
+    const centCoord = centroid.geometry.coordinates;
+    return [0, 1, 2, 3].map((i) => {
+        const j = (i + 1) % 4;
+        const itemi = list[i];
+        const itemj = list[j];
+        const coord = itemi.geometry.coordinates;
+        const radian = Math.atan2(coord[0] - centCoord[0], coord[1] - centCoord[1]);
+        const coordinates = [centroid, itemi, itemj, centroid].map((point) => point.geometry.coordinates);
+        const properties = {
             a: {geom: centroid.properties.target.geom, index: centroid.properties.target.index},
             b: {geom: itemi.properties.target.geom, index: itemi.properties.target.index},
             c: {geom: itemj.properties.target.geom, index: itemj.properties.target.index}
         };
-        var tin = featureCollection([polygon([coordinates], properties)]);
+        const tin = featureCollection([polygon([coordinates], properties)]);
 
         return [radian, tin];
-    }).reduce(function(prev, curr) {
+    }).reduce((prev, curr) => {
         prev[0].push(curr[0]);
         prev[1].push(curr[1]);
         return prev;
@@ -922,7 +894,7 @@ function vertexCalc(list, centroid) {
 }
 
 function normalizeRadian(target, noNegative) {
-    var rangeFunc = noNegative ? function(val) {
+    const rangeFunc = noNegative ? function(val) {
         return !(val >= 0 && val < Math.PI * 2);
     } : function(val) {
         return !(val > -1 * Math.PI && val <= Math.PI);
@@ -934,13 +906,13 @@ function normalizeRadian(target, noNegative) {
 }
 
 function decideUseVertex(radian, radianList) {
-    var idel = normalizeRadian(radian - radianList[0]);
-    var minTheta = Math.PI * 2;
-    var minIndex;
-    for (var i = 0; i < radianList.length; i++) {
-        var j = (i + 1) % radianList.length;
-        var jdel = normalizeRadian(radian - radianList[j]);
-        var minDel = Math.min(Math.abs(idel), Math.abs(jdel));
+    let idel = normalizeRadian(radian - radianList[0]);
+    let minTheta = Math.PI * 2;
+    let minIndex;
+    for (let i = 0; i < radianList.length; i++) {
+        const j = (i + 1) % radianList.length;
+        const jdel = normalizeRadian(radian - radianList[j]);
+        const minDel = Math.min(Math.abs(idel), Math.abs(jdel));
         if (idel * jdel <= 0 && minDel < minTheta) {
             minTheta = minDel;
             minIndex = i;
@@ -951,7 +923,7 @@ function decideUseVertex(radian, radianList) {
 }
 
 function createPoint(xy, geom, index) {
-    return point(xy, {target: {geom: geom, index: index}});
+    return point(xy, {target: {geom, index}});
 }
 
 function counterPoint(apoint) {
@@ -959,37 +931,37 @@ function counterPoint(apoint) {
             index: apoint.properties.target.index}});
 }
 
-function transformTin(of, tri, weightBuffer) {
+function transformTin(of, tri, weightBuffer) { // eslint-disable-line no-unused-vars
     return point(transformTinArr(of, tri, weightBuffer));
 }
 function transformTinArr(of, tri, weightBuffer) {
-    var a = tri.geometry.coordinates[0][0];
-    var b = tri.geometry.coordinates[0][1];
-    var c = tri.geometry.coordinates[0][2];
-    var o = of.geometry.coordinates;
-    var ad = tri.properties.a.geom;
-    var bd = tri.properties.b.geom;
-    var cd = tri.properties.c.geom;
+    const a = tri.geometry.coordinates[0][0];
+    const b = tri.geometry.coordinates[0][1];
+    const c = tri.geometry.coordinates[0][2];
+    const o = of.geometry.coordinates;
+    const ad = tri.properties.a.geom;
+    const bd = tri.properties.b.geom;
+    const cd = tri.properties.c.geom;
 
-    var ab = [b[0] -a[0], b[1] -a[1]];
-    var ac = [c[0] -a[0], c[1] -a[1]];
-    var ao = [o[0] -a[0], o[1] -a[1]];
-    var abd = [bd[0]-ad[0], bd[1]-ad[1]];
-    var acd = [cd[0]-ad[0], cd[1]-ad[1]];
+    const ab = [b[0] -a[0], b[1] -a[1]];
+    const ac = [c[0] -a[0], c[1] -a[1]];
+    const ao = [o[0] -a[0], o[1] -a[1]];
+    const abd = [bd[0]-ad[0], bd[1]-ad[1]];
+    const acd = [cd[0]-ad[0], cd[1]-ad[1]];
 
-    var abv = (ac[1]*ao[0]-ac[0]*ao[1])/(ab[0]*ac[1]-ab[1]*ac[0]);
-    var acv = (ab[0]*ao[1]-ab[1]*ao[0])/(ab[0]*ac[1]-ab[1]*ac[0]);
+    let abv = (ac[1]*ao[0]-ac[0]*ao[1])/(ab[0]*ac[1]-ab[1]*ac[0]);
+    let acv = (ab[0]*ao[1]-ab[1]*ao[0])/(ab[0]*ac[1]-ab[1]*ac[0]);
 
     // Considering weight
     if (weightBuffer) {
-        var aW = weightBuffer[tri.properties.a.index];
-        var bW = weightBuffer[tri.properties.b.index];
-        var cW = weightBuffer[tri.properties.c.index];
+        const aW = weightBuffer[tri.properties.a.index];
+        const bW = weightBuffer[tri.properties.b.index];
+        const cW = weightBuffer[tri.properties.c.index];
 
-        var nabv;
+        let nabv;
         if (abv < 0 || acv < 0 || 1 - abv - acv < 0) {
-            var normB = abv / (abv + acv);
-            var normC = acv / (abv + acv);
+            const normB = abv / (abv + acv);
+            const normC = acv / (abv + acv);
             nabv = abv / bW / (normB / bW + normC / cW);
             acv = acv / cW / (normB / bW + normC / cW);
         } else {
@@ -998,46 +970,44 @@ function transformTinArr(of, tri, weightBuffer) {
         }
         abv = nabv;
     }
-    var od = [abv*abd[0]+acv*acd[0]+ad[0], abv*abd[1]+acv*acd[1]+ad[1]];
+    const od = [abv*abd[0]+acv*acd[0]+ad[0], abv*abd[1]+acv*acd[1]+ad[1]];
     return od;
 }
 
-function useVertices(o, verticesParams, centroid, weightBuffer) {
-    return point(useVerticesArr(o, verticesParams, centroid));
+function useVertices(o, verticesParams, centroid, weightBuffer) { // eslint-disable-line no-unused-vars
+    return point(useVerticesArr(o, verticesParams, centroid, weightBuffer));
 }
 function useVerticesArr(o, verticesParams, centroid, weightBuffer) {
-    var coord = o.geometry.coordinates;
-    var centCoord = centroid.geometry.coordinates;
-    var radian = Math.atan2(coord[0] - centCoord[0], coord[1] - centCoord[1]);
-    var index = decideUseVertex(radian, verticesParams[0]);
-    var tin = verticesParams[1][index];
+    const coord = o.geometry.coordinates;
+    const centCoord = centroid.geometry.coordinates;
+    const radian = Math.atan2(coord[0] - centCoord[0], coord[1] - centCoord[1]);
+    const index = decideUseVertex(radian, verticesParams[0]);
+    const tin = verticesParams[1][index];
     return transformTinArr(o, tin.features[0], weightBuffer);
 }
 
 function hit(point, tins) {
-    for (var i=0; i< tins.features.length; i++) {
-        var inside = booleanPointInPolygon(point, tins.features[i]);
+    for (let i=0; i< tins.features.length; i++) {
+        const inside = booleanPointInPolygon(point, tins.features[i]);
         if (inside) {
             return tins.features[i];
         }
     }
 }
 
-function transform(point, tins, verticesParams, centroid, weightBuffer) {
+function transform(point, tins, verticesParams, centroid, weightBuffer) { // eslint-disable-line no-unused-vars
     return point(transformArr(point, tins, verticesParams, centroid, weightBuffer));
 }
 function transformArr(point, tins, verticesParams, centroid, weightBuffer) {
-    var tin = hit(point, tins);
+    const tin = hit(point, tins);
     return tin ? transformTinArr(point, tin, weightBuffer) : useVerticesArr(point, verticesParams, centroid, weightBuffer);
 }
 
 function counterTri(tri) {
-    var coordinates = ['a', 'b', 'c', 'a'].map(function(key) {
-        return tri.properties[key].geom;
-    });
-    var geoms = tri.geometry.coordinates[0];
-    var props = tri.properties;
-    var properties = {
+    const coordinates = ['a', 'b', 'c', 'a'].map((key) => tri.properties[key].geom);
+    const geoms = tri.geometry.coordinates[0];
+    const props = tri.properties;
+    const properties = {
         a: {geom: geoms[0], index: props['a'].index},
         b: {geom: geoms[1], index: props['b'].index},
         c: {geom: geoms[2], index: props['c'].index}
@@ -1046,10 +1016,8 @@ function counterTri(tri) {
 }
 
 function buildTri(points) {
-    var coordinates = [0, 1, 2, 0].map(function(i) {
-        return points[i][0][0];
-    });
-    var properties = {
+    const coordinates = [0, 1, 2, 0].map((i) => points[i][0][0]);
+    const properties = {
         a: {geom: points[0][0][1], index: points[0][1]},
         b: {geom: points[1][0][1], index: points[1][1]},
         c: {geom: points[2][0][1], index: points[2][1]}
@@ -1058,17 +1026,17 @@ function buildTri(points) {
 }
 
 function indexesToTri(indexes, points, edgeNodes, cent, bboxes, bakw) {
-    var points = indexes.map(function(index) {
-        var point_base = isFinite(index) ? points[index] :
+    const points_ = indexes.map((index) => {
+        const point_base = isFinite(index) ? points[index] :
             index == 'cent' ? cent :
                 index == 'bbox0' ? bboxes[0] :
                     index == 'bbox1' ? bboxes[1] :
                         index == 'bbox2' ? bboxes[2] :
                             index == 'bbox3' ? bboxes[3] :
                                 (function() {
-                                    var match = index.match(/edgeNode(\d+)/);
+                                    const match = index.match(/edgeNode(\d+)/);
                                     if (match) {
-                                        var nodeIndex = parseInt(match[1]);
+                                        const nodeIndex = parseInt(match[1]);
                                         return edgeNodes[nodeIndex];
                                     }
                                     return undefined;
@@ -1076,20 +1044,19 @@ function indexesToTri(indexes, points, edgeNodes, cent, bboxes, bakw) {
         return bakw ? [[point_base[1], point_base[0]], index] :
             [[point_base[0], point_base[1]], index];
     });
-    return buildTri(points);
+    return buildTri(points_);
 }
 
 function overlapCheckAsync(searchIndex) {
-    var retValue = {forw: {}, bakw: {}};
-    return Promise.all(Object.keys(searchIndex).map(function(key) {
-        return new Promise(function(resolve) {
-            var searchResult = searchIndex[key];
+    const retValue = {forw: {}, bakw: {}};
+    return Promise.all(Object.keys(searchIndex).map((key) => new Promise(((resolve) => {
+            const searchResult = searchIndex[key];
             if (searchResult.length < 2) return resolve();
-            ['forw', 'bakw'].map(function(dir) {
-                var result = intersect(searchResult[0][dir], searchResult[1][dir]);
+            ['forw', 'bakw'].map((dir) => {
+                const result = intersect(searchResult[0][dir], searchResult[1][dir]);
                 if (!result || result.geometry.type == 'Point' || result.geometry.type == 'LineString') return resolve();
-                var diff1 = difference(searchResult[0][dir], result);
-                var diff2 = difference(searchResult[1][dir], result);
+                //const diff1 = difference(searchResult[0][dir], result);
+                //const diff2 = difference(searchResult[1][dir], result);
                 /* if (!diff1 || !diff2) {
                     searchResult[dir][key] = 'Include case';
                 } else {
@@ -1097,24 +1064,23 @@ function overlapCheckAsync(searchIndex) {
                 }*/
                 resolve();
             });
-        });
-    })).then(function() {
+        })))).then(() => {
         if (Object.keys(retValue.forw).length == 0) delete retValue.forw;
         if (Object.keys(retValue.bakw).length == 0) delete retValue.bakw;
         return retValue;
-    }).catch(function(err) {
+    }).catch((err) => {
         throw err;
     });
 }
 
 function insertSearchIndex(searchIndex, tris, tins) {
-    var keys = calcSearchKeys(tris.forw);
-    var bakKeys = calcSearchKeys(tris.bakw);
+    const keys = calcSearchKeys(tris.forw);
+    const bakKeys = calcSearchKeys(tris.bakw);
     if (JSON.stringify(keys) != JSON.stringify(bakKeys))
-        throw JSON.stringify(tris, null, 2) + '\n' + JSON.stringify(keys) + '\n' + JSON.stringify(bakKeys);
+        throw `${JSON.stringify(tris, null, 2)}\n${JSON.stringify(keys)}\n${JSON.stringify(bakKeys)}`;
 
-    for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
         if (!searchIndex[key]) searchIndex[key] = [];
         searchIndex[key].push(tris);
     }
@@ -1125,44 +1091,34 @@ function insertSearchIndex(searchIndex, tris, tins) {
 }
 
 function removeSearchIndex(searchIndex, tris, tins) {
-    var keys = calcSearchKeys(tris.forw);
-    var bakKeys = calcSearchKeys(tris.bakw);
+    const keys = calcSearchKeys(tris.forw);
+    const bakKeys = calcSearchKeys(tris.bakw);
     if (JSON.stringify(keys) != JSON.stringify(bakKeys))
-        throw JSON.stringify(tris, null, 2) + '\n' + JSON.stringify(keys) + '\n' + JSON.stringify(bakKeys);
+        throw `${JSON.stringify(tris, null, 2)}\n${JSON.stringify(keys)}\n${JSON.stringify(bakKeys)}`;
 
-    for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
-        var newArray = searchIndex[key].filter(function(eachTris) {
-            return eachTris.forw != tris.forw;
-        });
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        const newArray = searchIndex[key].filter((eachTris) => eachTris.forw != tris.forw);
         if (newArray.length == 0) delete searchIndex[key];
         else searchIndex[key] = newArray;
     }
     if (tins) {
-        var newArray = tins.forw.features.filter(function(eachTri) {
-            return eachTri != tris.forw;
-        });
+        let newArray = tins.forw.features.filter((eachTri) => eachTri != tris.forw);
         tins.forw.features = newArray;
-        newArray = tins.bakw.features.filter(function(eachTri) {
-            return eachTri != tris.bakw;
-        });
+        newArray = tins.bakw.features.filter((eachTri) => eachTri != tris.bakw);
         tins.bakw.features = newArray;
     }
 }
 
 function calcSearchKeys(tri) {
-    var vtx = ['a', 'b', 'c'].map(function(key) {
-        return tri.properties[key].index;
-    });
-    return [[0, 1], [0, 2], [1, 2], [0, 1, 2]].map(function(set) {
-        var index = set.map(function(i) {
-            return vtx[i];
-        }).sort().join('-');
+    const vtx = ['a', 'b', 'c'].map((key) => tri.properties[key].index);
+    return [[0, 1], [0, 2], [1, 2], [0, 1, 2]].map((set) => {
+        const index = set.map((i) => vtx[i]).sort().join('-');
         return index;
     }).sort();
 }
 
 export default Tin;
-if (typeof module === "object" && module.exports) {
-    module.exports = Tin;
+if (typeof module === "object" && module.exports) { // eslint-disable-line no-undef
+    module.exports = Tin; // eslint-disable-line no-undef
 }
