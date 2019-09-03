@@ -1,68 +1,63 @@
-var exportAPI;
+let exportAPI;
 (function () {
-    VERSION = '0.4.87';
+    const VERSION = '0.4.87';
 
-    var error = function () {
-        var msg = Utils.toArray(arguments).join(' ');
-        throw new Error(msg);
-    };
-
-    var utils = {
-        getUniqueName: function (prefix) {
-            var n = Utils.__uniqcount || 0;
+    const utils = {
+        getUniqueName (prefix) {
+            const n = Utils.__uniqcount || 0;
             Utils.__uniqcount = n + 1;
             return (prefix || "__id_") + n;
         },
 
-        isFunction: function (obj) {
+        isFunction (obj) {
             return typeof obj == 'function';
         },
 
-        isObject: function (obj) {
+        isObject (obj) {
             return obj === Object(obj); // via underscore
         },
 
-        clamp: function (val, min, max) {
+        clamp (val, min, max) {
             return val < min ? min : (val > max ? max : val);
         },
 
-        interpolate: function (val1, val2, pct) {
+        interpolate (val1, val2, pct) {
             return val1 * (1 - pct) + val2 * pct;
         },
 
-        isArray: function (obj) {
+        isArray (obj) {
             return Array.isArray(obj);
         },
 
         // NaN -> true
-        isNumber: function (obj) {
+        isNumber (obj) {
             // return toString.call(obj) == '[object Number]'; // ie8 breaks?
             return obj != null && obj.constructor == Number;
         },
 
-        isInteger: function (obj) {
+        isInteger (obj) {
             return Utils.isNumber(obj) && ((obj | 0) === obj);
         },
 
-        isString: function (obj) {
+        isString (obj) {
             return obj != null && obj.toString === String.prototype.toString;
             // TODO: replace w/ something better.
         },
 
-        isBoolean: function (obj) {
+        isBoolean (obj) {
             return obj === true || obj === false;
         },
 
         // Convert an array-like object to an Array, or make a copy if @obj is an Array
-        toArray: function (obj) {
-            var arr;
+        toArray (obj) {
+            let arr;
             if (!Utils.isArrayLike(obj)) error("Utils.toArray() requires an array-like object");
             try {
                 arr = Array.prototype.slice.call(obj, 0); // breaks in ie8
             } catch (e) {
                 // support ie8
                 arr = [];
-                for (var i = 0, n = obj.length; i < n; i++) {
+                for (let i = 0, n = obj.length; i < n; i++) {
                     arr[i] = obj[i];
                 }
             }
@@ -71,7 +66,7 @@ var exportAPI;
 
         // Array like: has length property, is numerically indexed and mutable.
         // TODO: try to detect objects with length property but no indexed data elements
-        isArrayLike: function (obj) {
+        isArrayLike (obj) {
             if (!obj) return false;
             if (Utils.isArray(obj)) return true;
             if (Utils.isString(obj)) return false;
@@ -81,20 +76,20 @@ var exportAPI;
         },
 
         // See https://raw.github.com/kvz/phpjs/master/functions/strings/addslashes.js
-        addslashes: function (str) {
-            return (str + '').replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
+        addslashes (str) {
+            return (`${str}`).replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
         },
 
         // Escape a literal string to use in a regexp.
         // Ref.: http://simonwillison.net/2006/Jan/20/escape/
-        regexEscape: function (str) {
+        regexEscape (str) {
             return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
         },
 
-        defaults: function (dest) {
-            for (var i = 1, n = arguments.length; i < n; i++) {
-                var src = arguments[i] || {};
-                for (var key in src) {
+        defaults (dest) {
+            for (let i = 1, n = arguments.length; i < n; i++) {
+                const src = arguments[i] || {};
+                for (const key in src) {
                     if (key in dest === false && src.hasOwnProperty(key)) {
                         dest[key] = src[key];
                     }
@@ -103,8 +98,8 @@ var exportAPI;
             return dest;
         },
 
-        extend: function (o) {
-            var dest = o || {},
+        extend (o) {
+            let dest = o || {},
                 n = arguments.length,
                 key, i, src;
             for (i = 1; i < n; i++) {
@@ -124,7 +119,7 @@ var exportAPI;
         //    Utils.inherit(Child, Parent);
         // Call parent's constructor (inside child constructor):
         //    this.__super__([args...]);
-        inherit: function (targ, src) {
+        inherit (targ, src) {
             var f = function () {
                 if (this.__super__ == f) {
                     // add __super__ of parent to front of lookup chain
@@ -147,12 +142,12 @@ var exportAPI;
 
         // Inherit from a parent, call the parent's constructor, optionally extend
         // prototype with optional additional arguments
-        subclass: function (parent) {
-            var child = function () {
+        subclass (parent) {
+            const child = function () {
                 this.__super__.apply(this, Utils.toArray(arguments));
             };
             Utils.inherit(child, parent);
-            for (var i = 1; i < arguments.length; i++) {
+            for (let i = 1; i < arguments.length; i++) {
                 Utils.extend(child.prototype, arguments[i]);
             }
             return child;
@@ -163,20 +158,20 @@ var exportAPI;
     var Utils = utils;
 
 
-    var Env = (function () {
-        var inNode = typeof module !== 'undefined' && !!module.exports;
-        var inBrowser = typeof window !== 'undefined' && !inNode;
-        var inPhantom = inBrowser && !!(window.phantom && window.phantom.exit);
-        var ieVersion = inBrowser && /MSIE ([0-9]+)/.exec(navigator.appVersion) && parseInt(RegExp.$1) || NaN;
+    const Env = (function () {
+        const inNode = typeof module !== 'undefined' && !!module.exports;
+        const inBrowser = typeof window !== 'undefined' && !inNode;
+        const inPhantom = inBrowser && !!(window.phantom && window.phantom.exit);
+        const ieVersion = inBrowser && /MSIE ([0-9]+)/.exec(navigator.appVersion) && parseInt(RegExp.$1) || NaN;
 
         return {
             iPhone: inBrowser && !!(navigator.userAgent.match(/iPhone/i)),
             iPad: inBrowser && !!(navigator.userAgent.match(/iPad/i)),
             canvas: inBrowser && !!document.createElement('canvas').getContext,
-            inNode: inNode,
-            inPhantom: inPhantom,
-            inBrowser: inBrowser,
-            ieVersion: ieVersion,
+            inNode,
+            inPhantom,
+            inBrowser,
+            ieVersion,
             ie: !isNaN(ieVersion)
         };
     })();
@@ -187,7 +182,7 @@ var exportAPI;
         if (!utils.isArray(dest) || !utils.isArray(src)) {
             error("Usage: utils.merge(destArray, srcArray);");
         }
-        for (var i = 0, n = src.length; i < n; i++) {
+        for (let i = 0, n = src.length; i < n; i++) {
             dest.push(src[i]);
         }
         return dest;
@@ -196,10 +191,8 @@ var exportAPI;
 // Returns elements in arr and not in other
 // (similar to underscore diff)
     utils.difference = function (arr, other) {
-        var index = utils.arrayToIndex(other);
-        return arr.filter(function (el) {
-            return !Object.prototype.hasOwnProperty.call(index, el);
-        });
+        const index = utils.arrayToIndex(other);
+        return arr.filter((el) => !Object.prototype.hasOwnProperty.call(index, el));
     };
 
 // Test a string or array-like object for existence of substring or element
@@ -213,26 +206,24 @@ var exportAPI;
     };
 
     utils.some = function (arr, test) {
-        return arr.reduce(function (val, item) {
-            return val || test(item); // TODO: short-circuit?
-        }, false);
+        return arr.reduce((val, item) => 
+             val || test(item) // TODO: short-circuit?
+        , false);
     };
 
     utils.every = function (arr, test) {
-        return arr.reduce(function (val, item) {
-            return val && test(item);
-        }, true);
+        return arr.reduce((val, item) => val && test(item), true);
     };
 
     utils.find = function (arr, test, ctx) {
-        var matches = arr.filter(test, ctx);
+        const matches = arr.filter(test, ctx);
         return matches.length === 0 ? null : matches[0];
     };
 
     utils.indexOf = function (arr, item, prop) {
         if (prop) error("utils.indexOf() No longer supports property argument");
-        var nan = item !== item;
-        for (var i = 0, len = arr.length || 0; i < len; i++) {
+        const nan = item !== item;
+        for (let i = 0, len = arr.length || 0; i < len; i++) {
             if (arr[i] === item) return i;
             if (nan && arr[i] !== arr[i]) return i;
         }
@@ -240,7 +231,7 @@ var exportAPI;
     };
 
     utils.range = function (len, start, inc) {
-        var arr = [],
+        let arr = [],
             v = start === void 0 ? 0 : start,
             i = inc === void 0 ? 1 : inc;
         while (len--) {
@@ -251,9 +242,9 @@ var exportAPI;
     };
 
     utils.repeat = function (times, func) {
-        var values = [],
+        let values = [],
             val;
-        for (var i = 0; i < times; i++) {
+        for (let i = 0; i < times; i++) {
             val = func(i);
             if (val !== void 0) {
                 values[i] = val;
@@ -267,10 +258,10 @@ var exportAPI;
 //
     utils.sum = function (arr, info) {
         if (!utils.isArrayLike(arr)) error("utils.sum() expects an array, received:", arr);
-        var tot = 0,
+        let tot = 0,
             nan = 0,
             val;
-        for (var i = 0, n = arr.length; i < n; i++) {
+        for (let i = 0, n = arr.length; i < n; i++) {
             val = arr[i];
             if (val) {
                 tot += val;
@@ -286,25 +277,25 @@ var exportAPI;
 
 // Calculate min and max values of an array, ignoring NaN values
     utils.getArrayBounds = function (arr) {
-        var min = Infinity,
+        let min = Infinity,
             max = -Infinity,
             nan = 0, val;
-        for (var i = 0, len = arr.length; i < len; i++) {
+        for (let i = 0, len = arr.length; i < len; i++) {
             val = arr[i];
             if (val !== val) nan++;
             if (val < min) min = val;
             if (val > max) max = val;
         }
         return {
-            min: min,
-            max: max,
-            nan: nan
+            min,
+            max,
+            nan
         };
     };
 
     utils.uniq = function (src) {
-        var index = {};
-        return src.reduce(function (memo, el) {
+        const index = {};
+        return src.reduce((memo, el) => {
             if (el in index === false) {
                 index[el] = true;
                 memo.push(el);
@@ -314,28 +305,26 @@ var exportAPI;
     };
 
     utils.pluck = function (arr, key) {
-        return arr.map(function (obj) {
-            return obj[key];
-        });
+        return arr.map((obj) => obj[key]);
     };
 
     utils.countValues = function (arr) {
-        return arr.reduce(function (memo, val) {
+        return arr.reduce((memo, val) => {
             memo[val] = (val in memo) ? memo[val] + 1 : 1;
             return memo;
         }, {});
     };
 
     utils.indexOn = function (arr, k) {
-        return arr.reduce(function (index, o) {
+        return arr.reduce((index, o) => {
             index[o[k]] = o;
             return index;
         }, {});
     };
 
     utils.groupBy = function (arr, k) {
-        return arr.reduce(function (index, o) {
-            var keyval = o[k];
+        return arr.reduce((index, o) => {
+            const keyval = o[k];
             if (keyval in index) {
                 index[keyval].push(o);
             } else {
@@ -346,8 +335,8 @@ var exportAPI;
     };
 
     utils.arrayToIndex = function (arr, val) {
-        var init = arguments.length > 1;
-        return arr.reduce(function (index, key) {
+        const init = arguments.length > 1;
+        return arr.reduce((index, key) => {
             index[key] = init ? val : true;
             return index;
         }, {});
@@ -356,21 +345,21 @@ var exportAPI;
 // Support for iterating over array-like objects, like typed arrays
     utils.forEach = function (arr, func, ctx) {
         if (!utils.isArrayLike(arr)) {
-            throw new Error("#forEach() takes an array-like argument. " + arr);
+            throw new Error(`#forEach() takes an array-like argument. ${arr}`);
         }
-        for (var i = 0, n = arr.length; i < n; i++) {
+        for (let i = 0, n = arr.length; i < n; i++) {
             func.call(ctx, arr[i], i);
         }
     };
 
     utils.forEachProperty = function (o, func, ctx) {
-        Object.keys(o).forEach(function (key) {
+        Object.keys(o).forEach((key) => {
             func.call(ctx, o[key], key);
         });
     };
 
     utils.initializeArray = function (arr, init) {
-        for (var i = 0, len = arr.length; i < len; i++) {
+        for (let i = 0, len = arr.length; i < len; i++) {
             arr[i] = init;
         }
         return arr;
@@ -378,15 +367,15 @@ var exportAPI;
 
     utils.replaceArray = function (arr, arr2) {
         arr.splice(0, arr.length);
-        for (var i = 0, n = arr2.length; i < n; i++) {
+        for (let i = 0, n = arr2.length; i < n; i++) {
             arr.push(arr2[i]);
         }
     };
 
 
     Utils.repeatString = function (src, n) {
-        var str = "";
-        for (var i = 0; i < n; i++)
+        let str = "";
+        for (let i = 0; i < n; i++)
             str += src;
         return str;
     };
@@ -415,24 +404,24 @@ var exportAPI;
         return Utils.ltrim(Utils.rtrim(str));
     };
 
-    var ltrimRxp = /^\s+/;
+    const ltrimRxp = /^\s+/;
     Utils.ltrim = function (str) {
         return str.replace(ltrimRxp, '');
     };
 
-    var rtrimRxp = /\s+$/;
+    const rtrimRxp = /\s+$/;
     Utils.rtrim = function (str) {
         return str.replace(rtrimRxp, '');
     };
 
     Utils.addThousandsSep = function (str) {
-        var fmt = '',
+        let fmt = '',
             start = str[0] == '-' ? 1 : 0,
             dec = str.indexOf('.'),
             end = str.length,
             ins = (dec == -1 ? end : dec) - 3;
         while (ins > start) {
-            fmt = ',' + str.substring(ins, end) + fmt;
+            fmt = `,${str.substring(ins, end)}${fmt}`;
             end = ins;
             ins -= 3;
         }
@@ -444,14 +433,14 @@ var exportAPI;
     };
 
     Utils.formatNumber = function (num, decimals, nullStr, showPos) {
-        var fmt;
+        let fmt;
         if (isNaN(num)) {
             fmt = nullStr || '-';
         } else {
             fmt = Utils.numToStr(num, decimals);
             fmt = Utils.addThousandsSep(fmt);
             if (showPos && parseFloat(fmt) > 0) {
-                fmt = "+" + fmt;
+                fmt = `+${fmt}`;
             }
         }
         return fmt;
@@ -468,7 +457,7 @@ var exportAPI;
     };
 
     Transform.prototype.invert = function () {
-        var inv = new Transform();
+        const inv = new Transform();
         inv.mx = 1 / this.mx;
         inv.my = 1 / this.my;
         //inv.bx = -this.bx * inv.mx;
@@ -564,12 +553,12 @@ var exportAPI;
 
 
     Bounds.prototype.centerX = function () {
-        var x = (this.xmin + this.xmax) * 0.5;
+        const x = (this.xmin + this.xmax) * 0.5;
         return x;
     };
 
     Bounds.prototype.centerY = function () {
-        var y = (this.ymax + this.ymin) * 0.5;
+        const y = (this.ymax + this.ymin) * 0.5;
         return y;
     };
 
@@ -626,10 +615,10 @@ var exportAPI;
 // @param {number} pctY Optional amount to scale Y
 //
     Bounds.prototype.scale = function (pct, pctY) { /*, focusX, focusY*/
-        var halfWidth = (this.xmax - this.xmin) * 0.5;
-        var halfHeight = (this.ymax - this.ymin) * 0.5;
-        var kx = pct - 1;
-        var ky = pctY === undefined ? kx : pctY - 1;
+        const halfWidth = (this.xmax - this.xmin) * 0.5;
+        const halfHeight = (this.ymax - this.ymin) * 0.5;
+        const kx = pct - 1;
+        const ky = pctY === undefined ? kx : pctY - 1;
         this.xmin -= halfWidth * kx;
         this.ymin -= halfHeight * ky;
         this.xmax += halfWidth * kx;
@@ -666,7 +655,7 @@ var exportAPI;
             focusX = 0.5;
             focusY = 0.5;
         }
-        var w = this.width(),
+        let w = this.width(),
             h = this.height(),
             currAspect = w / h,
             pad;
@@ -685,7 +674,7 @@ var exportAPI;
     };
 
     Bounds.prototype.update = function () {
-        var tmp;
+        let tmp;
         if (this.xmin > this.xmax) {
             tmp = this.xmin;
             this.xmin = this.xmax;
@@ -711,7 +700,7 @@ var exportAPI;
 // @flipY (optional) Flip y-axis coords, for converting to/from pixel coords
 //
     Bounds.prototype.getTransform = function (b2, flipY) {
-        var t = new Transform();
+        const t = new Transform();
         t.mx = b2.width() / this.width() || 1; // TODO: better handling of 0 w,h
         t.bx = b2.xmin - t.mx * this.xmin;
         if (flipY) {
@@ -730,7 +719,7 @@ var exportAPI;
     };
 
     Bounds.prototype.mergeBounds = function (bb) {
-        var a, b, c, d;
+        let a, b, c, d;
         if (bb instanceof Bounds) {
             a = bb.xmin;
             b = bb.ymin;
@@ -767,12 +756,12 @@ var exportAPI;
 // Usage: Utils.sortOn(array, key1, asc?[, key2, asc? ...])
 //
     Utils.sortOn = function (arr) {
-        var comparators = [];
-        for (var i = 1; i < arguments.length; i += 2) {
+        const comparators = [];
+        for (let i = 1; i < arguments.length; i += 2) {
             comparators.push(Utils.getKeyComparator(arguments[i], arguments[i + 1]));
         }
-        arr.sort(function (a, b) {
-            var cmp = 0,
+        arr.sort((a, b) => {
+            let cmp = 0,
                 i = 0,
                 n = comparators.length;
             while (i < n && cmp === 0) {
@@ -788,16 +777,14 @@ var exportAPI;
 // null, undefined and NaN are sorted to the end of the array
 //
     Utils.genericSort = function (arr, asc) {
-        var compare = Utils.getGenericComparator(asc);
+        const compare = Utils.getGenericComparator(asc);
         Array.prototype.sort.call(arr, compare);
         return arr;
     };
 
     Utils.sortOnKey = function (arr, getter, asc) {
-        var compare = Utils.getGenericComparator(asc !== false); // asc is default
-        arr.sort(function (a, b) {
-            return compare(getter(a), getter(b));
-        });
+        const compare = Utils.getGenericComparator(asc !== false); // asc is default
+        arr.sort((a, b) => compare(getter(a), getter(b)));
     };
 
 // Stashes keys in a temp array (better if calculating key is expensive).
@@ -806,30 +793,30 @@ var exportAPI;
     };
 
     Utils.sortArrayByKeys = function (arr, keys, asc) {
-        var ids = Utils.getSortedIds(keys, asc);
+        const ids = Utils.getSortedIds(keys, asc);
         Utils.reorderArray(arr, ids);
     };
 
     Utils.getSortedIds = function (arr, asc) {
-        var ids = Utils.range(arr.length);
+        const ids = Utils.range(arr.length);
         Utils.sortArrayIndex(ids, arr, asc);
         return ids;
     };
 
     Utils.sortArrayIndex = function (ids, arr, asc) {
-        var compare = Utils.getGenericComparator(asc);
-        ids.sort(function (i, j) {
+        const compare = Utils.getGenericComparator(asc);
+        ids.sort((i, j) => {
             // added i, j comparison to guarantee that sort is stable
-            var cmp = compare(arr[i], arr[j]);
+            const cmp = compare(arr[i], arr[j]);
             return cmp > 0 || cmp === 0 && i > j ? 1 : -1;
         });
     };
 
     Utils.reorderArray = function (arr, idxs) {
-        var len = idxs.length;
-        var arr2 = [];
-        for (var i = 0; i < len; i++) {
-            var idx = idxs[i];
+        const len = idxs.length;
+        const arr2 = [];
+        for (let i = 0; i < len; i++) {
+            const idx = idxs[i];
             if (idx < 0 || idx >= len) error("Out-of-bounds array idx");
             arr2[i] = arr[idx];
         }
@@ -837,7 +824,7 @@ var exportAPI;
     };
 
     Utils.getKeyComparator = function (key, asc) {
-        var compare = Utils.getGenericComparator(asc);
+        const compare = Utils.getGenericComparator(asc);
         return function (a, b) {
             return compare(a[key], b[key]);
         };
@@ -846,7 +833,7 @@ var exportAPI;
     Utils.getGenericComparator = function (asc) {
         asc = asc !== false;
         return function (a, b) {
-            var retn = 0;
+            let retn = 0;
             if (b == null) {
                 retn = a == null ? 0 : -1;
             } else if (a == null) {
@@ -874,7 +861,7 @@ var exportAPI;
 
 // Moved out of Utils.quicksort() (saw >100% speedup in Chrome with deep recursion)
     Utils.quicksortPartition = function (a, lo, hi) {
-        var i = lo,
+        let i = lo,
             j = hi,
             pivot, tmp;
         while (i < hi) {
@@ -899,15 +886,15 @@ var exportAPI;
 
     Utils.findRankByValue = function (arr, value) {
         if (isNaN(value)) return arr.length;
-        var rank = 1;
-        for (var i = 0, n = arr.length; i < n; i++) {
+        let rank = 1;
+        for (let i = 0, n = arr.length; i < n; i++) {
             if (value > arr[i]) rank++;
         }
         return rank;
     };
 
     Utils.findValueByPct = function (arr, pct) {
-        var rank = Math.ceil((1 - pct) * (arr.length));
+        const rank = Math.ceil((1 - pct) * (arr.length));
         return Utils.findValueByRank(arr, rank);
     };
 
@@ -918,7 +905,7 @@ var exportAPI;
         if (!arr.length || rank < 1 || rank > arr.length) error("[findValueByRank()] invalid input");
 
         rank = Utils.clamp(rank | 0, 1, arr.length);
-        var k = rank - 1, // conv. rank to array index
+        let k = rank - 1, // conv. rank to array index
             n = arr.length,
             l = 0,
             m = n - 1,
@@ -952,7 +939,7 @@ var exportAPI;
 //
 //
     Utils.findMedian = function (arr) {
-        var n = arr.length,
+        let n = arr.length,
             rank = Math.floor(n / 2) + 1,
             median = Utils.findValueByRank(arr, rank);
         if ((n & 1) == 0) {
@@ -963,10 +950,10 @@ var exportAPI;
 
 
     Utils.mean = function (arr) {
-        var count = 0,
+        let count = 0,
             avg = NaN,
             val;
-        for (var i = 0, n = arr.length; i < n; i++) {
+        for (let i = 0, n = arr.length; i < n; i++) {
             val = arr[i];
             if (isNaN(val)) continue;
             avg = ++count == 1 ? val : val / count + (count - 1) / count * avg;
@@ -1016,11 +1003,11 @@ var exportAPI;
 
         // When possible, copy buffer data in multi-byte chunks... Added this for faster copying of
         // shapefile data, which is aligned to 32 bits.
-        var wordSize = Math.min(BinArray.uintSize(bytes), BinArray.uintSize(srcId),
+        const wordSize = Math.min(BinArray.uintSize(bytes), BinArray.uintSize(srcId),
             BinArray.uintSize(dest.byteLength), BinArray.uintSize(destId),
             BinArray.uintSize(src.byteLength));
 
-        var srcArr = BinArray.bufferToUintArray(src, wordSize),
+        let srcArr = BinArray.bufferToUintArray(src, wordSize),
             destArr = BinArray.bufferToUintArray(dest, wordSize),
             count = bytes / wordSize,
             i = srcId / wordSize,
@@ -1033,10 +1020,10 @@ var exportAPI;
     };
 
     BinArray.toArrayBuffer = function (src) {
-        var n = src.length,
+        const n = src.length,
             dest = new ArrayBuffer(n),
             view = new Uint8Array(dest);
-        for (var i = 0; i < n; i++) {
+        for (let i = 0; i < n; i++) {
             view[i] = src[i];
         }
         return dest;
@@ -1049,12 +1036,12 @@ var exportAPI;
     };
 
     Utils.buffersAreIdentical = function (a, b) {
-        var alen = BinArray.bufferSize(a);
-        var blen = BinArray.bufferSize(b);
+        const alen = BinArray.bufferSize(a);
+        const blen = BinArray.bufferSize(b);
         if (alen != blen) {
             return false;
         }
-        for (var i = 0; i < alen; i++) {
+        for (let i = 0; i < alen; i++) {
             if (a[i] !== b[i]) {
                 return false;
             }
@@ -1063,94 +1050,94 @@ var exportAPI;
     };
 
     BinArray.prototype = {
-        size: function () {
+        size () {
             return this._buffer.byteLength;
         },
 
-        littleEndian: function () {
+        littleEndian () {
             this._le = true;
             return this;
         },
 
-        bigEndian: function () {
+        bigEndian () {
             this._le = false;
             return this;
         },
 
-        buffer: function () {
+        buffer () {
             return this._buffer;
         },
 
-        bytesLeft: function () {
+        bytesLeft () {
             return this._buffer.byteLength - this._idx;
         },
 
-        skipBytes: function (bytes) {
+        skipBytes (bytes) {
             this._idx += (bytes + 0);
             return this;
         },
 
-        readUint8: function () {
+        readUint8 () {
             return this._bytes[this._idx++];
         },
 
-        writeUint8: function (val) {
+        writeUint8 (val) {
             this._bytes[this._idx++] = val;
             return this;
         },
 
-        readInt8: function () {
+        readInt8 () {
             return this._view.getInt8(this._idx++);
         },
 
-        writeInt8: function (val) {
+        writeInt8 (val) {
             this._view.setInt8(this._idx++, val);
             return this;
         },
 
-        readUint16: function () {
-            var val = this._view.getUint16(this._idx, this._le);
+        readUint16 () {
+            const val = this._view.getUint16(this._idx, this._le);
             this._idx += 2;
             return val;
         },
 
-        writeUint16: function (val) {
+        writeUint16 (val) {
             this._view.setUint16(this._idx, val, this._le);
             this._idx += 2;
             return this;
         },
 
-        readUint32: function () {
-            var val = this._view.getUint32(this._idx, this._le);
+        readUint32 () {
+            const val = this._view.getUint32(this._idx, this._le);
             this._idx += 4;
             return val;
         },
 
-        writeUint32: function (val) {
+        writeUint32 (val) {
             this._view.setUint32(this._idx, val, this._le);
             this._idx += 4;
             return this;
         },
 
-        readInt32: function () {
-            var val = this._view.getInt32(this._idx, this._le);
+        readInt32 () {
+            const val = this._view.getInt32(this._idx, this._le);
             this._idx += 4;
             return val;
         },
 
-        writeInt32: function (val) {
+        writeInt32 (val) {
             this._view.setInt32(this._idx, val, this._le);
             this._idx += 4;
             return this;
         },
 
-        readFloat64: function () {
-            var val = this._view.getFloat64(this._idx, this._le);
+        readFloat64 () {
+            const val = this._view.getFloat64(this._idx, this._le);
             this._idx += 8;
             return val;
         },
 
-        writeFloat64: function (val) {
+        writeFloat64 (val) {
             this._view.setFloat64(this._idx, val, this._le);
             this._idx += 8;
             return this;
@@ -1158,8 +1145,8 @@ var exportAPI;
 
         // Returns a Float64Array containing @len doubles
         //
-        readFloat64Array: function (len) {
-            var bytes = len * 8,
+        readFloat64Array (len) {
+            let bytes = len * 8,
                 i = this._idx,
                 buf = this._buffer,
                 arr;
@@ -1169,7 +1156,7 @@ var exportAPI;
             } else if (buf.slice) {
                 arr = new Float64Array(buf.slice(i, i + bytes));
             } else { // ie10, etc
-                var dest = new ArrayBuffer(bytes);
+                const dest = new ArrayBuffer(bytes);
                 BinArray.bufferCopy(dest, 0, buf, i, bytes);
                 arr = new Float64Array(dest);
             }
@@ -1177,19 +1164,19 @@ var exportAPI;
             return arr;
         },
 
-        readUint32Array: function (len) {
-            var arr = [];
-            for (var i = 0; i < len; i++) {
+        readUint32Array (len) {
+            const arr = [];
+            for (let i = 0; i < len; i++) {
                 arr.push(this.readUint32());
             }
             return arr;
         },
 
-        peek: function (i) {
+        peek (i) {
             return this._view.getUint8(i >= 0 ? i : this._idx);
         },
 
-        position: function (i) {
+        position (i) {
             if (i != null) {
                 this._idx = i;
                 return this;
@@ -1197,11 +1184,11 @@ var exportAPI;
             return this._idx;
         },
 
-        readCString: function (fixedLen, asciiOnly) {
-            var str = "",
+        readCString (fixedLen, asciiOnly) {
+            let str = "",
                 count = fixedLen >= 0 ? fixedLen : this.bytesLeft();
             while (count > 0) {
-                var byteVal = this.readUint8();
+                const byteVal = this.readUint8();
                 count--;
                 if (byteVal == 0) {
                     break;
@@ -1218,14 +1205,14 @@ var exportAPI;
             return str;
         },
 
-        writeString: function (str, maxLen) {
-            var bytesWritten = 0,
+        writeString (str, maxLen) {
+            let bytesWritten = 0,
                 charsToWrite = str.length,
                 cval;
             if (maxLen) {
                 charsToWrite = Math.min(charsToWrite, maxLen);
             }
-            for (var i = 0; i < charsToWrite; i++) {
+            for (let i = 0; i < charsToWrite; i++) {
                 cval = str.charCodeAt(i);
                 if (cval > 127) {
                     trace("#writeCString() Unicode value beyond ascii range");
@@ -1237,8 +1224,8 @@ var exportAPI;
             return bytesWritten;
         },
 
-        writeCString: function (str, fixedLen) {
-            var maxChars = fixedLen ? fixedLen - 1 : null,
+        writeCString (str, fixedLen) {
+            let maxChars = fixedLen ? fixedLen - 1 : null,
                 bytesWritten = this.writeString(str, maxChars);
 
             this.writeUint8(0); // terminator
@@ -1253,7 +1240,7 @@ var exportAPI;
             return this;
         },
 
-        writeBuffer: function (buf, bytes, startIdx) {
+        writeBuffer (buf, bytes, startIdx) {
             this._idx += BinArray.bufferCopy(this._buffer, this._idx, buf, startIdx, bytes);
             return this;
         }
@@ -1291,28 +1278,28 @@ Examples:
 // Tip: When reusing the same format many times, use Utils.formatter() for 5x - 10x better performance
 //
     Utils.format = function (fmt) {
-        var fn = Utils.formatter(fmt);
-        var str = fn.apply(null, Array.prototype.slice.call(arguments, 1));
+        const fn = Utils.formatter(fmt);
+        const str = fn.apply(null, Array.prototype.slice.call(arguments, 1));
         return str;
     };
 
     function formatValue(val, matches) {
-        var flags = matches[1];
-        var padding = matches[2];
-        var decimals = matches[3] ? parseInt(matches[3].substr(1)) : void 0;
-        var type = matches[4];
-        var isString = type == 's',
+        const flags = matches[1];
+        const padding = matches[2];
+        const decimals = matches[3] ? parseInt(matches[3].substr(1)) : void 0;
+        const type = matches[4];
+        const isString = type == 's',
             isHex = type == 'x' || type == 'X',
             isInt = type == 'd' || type == 'i',
             isFloat = type == 'f',
             isNumber = !isString;
 
-        var sign = "",
+        let sign = "",
             padDigits = 0,
             isZero = false,
             isNeg = false;
 
-        var str, padChar, padStr;
+        let str, padChar, padStr;
         if (isString) {
             str = String(val);
         } else if (isHex) {
@@ -1339,8 +1326,8 @@ Examples:
         }
 
         if (padding) {
-            var strLen = str.length + sign.length;
-            var minWidth = parseInt(padding, 10);
+            const strLen = str.length + sign.length;
+            const minWidth = parseInt(padding, 10);
             if (strLen < minWidth) {
                 padDigits = minWidth - strLen;
                 padChar = flags.indexOf('0') == -1 ? ' ' : '0';
@@ -1360,8 +1347,8 @@ Examples:
 
 // Get a function for interpolating formatted values into a string.
     Utils.formatter = function (fmt) {
-        var codeRxp = /%([\',+0]*)([1-9]?)((?:\.[1-9])?)([sdifxX%])/g;
-        var literals = [],
+        const codeRxp = /%([\',+0]*)([1-9]?)((?:\.[1-9])?)([sdifxX%])/g;
+        let literals = [],
             formatCodes = [],
             startIdx = 0,
             prefix = "",
@@ -1371,7 +1358,7 @@ Examples:
         while (matches) {
             literal = fmt.substring(startIdx, codeRxp.lastIndex - matches[0].length);
             if (matches[0] == '%%') {
-                prefix += literal + '%';
+                prefix += `${literal}%`;
             } else {
                 literals.push(prefix + literal);
                 prefix = '';
@@ -1383,12 +1370,12 @@ Examples:
         literals.push(prefix + fmt.substr(startIdx));
 
         return function () {
-            var str = literals[0],
+            let str = literals[0],
                 n = arguments.length;
             if (n != formatCodes.length) {
                 error("[format()] Data does not match format string; format:", fmt, "data:", arguments);
             }
-            for (var i = 0; i < n; i++) {
+            for (let i = 0; i < n; i++) {
                 str += formatValue(arguments[i], formatCodes[i]) + literals[i + 1];
             }
             return str;
@@ -1397,14 +1384,12 @@ Examples:
 
 
     utils.wildcardToRegExp = function (name) {
-        var rxp = name.split('*').map(function (str) {
-            return utils.regexEscape(str);
-        }).join('.*');
-        return new RegExp('^' + rxp + '$');
+        const rxp = name.split('*').map((str) => utils.regexEscape(str)).join('.*');
+        return new RegExp(`^${rxp}$`);
     };
 
     utils.expandoBuffer = function (constructor, rate) {
-        var capacity = 0,
+        let capacity = 0,
             k = rate >= 1 ? rate : 1.2,
             buf;
         return function (size) {
@@ -1418,27 +1403,27 @@ Examples:
 
     utils.copyElements = function (src, i, dest, j, n, rev) {
         if (src === dest && j > i) error("copy error");
-        var inc = 1,
+        let inc = 1,
             offs = 0;
         if (rev) {
             inc = -1;
             offs = n - 1;
         }
-        for (var k = 0; k < n; k++, offs += inc) {
+        for (let k = 0; k < n; k++, offs += inc) {
             dest[k + j] = src[i + offs];
         }
     };
 
     utils.extendBuffer = function (src, newLen, copyLen) {
-        var len = Math.max(src.length, newLen);
-        var n = copyLen || src.length;
-        var dest = new src.constructor(len);
+        const len = Math.max(src.length, newLen);
+        const n = copyLen || src.length;
+        const dest = new src.constructor(len);
         utils.copyElements(src, 0, dest, 0, n);
         return dest;
     };
 
     utils.mergeNames = function (name1, name2) {
-        var merged;
+        let merged;
         if (name1 && name2) {
             merged = utils.findStringPrefix(name1, name2).replace(/[-_]$/, '');
         }
@@ -1446,8 +1431,8 @@ Examples:
     };
 
     utils.findStringPrefix = function (a, b) {
-        var i = 0;
-        for (var n = a.length; i < n; i++) {
+        let i = 0;
+        for (let n = a.length; i < n; i++) {
             if (a[i] !== b[i]) break;
         }
         return a.substr(0, i);
@@ -1463,9 +1448,9 @@ Examples:
     };
 
     utils.parsePercent = function (o) {
-        var str = String(o);
-        var isPct = str.indexOf('%') > 0;
-        var pct;
+        const str = String(o);
+        const isPct = str.indexOf('%') > 0;
+        let pct;
         if (isPct) {
             pct = Number(str.replace('%', '')) / 100;
         } else {
@@ -1480,10 +1465,9 @@ Examples:
 
     /*, mapshaper-buffer */
 
-    var api = {};
-    var VERSION; // set by build script
-    var internal = {
-        VERSION: VERSION, // export version
+    const api = {};
+    const internal = {
+        VERSION, // export version
         LOGGING: false,
         context: createContext()
     };
@@ -1491,14 +1475,14 @@ Examples:
 // Support for timing using T.start() and T.stop("message")
     var T = {
         stack: [],
-        start: function () {
+        start () {
             T.stack.push(+new Date());
         },
-        stop: function (note) {
-            var elapsed = (+new Date() - T.stack.pop());
-            var msg = elapsed + 'ms';
+        stop (note) {
+            const elapsed = (+new Date() - T.stack.pop());
+            let msg = `${elapsed}ms`;
             if (note) {
-                msg = note + " " + msg;
+                msg = `${note} ${msg}`;
             }
             verbose(msg);
             return elapsed;
@@ -1545,7 +1529,7 @@ Examples:
 // @cb callback function to wrap
 // returns wrapped callback function
     function preserveContext(cb) {
-        var ctx = internal.context;
+        const ctx = internal.context;
         return function () {
             internal.context = ctx;
             cb.apply(null, utils.toArray(arguments));
@@ -1562,16 +1546,16 @@ Examples:
     }
 
     function UserError(msg) {
-        var err = new Error(msg);
+        const err = new Error(msg);
         err.name = 'UserError';
         return err;
     }
 
     function messageArgs(args) {
-        var arr = utils.toArray(args);
-        var cmd = internal.getStateVar('current_command');
+        const arr = utils.toArray(args);
+        const cmd = internal.getStateVar('current_command');
         if (cmd && cmd != 'help') {
-            arr.unshift('[' + cmd + ']');
+            arr.unshift(`[${cmd}]`);
         }
         return arr;
     }
@@ -1603,14 +1587,14 @@ Examples:
     };
 
     api.printError = function (err) {
-        var msg;
+        let msg;
         if (utils.isString(err)) {
             err = new UserError(err);
         }
         if (internal.LOGGING && err.name == 'UserError') {
             msg = err.message;
             if (!/Error/.test(msg)) {
-                msg = "Error: " + msg;
+                msg = `Error: ${msg}`;
             }
             console.error(messageArgs([msg]).join(' '));
             internal.message("Run mapshaper -h to view help");
@@ -1621,7 +1605,7 @@ Examples:
     };
 
     internal.error = function () {
-        var msg = Utils.toArray(arguments).join(' ');
+        const msg = Utils.toArray(arguments).join(' ');
         throw new Error(msg);
     };
 
@@ -1640,18 +1624,16 @@ Examples:
 // Format an array of (preferably short) strings in columns for console logging.
     internal.formatStringsAsGrid = function (arr) {
         // TODO: variable column width
-        var longest = arr.reduce(function (len, str) {
-                return Math.max(len, str.length);
-            }, 0),
+        const longest = arr.reduce((len, str) => Math.max(len, str.length), 0),
             colWidth = longest + 2,
             perLine = Math.floor(80 / colWidth) || 1;
-        return arr.reduce(function (memo, name, i) {
-            var col = i % perLine;
+        return arr.reduce((memo, name, i) => {
+            const col = i % perLine;
             if (i > 0 && col === 0) memo += '\n';
             if (col < perLine - 1) { // right-pad all but rightmost column
                 name = utils.rpad(name, colWidth - 2, ' ');
             }
-            return memo + '  ' + name;
+            return `${memo}  ${name}`;
         }, '');
     };
 
@@ -1667,13 +1649,13 @@ Examples:
     };
 
     internal.probablyDecimalDegreeBounds = function (b) {
-        var world = internal.getWorldBounds(-1), // add a bit of excess
+        const world = internal.getWorldBounds(-1), // add a bit of excess
             bbox = (b instanceof Bounds) ? b.toArray() : b;
         return containsBounds(world, bbox);
     };
 
     internal.clampToWorldBounds = function (b) {
-        var bbox = (b instanceof Bounds) ? b.toArray() : b;
+        const bbox = (b instanceof Bounds) ? b.toArray() : b;
         return new Bounds().setBounds(Math.max(bbox[0], -180), Math.max(bbox[1], -90),
             Math.min(bbox[2], 180), Math.min(bbox[3], 90));
     };
@@ -1692,20 +1674,18 @@ Examples:
     };
 
     internal.layerHasNonNullShapes = function (lyr) {
-        return utils.some(lyr.shapes || [], function (shp) {
-            return !!shp;
-        });
+        return utils.some(lyr.shapes || [], (shp) => !!shp);
     };
 
     internal.requireDataFields = function (table, fields) {
         if (!table) {
             stop("Missing attribute data");
         }
-        var dataFields = table.getFields(),
+        const dataFields = table.getFields(),
             missingFields = utils.difference(fields, dataFields);
         if (missingFields.length > 0) {
             stop("Table is missing one or more fields:\n",
-                missingFields, "\nExisting fields:", '\n' + internal.formatStringsAsGrid(dataFields));
+                missingFields, "\nExisting fields:", `\n${internal.formatStringsAsGrid(dataFields)}`);
         }
     };
 
@@ -1722,8 +1702,8 @@ Examples:
     };
 
 
-    var R = 6378137;
-    var D2R = Math.PI / 180;
+    const R = 6378137;
+    const D2R = Math.PI / 180;
 
 // Equirectangular projection
     function degreesToMeters(deg) {
@@ -1731,26 +1711,26 @@ Examples:
     }
 
     function distance3D(ax, ay, az, bx, by, bz) {
-        var dx = ax - bx,
+        const dx = ax - bx,
             dy = ay - by,
             dz = az - bz;
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     function distanceSq(ax, ay, bx, by) {
-        var dx = ax - bx,
+        const dx = ax - bx,
             dy = ay - by;
         return dx * dx + dy * dy;
     }
 
     function distance2D(ax, ay, bx, by) {
-        var dx = ax - bx,
+        const dx = ax - bx,
             dy = ay - by;
         return Math.sqrt(dx * dx + dy * dy);
     }
 
     function distanceSq3D(ax, ay, az, bx, by, bz) {
-        var dx = ax - bx,
+        const dx = ax - bx,
             dy = ay - by,
             dz = az - bz;
         return dx * dx + dy * dy + dz * dz;
@@ -1758,10 +1738,10 @@ Examples:
 
 // Return id of nearest point to x, y, among x0, y0, x1, y1, ...
     function nearestPoint(x, y, x0, y0) {
-        var minIdx = -1,
+        let minIdx = -1,
             minDist = Infinity,
             dist;
-        for (var i = 0, j = 2, n = arguments.length; j < n; i++, j += 2) {
+        for (let i = 0, j = 2, n = arguments.length; j < n; i++, j += 2) {
             dist = distanceSq(x, y, arguments[j], arguments[j + 1]);
             if (dist < minDist) {
                 minDist = dist;
@@ -1774,7 +1754,7 @@ Examples:
 
 // atan2() makes this function fairly slow, replaced by ~2x faster formula
     function innerAngle2(ax, ay, bx, by, cx, cy) {
-        var a1 = Math.atan2(ay - by, ax - bx),
+        let a1 = Math.atan2(ay - by, ax - bx),
             a2 = Math.atan2(cy - by, cx - bx),
             a3 = Math.abs(a1 - a2);
         if (a3 > Math.PI) {
@@ -1803,7 +1783,7 @@ function signedAngle2(ax, ay, bx, by, cx, cy) {
 */
 
     function standardAngle(a) {
-        var twoPI = Math.PI * 2;
+        const twoPI = Math.PI * 2;
         while (a < 0) {
             a += twoPI;
         }
@@ -1817,7 +1797,7 @@ function signedAngle2(ax, ay, bx, by, cx, cy) {
         if (ax == bx && ay == by || bx == cx && by == cy) {
             return NaN; // Use NaN for invalid angles
         }
-        var abx = ax - bx,
+        const abx = ax - bx,
             aby = ay - by,
             cbx = cx - bx,
             cby = cy - by,
@@ -1829,12 +1809,12 @@ function signedAngle2(ax, ay, bx, by, cx, cy) {
 
 // Calc bearing in radians at lng1, lat1
     function bearing(lng1, lat1, lng2, lat2) {
-        var D2R = Math.PI / 180;
+        const D2R = Math.PI / 180;
         lng1 *= D2R;
         lng2 *= D2R;
         lat1 *= D2R;
         lat2 *= D2R;
-        var y = Math.sin(lng2 - lng1) * Math.cos(lat2),
+        const y = Math.sin(lng2 - lng1) * Math.cos(lat2),
             x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lng2 - lng1);
         return Math.atan2(y, x);
     }
@@ -1845,7 +1825,7 @@ function signedAngle2(ax, ay, bx, by, cx, cy) {
         if (alng == blng && alat == blat || blng == clng && blat == clat) {
             return NaN;
         }
-        var b1 = bearing(blng, blat, alng, alat), // calc bearing at b
+        const b1 = bearing(blng, blat, alng, alat), // calc bearing at b
             b2 = bearing(blng, blat, clng, clat),
             a = Math.PI * 2 + b1 - b2;
         return standardAngle(a);
@@ -1873,8 +1853,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // x, y, z coords (meters) on the most common spherical Earth model.
 //
     function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
-        var p = [];
-        for (var i = 0, len = xsrc.length; i < len; i++) {
+        const p = [];
+        for (let i = 0, len = xsrc.length; i < len; i++) {
             lngLatToXYZ(xsrc[i], ysrc[i], p);
             xbuf[i] = p[0];
             ybuf[i] = p[1];
@@ -1883,15 +1863,15 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function xyzToLngLat(x, y, z, p) {
-        var d = distance3D(0, 0, 0, x, y, z); // normalize
-        var lat = Math.asin(z / d) / D2R;
-        var lng = Math.atan2(y / d, x / d) / D2R;
+        const d = distance3D(0, 0, 0, x, y, z); // normalize
+        const lat = Math.asin(z / d) / D2R;
+        const lng = Math.atan2(y / d, x / d) / D2R;
         p[0] = lng;
         p[1] = lat;
     }
 
     function lngLatToXYZ(lng, lat, p) {
-        var cosLat;
+        let cosLat;
         lng *= D2R;
         lat *= D2R;
         cosLat = Math.cos(lat);
@@ -1902,7 +1882,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
 // Haversine formula (well conditioned at small distances)
     function sphericalDistance(lam1, phi1, lam2, phi2) {
-        var dlam = lam2 - lam1,
+        const dlam = lam2 - lam1,
             dphi = phi2 - phi1,
             a = Math.sin(dphi / 2) * Math.sin(dphi / 2) +
                 Math.cos(phi1) * Math.cos(phi2) *
@@ -1914,14 +1894,14 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // Receive: coords in decimal degrees;
 // Return: distance in meters on spherical earth
     function greatCircleDistance(lng1, lat1, lng2, lat2) {
-        var D2R = Math.PI / 180,
+        const D2R = Math.PI / 180,
             dist = sphericalDistance(lng1 * D2R, lat1 * D2R, lng2 * D2R, lat2 * D2R);
         return dist * R;
     }
 
 // TODO: make this safe for small angles
     function innerAngle(ax, ay, bx, by, cx, cy) {
-        var ab = distance2D(ax, ay, bx, by),
+        let ab = distance2D(ax, ay, bx, by),
             bc = distance2D(bx, by, cx, cy),
             theta, dotp;
         if (ab === 0 || bc === 0) {
@@ -1940,7 +1920,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function innerAngle3D(ax, ay, az, bx, by, bz, cx, cy, cz) {
-        var ab = distance3D(ax, ay, az, bx, by, bz),
+        let ab = distance3D(ax, ay, az, bx, by, bz),
             bc = distance3D(bx, by, bz, cx, cy, cz),
             theta, dotp;
         if (ab === 0 || bc === 0) {
@@ -1959,17 +1939,17 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function triangleArea(ax, ay, bx, by, cx, cy) {
-        var area = Math.abs(((ay - cy) * (bx - cx) + (by - cy) * (cx - ax)) / 2);
+        const area = Math.abs(((ay - cy) * (bx - cx) + (by - cy) * (cx - ax)) / 2);
         return area;
     }
 
     function detSq(ax, ay, bx, by, cx, cy) {
-        var det = ax * by - ax * cy + bx * cy - bx * ay + cx * ay - cx * by;
+        const det = ax * by - ax * cy + bx * cy - bx * ay + cx * ay - cx * by;
         return det * det;
     }
 
     function cosine(ax, ay, bx, by, cx, cy) {
-        var den = distance2D(ax, ay, bx, by) * distance2D(bx, by, cx, cy),
+        let den = distance2D(ax, ay, bx, by) * distance2D(bx, by, cx, cy),
             cos = 0;
         if (den > 0) {
             cos = ((ax - bx) * (cx - bx) + (ay - by) * (cy - by)) / den;
@@ -1980,7 +1960,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function cosine3D(ax, ay, az, bx, by, bz, cx, cy, cz) {
-        var den = distance3D(ax, ay, az, bx, by, bz) * distance3D(bx, by, bz, cx, cy, cz),
+        const den = distance3D(ax, ay, az, bx, by, bz) * distance3D(bx, by, bz, cx, cy, cz),
             cos = 0;
         if (den > 0) {
             cos = ((ax - bx) * (cx - bx) + (ay - by) * (cy - by) + (az - bz) * (cz - bz)) / den;
@@ -1991,7 +1971,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function triangleArea3D(ax, ay, az, bx, by, bz, cx, cy, cz) {
-        var area = 0.5 * Math.sqrt(detSq(ax, ay, bx, by, cx, cy) +
+        const area = 0.5 * Math.sqrt(detSq(ax, ay, bx, by, cx, cy) +
             detSq(ax, az, bx, bz, cx, cz) + detSq(ay, az, by, bz, cy, cz));
         return area;
     }
@@ -2003,7 +1983,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 //    P: [2, 3 - 1e-8]  AB: [[1, 3], [3, 3]]
 //
     function apexDistSq(ab2, bc2, ac2) {
-        var dist2;
+        let dist2;
         if (ac2 === 0) {
             dist2 = ab2;
         } else if (ab2 >= bc2 + ac2) {
@@ -2011,7 +1991,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         } else if (bc2 >= ab2 + ac2) {
             dist2 = ab2;
         } else {
-            var dval = (ab2 + ac2 - bc2);
+            const dval = (ab2 + ac2 - bc2);
             dist2 = ab2 - dval * dval / ac2 * 0.25;
         }
         if (dist2 < 0) {
@@ -2021,14 +2001,14 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function pointSegDistSq(ax, ay, bx, by, cx, cy) {
-        var ab2 = distanceSq(ax, ay, bx, by),
+        const ab2 = distanceSq(ax, ay, bx, by),
             ac2 = distanceSq(ax, ay, cx, cy),
             bc2 = distanceSq(bx, by, cx, cy);
         return apexDistSq(ab2, ac2, bc2);
     }
 
     function pointSegDistSq3D(ax, ay, az, bx, by, bz, cx, cy, cz) {
-        var ab2 = distanceSq3D(ax, ay, az, bx, by, bz),
+        const ab2 = distanceSq3D(ax, ay, az, bx, by, bz),
             ac2 = distanceSq3D(ax, ay, az, cx, cy, cz),
             bc2 = distanceSq3D(bx, by, bz, cx, cy, cz);
         return apexDistSq(ab2, ac2, bc2);
@@ -2036,7 +2016,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
 
     internal.calcArcBounds = function (xx, yy, start, len) {
-        var i = start | 0,
+        let i = start | 0,
             n = isNaN(len) ? xx.length - i : len + i,
             x, y, xmin, ymin, xmax, ymax;
         if (n > 0) {
@@ -2055,7 +2035,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     };
 
     internal.reversePathCoords = function (arr, start, len) {
-        var i = start,
+        let i = start,
             j = start + len - 1,
             tmp;
         while (i < j) {
@@ -2084,33 +2064,33 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
 // export functions so they can be tested
-    var geom = {
-        R: R,
-        D2R: D2R,
-        degreesToMeters: degreesToMeters,
-        segmentHit: segmentHit,
-        segmentIntersection: segmentIntersection,
-        distanceSq: distanceSq,
-        distance2D: distance2D,
-        distance3D: distance3D,
-        innerAngle: innerAngle,
-        innerAngle2: innerAngle2,
-        signedAngle: signedAngle,
-        bearing: bearing,
-        signedAngleSph: signedAngleSph,
-        standardAngle: standardAngle,
-        convLngLatToSph: convLngLatToSph,
-        lngLatToXYZ: lngLatToXYZ,
-        xyzToLngLat: xyzToLngLat,
-        sphericalDistance: sphericalDistance,
-        greatCircleDistance: greatCircleDistance,
-        pointSegDistSq: pointSegDistSq,
-        pointSegDistSq3D: pointSegDistSq3D,
-        innerAngle3D: innerAngle3D,
-        triangleArea: triangleArea,
-        triangleArea3D: triangleArea3D,
-        cosine: cosine,
-        cosine3D: cosine3D
+    const geom = {
+        R,
+        D2R,
+        degreesToMeters,
+        segmentHit,
+        segmentIntersection,
+        distanceSq,
+        distance2D,
+        distance3D,
+        innerAngle,
+        innerAngle2,
+        signedAngle,
+        bearing,
+        signedAngleSph,
+        standardAngle,
+        convLngLatToSph,
+        lngLatToXYZ,
+        xyzToLngLat,
+        sphericalDistance,
+        greatCircleDistance,
+        pointSegDistSq,
+        pointSegDistSq3D,
+        innerAngle3D,
+        triangleArea,
+        triangleArea3D,
+        cosine,
+        cosine3D
     };
 
 
@@ -2129,12 +2109,12 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // Iterate over an array of [x, y] points
 //
     function PointIter(points) {
-        var n = points.length,
+        let n = points.length,
             i = 0,
             iter = {
                 x: 0,
                 y: 0,
-                hasNext: hasNext
+                hasNext
             };
 
         function hasNext() {
@@ -2175,7 +2155,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     };
 
     ArcIter.prototype.hasNext = function () {
-        var i = this._i;
+        const i = this._i;
         if (this._n > 0) {
             this._i = i + this._inc;
             this.x = this._xx[i];
@@ -2188,7 +2168,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     };
 
     function FilteredArcIter(xx, yy, zz) {
-        var _zlim = 0,
+        let _zlim = 0,
             _i = 0,
             _inc = 1,
             _stop = 0;
@@ -2209,7 +2189,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         this.hasNext = function () {
             // using local vars is significantly faster when skipping many points
-            var zarr = zz,
+            let zarr = zz,
                 i = _i,
                 j = i,
                 zlim = _zlim,
@@ -2238,7 +2218,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     ShapeIter.prototype.hasNext = function () {
-        var arc = this._arc;
+        const arc = this._arc;
         if (this._i < this._n === false) {
             return false;
         }
@@ -2259,7 +2239,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     };
 
     ShapeIter.prototype.nextArc = function () {
-        var i = this._i + 1;
+        const i = this._i + 1;
         if (i < this._n) {
             this._arc = this._arcs.getArcIter(this._ids[i]);
             if (i > 0) this._arc.hasNext(); // skip first point
@@ -2282,7 +2262,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // ArcCollection(nn, xx, yy)
 //    nn is an array of arc lengths; xx, yy are arrays of concatenated coords;
     function ArcCollection() {
-        var _xx, _yy,  // coordinates data
+        let _xx, _yy,  // coordinates data
             _ii, _nn,  // indexes, sizes
             _zz, _zlimit = 0, // simplification
             _bb, _allBounds, // bounding boxes
@@ -2297,10 +2277,10 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         }
 
         function initLegacyArcs(arcs) {
-            var xx = [], yy = [];
-            var nn = arcs.map(function (points) {
-                var n = points ? points.length : 0;
-                for (var i = 0; i < n; i++) {
+            const xx = [], yy = [];
+            const nn = arcs.map((points) => {
+                const n = points ? points.length : 0;
+                for (let i = 0; i < n; i++) {
                     xx.push(points[i][0]);
                     yy.push(points[i][1]);
                 }
@@ -2310,7 +2290,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         }
 
         function initXYData(nn, xx, yy) {
-            var size = nn.length;
+            const size = nn.length;
             if (nn instanceof Array) nn = new Uint32Array(nn);
             if (xx instanceof Array) xx = new Float64Array(xx);
             if (yy instanceof Array) yy = new Float64Array(yy);
@@ -2352,19 +2332,19 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         }
 
         function initBounds() {
-            var data = calcArcBounds(_xx, _yy, _nn);
+            const data = calcArcBounds(_xx, _yy, _nn);
             _bb = data.bb;
             _allBounds = data.bounds;
         }
 
         function calcArcBounds(xx, yy, nn) {
-            var numArcs = nn.length,
+            let numArcs = nn.length,
                 bb = new Float64Array(numArcs * 4),
                 bounds = new Bounds(),
                 arcOffs = 0,
                 arcLen,
                 j, b;
-            for (var i = 0; i < numArcs; i++) {
+            for (let i = 0; i < numArcs; i++) {
                 arcLen = nn[i];
                 if (arcLen > 0) {
                     j = i * 4;
@@ -2378,8 +2358,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
                 }
             }
             return {
-                bb: bb,
-                bounds: bounds
+                bb,
+                bounds
             };
         }
 
@@ -2401,7 +2381,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         this.getCopy = function () {
-            var copy = new ArcCollection(new Int32Array(_nn), new Float64Array(_xx),
+            const copy = new ArcCollection(new Int32Array(_nn), new Float64Array(_xx),
                 new Float64Array(_yy));
             if (_zz) {
                 copy.setThresholds(new Float64Array(_zz));
@@ -2411,29 +2391,29 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         function getFilteredPointCount() {
-            var zz = _zz, z = _zlimit;
+            const zz = _zz, z = _zlimit;
             if (!zz || !z) return this.getPointCount();
-            var count = 0;
-            for (var i = 0, n = zz.length; i < n; i++) {
+            let count = 0;
+            for (let i = 0, n = zz.length; i < n; i++) {
                 if (zz[i] >= z) count++;
             }
             return count;
         }
 
         function getFilteredVertexData() {
-            var len2 = getFilteredPointCount();
-            var arcCount = _nn.length;
-            var xx2 = new Float64Array(len2),
+            const len2 = getFilteredPointCount();
+            const arcCount = _nn.length;
+            let xx2 = new Float64Array(len2),
                 yy2 = new Float64Array(len2),
                 zz2 = new Float64Array(len2),
                 nn2 = new Int32Array(arcCount),
                 i = 0, i2 = 0,
                 n, n2;
 
-            for (var arcId = 0; arcId < arcCount; arcId++) {
+            for (let arcId = 0; arcId < arcCount; arcId++) {
                 n2 = 0;
                 n = _nn[arcId];
-                for (var end = i + n; i < end; i++) {
+                for (let end = i + n; i < end; i++) {
                     if (_zz[i] >= _zlimit) {
                         xx2[i2] = _xx[i];
                         yy2[i2] = _yy[i];
@@ -2455,17 +2435,17 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         this.getFilteredCopy = function () {
             if (!_zz || _zlimit === 0) return this.getCopy();
-            var data = getFilteredVertexData();
-            var copy = new ArcCollection(data.nn, data.xx, data.yy);
+            const data = getFilteredVertexData();
+            const copy = new ArcCollection(data.nn, data.xx, data.yy);
             copy.setThresholds(data.zz);
             return copy;
         };
 
         // Return arcs as arrays of [x, y] points (intended for testing).
         this.toArray = function () {
-            var arr = [];
-            this.forEach(function (iter) {
-                var arc = [];
+            const arr = [];
+            this.forEach((iter) => {
+                const arc = [];
                 while (iter.hasNext()) {
                     arc.push([iter.x, iter.y]);
                 }
@@ -2480,7 +2460,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         // @cb function(i, j, xx, yy)
         this.forEachArcSegment = function (arcId, cb) {
-            var fw = arcId >= 0,
+            let fw = arcId >= 0,
                 absId = fw ? arcId : ~arcId,
                 zlim = this.getRetainedInterval(),
                 n = _nn[absId],
@@ -2489,7 +2469,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
                 v2 = v1,
                 count = 0;
 
-            for (var j = 1; j < n; j++) {
+            for (let j = 1; j < n; j++) {
                 v2 += step;
                 if (zlim === 0 || _zz[v2] >= zlim) {
                     cb(v1, v2, _xx, _yy);
@@ -2502,16 +2482,16 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         // @cb function(i, j, xx, yy)
         this.forEachSegment = function (cb) {
-            var count = 0;
-            for (var i = 0, n = this.size(); i < n; i++) {
+            let count = 0;
+            for (let i = 0, n = this.size(); i < n; i++) {
                 count += this.forEachArcSegment(i, cb);
             }
             return count;
         };
 
         this.transformPoints = function (f) {
-            var xx = _xx, yy = _yy, arcId = -1, n = 0, p;
-            for (var i = 0, len = xx.length; i < len; i++, n--) {
+            let xx = _xx, yy = _yy, arcId = -1, n = 0, p;
+            for (let i = 0, len = xx.length; i < len; i++, n--) {
                 while (n === 0) {
                     n = _nn[++arcId];
                 }
@@ -2527,7 +2507,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // Return an ArcIter object for each path in the dataset
         //
         this.forEach = function (cb) {
-            for (var i = 0, n = this.size(); i < n; i++) {
+            for (let i = 0, n = this.size(); i < n; i++) {
                 cb(this.getArcIter(i), i);
             }
         };
@@ -2535,14 +2515,14 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // Iterate over arcs with access to low-level data
         //
         this.forEach2 = function (cb) {
-            for (var arcId = 0, n = this.size(); arcId < n; arcId++) {
+            for (let arcId = 0, n = this.size(); arcId < n; arcId++) {
                 cb(_ii[arcId], _nn[arcId], _xx, _yy, _zz, arcId);
             }
         };
 
         this.forEach3 = function (cb) {
-            var start, end, xx, yy, zz;
-            for (var arcId = 0, n = this.size(); arcId < n; arcId++) {
+            let start, end, xx, yy, zz;
+            for (let arcId = 0, n = this.size(); arcId < n; arcId++) {
                 start = _ii[arcId];
                 end = start + _nn[arcId];
                 xx = _xx.subarray(start, end);
@@ -2559,18 +2539,18 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // Return null if no arcs were re-indexed (and no arcs were removed)
         //
         this.filter = function (cb) {
-            var test = function (i) {
+            const test = function (i) {
                 return cb(this.getArcIter(i), i);
             }.bind(this);
             return this.deleteArcs(test);
         };
 
         this.deleteArcs = function (test) {
-            var n = this.size(),
+            let n = this.size(),
                 map = new Int32Array(n),
                 goodArcs = 0,
                 goodPoints = 0;
-            for (var i = 0; i < n; i++) {
+            for (let i = 0; i < n; i++) {
                 if (test(i)) {
                     map[i] = goodArcs++;
                     goodPoints += _nn[i];
@@ -2585,11 +2565,11 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         function condenseArcs(map) {
-            var goodPoints = 0,
+            let goodPoints = 0,
                 goodArcs = 0,
                 copyElements = utils.copyElements,
                 k, arcLen;
-            for (var i = 0, n = map.length; i < n; i++) {
+            for (let i = 0, n = map.length; i < n; i++) {
                 k = map[i];
                 arcLen = _nn[i];
                 if (k > -1) {
@@ -2608,7 +2588,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         }
 
         this.dedupCoords = function () {
-            var arcId = 0, i = 0, i2 = 0,
+            let arcId = 0, i = 0, i2 = 0,
                 arcCount = this.size(),
                 zz = _zz,
                 arcLen, arcLen2;
@@ -2628,7 +2608,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         this.getVertex = function (arcId, nth) {
-            var i = this.indexOfVertex(arcId, nth);
+            const i = this.indexOfVertex(arcId, nth);
             return {
                 x: _xx[i],
                 y: _yy[i]
@@ -2637,7 +2617,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         // @nth: index of vertex. ~(idx) starts from the opposite endpoint
         this.indexOfVertex = function (arcId, nth) {
-            var absId = arcId < 0 ? ~arcId : arcId,
+            const absId = arcId < 0 ? ~arcId : arcId,
                 len = _nn[absId];
             if (nth < 0) nth = len + nth;
             if (absId != arcId) nth = len - nth - 1;
@@ -2647,9 +2627,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         // Test whether the vertex at index @idx is the endpoint of an arc
         this.pointIsEndpoint = function (idx) {
-            var ii = _ii,
+            const ii = _ii,
                 nn = _nn;
-            for (var j = 0, n = ii.length; j < n; j++) {
+            for (let j = 0, n = ii.length; j < n; j++) {
                 if (idx === ii[j] || idx === ii[j] + nn[j] - 1) return true;
             }
             return false;
@@ -2658,7 +2638,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // Tests if arc endpoints have same x, y coords
         // (arc may still have collapsed);
         this.arcIsClosed = function (arcId) {
-            var i = this.indexOfVertex(arcId, 0),
+            const i = this.indexOfVertex(arcId, 0),
                 j = this.indexOfVertex(arcId, -1);
             return i != j && _xx[i] == _xx[j] && _yy[i] == _yy[j];
         };
@@ -2666,7 +2646,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // Tests if first and last segments mirror each other
         // A 3-vertex arc with same endpoints tests true
         this.arcIsLollipop = function (arcId) {
-            var len = this.getArcLength(arcId),
+            let len = this.getArcLength(arcId),
                 i, j;
             if (len <= 2 || !this.arcIsClosed(arcId)) return false;
             i = this.indexOfVertex(arcId, 1);
@@ -2675,8 +2655,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         this.arcIsDegenerate = function (arcId) {
-            var iter = this.getArcIter(arcId);
-            var i = 0,
+            const iter = this.getArcIter(arcId);
+            let i = 0,
                 x, y;
             while (iter.hasNext()) {
                 if (i > 0) {
@@ -2694,7 +2674,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         this.getArcIter = function (arcId) {
-            var fw = arcId >= 0,
+            const fw = arcId >= 0,
                 i = fw ? arcId : ~arcId,
                 iter = _zz && _zlimit ? _filteredArcIter : _arcIter;
             if (i >= _nn.length) {
@@ -2711,7 +2691,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // @thresholds is either a single typed array or an array of arrays of removal thresholds for each arc;
         //
         this.setThresholds = function (thresholds) {
-            var n = this.getPointCount(),
+            let n = this.getPointCount(),
                 zz = null;
             if (!thresholds) {
                 // nop
@@ -2727,10 +2707,10 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         function flattenThresholds(arr, n) {
-            var zz = new Float64Array(n),
+            let zz = new Float64Array(n),
                 i = 0;
-            arr.forEach(function (arr) {
-                for (var j = 0, n = arr.length; j < n; i++, j++) {
+            arr.forEach((arr) => {
+                for (let j = 0, n = arr.length; j < n; i++, j++) {
                     zz[i] = arr[j];
                 }
             });
@@ -2741,7 +2721,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // bake in current simplification level, if any
         this.flatten = function () {
             if (_zlimit > 0) {
-                var data = getFilteredVertexData();
+                const data = getFilteredVertexData();
                 this.updateVertexData(data.nn, data.xx, data.yy);
                 _zlimit = 0;
             } else {
@@ -2776,7 +2756,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         //
         this.getRemovableThresholds = function (nth) {
             if (!_zz) error("[arcs] Missing simplification data.");
-            var skip = nth | 1,
+            let skip = nth | 1,
                 arr = new Float64Array(Math.ceil(_zz.length / skip)),
                 z;
             for (var i = 0, j = 0, n = this.getPointCount(); i < n; i += skip) {
@@ -2792,14 +2772,14 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
             if (!(arcId >= 0 && arcId < this.size())) {
                 error("[arcs] Invalid arc id:", arcId);
             }
-            var start = _ii[arcId],
+            const start = _ii[arcId],
                 end = start + _nn[arcId];
             return _zz.subarray(start, end);
         };
 
         // nth (optional): sample every nth threshold (use estimate for speed)
         this.getPctByThreshold = function (val, nth) {
-            var arr, rank, pct;
+            let arr, rank, pct;
             if (val > 0) {
                 arr = this.getRemovableThresholds(nth);
                 rank = utils.findRankByValue(arr, val);
@@ -2812,7 +2792,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         // nth (optional): sample every nth threshold (use estimate for speed)
         this.getThresholdByPct = function (pct, nth) {
-            var tmp = this.getRemovableThresholds(nth),
+            let tmp = this.getRemovableThresholds(nth),
                 rank, z;
             if (tmp.length === 0) { // No removable points
                 rank = 0;
@@ -2831,19 +2811,19 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         this.arcIntersectsBBox = function (i, b1) {
-            var b2 = _bb,
+            const b2 = _bb,
                 j = i * 4;
             return b2[j] <= b1[2] && b2[j + 2] >= b1[0] && b2[j + 3] >= b1[1] && b2[j + 1] <= b1[3];
         };
 
         this.arcIsContained = function (i, b1) {
-            var b2 = _bb,
+            const b2 = _bb,
                 j = i * 4;
             return b2[j] >= b1[0] && b2[j + 2] <= b1[2] && b2[j + 1] >= b1[1] && b2[j + 3] <= b1[3];
         };
 
         this.arcIsSmaller = function (i, units) {
-            var bb = _bb,
+            const bb = _bb,
                 j = i * 4;
             return bb[j + 2] - bb[j] < units && bb[j + 3] - bb[j + 1] < units;
         };
@@ -2867,21 +2847,21 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         this.getSimpleShapeBounds = function (arcIds, bounds) {
             bounds = bounds || new Bounds();
-            for (var i = 0, n = arcIds.length; i < n; i++) {
+            for (let i = 0, n = arcIds.length; i < n; i++) {
                 this.mergeArcBounds(arcIds[i], bounds);
             }
             return bounds;
         };
 
         this.getSimpleShapeBounds2 = function (arcIds, arr) {
-            var bbox = arr || [],
+            let bbox = arr || [],
                 bb = _bb,
                 id = absArcId(arcIds[0]) * 4;
             bbox[0] = bb[id];
             bbox[1] = bb[++id];
             bbox[2] = bb[++id];
             bbox[3] = bb[++id];
-            for (var i = 1, n = arcIds.length; i < n; i++) {
+            for (let i = 1, n = arcIds.length; i < n; i++) {
                 id = absArcId(arcIds[i]) * 4;
                 if (bb[id] < bbox[0]) bbox[0] = bb[id];
                 if (bb[++id] < bbox[1]) bbox[1] = bb[id];
@@ -2895,7 +2875,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         this.getMultiShapeBounds = function (shapeIds, bounds) {
             bounds = bounds || new Bounds();
             if (shapeIds) { // handle null shapes
-                for (var i = 0, n = shapeIds.length; i < n; i++) {
+                for (let i = 0, n = shapeIds.length; i < n; i++) {
                     this.getSimpleShapeBounds(shapeIds[i], bounds);
                 }
             }
@@ -2904,25 +2884,25 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         this.mergeArcBounds = function (arcId, bounds) {
             if (arcId < 0) arcId = ~arcId;
-            var offs = arcId * 4;
+            const offs = arcId * 4;
             bounds.mergeBounds(_bb[offs], _bb[offs + 1], _bb[offs + 2], _bb[offs + 3]);
         };
     }
 
     ArcCollection.prototype.inspect = function () {
-        var n = this.getPointCount(), str;
+        let n = this.getPointCount(), str;
         if (n < 50) {
             str = JSON.stringify(this.toArray());
         } else {
-            str = '[ArcCollection (' + this.size() + ')]';
+            str = `[ArcCollection (${this.size()})]`;
         }
         return str;
     };
 
 // Remove duplicate coords and NaNs
     internal.dedupArcCoords = function (src, dest, arcLen, xx, yy, zz) {
-        var n = 0, n2 = 0; // counters
-        var x, y, i, j, keep;
+        let n = 0, n2 = 0; // counters
+        let x, y, i, j, keep;
         while (n < arcLen) {
             j = src + n;
             x = xx[j];
@@ -2958,7 +2938,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 //    is counted as an intersection (there will be one or two)
 //
     function segmentIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
-        var hit = segmentHit(ax, ay, bx, by, cx, cy, dx, dy),
+        let hit = segmentHit(ax, ay, bx, by, cx, cy, dx, dy),
             p = null;
         if (hit) {
             p = crossIntersection(ax, ay, bx, by, cx, cy, dx, dy);
@@ -2972,9 +2952,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function lineIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
-        var den = determinant2D(bx - ax, by - ay, dx - cx, dy - cy);
-        var eps = 1e-18;
-        var m, p;
+        const den = determinant2D(bx - ax, by - ay, dx - cx, dy - cy);
+        const eps = 1e-18;
+        let m, p;
         if (den === 0) return null;
         m = orient2D(cx, cy, dx, dy, ax, ay) / den;
         if (den <= eps && den >= -eps) {
@@ -2991,7 +2971,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function findEndpointInRange(ax, ay, bx, by, cx, cy, dx, dy) {
-        var p = null;
+        let p = null;
         if (!outsideRange(ax, cx, dx) && !outsideRange(ay, cy, dy)) {
             p = [ax, ay];
         } else if (!outsideRange(bx, cx, dx) && !outsideRange(by, cy, dy)) {
@@ -3007,8 +2987,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // Get intersection point if segments are non-collinear, else return null
 // Assumes that segments have been intersect
     function crossIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
-        var p = lineIntersection(ax, ay, bx, by, cx, cy, dx, dy);
-        var nearest;
+        let p = lineIntersection(ax, ay, bx, by, cx, cy, dx, dy);
+        let nearest;
         if (p) {
             // Re-order operands so intersection point is closest to a (better precision)
             // Source: Jonathan Shewchuk http://www.cs.berkeley.edu/~jrs/meshpapers/robnotes.pdf
@@ -3033,7 +3013,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // intersection points can be caused by floating point rounding errors
         // when a segment is vertical or horizontal. This has caused problems when
         // repeatedly applying bbox clipping along the same segment
-        var x = p[0],
+        let x = p[0],
             y = p[1];
         // assumes that segment ranges intersect
         x = geom.clampToCloseRange(x, ax, bx);
@@ -3059,7 +3039,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // b: endpoint coordinate of segment
 // c: other endpoint of segment
     function outsideRange(a, b, c) {
-        var out;
+        let out;
         if (b < c) {
             out = a < b || a > c;
         } else if (b > c) {
@@ -3071,7 +3051,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     geom.clampToCloseRange = function (a, b, c) {
-        var lim;
+        let lim;
         if (geom.outsideRange(a, b, c)) {
             lim = Math.abs(a - b) < Math.abs(a - c) ? b : c;
             if (Math.abs(a - lim) > 1e-15) {
@@ -3086,7 +3066,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // TODO: make more robust, make sure result is compatible with segmentIntersection()
 // (rounding errors currently must be handled downstream)
     geom.findClosestPointOnSeg = function (px, py, ax, ay, bx, by) {
-        var dx = bx - ax,
+        let dx = bx - ax,
             dy = by - ay,
             dotp = (px - ax) * dx + (py - ay) * dy,
             abSq = dx * dx + dy * dy,
@@ -3138,7 +3118,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
 // Assume segments s1 and s2 are collinear and overlap; find one or two internal endpoints
     function collinearIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
-        var minX = Math.min(ax, bx, cx, dx),
+        let minX = Math.min(ax, bx, cx, dx),
             maxX = Math.max(ax, bx, cx, dx),
             minY = Math.min(ay, by, cy, dy),
             maxY = Math.max(ay, by, cy, dy),
@@ -3183,12 +3163,12 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
     internal.orderSegmentIds = function (xx, ids, spherical) {
         function swap(i, j) {
-            var tmp = ids[i];
+            const tmp = ids[i];
             ids[i] = ids[j];
             ids[j] = tmp;
         }
 
-        for (var i = 0, n = ids.length; i < n; i += 2) {
+        for (let i = 0, n = ids.length; i < n; i += 2) {
             if (xx[ids[i]] > xx[ids[i + 1]]) {
                 swap(i, i + 1);
             }
@@ -3196,8 +3176,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     };
 
     internal.insertionSortSegmentIds = function (arr, ids, start, end) {
-        var id, id2;
-        for (var j = start + 2; j <= end; j += 2) {
+        let id, id2;
+        for (let j = start + 2; j <= end; j += 2) {
             id = ids[j];
             id2 = ids[j + 1];
             for (var i = j - 2; i >= start && arr[id] < arr[ids[i]]; i -= 2) {
@@ -3210,7 +3190,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     };
 
     internal.quicksortSegmentIds = function (a, ids, lo, hi) {
-        var i = lo,
+        let i = lo,
             j = hi,
             pivot, tmp;
         while (i < hi) {
@@ -3245,9 +3225,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // Convert an array of intersections into an ArcCollection (for display)
 //
     internal.getIntersectionPoints = function (intersections) {
-        return intersections.map(function (obj) {
-            return [obj.x, obj.y];
-        });
+        return intersections.map((obj) => [obj.x, obj.y]);
     };
 
 // Identify intersecting segments in an ArcCollection
@@ -3261,10 +3239,10 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         // Re-use buffer for temp data -- Chrome's gc starts bogging down
         // if large buffers are repeatedly created.
-        var buf;
+        let buf;
 
         function getUint32Array(count) {
-            var bytes = count * 4;
+            const bytes = count * 4;
             if (!buf || buf.byteLength < bytes) {
                 buf = new ArrayBuffer(bytes);
             }
@@ -3272,7 +3250,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         }
 
         return function (arcs) {
-            var bounds = arcs.getBounds(),
+            let bounds = arcs.getBounds(),
                 // TODO: handle spherical bounds
                 spherical = !arcs.isPlanar() &&
                     containsBounds(internal.getWorldBounds(), bounds.toArray()),
@@ -3292,8 +3270,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
             }
 
             // Count segments in each stripe
-            arcs.forEachSegment(function (id1, id2, xx, yy) {
-                var s1 = stripeId(yy[id1]),
+            arcs.forEachSegment((id1, id2, xx, yy) => {
+                let s1 = stripeId(yy[id1]),
                     s2 = stripeId(yy[id2]);
                 while (true) {
                     stripeSizes[s1] = stripeSizes[s1] + 2;
@@ -3303,19 +3281,19 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
             });
 
             // Allocate arrays for segments in each stripe
-            var stripeData = getUint32Array(utils.sum(stripeSizes)),
+            let stripeData = getUint32Array(utils.sum(stripeSizes)),
                 offs = 0;
-            var stripes = [];
-            utils.forEach(stripeSizes, function (stripeSize) {
-                var start = offs;
+            const stripes = [];
+            utils.forEach(stripeSizes, (stripeSize) => {
+                const start = offs;
                 offs += stripeSize;
                 stripes.push(stripeData.subarray(start, offs));
             });
             // Assign segment ids to each stripe
             utils.initializeArray(stripeSizes, 0);
 
-            arcs.forEachSegment(function (id1, id2, xx, yy) {
-                var s1 = stripeId(yy[id1]),
+            arcs.forEachSegment((id1, id2, xx, yy) => {
+                let s1 = stripeId(yy[id1]),
                     s2 = stripeId(yy[id2]),
                     count, stripe;
                 while (true) {
@@ -3330,7 +3308,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
             });
 
             // Detect intersections among segments in each stripe.
-            var raw = arcs.getVertexData(),
+            let raw = arcs.getVertexData(),
                 intersections = [],
                 arr;
             for (i = 0; i < stripeCount; i++) {
@@ -3344,15 +3322,13 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     })();
 
     internal.sortIntersections = function (arr) {
-        arr.sort(function (a, b) {
-            return a.x - b.x || a.y - b.y;
-        });
+        arr.sort((a, b) => a.x - b.x || a.y - b.y);
     };
 
     internal.dedupIntersections = function (arr) {
-        var index = {};
-        return arr.filter(function (o) {
-            var key = internal.getIntersectionKey(o);
+        const index = {};
+        return arr.filter((o) => {
+            const key = internal.getIntersectionKey(o);
             if (key in index) {
                 return false;
             }
@@ -3364,11 +3340,11 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // Get an indexable key from an intersection object
 // Assumes that vertex ids of o.a and o.b are sorted
     internal.getIntersectionKey = function (o) {
-        return o.a.join(',') + ';' + o.b.join(',');
+        return `${o.a.join(',')};${o.b.join(',')}`;
     };
 
     internal.calcSegmentIntersectionStripeCount = function (arcs) {
-        var yrange = arcs.getBounds().height(),
+        let yrange = arcs.getBounds().height(),
             segLen = internal.getAvgSegment2(arcs)[1],
             count = 1;
         if (segLen > 0 && yrange > 0) {
@@ -3385,9 +3361,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // @xx, @yy: Arrays of x- and y-coordinates
 //
     internal.intersectSegments = function (ids, xx, yy) {
-        var lim = ids.length - 2,
+        const lim = ids.length - 2,
             intersections = [];
-        var s1p1, s1p2, s2p1, s2p2,
+        let s1p1, s1p2, s2p1, s2p2,
             s1p1x, s1p2x, s2p1x, s2p2x,
             s1p1y, s1p2y, s2p1y, s2p2y,
             hit, seg1, seg2, i, j;
@@ -3455,7 +3431,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // return array [i, j] where i and j are the same endpoint ids with i <= j
         // if @p coincides with an endpoint, return the id of that endpoint twice
         function getEndpointIds(id1, id2, p) {
-            var i = id1 < id2 ? id1 : id2,
+            let i = id1 < id2 ? id1 : id2,
                 j = i === id1 ? id2 : id1;
             if (xx[i] == p[0] && yy[i] == p[1]) {
                 j = i;
@@ -3467,18 +3443,18 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     };
 
     internal.formatIntersection = function (xy, s1, s2, xx, yy) {
-        var x = xy[0],
+        let x = xy[0],
             y = xy[1],
             a, b;
         s1 = internal.formatIntersectingSegment(x, y, s1[0], s1[1], xx, yy);
         s2 = internal.formatIntersectingSegment(x, y, s2[0], s2[1], xx, yy);
         a = s1[0] < s2[0] ? s1 : s2;
         b = a == s1 ? s2 : s1;
-        return {x: x, y: y, a: a, b: b};
+        return {x, y, a, b};
     };
 
     internal.formatIntersectingSegment = function (x, y, id1, id2, xx, yy) {
-        var i = id1 < id2 ? id1 : id2,
+        let i = id1 < id2 ? id1 : id2,
             j = i === id1 ? id2 : id1;
         if (xx[i] == x && yy[i] == y) {
             j = i;
@@ -3493,9 +3469,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
 // Return average segment length (with simplification)
     internal.getAvgSegment = function (arcs) {
-        var sum = 0;
-        var count = arcs.forEachSegment(function (i, j, xx, yy) {
-            var dx = xx[i] - xx[j],
+        let sum = 0;
+        const count = arcs.forEachSegment((i, j, xx, yy) => {
+            const dx = xx[i] - xx[j],
                 dy = yy[i] - yy[j];
             sum += Math.sqrt(dx * dx + dy * dy);
         });
@@ -3504,8 +3480,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
 // Return average magnitudes of dx, dy (with simplification)
     internal.getAvgSegment2 = function (arcs) {
-        var dx = 0, dy = 0;
-        var count = arcs.forEachSegment(function (i, j, xx, yy) {
+        let dx = 0, dy = 0;
+        const count = arcs.forEachSegment((i, j, xx, yy) => {
             dx += Math.abs(xx[i] - xx[j]);
             dy += Math.abs(yy[i] - yy[j]);
         });
@@ -3527,20 +3503,20 @@ this.getAvgSegmentSph2 = function() {
 */
 
     internal.getDirectedArcPresenceTest = function (shapes, n) {
-        var flags = new Uint8Array(n);
-        internal.forEachArcId(shapes, function (id) {
-            var absId = absArcId(id);
+        const flags = new Uint8Array(n);
+        internal.forEachArcId(shapes, (id) => {
+            const absId = absArcId(id);
             if (absId < n === false) error('index error');
             flags[absId] |= id < 0 ? 2 : 1;
         });
         return function (arcId) {
-            var absId = absArcId(arcId);
+            const absId = absArcId(arcId);
             return arcId < 0 ? (flags[absId] & 2) == 2 : (flags[absId] & 1) == 1;
         };
     };
 
     internal.getArcPresenceTest = function (shapes, arcs) {
-        var counts = new Uint8Array(arcs.size());
+        const counts = new Uint8Array(arcs.size());
         internal.countArcsInShapes(shapes, counts);
         return function (id) {
             if (id < 0) id = ~id;
@@ -3549,7 +3525,7 @@ this.getAvgSegmentSph2 = function() {
     };
 
     internal.getArcPresenceTest2 = function (layers, arcs) {
-        var counts = internal.countArcsInLayers(layers, arcs);
+        const counts = internal.countArcsInLayers(layers, arcs);
         return function (arcId) {
             return counts[absArcId(arcId)] > 0;
         };
@@ -3558,10 +3534,10 @@ this.getAvgSegmentSph2 = function() {
 // @counts A typed array for accumulating count of each abs arc id
 //   (assume it won't overflow)
     internal.countArcsInShapes = function (shapes, counts) {
-        internal.traversePaths(shapes, null, function (obj) {
-            var arcs = obj.arcs,
+        internal.traversePaths(shapes, null, (obj) => {
+            let arcs = obj.arcs,
                 id;
-            for (var i = 0; i < arcs.length; i++) {
+            for (let i = 0; i < arcs.length; i++) {
                 id = arcs[i];
                 if (id < 0) id = ~id;
                 counts[id]++;
@@ -3571,8 +3547,8 @@ this.getAvgSegmentSph2 = function() {
 
 // Count arcs in a collection of layers
     internal.countArcsInLayers = function (layers, arcs) {
-        var counts = new Uint32Array(arcs.size());
-        layers.forEach(function (lyr) {
+        const counts = new Uint32Array(arcs.size());
+        layers.forEach((lyr) => {
             internal.countArcsInShapes(lyr.shapes, counts);
         });
         return counts;
@@ -3580,14 +3556,14 @@ this.getAvgSegmentSph2 = function() {
 
 // Returns subset of shapes in @shapes that contain one or more arcs in @arcIds
     internal.findShapesByArcId = function (shapes, arcIds, numArcs) {
-        var index = numArcs ? new Uint8Array(numArcs) : [],
+        const index = numArcs ? new Uint8Array(numArcs) : [],
             found = [];
-        arcIds.forEach(function (id) {
+        arcIds.forEach((id) => {
             index[absArcId(id)] = 1;
         });
-        shapes.forEach(function (shp, shpId) {
-            var isHit = false;
-            internal.forEachArcId(shp || [], function (id) {
+        shapes.forEach((shp, shpId) => {
+            let isHit = false;
+            internal.forEachArcId(shp || [], (id) => {
                 isHit = isHit || index[absArcId(id)] == 1;
             });
             if (isHit) {
@@ -3599,7 +3575,7 @@ this.getAvgSegmentSph2 = function() {
 
     internal.reversePath = function (ids) {
         ids.reverse();
-        for (var i = 0, n = ids.length; i < n; i++) {
+        for (let i = 0, n = ids.length; i < n; i++) {
             ids[i] = ~ids[i];
         }
     };
@@ -3611,7 +3587,7 @@ this.getAvgSegmentSph2 = function() {
     };
 
     internal.findNextRemovableVertices = function (zz, zlim, start, end) {
-        var i = internal.findNextRemovableVertex(zz, zlim, start, end),
+        let i = internal.findNextRemovableVertex(zz, zlim, start, end),
             arr, k;
         if (i > -1) {
             k = zz[i];
@@ -3629,13 +3605,13 @@ this.getAvgSegmentSph2 = function() {
 // threshold that is less than @zlim, or -1 if none
 //
     internal.findNextRemovableVertex = function (zz, zlim, start, end) {
-        var tmp, jz = 0, j = -1, z;
+        let tmp, jz = 0, j = -1, z;
         if (start > end) {
             tmp = start;
             start = end;
             end = tmp;
         }
-        for (var i = start + 1; i < end; i++) {
+        for (let i = start + 1; i < end; i++) {
             z = zz[i];
             if (z < zlim && z > jz) {
                 j = i;
@@ -3648,13 +3624,13 @@ this.getAvgSegmentSph2 = function() {
 // Visit each arc id in a path, shape or array of shapes
 // Use non-undefined return values of callback @cb as replacements.
     internal.forEachArcId = function (arr, cb) {
-        var item;
-        for (var i = 0; i < arr.length; i++) {
+        let item;
+        for (let i = 0; i < arr.length; i++) {
             item = arr[i];
             if (item instanceof Array) {
                 internal.forEachArcId(item, cb);
             } else if (utils.isInteger(item)) {
-                var val = cb(item);
+                const val = cb(item);
                 if (val !== void 0) {
                     arr[i] = val;
                 }
@@ -3665,45 +3641,45 @@ this.getAvgSegmentSph2 = function() {
     };
 
     internal.forEachSegmentInShape = function (shape, arcs, cb) {
-        for (var i = 0, n = shape ? shape.length : 0; i < n; i++) {
+        for (let i = 0, n = shape ? shape.length : 0; i < n; i++) {
             internal.forEachSegmentInPath(shape[i], arcs, cb);
         }
     };
 
     internal.forEachSegmentInPath = function (ids, arcs, cb) {
-        for (var i = 0, n = ids.length; i < n; i++) {
+        for (let i = 0, n = ids.length; i < n; i++) {
             arcs.forEachArcSegment(ids[i], cb);
         }
     };
 
     internal.traversePaths = function traversePaths(shapes, cbArc, cbPart, cbShape) {
-        var segId = 0;
-        shapes.forEach(function (parts, shapeId) {
+        let segId = 0;
+        shapes.forEach((parts, shapeId) => {
             if (!parts || parts.length === 0) return; // null shape
-            var arcIds, arcId;
+            let arcIds, arcId;
             if (cbShape) {
                 cbShape(shapeId);
             }
-            for (var i = 0, m = parts.length; i < m; i++) {
+            for (let i = 0, m = parts.length; i < m; i++) {
                 arcIds = parts[i];
                 if (cbPart) {
                     cbPart({
-                        i: i,
-                        shapeId: shapeId,
+                        i,
+                        shapeId,
                         shape: parts,
                         arcs: arcIds
                     });
                 }
 
                 if (cbArc) {
-                    for (var j = 0, n = arcIds.length; j < n; j++, segId++) {
+                    for (let j = 0, n = arcIds.length; j < n; j++, segId++) {
                         arcId = arcIds[j];
                         cbArc({
                             i: j,
-                            shapeId: shapeId,
+                            shapeId,
                             partId: i,
-                            arcId: arcId,
-                            segId: segId
+                            arcId,
+                            segId
                         });
                     }
                 }
@@ -3712,7 +3688,7 @@ this.getAvgSegmentSph2 = function() {
     };
 
     internal.arcHasLength = function (id, coords) {
-        var iter = coords.getArcIter(id), x, y;
+        let iter = coords.getArcIter(id), x, y;
         if (iter.hasNext()) {
             x = iter.x;
             y = iter.y;
@@ -3725,10 +3701,10 @@ this.getAvgSegmentSph2 = function() {
 
     internal.filterEmptyArcs = function (shape, coords) {
         if (!shape) return null;
-        var shape2 = [];
-        shape.forEach(function (ids) {
-            var path = [];
-            for (var i = 0; i < ids.length; i++) {
+        const shape2 = [];
+        shape.forEach((ids) => {
+            const path = [];
+            for (let i = 0; i < ids.length; i++) {
                 if (internal.arcHasLength(ids[i], coords)) {
                     path.push(ids[i]);
                 }
@@ -3748,12 +3724,12 @@ this.getAvgSegmentSph2 = function() {
 //   geometry.
 //
     internal.groupPolygonRings = function (paths, reverseWinding) {
-        var holes = [],
+        let holes = [],
             groups = [],
             sign = reverseWinding ? -1 : 1,
             ringIndex;
 
-        (paths || []).forEach(function (path) {
+        (paths || []).forEach((path) => {
             if (path.area * sign > 0) {
                 groups.push([path]);
             } else if (path.area * sign < 0) {
@@ -3771,8 +3747,8 @@ this.getAvgSegmentSph2 = function() {
         // contains many holes and space-filling rings.
         // (Thanks to @simonepri for providing an example implementation in PR #248)
         ringIndex = require('rbush')();
-        ringIndex.load(groups.map(function (group, i) {
-            var bounds = group[0].bounds;
+        ringIndex.load(groups.map((group, i) => {
+            const bounds = group[0].bounds;
             return {
                 minX: bounds.xmin,
                 minY: bounds.ymin,
@@ -3783,8 +3759,8 @@ this.getAvgSegmentSph2 = function() {
         }));
 
         // Group each hole with its containing ring
-        holes.forEach(function (hole) {
-            var containerId = -1,
+        holes.forEach((hole) => {
+            let containerId = -1,
                 containerArea = 0,
                 holeArea = hole.area * -sign,
                 // Find rings that might contain this hole
@@ -3798,7 +3774,7 @@ this.getAvgSegmentSph2 = function() {
             // Group this hole with the smallest-area ring that contains it.
             // (Assumes that if a ring's bbox contains a hole, then the ring also
             //  contains the hole).
-            for (var i = 0, n = candidates.length; i < n; i++) {
+            for (let i = 0, n = candidates.length; i < n; i++) {
                 ringId = candidates[i].idx;
                 ring = groups[ringId][0];
                 ringArea = ring.area * sign;
@@ -3819,12 +3795,12 @@ this.getAvgSegmentSph2 = function() {
     };
 
     internal.getPathMetadata = function (shape, arcs, type) {
-        var data = [],
+        let data = [],
             ids;
-        for (var i = 0, n = shape && shape.length; i < n; i++) {
+        for (let i = 0, n = shape && shape.length; i < n; i++) {
             ids = shape[i];
             data.push({
-                ids: ids,
+                ids,
                 area: type == 'polygon' ? geom.getPlanarPathArea(ids, arcs) : 0,
                 bounds: arcs.getSimpleShapeBounds(ids)
             });
@@ -3838,13 +3814,13 @@ this.getAvgSegmentSph2 = function() {
         // Consider a cleanup pass to remove dupes, make sure collapsed arcs are
         //   removed on export.
         //
-        var bb1 = arcs.getBounds(),
+        const bb1 = arcs.getBounds(),
             bb2 = new Bounds(0, 0, quanta - 1, quanta - 1),
             fw = bb1.getTransform(bb2),
             inv = fw.invert();
 
-        arcs.transformPoints(function (x, y) {
-            var p = fw.transform(x, y);
+        arcs.transformPoints((x, y) => {
+            const p = fw.transform(x, y);
             return inv.transform(Math.round(p[0]), Math.round(p[1]));
         });
     };
@@ -3856,15 +3832,13 @@ this.getAvgSegmentSph2 = function() {
 
 // Expose internal objects for testing
     utils.extend(api.internal, {
-        ArcCollection: ArcCollection,
-        ArcIter: ArcIter
+        ArcCollection,
+        ArcIter
     });
 
     if (typeof define === "function" && define.amd) {
         //define("mapshaper", api);
-        define([], function () {
-            return exportAPI;
-        });
+        define([], () => exportAPI);
     } else if (typeof module === "object" && module.exports) {
         module.exports = exportAPI;
     }
