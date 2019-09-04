@@ -885,9 +885,9 @@ let exportAPI;
         if (!arr.length || rank < 1 || rank > arr.length) error("[findValueByRank()] invalid input");
 
         rank = Utils.clamp(rank | 0, 1, arr.length);
-        let k = rank - 1, // conv. rank to array index
-            n = arr.length,
-            l = 0,
+        const k = rank - 1, // conv. rank to array index
+            n = arr.length;
+        let l = 0,
             m = n - 1,
             i, j, val, tmp;
 
@@ -919,9 +919,9 @@ let exportAPI;
 //
 //
     Utils.findMedian = function (arr) {
-        let n = arr.length,
-            rank = Math.floor(n / 2) + 1,
-            median = Utils.findValueByRank(arr, rank);
+        const n = arr.length,
+            rank = Math.floor(n / 2) + 1;
+        let median = Utils.findValueByRank(arr, rank);
         if ((n & 1) == 0) {
             median = (median + Utils.findValueByRank(arr, rank - 1)) / 2;
         }
@@ -949,7 +949,7 @@ let exportAPI;
     function BinArray(buf, le) {
         if (Utils.isNumber(buf)) {
             buf = new ArrayBuffer(buf);
-        } else if (typeof Buffer == 'function' && buf instanceof Buffer) {
+        } else if (typeof Buffer == 'function' && buf instanceof Buffer) { // eslint-disable-line no-undef
             // Since node 0.10, DataView constructor doesn't accept Buffers,
             //   so need to copy Buffer to ArrayBuffer
             buf = BinArray.toArrayBuffer(buf);
@@ -987,9 +987,9 @@ let exportAPI;
             BinArray.uintSize(dest.byteLength), BinArray.uintSize(destId),
             BinArray.uintSize(src.byteLength));
 
-        let srcArr = BinArray.bufferToUintArray(src, wordSize),
-            destArr = BinArray.bufferToUintArray(dest, wordSize),
-            count = bytes / wordSize,
+        const srcArr = BinArray.bufferToUintArray(src, wordSize),
+            destArr = BinArray.bufferToUintArray(dest, wordSize);
+        let count = bytes / wordSize,
             i = srcId / wordSize,
             j = destId / wordSize;
 
@@ -1126,10 +1126,10 @@ let exportAPI;
         // Returns a Float64Array containing @len doubles
         //
         readFloat64Array (len) {
-            let bytes = len * 8,
+            const bytes = len * 8,
                 i = this._idx,
-                buf = this._buffer,
-                arr;
+                buf = this._buffer;
+            let arr;
             // Inconsistent: first is a view, second a copy...
             if (i % 8 === 0) {
                 arr = new Float64Array(buf, i, len);
@@ -1195,7 +1195,7 @@ let exportAPI;
             for (let i = 0; i < charsToWrite; i++) {
                 cval = str.charCodeAt(i);
                 if (cval > 127) {
-                    trace("#writeCString() Unicode value beyond ascii range");
+                    error("#writeCString() Unicode value beyond ascii range");
                     cval = '?'.charCodeAt(0);
                 }
                 this.writeUint8(cval);
@@ -1205,8 +1205,8 @@ let exportAPI;
         },
 
         writeCString (str, fixedLen) {
-            let maxChars = fixedLen ? fixedLen - 1 : null,
-                bytesWritten = this.writeString(str, maxChars);
+            const maxChars = fixedLen ? fixedLen - 1 : null;
+            let bytesWritten = this.writeString(str, maxChars);
 
             this.writeUint8(0); // terminator
             bytesWritten++;
@@ -1257,9 +1257,9 @@ Examples:
 // Usage: Utils.format(formatString, [values])
 // Tip: When reusing the same format many times, use Utils.formatter() for 5x - 10x better performance
 //
-    Utils.format = function (fmt) {
+    Utils.format = function (fmt, ...args) {
         const fn = Utils.formatter(fmt);
-        const str = fn.apply(null, Array.prototype.slice.call(arguments, 1));
+        const str = fn(...args);
         return str;
     };
 
@@ -1271,7 +1271,7 @@ Examples:
         const isString = type == 's',
             isHex = type == 'x' || type == 'X',
             isInt = type == 'd' || type == 'i',
-            isFloat = type == 'f',
+            // isFloat = type == 'f',
             isNumber = !isString;
 
         let sign = "",
@@ -1327,10 +1327,10 @@ Examples:
 
 // Get a function for interpolating formatted values into a string.
     Utils.formatter = function (fmt) {
-        const codeRxp = /%([\',+0]*)([1-9]?)((?:\.[1-9])?)([sdifxX%])/g;
-        let literals = [],
-            formatCodes = [],
-            startIdx = 0,
+        const codeRxp = /%([',+0]*)([1-9]?)((?:\.[1-9])?)([sdifxX%])/g;
+        const literals = [],
+            formatCodes = [];
+        let startIdx = 0,
             prefix = "",
             matches = codeRxp.exec(fmt),
             literal;
@@ -1349,14 +1349,14 @@ Examples:
         }
         literals.push(prefix + fmt.substr(startIdx));
 
-        return function () {
-            let str = literals[0],
-                n = arguments.length;
+        return function (...args) {
+            let str = literals[0];
+            const n = args.length;
             if (n != formatCodes.length) {
-                error("[format()] Data does not match format string; format:", fmt, "data:", arguments);
+                error("[format()] Data does not match format string; format:", fmt, "data:", args);
             }
             for (let i = 0; i < n; i++) {
-                str += formatValue(arguments[i], formatCodes[i]) + literals[i + 1];
+                str += formatValue(args[i], formatCodes[i]) + literals[i + 1];
             }
             return str;
         };
@@ -1369,9 +1369,9 @@ Examples:
     };
 
     utils.expandoBuffer = function (constructor, rate) {
-        let capacity = 0,
-            k = rate >= 1 ? rate : 1.2,
-            buf;
+        let capacity = 0;
+        const k = rate >= 1 ? rate : 1.2;
+        let buf;
         return function (size) {
             if (size > capacity) {
                 capacity = Math.ceil(size * k);
@@ -1453,7 +1453,7 @@ Examples:
     };
 
 // Support for timing using T.start() and T.stop("message")
-    var T = {
+    const T = {
         stack: [],
         start () {
             T.stack.push(+new Date());
@@ -1493,36 +1493,13 @@ Examples:
         };
     }
 
-// Install a new set of context variables, clear them when an async callback is called.
-// @cb callback function to wrap
-// returns wrapped callback function
-    function createAsyncContext(cb) {
-        internal.context = createContext();
-        return function () {
-            cb.apply(null, utils.toArray(arguments));
-            // clear context after cb(), so output/errors can be handled in current context
-            internal.context = createContext();
-        };
-    }
-
-// Save the current context, restore it when an async callback is called
-// @cb callback function to wrap
-// returns wrapped callback function
-    function preserveContext(cb) {
-        const ctx = internal.context;
-        return function () {
-            internal.context = ctx;
-            cb.apply(null, utils.toArray(arguments));
-        };
-    }
-
-    function error() {
-        internal.error.apply(null, utils.toArray(arguments));
+    function error(...args) {
+        internal.error.apply(null, args);
     }
 
 // Handle an error caused by invalid input or misuse of API
-    function stop() {
-        internal.stop.apply(null, utils.toArray(arguments));
+    function stop(...args) {
+        internal.stop.apply(null, args);
     }
 
     function UserError(msg) {
@@ -1540,20 +1517,16 @@ Examples:
         return arr;
     }
 
-    function message() {
-        internal.message.apply(null, messageArgs(arguments));
-    }
-
-    function verbose() {
+    function verbose(...args) {
         if (internal.getStateVar('VERBOSE')) {
             // internal.logArgs(arguments);
-            internal.message.apply(null, messageArgs(arguments));
+            internal.message.apply(null, messageArgs(args));
         }
     }
 
-    function debug() {
+    function debug(...args) {
         if (internal.getStateVar('DEBUG')) {
-            internal.logArgs(arguments);
+            internal.logArgs(args);
         }
     }
 
@@ -1576,7 +1549,7 @@ Examples:
             if (!/Error/.test(msg)) {
                 msg = `Error: ${msg}`;
             }
-            console.error(messageArgs([msg]).join(' '));
+            console.error(messageArgs([msg]).join(' ')); // eslint-disable-line no-undef
             internal.message("Run mapshaper -h to view help");
         } else {
             // not a user error or logging is disabled -- throw it
@@ -1584,21 +1557,21 @@ Examples:
         }
     };
 
-    internal.error = function () {
-        const msg = Utils.toArray(arguments).join(' ');
+    internal.error = function (...args) {
+        const msg = args.join(' ');
         throw new Error(msg);
     };
 
-    internal.stop = function () {
-        throw new UserError(internal.formatLogArgs(arguments));
+    internal.stop = function (...args) {
+        throw new UserError(internal.formatLogArgs(args));
     };
 
-    internal.message = function () {
-        internal.logArgs(arguments);
+    internal.message = function (...args) {
+        internal.logArgs(args);
     };
 
     internal.formatLogArgs = function (args) {
-        return utils.toArray(args).join(' ');
+        return args.join(' ');
     };
 
 // Format an array of (preferably short) strings in columns for console logging.
@@ -1619,7 +1592,7 @@ Examples:
 
     internal.logArgs = function (args) {
         if (internal.LOGGING && !internal.getStateVar('QUIET') && utils.isArrayLike(args)) {
-            (console.error || console.log).call(console, internal.formatLogArgs(args));
+            (console.error || console.log).call(console, internal.formatLogArgs(args)); // eslint-disable-line no-undef
         }
     };
 
@@ -1717,12 +1690,12 @@ Examples:
     }
 
 // Return id of nearest point to x, y, among x0, y0, x1, y1, ...
-    function nearestPoint(x, y, x0, y0) {
+    function nearestPoint(x, y, ...args) {
         let minIdx = -1,
             minDist = Infinity,
             dist;
-        for (let i = 0, j = 2, n = arguments.length; j < n; i++, j += 2) {
-            dist = distanceSq(x, y, arguments[j], arguments[j + 1]);
+        for (let i = 0, j = 0, n = args.length; j < n; i++, j += 2) {
+            dist = distanceSq(x, y, args[j], args[j + 1]);
             if (dist < minDist) {
                 minDist = dist;
                 minIdx = i;
@@ -1734,9 +1707,9 @@ Examples:
 
 // atan2() makes this function fairly slow, replaced by ~2x faster formula
     function innerAngle2(ax, ay, bx, by, cx, cy) {
-        let a1 = Math.atan2(ay - by, ax - bx),
-            a2 = Math.atan2(cy - by, cx - bx),
-            a3 = Math.abs(a1 - a2);
+        const a1 = Math.atan2(ay - by, ax - bx),
+            a2 = Math.atan2(cy - by, cx - bx);
+        let a3 = Math.abs(a1 - a2);
         if (a3 > Math.PI) {
             a3 = 2 * Math.PI - a3;
         }
@@ -1851,10 +1824,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function lngLatToXYZ(lng, lat, p) {
-        let cosLat;
         lng *= D2R;
         lat *= D2R;
-        cosLat = Math.cos(lat);
+        const cosLat = Math.cos(lat);
         p[0] = Math.cos(lng) * cosLat * R;
         p[1] = Math.sin(lng) * cosLat * R;
         p[2] = Math.sin(lat) * R;
@@ -1881,9 +1853,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
 // TODO: make this safe for small angles
     function innerAngle(ax, ay, bx, by, cx, cy) {
-        let ab = distance2D(ax, ay, bx, by),
-            bc = distance2D(bx, by, cx, cy),
-            theta, dotp;
+        const ab = distance2D(ax, ay, bx, by),
+            bc = distance2D(bx, by, cx, cy);
+        let theta, dotp;
         if (ab === 0 || bc === 0) {
             theta = 0;
         } else {
@@ -1900,9 +1872,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function innerAngle3D(ax, ay, az, bx, by, bz, cx, cy, cz) {
-        let ab = distance3D(ax, ay, az, bx, by, bz),
-            bc = distance3D(bx, by, bz, cx, cy, cz),
-            theta, dotp;
+        const ab = distance3D(ax, ay, az, bx, by, bz),
+            bc = distance3D(bx, by, bz, cx, cy, cz);
+        let theta, dotp;
         if (ab === 0 || bc === 0) {
             theta = 0;
         } else {
@@ -1929,8 +1901,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function cosine(ax, ay, bx, by, cx, cy) {
-        let den = distance2D(ax, ay, bx, by) * distance2D(bx, by, cx, cy),
-            cos = 0;
+        const den = distance2D(ax, ay, bx, by) * distance2D(bx, by, cx, cy);
+        let cos = 0;
         if (den > 0) {
             cos = ((ax - bx) * (cx - bx) + (ay - by) * (cy - by)) / den;
             if (cos > 1) cos = 1; // handle fp rounding error
@@ -1940,8 +1912,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     function cosine3D(ax, ay, az, bx, by, bz, cx, cy, cz) {
-        const den = distance3D(ax, ay, az, bx, by, bz) * distance3D(bx, by, bz, cx, cy, cz),
-            cos = 0;
+        const den = distance3D(ax, ay, az, bx, by, bz) * distance3D(bx, by, bz, cx, cy, cz);
+        let cos = 0;
         if (den > 0) {
             cos = ((ax - bx) * (cx - bx) + (ay - by) * (cy - by) + (az - bz) * (cz - bz)) / den;
             if (cos > 1) cos = 1; // handle fp rounding error
@@ -1996,9 +1968,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
 
     internal.calcArcBounds = function (xx, yy, start, len) {
-        let i = start | 0,
-            n = isNaN(len) ? xx.length - i : len + i,
-            x, y, xmin, ymin, xmax, ymax;
+        let i = start | 0;
+        const n = isNaN(len) ? xx.length - i : len + i;
+        let x, y, xmin, ymin, xmax, ymax;
         if (n > 0) {
             xmin = xmax = xx[i];
             ymin = ymax = yy[i];
@@ -2027,20 +1999,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         }
     };
 
-// merge B into A
-    function mergeBounds(a, b) {
-        if (b[0] < a[0]) a[0] = b[0];
-        if (b[1] < a[1]) a[1] = b[1];
-        if (b[2] > a[2]) a[2] = b[2];
-        if (b[3] > a[3]) a[3] = b[3];
-    }
-
     function containsBounds(a, b) {
         return a[0] <= b[0] && a[2] >= b[2] && a[1] <= b[1] && a[3] >= b[3];
-    }
-
-    function boundsArea(b) {
-        return (b[2] - b[0]) * (b[3] - b[1]);
     }
 
 // export functions so they can be tested
@@ -2072,42 +2032,6 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         cosine,
         cosine3D
     };
-
-
-// Coordinate iterators
-//
-// Interface:
-//   properties: x, y
-//   method: hasNext()
-//
-// Usage:
-//   while (iter.hasNext()) {
-//     iter.x, iter.y; // do something w/ x & y
-//   }
-
-
-// Iterate over an array of [x, y] points
-//
-    function PointIter(points) {
-        let n = points.length,
-            i = 0,
-            iter = {
-                x: 0,
-                y: 0,
-                hasNext
-            };
-
-        function hasNext() {
-            if (i >= n) return false;
-            iter.x = points[i][0];
-            iter.y = points[i][1];
-            i++;
-            return true;
-        }
-
-        return iter;
-    }
-
 
 // Constructor takes arrays of coords: xx, yy, zz (optional)
 //
@@ -2169,10 +2093,10 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         this.hasNext = function () {
             // using local vars is significantly faster when skipping many points
-            let zarr = zz,
-                i = _i,
-                j = i,
-                zlim = _zlim,
+            const zarr = zz,
+                i = _i;
+            let j = i;
+            const zlim = _zlim,
                 stop = _stop,
                 inc = _inc;
             if (i == stop) return false;
@@ -2241,17 +2165,17 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 //
 // ArcCollection(nn, xx, yy)
 //    nn is an array of arc lengths; xx, yy are arrays of concatenated coords;
-    function ArcCollection() {
+    function ArcCollection(...args) {
         let _xx, _yy,  // coordinates data
             _ii, _nn,  // indexes, sizes
             _zz, _zlimit = 0, // simplification
             _bb, _allBounds, // bounding boxes
             _arcIter, _filteredArcIter; // path iterators
 
-        if (arguments.length == 1) {
-            initLegacyArcs(arguments[0]);  // want to phase this out
-        } else if (arguments.length == 3) {
-            initXYData.apply(this, arguments);
+        if (args.length == 1) {
+            initLegacyArcs(args[0]);  // want to phase this out
+        } else if (args.length == 3) {
+            initXYData.apply(this, args);
         } else {
             error("ArcCollection() Invalid arguments");
         }
@@ -2283,7 +2207,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
             // generate array of starting idxs of each arc
             _ii = new Uint32Array(size);
-            for (var idx = 0, j = 0; j < size; j++) {
+            let idx, j;
+            for (idx = 0, j = 0; j < size; j++) {
                 _ii[j] = idx;
                 idx += nn[j];
             }
@@ -2318,10 +2243,10 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         }
 
         function calcArcBounds(xx, yy, nn) {
-            let numArcs = nn.length,
+            const numArcs = nn.length,
                 bb = new Float64Array(numArcs * 4),
-                bounds = new Bounds(),
-                arcOffs = 0,
+                bounds = new Bounds();
+            let arcOffs = 0,
                 arcLen,
                 j, b;
             for (let i = 0; i < numArcs; i++) {
@@ -2383,11 +2308,11 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         function getFilteredVertexData() {
             const len2 = getFilteredPointCount();
             const arcCount = _nn.length;
-            let xx2 = new Float64Array(len2),
+            const xx2 = new Float64Array(len2),
                 yy2 = new Float64Array(len2),
                 zz2 = new Float64Array(len2),
-                nn2 = new Int32Array(arcCount),
-                i = 0, i2 = 0,
+                nn2 = new Int32Array(arcCount);
+            let i = 0, i2 = 0,
                 n, n2;
 
             for (let arcId = 0; arcId < arcCount; arcId++) {
@@ -2440,12 +2365,12 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         // @cb function(i, j, xx, yy)
         this.forEachArcSegment = function (arcId, cb) {
-            let fw = arcId >= 0,
+            const fw = arcId >= 0,
                 absId = fw ? arcId : ~arcId,
                 zlim = this.getRetainedInterval(),
                 n = _nn[absId],
-                step = fw ? 1 : -1,
-                v1 = fw ? _ii[absId] : _ii[absId] + n - 1,
+                step = fw ? 1 : -1;
+            let v1 = fw ? _ii[absId] : _ii[absId] + n - 1,
                 v2 = v1,
                 count = 0;
 
@@ -2470,7 +2395,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         this.transformPoints = function (f) {
-            let xx = _xx, yy = _yy, arcId = -1, n = 0, p;
+            const xx = _xx, yy = _yy;
+            let arcId = -1, n = 0, p;
             for (let i = 0, len = xx.length; i < len; i++, n--) {
                 while (n === 0) {
                     n = _nn[++arcId];
@@ -2526,14 +2452,12 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         this.deleteArcs = function (test) {
-            let n = this.size(),
-                map = new Int32Array(n),
-                goodArcs = 0,
-                goodPoints = 0;
+            const n = this.size(),
+                map = new Int32Array(n);
+            let goodArcs = 0;
             for (let i = 0; i < n; i++) {
                 if (test(i)) {
                     map[i] = goodArcs++;
-                    goodPoints += _nn[i];
                 } else {
                     map[i] = -1;
                 }
@@ -2546,9 +2470,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         function condenseArcs(map) {
             let goodPoints = 0,
-                goodArcs = 0,
-                copyElements = utils.copyElements,
-                k, arcLen;
+                goodArcs = 0;
+            const copyElements = utils.copyElements;
+            let k, arcLen;
             for (let i = 0, n = map.length; i < n; i++) {
                 k = map[i];
                 arcLen = _nn[i];
@@ -2568,10 +2492,10 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         }
 
         this.dedupCoords = function () {
-            let arcId = 0, i = 0, i2 = 0,
-                arcCount = this.size(),
-                zz = _zz,
-                arcLen, arcLen2;
+            let arcId = 0, i = 0, i2 = 0;
+            const arcCount = this.size(),
+                zz = _zz;
+            let arcLen, arcLen2;
             while (arcId < arcCount) {
                 arcLen = _nn[arcId];
                 arcLen2 = internal.dedupArcCoords(i, i2, arcLen, _xx, _yy, zz);
@@ -2626,11 +2550,10 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // Tests if first and last segments mirror each other
         // A 3-vertex arc with same endpoints tests true
         this.arcIsLollipop = function (arcId) {
-            let len = this.getArcLength(arcId),
-                i, j;
+            const len = this.getArcLength(arcId);
             if (len <= 2 || !this.arcIsClosed(arcId)) return false;
-            i = this.indexOfVertex(arcId, 1);
-            j = this.indexOfVertex(arcId, -2);
+            const i = this.indexOfVertex(arcId, 1);
+            const j = this.indexOfVertex(arcId, -2);
             return _xx[i] == _xx[j] && _yy[i] == _yy[j];
         };
 
@@ -2671,8 +2594,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         // @thresholds is either a single typed array or an array of arrays of removal thresholds for each arc;
         //
         this.setThresholds = function (thresholds) {
-            let n = this.getPointCount(),
-                zz = null;
+            const n = this.getPointCount();
+            let zz = null;
             if (!thresholds) {
                 // nop
             } else if (thresholds.length == n) {
@@ -2687,8 +2610,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         function flattenThresholds(arr, n) {
-            let zz = new Float64Array(n),
-                i = 0;
+            const zz = new Float64Array(n);
+            let i = 0;
             arr.forEach((arr) => {
                 for (let j = 0, n = arr.length; j < n; i++, j++) {
                     zz[i] = arr[j];
@@ -2736,10 +2659,10 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         //
         this.getRemovableThresholds = function (nth) {
             if (!_zz) error("[arcs] Missing simplification data.");
-            let skip = nth | 1,
-                arr = new Float64Array(Math.ceil(_zz.length / skip)),
-                z;
-            for (var i = 0, j = 0, n = this.getPointCount(); i < n; i += skip) {
+            const skip = nth | 1,
+                arr = new Float64Array(Math.ceil(_zz.length / skip));
+            let z, i, j, n;
+            for (i = 0, j = 0, n = this.getPointCount(); i < n; i += skip) {
                 z = _zz[i];
                 if (z != Infinity) {
                     arr[j++] = z;
@@ -2772,8 +2695,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 
         // nth (optional): sample every nth threshold (use estimate for speed)
         this.getThresholdByPct = function (pct, nth) {
-            let tmp = this.getRemovableThresholds(nth),
-                rank, z;
+            const tmp = this.getRemovableThresholds(nth);
+            let rank, z;
             if (tmp.length === 0) { // No removable points
                 rank = 0;
             } else {
@@ -2834,9 +2757,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         };
 
         this.getSimpleShapeBounds2 = function (arcIds, arr) {
-            let bbox = arr || [],
-                bb = _bb,
-                id = absArcId(arcIds[0]) * 4;
+            const bbox = arr || [],
+                bb = _bb;
+            let id = absArcId(arcIds[0]) * 4;
             bbox[0] = bb[id];
             bbox[1] = bb[++id];
             bbox[2] = bb[++id];
@@ -2870,7 +2793,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     }
 
     ArcCollection.prototype.inspect = function () {
-        let n = this.getPointCount(), str;
+        const n = this.getPointCount();
+        let str;
         if (n < 50) {
             str = JSON.stringify(this.toArray());
         } else {
@@ -2918,8 +2842,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 //    is counted as an intersection (there will be one or two)
 //
     function segmentIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
-        let hit = segmentHit(ax, ay, bx, by, cx, cy, dx, dy),
-            p = null;
+        const hit = segmentHit(ax, ay, bx, by, cx, cy, dx, dy);
+        let p = null;
         if (hit) {
             p = crossIntersection(ax, ay, bx, by, cx, cy, dx, dy);
             if (!p) { // collinear if p is null
@@ -2934,9 +2858,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     function lineIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
         const den = determinant2D(bx - ax, by - ay, dx - cx, dy - cy);
         const eps = 1e-18;
-        let m, p;
+        let p;
         if (den === 0) return null;
-        m = orient2D(cx, cy, dx, dy, ax, ay) / den;
+        const m = orient2D(cx, cy, dx, dy, ax, ay) / den;
         if (den <= eps && den >= -eps) {
             // tiny denominator = low precision; using one of the endpoints as intersection
             p = findEndpointInRange(ax, ay, bx, by, cx, cy, dx, dy);
@@ -3046,13 +2970,13 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
 // TODO: make more robust, make sure result is compatible with segmentIntersection()
 // (rounding errors currently must be handled downstream)
     geom.findClosestPointOnSeg = function (px, py, ax, ay, bx, by) {
-        let dx = bx - ax,
+        const dx = bx - ax,
             dy = by - ay,
             dotp = (px - ax) * dx + (py - ay) * dy,
             abSq = dx * dx + dy * dy,
             k = abSq === 0 ? -1 : dotp / abSq,
-            eps = 0.1, // 1e-6, // snap to endpoint
-            p;
+            eps = 0.1; // 1e-6, // snap to endpoint
+        let p;
         if (k <= eps) {
             p = [ax, ay];
         } else if (k >= 1 - eps) {
@@ -3092,18 +3016,14 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         return x > minX && x < maxX;
     }
 
-    function sortSeg(x1, y1, x2, y2) {
-        return x1 < x2 || x1 == x2 && y1 < y2 ? [x1, y1, x2, y2] : [x2, y2, x1, y1];
-    }
-
 // Assume segments s1 and s2 are collinear and overlap; find one or two internal endpoints
     function collinearIntersection(ax, ay, bx, by, cx, cy, dx, dy) {
-        let minX = Math.min(ax, bx, cx, dx),
+        const minX = Math.min(ax, bx, cx, dx),
             maxX = Math.max(ax, bx, cx, dx),
             minY = Math.min(ay, by, cy, dy),
             maxY = Math.max(ay, by, cy, dy),
-            useY = maxY - minY > maxX - minX,
-            coords = [];
+            useY = maxY - minY > maxX - minX;
+        let coords = [];
 
         if (useY ? inside(ay, minY, maxY) : inside(ax, minX, maxX)) {
             coords.push(ax, ay);
@@ -3141,7 +3061,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         internal.quicksortSegmentIds(xx, ids, 0, ids.length - 2);
     };
 
-    internal.orderSegmentIds = function (xx, ids, spherical) {
+    internal.orderSegmentIds = function (xx, ids) {
         function swap(i, j) {
             const tmp = ids[i];
             ids[i] = ids[j];
@@ -3160,7 +3080,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         for (let j = start + 2; j <= end; j += 2) {
             id = ids[j];
             id2 = ids[j + 1];
-            for (var i = j - 2; i >= start && arr[id] < arr[ids[i]]; i -= 2) {
+            let i;
+            for (i = j - 2; i >= start && arr[id] < arr[ids[i]]; i -= 2) {
                 ids[i + 2] = ids[i];
                 ids[i + 3] = ids[i + 1];
             }
@@ -3230,30 +3151,28 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
         }
 
         return function (arcs) {
-            let bounds = arcs.getBounds(),
+            const bounds = arcs.getBounds(),
                 // TODO: handle spherical bounds
-                spherical = !arcs.isPlanar() &&
-                    containsBounds(internal.getWorldBounds(), bounds.toArray()),
                 ymin = bounds.ymin,
                 yrange = bounds.ymax - ymin,
                 stripeCount = internal.calcSegmentIntersectionStripeCount(arcs),
                 stripeSizes = new Uint32Array(stripeCount),
-                stripeId = stripeCount > 1 ? multiStripeId : singleStripeId,
-                i, j;
+                stripeId = stripeCount > 1 ? multiStripeId : singleStripeId;
+                let i, j;
 
             function multiStripeId(y) {
                 return Math.floor((stripeCount - 1) * (y - ymin) / yrange);
             }
 
-            function singleStripeId(y) {
+            function singleStripeId() {
                 return 0;
             }
 
             // Count segments in each stripe
             arcs.forEachSegment((id1, id2, xx, yy) => {
-                let s1 = stripeId(yy[id1]),
-                    s2 = stripeId(yy[id2]);
-                while (true) {
+                let s1 = stripeId(yy[id1]);
+                const s2 = stripeId(yy[id2]);
+                while (true) { // eslint-disable-line no-constant-condition
                     stripeSizes[s1] = stripeSizes[s1] + 2;
                     if (s1 == s2) break;
                     s1 += s2 > s1 ? 1 : -1;
@@ -3261,8 +3180,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
             });
 
             // Allocate arrays for segments in each stripe
-            let stripeData = getUint32Array(utils.sum(stripeSizes)),
-                offs = 0;
+            const stripeData = getUint32Array(utils.sum(stripeSizes));
+            let offs = 0;
             const stripes = [];
             utils.forEach(stripeSizes, (stripeSize) => {
                 const start = offs;
@@ -3273,10 +3192,10 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
             utils.initializeArray(stripeSizes, 0);
 
             arcs.forEachSegment((id1, id2, xx, yy) => {
-                let s1 = stripeId(yy[id1]),
-                    s2 = stripeId(yy[id2]),
-                    count, stripe;
-                while (true) {
+                let s1 = stripeId(yy[id1]);
+                const s2 = stripeId(yy[id2]);
+                let count, stripe;
+                while (true) { // eslint-disable-line no-constant-condition
                     count = stripeSizes[s1];
                     stripeSizes[s1] = count + 2;
                     stripe = stripes[s1];
@@ -3288,9 +3207,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
             });
 
             // Detect intersections among segments in each stripe.
-            let raw = arcs.getVertexData(),
-                intersections = [],
-                arr;
+            const raw = arcs.getVertexData(),
+                intersections = [];
+            let arr;
             for (i = 0; i < stripeCount; i++) {
                 arr = internal.intersectSegments(stripes[i], raw.xx, raw.yy);
                 for (j = 0; j < arr.length; j++) {
@@ -3324,9 +3243,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
     };
 
     internal.calcSegmentIntersectionStripeCount = function (arcs) {
-        let yrange = arcs.getBounds().height(),
-            segLen = internal.getAvgSegment2(arcs)[1],
-            count = 1;
+        const yrange = arcs.getBounds().height(),
+            segLen = internal.getAvgSegment2(arcs)[1];
+        let count = 1;
         if (segLen > 0 && yrange > 0) {
             count = Math.ceil(yrange / segLen / 20);
         }
@@ -3406,30 +3325,15 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
             i += 2;
         }
         return intersections;
-
-        // @p is an [x, y] location along a segment defined by ids @id1 and @id2
-        // return array [i, j] where i and j are the same endpoint ids with i <= j
-        // if @p coincides with an endpoint, return the id of that endpoint twice
-        function getEndpointIds(id1, id2, p) {
-            let i = id1 < id2 ? id1 : id2,
-                j = i === id1 ? id2 : id1;
-            if (xx[i] == p[0] && yy[i] == p[1]) {
-                j = i;
-            } else if (xx[j] == p[0] && yy[j] == p[1]) {
-                i = j;
-            }
-            return [i, j];
-        }
     };
 
     internal.formatIntersection = function (xy, s1, s2, xx, yy) {
-        let x = xy[0],
-            y = xy[1],
-            a, b;
+        const x = xy[0],
+            y = xy[1];
         s1 = internal.formatIntersectingSegment(x, y, s1[0], s1[1], xx, yy);
         s2 = internal.formatIntersectingSegment(x, y, s2[0], s2[1], xx, yy);
-        a = s1[0] < s2[0] ? s1 : s2;
-        b = a == s1 ? s2 : s1;
+        const a = s1[0] < s2[0] ? s1 : s2;
+        const b = a == s1 ? s2 : s1;
         return {x, y, a, b};
     };
 
@@ -3515,8 +3419,8 @@ this.getAvgSegmentSph2 = function() {
 //   (assume it won't overflow)
     internal.countArcsInShapes = function (shapes, counts) {
         internal.traversePaths(shapes, null, (obj) => {
-            let arcs = obj.arcs,
-                id;
+            const arcs = obj.arcs;
+            let id;
             for (let i = 0; i < arcs.length; i++) {
                 id = arcs[i];
                 if (id < 0) id = ~id;
@@ -3668,7 +3572,8 @@ this.getAvgSegmentSph2 = function() {
     };
 
     internal.arcHasLength = function (id, coords) {
-        let iter = coords.getArcIter(id), x, y;
+        const iter = coords.getArcIter(id);
+        let x, y;
         if (iter.hasNext()) {
             x = iter.x;
             y = iter.y;
@@ -3704,10 +3609,9 @@ this.getAvgSegmentSph2 = function() {
 //   geometry.
 //
     internal.groupPolygonRings = function (paths, reverseWinding) {
-        let holes = [],
+        const holes = [],
             groups = [],
-            sign = reverseWinding ? -1 : 1,
-            ringIndex;
+            sign = reverseWinding ? -1 : 1;
 
         (paths || []).forEach((path) => {
             if (path.area * sign > 0) {
@@ -3726,7 +3630,7 @@ this.getAvgSegmentSph2 = function() {
         // Using a spatial index to improve performance when the current feature
         // contains many holes and space-filling rings.
         // (Thanks to @simonepri for providing an example implementation in PR #248)
-        ringIndex = require('rbush')();
+        const ringIndex = require('rbush')(); // eslint-disable-line no-undef
         ringIndex.load(groups.map((group, i) => {
             const bounds = group[0].bounds;
             return {
@@ -3741,16 +3645,16 @@ this.getAvgSegmentSph2 = function() {
         // Group each hole with its containing ring
         holes.forEach((hole) => {
             let containerId = -1,
-                containerArea = 0,
-                holeArea = hole.area * -sign,
+                containerArea = 0;
+            const holeArea = hole.area * -sign,
                 // Find rings that might contain this hole
                 candidates = ringIndex.search({
                     minX: hole.bounds.xmin,
                     minY: hole.bounds.ymin,
                     maxX: hole.bounds.xmax,
                     maxY: hole.bounds.ymax
-                }),
-                ring, ringId, ringArea, isContained;
+                });
+            let ring, ringId, ringArea, isContained;
             // Group this hole with the smallest-area ring that contains it.
             // (Assumes that if a ring's bbox contains a hole, then the ring also
             //  contains the hole).
@@ -3775,8 +3679,8 @@ this.getAvgSegmentSph2 = function() {
     };
 
     internal.getPathMetadata = function (shape, arcs, type) {
-        let data = [],
-            ids;
+        const data = [];
+        let ids;
         for (let i = 0, n = shape && shape.length; i < n; i++) {
             ids = shape[i];
             data.push({
@@ -3816,11 +3720,11 @@ this.getAvgSegmentSph2 = function() {
         ArcIter
     });
 
-    if (typeof define === "function" && define.amd) {
+    if (typeof define === "function" && define.amd) { // eslint-disable-line no-undef
         //define("mapshaper", api);
-        define([], () => exportAPI);
-    } else if (typeof module === "object" && module.exports) {
-        module.exports = exportAPI;
+        define([], () => exportAPI); // eslint-disable-line no-undef
+    } else if (typeof module === "object" && module.exports) { // eslint-disable-line no-undef
+        module.exports = exportAPI; // eslint-disable-line no-undef
     }
 }());
 

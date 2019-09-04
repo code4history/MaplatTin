@@ -12,8 +12,9 @@
   "scripts": {
     "www_build": "webpack",
     "npm_build": "babel src/ --out-dir lib/ --source-maps",
+    "lint": "eslint src/",
     "test": "jasmine",
-    "prepublish": "npm run www_build; npm run npm_build"
+    "prepublish": "npm run lint; npm run test; npm run www_build; npm run npm_build"
   },
   "repository": {
     "type": "git",
