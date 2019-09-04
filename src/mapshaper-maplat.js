@@ -395,10 +395,10 @@ let exportAPI;
     };
 
     Utils.addThousandsSep = function (str) {
-        let fmt = '',
-            start = str[0] == '-' ? 1 : 0,
-            dec = str.indexOf('.'),
-            end = str.length,
+        let fmt = '';
+        const start = str[0] == '-' ? 1 : 0;
+        const dec = str.indexOf('.');
+        let end = str.length,
             ins = (dec == -1 ? end : dec) - 3;
         while (ins > start) {
             fmt = `,${str.substring(ins, end)}${fmt}`;
@@ -460,9 +460,9 @@ let exportAPI;
     };
 
 
-    function Bounds() {
-        if (arguments.length > 0) {
-            this.setBounds.apply(this, arguments);
+    function Bounds(...args) {
+        if (args.length > 0) {
+            this.setBounds(...args);
         }
     }
 
@@ -635,10 +635,10 @@ let exportAPI;
             focusX = 0.5;
             focusY = 0.5;
         }
-        let w = this.width(),
+        const w = this.width(),
             h = this.height(),
-            currAspect = w / h,
-            pad;
+            currAspect = w / h;
+        let pad;
         if (isNaN(aspect) || aspect <= 0) {
             // error condition; don't pad
         } else if (currAspect < aspect) { // fill out x dimension
@@ -698,18 +698,18 @@ let exportAPI;
         this.mergeBounds([x - r, y - r, x + r, y + r]);
     };
 
-    Bounds.prototype.mergeBounds = function (bb) {
+    Bounds.prototype.mergeBounds = function (bb, ...args) {
         let a, b, c, d;
         if (bb instanceof Bounds) {
             a = bb.xmin;
             b = bb.ymin;
             c = bb.xmax;
             d = bb.ymax;
-        } else if (arguments.length == 4) {
-            a = arguments[0];
-            b = arguments[1];
-            c = arguments[2];
-            d = arguments[3];
+        } else if (args.length == 3) {
+            a = bb;
+            b = args[0];
+            c = args[1];
+            d = args[2];
         } else if (bb.length == 4) {
             // assume array: [xmin, ymin, xmax, ymax]
             a = bb[0];
@@ -735,15 +735,15 @@ let exportAPI;
 // Sort an array of objects based on one or more properties.
 // Usage: Utils.sortOn(array, key1, asc?[, key2, asc? ...])
 //
-    Utils.sortOn = function (arr) {
+    Utils.sortOn = function (arr, ...args) {
         const comparators = [];
-        for (let i = 1; i < arguments.length; i += 2) {
-            comparators.push(Utils.getKeyComparator(arguments[i], arguments[i + 1]));
+        for (let i = 0; i < arguments.length; i += 2) {
+            comparators.push(Utils.getKeyComparator(args[i], args[i + 1]));
         }
         arr.sort((a, b) => {
             let cmp = 0,
-                i = 0,
-                n = comparators.length;
+                i = 0;
+            const n = comparators.length;
             while (i < n && cmp === 0) {
                 cmp = comparators[i](a, b);
                 i++;
