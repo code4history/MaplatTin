@@ -77,7 +77,7 @@ let exportAPI;
 
         // See https://raw.github.com/kvz/phpjs/master/functions/strings/addslashes.js
         addslashes (str) {
-            return (`${str}`).replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
+            return (`${str}`).replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0'); // eslint-disable-line no-control-regex
         },
 
         // Escape a literal string to use in a regexp.
@@ -86,11 +86,11 @@ let exportAPI;
             return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
         },
 
-        defaults (dest) {
-            for (let i = 1, n = arguments.length; i < n; i++) {
-                const src = arguments[i] || {};
+        defaults (dest, ...args) {
+            for (let i = 0, n = args.length; i < n; i++) {
+                const src = args[i] || {};
                 for (const key in src) {
-                    if (key in dest === false && src.hasOwnProperty(key)) {
+                    if (key in dest === false && Object.prototype.hasOwnProperty.call(src, key)) {
                         dest[key] = src[key];
                     }
                 }
@@ -98,14 +98,14 @@ let exportAPI;
             return dest;
         },
 
-        extend (o) {
-            let dest = o || {},
-                n = arguments.length,
-                key, i, src;
-            for (i = 1; i < n; i++) {
-                src = arguments[i] || {};
+        extend (o, ...args) {
+            const dest = o || {},
+                n = args.length;
+            let key, i, src;
+            for (i = 0; i < n; i++) {
+                src = args[i] || {};
                 for (key in src) {
-                    if (src.hasOwnProperty(key)) {
+                    if (Object.prototype.hasOwnProperty.call(src, key)) {
                         dest[key] = src[key];
                     }
                 }
@@ -120,13 +120,13 @@ let exportAPI;
         // Call parent's constructor (inside child constructor):
         //    this.__super__([args...]);
         inherit (targ, src) {
-            var f = function () {
+            const f = function (...args) {
                 if (this.__super__ == f) {
                     // add __super__ of parent to front of lookup chain
                     // so parent class constructor can call its parent using this.__super__
                     this.__super__ = src.prototype.__super__;
                     // call parent constructor function. this.__super__ now points to parent-of-parent
-                    src.apply(this, arguments);
+                    src.apply(this, ...args);
                     // remove temp __super__, expose targ.prototype.__super__ again
                     delete this.__super__;
                 }
@@ -142,40 +142,20 @@ let exportAPI;
 
         // Inherit from a parent, call the parent's constructor, optionally extend
         // prototype with optional additional arguments
-        subclass (parent) {
+        subclass (parent, ...args) {
             const child = function () {
-                this.__super__.apply(this, Utils.toArray(arguments));
+                this.__super__(parent, ...Utils.toArray(args));
             };
             Utils.inherit(child, parent);
-            for (let i = 1; i < arguments.length; i++) {
-                Utils.extend(child.prototype, arguments[i]);
+            for (let i = 0; i < arguments.length; i++) {
+                Utils.extend(child.prototype, args[i]);
             }
             return child;
         }
 
     };
 
-    var Utils = utils;
-
-
-    const Env = (function () {
-        const inNode = typeof module !== 'undefined' && !!module.exports;
-        const inBrowser = typeof window !== 'undefined' && !inNode;
-        const inPhantom = inBrowser && !!(window.phantom && window.phantom.exit);
-        const ieVersion = inBrowser && /MSIE ([0-9]+)/.exec(navigator.appVersion) && parseInt(RegExp.$1) || NaN;
-
-        return {
-            iPhone: inBrowser && !!(navigator.userAgent.match(/iPhone/i)),
-            iPad: inBrowser && !!(navigator.userAgent.match(/iPad/i)),
-            canvas: inBrowser && !!document.createElement('canvas').getContext,
-            inNode,
-            inPhantom,
-            inBrowser,
-            ieVersion,
-            ie: !isNaN(ieVersion)
-        };
-    })();
-
+    const Utils = utils;
 
 // Append elements of @src array to @dest array
     utils.merge = function (dest, src) {
@@ -231,9 +211,9 @@ let exportAPI;
     };
 
     utils.range = function (len, start, inc) {
-        let arr = [],
-            v = start === void 0 ? 0 : start,
-            i = inc === void 0 ? 1 : inc;
+        const arr = [];
+        let v = start === void 0 ? 0 : start;
+        const i = inc === void 0 ? 1 : inc;
         while (len--) {
             arr.push(v);
             v += i;
@@ -242,8 +222,8 @@ let exportAPI;
     };
 
     utils.repeat = function (times, func) {
-        let values = [],
-            val;
+        const values = [];
+        let val;
         for (let i = 0; i < times; i++) {
             val = func(i);
             if (val !== void 0) {
