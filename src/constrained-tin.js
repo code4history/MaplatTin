@@ -8,32 +8,41 @@
 
 import {polygon, featureCollection} from '@turf/helpers';
 
-const Point = function (x, y) {
-    this.x = x;
-    this.y = y;
-};
-Point.prototype.dot = function (p1) {
-    return (this.x * p1.x + this.y * p1.y);
-};
-Point.prototype.add = function (p1) {
-    return new Point(this.x + p1.x, this.y + p1.y);
-};
-Point.prototype.sub = function (p1) {
-    return new Point(this.x - p1.x, this.y - p1.y);
-};
-Point.prototype.scale = function (s) {
-    return new Point(this.x * s, this.y * s);
-};
-Point.prototype.sqDistanceTo = function (p1) {
-    return (this.x - p1.x) * (this.x - p1.x) + (this.y - p1.y) * (this.y - p1.y);
-};
-Point.prototype.toStr = function () {
-    return `(${this.x.toFixed(3)}, ${this.y.toFixed(3)})`;
-};
-Point.prototype.copyFrom = function (p) {
-    this.x = p.x;
-    this.y = p.y;
-};
+class Point {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    dot(p1) {
+        return (this.x * p1.x + this.y * p1.y);
+    }
+
+    add(p1) {
+        return new Point(this.x + p1.x, this.y + p1.y);
+    }
+
+    sub(p1) {
+        return new Point(this.x - p1.x, this.y - p1.y);
+    }
+
+    scale(s) {
+        return new Point(this.x * s, this.y * s);
+    }
+
+    sqDistanceTo(p1) {
+        return (this.x - p1.x) * (this.x - p1.x) + (this.y - p1.y) * (this.y - p1.y);
+    }
+
+    toStr() {
+        return `(${this.x.toFixed(3)}, ${this.y.toFixed(3)})`;
+    }
+
+    copyFrom(p) {
+        this.x = p.x;
+        this.y = p.y;
+    }
+}
 
 function cross(vec0, vec1) {
     return (vec0.x * vec1.y - vec0.y * vec1.x);
