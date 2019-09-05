@@ -1,3 +1,8 @@
+// This library is based on
+// https://github.com/mbloch/mapshaper
+// Copyright (c) 2013, Matthew Bloch
+// Licensed under the Mozilla Public License, v. 2.0.
+
 let exportAPI;
 (function () {
     const VERSION = '0.4.87';

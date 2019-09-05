@@ -1,10 +1,12 @@
+// This library is based on
+// https://savithru-j.github.io/cdt-js/
+// Copyright 2018 Savithru Jayasinghe
+// Licensed under the MIT License
+
 // A fast algorithm for generating constrained delaunay triangulations
 // https://www.sciencedirect.com/science/article/pii/004579499390239A
 // A robust efficient algorithm for point location in triangulations
 // https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-728.pdf
-// https://savithru-j.github.io/cdt-js/
-// Copyright 2018 Savithru Jayasinghe
-// Licensed under the MIT License
 
 import {polygon, featureCollection} from '@turf/helpers';
 
