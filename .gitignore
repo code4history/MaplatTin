@@ -62,7 +62,3 @@ typings/
 
 # JetBrain
 .idea
-
-# Build result
-lib/
-www/
