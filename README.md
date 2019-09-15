@@ -1,6 +1,6 @@
 # Maplat Tin library
 
-JavaScript library which performs bijective conversion mutually between the coordinate systems of two planes based on the control points.  
+JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.  
 This is part of [Maplat](https://github.com/code4nara/Maplat/wiki) project.
 
 ## Installation
