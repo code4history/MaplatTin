@@ -12,7 +12,7 @@ The easiest way to install maplat_tin is with [`npm`][npm].
 [npm]: https://www.npmjs.com/
 
 ```sh
-npm install maplat_tin
+npm install @maplat/tin
 ```
 
 ### Browser
