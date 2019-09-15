@@ -1,6 +1,6 @@
 {
   "name": "@maplat/tin",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.",
   "main": "lib/index.js",
   "module": "src/index.js",
