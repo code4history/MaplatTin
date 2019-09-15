@@ -1,7 +1,7 @@
 {
   "name": "@maplat/tin",
-  "version": "0.6.1",
-  "description": "JavaScript library which performs bijective conversion mutually between the coordinate systems of two planes based on the control points.",
+  "version": "0.6.2",
+  "description": "JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.",
   "main": "lib/index.js",
   "module": "src/index.js",
   "files": [
@@ -18,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/code4nara/MaplatTin.git"
+    "url": "git+https://github.com/code4history/MaplatTin.git"
   },
   "keywords": [
     "warp",
@@ -27,9 +27,9 @@
   "author": "Kohei Otsuka, Code for History",
   "license": "Apache 2.0",
   "bugs": {
-    "url": "https://github.com/code4nara/MaplatTin/issues"
+    "url": "https://github.com/code4history/MaplatTin/issues"
   },
-  "homepage": "https://github.com/code4nara/MaplatTin/wiki",
+  "homepage": "https://github.com/code4history/MaplatTin/wiki",
   "dependencies": {
     "@turf/turf": "^5.1.6"
   },
