@@ -14,7 +14,8 @@
     "npm_build": "babel src/ --out-dir lib/ --source-maps",
     "lint": "eslint src/",
     "test": "jasmine",
-    "prepublish": "npm run lint; npm run test; npm run www_build; npm run npm_build"
+    "prepublish": "npm run lint; npm run test; npm run www_build; npm run npm_build",
+    "preinstall": "npx npm-force-resolutions"
   },
   "repository": {
     "type": "git",
@@ -43,7 +44,11 @@
     "core-js": "^3.2.1",
     "eslint": "^6.3.0",
     "jasmine": "^3.4.0",
+    "minimist": "^1.2.5",
     "webpack": "^4.39.3",
     "webpack-cli": "^3.3.7"
+  },
+  "resolutions": {
+    "minimist": "^1.2.5"
   }
 }
