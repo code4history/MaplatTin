@@ -14,8 +14,8 @@
     "npm_build": "babel src/ --out-dir lib/ --source-maps",
     "lint": "eslint src/",
     "test": "jasmine",
-    "prepublish": "npm run lint; npm run test; npm run www_build; npm run npm_build",
-    "preinstall": "npx npm-force-resolutions"
+    "prepublish": "npm run lint && npm run test && npm run www_build && npm run npm_build",
+    "preinstall": "npx npm-force-resolutions || echo 'ignore'"
   },
   "repository": {
     "type": "git",
