@@ -8,6 +8,7 @@ import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import centroid from '@turf/centroid';
 import lineIntersect from '@turf/line-intersect';
 import intersect from '@turf/intersect';
+import {getCoords} from '@turf/invariant';
 
 import internal from './mapshaper-maplat';
 import constrainedTin from './constrained-tin';
@@ -41,6 +42,7 @@ class Tin {
         }
         this.points = points;
         this.tins = undefined;
+        this.indexedTins = undefined;
     }
 
     setEdges(edges) {
@@ -48,6 +50,7 @@ class Tin {
         this.edges = edges;
         this.edgeNodes = undefined;
         this.tins = undefined;
+        this.indexedTins = undefined;
     }
 
     setBounds(bounds) {
@@ -73,6 +76,7 @@ class Tin {
         this.wh = [maxx - minx, maxy - miny];
         this.vertexMode = Tin.VERTEX_PLAIN;
         this.tins = undefined;
+        this.indexedTins = undefined;
     }
 
     setCompiled(compiled) {
@@ -136,6 +140,7 @@ class Tin {
                     indexesToTri(idxes, compiled.points, compiled.edgeNodes || [], compiled.centroid_point, compiled.vertices_points, true)
                 ))
             }
+            this.addIndexedTin();
             // kinksを復元
             if (compiled.kinks_points) {
                 this.kinks = {
@@ -163,6 +168,7 @@ class Tin {
         } else {
             // 旧コンパイルロジック
             this.tins = compiled.tins;
+            this.addIndexedTin();
             this.strict_status = compiled.strict_status;
             this.pointsWeightBuffer = compiled.weight_buffer;
             this.vertices_params = compiled.vertices_params;
@@ -256,22 +262,129 @@ class Tin {
         return compiled;
     }
 
+    addIndexedTin() {
+        const tins = this.tins;
+        const forw = tins.forw;
+        const bakw = tins.bakw;
+        const gridNum = Math.ceil(Math.sqrt(forw.features.length));
+        if (gridNum < 3) {
+            this.indexedTins = undefined;
+            return;
+        }
+        let forwBound = null;
+        let bakwBound = null;
+        const forwEachBound = forw.features.map((tri) => {
+            let eachBound = null;
+            getCoords(tri)[0].map((point) => {
+                if (forwBound == null) forwBound = [Array.from(point), Array.from(point)];
+                else {
+                    if (point[0] < forwBound[0][0]) forwBound[0][0] = point[0];
+                    if (point[0] > forwBound[1][0]) forwBound[1][0] = point[0];
+                    if (point[1] < forwBound[0][1]) forwBound[0][1] = point[1];
+                    if (point[1] > forwBound[1][1]) forwBound[1][1] = point[1];
+                }
+                if (eachBound == null) eachBound = [Array.from(point), Array.from(point)];
+                else {
+                    if (point[0] < eachBound[0][0]) eachBound[0][0] = point[0];
+                    if (point[0] > eachBound[1][0]) eachBound[1][0] = point[0];
+                    if (point[1] < eachBound[0][1]) eachBound[0][1] = point[1];
+                    if (point[1] > eachBound[1][1]) eachBound[1][1] = point[1];
+                }
+            });
+            return eachBound;
+        });
+        const forwXUnit = (forwBound[1][0] - forwBound[0][0]) / gridNum;
+        const forwYUnit = (forwBound[1][1] - forwBound[0][1]) / gridNum;
+        const forwGridCache = forwEachBound.reduce((prev, bound, index) => {
+            const normXMin = unitCalc(bound[0][0], forwBound[0][0], forwXUnit, gridNum);
+            const normXMax = unitCalc(bound[1][0], forwBound[0][0], forwXUnit, gridNum);
+            const normYMin = unitCalc(bound[0][1], forwBound[0][1], forwYUnit, gridNum);
+            const normYMax = unitCalc(bound[1][1], forwBound[0][1], forwYUnit, gridNum);
+            for (let cx = normXMin; cx <= normXMax; cx++) {
+                if (!prev[cx]) prev[cx] = [];
+                for (let cy = normYMin; cy <= normYMax; cy++) {
+                    if (!prev[cx][cy]) prev[cx][cy] = [];
+                    prev[cx][cy].push(index);
+                }
+            }
+            return prev;
+        }, []);
+        const bakwEachBound = bakw.features.map((tri) => {
+            let eachBound = null;
+            getCoords(tri)[0].map((point) => {
+                if (bakwBound == null) bakwBound = [Array.from(point), Array.from(point)];
+                else {
+                    if (point[0] < bakwBound[0][0]) bakwBound[0][0] = point[0];
+                    if (point[0] > bakwBound[1][0]) bakwBound[1][0] = point[0];
+                    if (point[1] < bakwBound[0][1]) bakwBound[0][1] = point[1];
+                    if (point[1] > bakwBound[1][1]) bakwBound[1][1] = point[1];
+                }
+                if (eachBound == null) eachBound = [Array.from(point), Array.from(point)];
+                else {
+                    if (point[0] < eachBound[0][0]) eachBound[0][0] = point[0];
+                    if (point[0] > eachBound[1][0]) eachBound[1][0] = point[0];
+                    if (point[1] < eachBound[0][1]) eachBound[0][1] = point[1];
+                    if (point[1] > eachBound[1][1]) eachBound[1][1] = point[1];
+                }
+            });
+            return eachBound;
+        });
+        const bakwXUnit = (bakwBound[1][0] - bakwBound[0][0]) / gridNum;
+        const bakwYUnit = (bakwBound[1][1] - bakwBound[0][1]) / gridNum;
+        const bakwGridCache = bakwEachBound.reduce((prev, bound, index) => {
+            const normXMin = unitCalc(bound[0][0], bakwBound[0][0], bakwXUnit, gridNum);
+            const normXMax = unitCalc(bound[1][0], bakwBound[0][0], bakwXUnit, gridNum);
+            const normYMin = unitCalc(bound[0][1], bakwBound[0][1], bakwYUnit, gridNum);
+            const normYMax = unitCalc(bound[1][1], bakwBound[0][1], bakwYUnit, gridNum);
+            for (let cx = normXMin; cx <= normXMax; cx++) {
+                if (!prev[cx]) prev[cx] = [];
+                for (let cy = normYMin; cy <= normYMax; cy++) {
+                    if (!prev[cx][cy]) prev[cx][cy] = [];
+                    prev[cx][cy].push(index);
+                }
+            }
+            return prev;
+        }, []);
+
+        this.indexedTins = {
+            forw: {
+                gridNum,
+                xOrigin: forwBound[0][0],
+                yOrigin: forwBound[0][1],
+                xUnit: forwXUnit,
+                yUnit: forwYUnit,
+                gridCache: forwGridCache
+            },
+            bakw: {
+                gridNum,
+                xOrigin: bakwBound[0][0],
+                yOrigin: bakwBound[0][1],
+                xUnit: bakwXUnit,
+                yUnit: bakwYUnit,
+                gridCache: bakwGridCache
+            }
+        };
+    }
+
     setWh(wh) {
         this.wh = wh;
         this.xy = [0, 0];
         this.bounds = undefined;
         this.boundsPolygon = undefined;
         this.tins = undefined;
+        this.indexedTins = undefined;
     }
 
     setVertexMode(mode) {
         this.vertexMode = mode;
         this.tins = undefined;
+        this.indexedTins = undefined;
     }
 
     setStrictMode(mode) {
         this.strictMode = mode;
         this.tins = undefined;
+        this.indexedTins = undefined;
     }
 
     calcurateStrictTinAsync() {
@@ -724,6 +837,7 @@ class Tin {
                     bakw: vertexCalc(verticesList.bakw, self.centroid.bakw)
                 };
 
+                self.addIndexedTin();
                 return self.calculatePointsWeightAsync();
             }).catch((err) => {
                 throw err;
@@ -744,10 +858,11 @@ class Tin {
             if (!booleanPointInPolygon(tpoint, this.boundsPolygon)) return false;
         }
         const tins = backward ? this.tins.bakw : this.tins.forw;
+        const indexedTins = backward ? this.indexedTins.bakw : this.indexedTins.forw;
         const verticesParams = backward ? this.vertices_params.bakw : this.vertices_params.forw;
         const centroid = backward ? this.centroid.bakw : this.centroid.forw;
         const weightBuffer = backward ? this.pointsWeightBuffer.bakw : this.pointsWeightBuffer.forw;
-        let ret = transformArr(tpoint, tins, verticesParams, centroid, weightBuffer);
+        let ret = transformArr(tpoint, tins, indexedTins, verticesParams, centroid, weightBuffer);
         if (this.bounds && backward && !ignoreBounds) {
             const rpoint = point(ret);
             if (!booleanPointInPolygon(rpoint, this.boundsPolygon)) return false;
@@ -1018,7 +1133,7 @@ function useVerticesArr(o, verticesParams, centroid, weightBuffer) {
 }
 
 function hit(point, tins) {
-    for (let i=0; i< tins.features.length; i++) {
+    for (let i = 0; i < tins.features.length; i++) {
         const inside = booleanPointInPolygon(point, tins.features[i]);
         if (inside) {
             return tins.features[i];
@@ -1026,10 +1141,29 @@ function hit(point, tins) {
     }
 }
 
-function transform(point, tins, verticesParams, centroid, weightBuffer) { // eslint-disable-line no-unused-vars
-    return point(transformArr(point, tins, verticesParams, centroid, weightBuffer));
+function unitCalc(coord, origin, unit, gridNum) {
+    let normCoord = Math.floor((coord - origin) / unit);
+    if (normCoord >= gridNum) normCoord = gridNum - 1;
+    return normCoord;
 }
-function transformArr(point, tins, verticesParams, centroid, weightBuffer) {
+
+function transform(point, tins, indexedTins, verticesParams, centroid, weightBuffer) { // eslint-disable-line no-unused-vars
+    return point(transformArr(point, tins, indexedTins, verticesParams, centroid, weightBuffer));
+}
+function transformArr(point, tins, indexedTins, verticesParams, centroid, weightBuffer) {
+    if (indexedTins) {
+        const coords = point.geometry.coordinates;
+        const gridNum = indexedTins.gridNum;
+        const xOrigin = indexedTins.xOrigin;
+        const yOrigin = indexedTins.yOrigin;
+        const xUnit = indexedTins.xUnit;
+        const yUnit = indexedTins.yUnit;
+        const gridCache = indexedTins.gridCache;
+        const normX = unitCalc(coords[0], xOrigin, xUnit, gridNum);
+        const normY = unitCalc(coords[1], yOrigin, yUnit, gridNum);
+        const tinsKey = gridCache[normX] ? gridCache[normX][normY] ? gridCache[normX][normY] : [] : [];
+        tins = { features: tinsKey.map((key) => tins.features[key]) };
+    }
     const tin = hit(point, tins);
     return tin ? transformTinArr(point, tin, weightBuffer) : useVerticesArr(point, verticesParams, centroid, weightBuffer);
 }
