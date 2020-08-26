@@ -1,22 +1,25 @@
 var Tin = require('../src/index');
 var testHelper = require('./TestHelper');
+var load_map = require('./maps/fushimijo_maplat.json');
+var load_cmp = require('./compiled/fushimijo_maplat.json');
 
-describe('Tin 動作テスト', function() {
+let stateFull = false;
+const testSet = function() {
   describe('実データテスト', function() {
-    var load_map = require('./maps/fushimijo_maplat.json');
-    var load_cmp = require('./compiled/fushimijo_maplat.json');
     var tin = new Tin({
       wh: [load_map.width, load_map.height],
       strictMode: load_map.strictMode,
-      vertexMode: load_map.vertexMode
+      vertexMode: load_map.vertexMode,
+      stateFull
     });
     tin.setPoints(load_map.gcps);
 
     it('実データ比較', testHelper.helperAsync(async function() {
       await tin.updateTinAsync();
-      expect(tin.getCompiled()).not.toEqual(load_cmp.compiled);
-      load_cmp.compiled.wh = tin.wh;
-      expect(tin.getCompiled()).toEqual(load_cmp.compiled);
+      const target = JSON.parse(JSON.stringify(load_cmp));
+      expect(tin.getCompiled()).not.toEqual(target.compiled);
+      target.compiled.wh = tin.wh;
+      expect(tin.getCompiled()).toEqual(target.compiled);
     }));
   });
 
@@ -31,7 +34,8 @@ describe('Tin 動作テスト', function() {
 
     var tin = new Tin({
       bounds: [[100, 50], [150, 150], [150, 200], [60, 190], [50, 100]],
-      strictMode: Tin.MODE_STRICT
+      strictMode: Tin.MODE_STRICT,
+      stateFull
     });
     tin.setPoints([[[80, 90], [160, -90]], [[120, 120], [240, -120]], [[100, 140], [200, -140]], [[130, 180], [260, -180]], [[70, 150], [140, -150]]]);
 
@@ -51,7 +55,8 @@ describe('Tin 動作テスト', function() {
   describe('boundsケーステスト(エラーあり)', function() {
     var tin = new Tin({
       bounds: [[100, 50], [150, 150], [150, 200], [60, 190], [50, 100]],
-      strictMode: Tin.MODE_AUTO
+      strictMode: Tin.MODE_AUTO,
+      stateFull
     });
     tin.setPoints([[[80, 90], [160, -90]], [[120, 120], [240, 120]], [[100, 140], [200, -140]], [[130, 180], [260, 180]], [[70, 150], [140, -150]]]);
 
@@ -83,7 +88,9 @@ describe('Tin 動作テスト', function() {
       var tin;
       var err = '';
       try {
-        tin = new Tin();
+        tin = new Tin({
+            stateFull
+        });
       } catch (e) {
         err = 'err';
       }
@@ -97,4 +104,8 @@ describe('Tin 動作テスト', function() {
       expect(err).toEqual('TOO LINEAR1');
     }));
   });
-});
+};
+
+describe('Tin 動作テスト', testSet);
+stateFull = true;
+describe('Tin 動作テスト (StateFull)', testSet);

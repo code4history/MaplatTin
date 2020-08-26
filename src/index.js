@@ -26,6 +26,7 @@ class Tin {
         this.yaxisMode = options.yaxisMode || Tin.YAXIS_INVERT;
         this.importance = options.importance || 0;
         this.priority = options.priority || 0;
+        this.stateFull = options.stateFull;
         if (options.points) {
             this.setPoints(options.points);
         }
@@ -862,7 +863,19 @@ class Tin {
         const verticesParams = backward ? this.vertices_params.bakw : this.vertices_params.forw;
         const centroid = backward ? this.centroid.bakw : this.centroid.forw;
         const weightBuffer = backward ? this.pointsWeightBuffer.bakw : this.pointsWeightBuffer.forw;
-        let ret = transformArr(tpoint, tins, indexedTins, verticesParams, centroid, weightBuffer);
+        let stateTriangle = undefined, stateSetFunc = undefined;
+        if (this.stateFull) {
+            if (this.stateBackward == backward) {
+                stateTriangle = this.stateTriangle;
+            } else {
+                this.stateBackward = backward;
+                this.stateTriangle = undefined;
+            }
+            stateSetFunc = (tri) => {
+                this.stateTriangle = tri;
+            };
+        }
+        let ret = transformArr(tpoint, tins, indexedTins, verticesParams, centroid, weightBuffer, stateTriangle, stateSetFunc);
         if (this.bounds && backward && !ignoreBounds) {
             const rpoint = point(ret);
             if (!booleanPointInPolygon(rpoint, this.boundsPolygon)) return false;
@@ -1147,24 +1160,32 @@ function unitCalc(coord, origin, unit, gridNum) {
     return normCoord;
 }
 
-function transform(point, tins, indexedTins, verticesParams, centroid, weightBuffer) { // eslint-disable-line no-unused-vars
-    return point(transformArr(point, tins, indexedTins, verticesParams, centroid, weightBuffer));
+function transform(point, tins, indexedTins, verticesParams, centroid, weightBuffer, stateTriangle, stateSetFunc) { // eslint-disable-line no-unused-vars
+    return point(transformArr(point, tins, indexedTins, verticesParams, centroid, weightBuffer, stateTriangle, stateSetFunc));
 }
-function transformArr(point, tins, indexedTins, verticesParams, centroid, weightBuffer) {
-    if (indexedTins) {
-        const coords = point.geometry.coordinates;
-        const gridNum = indexedTins.gridNum;
-        const xOrigin = indexedTins.xOrigin;
-        const yOrigin = indexedTins.yOrigin;
-        const xUnit = indexedTins.xUnit;
-        const yUnit = indexedTins.yUnit;
-        const gridCache = indexedTins.gridCache;
-        const normX = unitCalc(coords[0], xOrigin, xUnit, gridNum);
-        const normY = unitCalc(coords[1], yOrigin, yUnit, gridNum);
-        const tinsKey = gridCache[normX] ? gridCache[normX][normY] ? gridCache[normX][normY] : [] : [];
-        tins = { features: tinsKey.map((key) => tins.features[key]) };
+function transformArr(point, tins, indexedTins, verticesParams, centroid, weightBuffer, stateTriangle, stateSetFunc) {
+    let tin;
+    if (stateTriangle) {
+        tin = hit(point, {features: [stateTriangle]});
     }
-    const tin = hit(point, tins);
+    if (!tin) {
+        if (indexedTins) {
+            const coords = point.geometry.coordinates;
+            const gridNum = indexedTins.gridNum;
+            const xOrigin = indexedTins.xOrigin;
+            const yOrigin = indexedTins.yOrigin;
+            const xUnit = indexedTins.xUnit;
+            const yUnit = indexedTins.yUnit;
+            const gridCache = indexedTins.gridCache;
+            const normX = unitCalc(coords[0], xOrigin, xUnit, gridNum);
+            const normY = unitCalc(coords[1], yOrigin, yUnit, gridNum);
+            const tinsKey = gridCache[normX] ? gridCache[normX][normY] ? gridCache[normX][normY] : [] : [];
+            tins = { features: tinsKey.map((key) => tins.features[key]) };
+        }
+        tin = hit(point, tins);
+    }
+    if (stateSetFunc) stateSetFunc(tin);
+
     return tin ? transformTinArr(point, tin, weightBuffer) : useVerticesArr(point, verticesParams, centroid, weightBuffer);
 }
 
