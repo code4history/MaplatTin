@@ -41,7 +41,7 @@
     "@babel/preset-env": "^7.5.5",
     "@babel/register": "^7.5.5",
     "babel-loader": "^8.0.6",
-    "caniuse-lite": "^1.0.30001079",
+    "caniuse-lite": "^1.0.30001120",
     "core-js": "^3.2.1",
     "eslint": "^6.3.0",
     "jasmine": "^3.4.0",
