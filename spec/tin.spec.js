@@ -1,4 +1,5 @@
-const Tin = require("../src/index");
+/* eslint-disable @typescript-eslint/no-var-requires */
+import Tin from "../src/";
 const load_map = require("./maps/fushimijo_maplat.json");
 const load_cmp = require("./compiled/fushimijo_maplat.json");
 

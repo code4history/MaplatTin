@@ -669,8 +669,8 @@ class Tin {
           return thisLengths
             .filter((val, index) =>
               index === 0 ||
-                index === thisLengths.length - 1 ||
-                val[4] === "handled"
+              index === thisLengths.length - 1 ||
+              val[4] === "handled"
                 ? false
                 : true
             )
@@ -702,9 +702,9 @@ class Tin {
                 const ratioInEdge = ratioDelta / ratioAnother;
                 const anotherNode = [
                   (anotherNext[0][0] - anotherPrev[0][0]) * ratioInEdge +
-                  anotherPrev[0][0],
+                    anotherPrev[0][0],
                   (anotherNext[0][1] - anotherPrev[0][1]) * ratioInEdge +
-                  anotherPrev[0][1]
+                    anotherPrev[0][1]
                 ];
                 return i === 0
                   ? [node, anotherNode, ratio]
@@ -755,10 +755,10 @@ class Tin {
     const insideCheck = this.bounds
       ? xy => booleanPointInPolygon(xy, self.boundsPolygon)
       : xy =>
-        xy[0] >= self.xy[0] &&
-        xy[0] <= self.xy[0] + self.wh[0] &&
-        xy[1] >= self.xy[1] &&
-        xy[1] <= self.xy[1] + self.wh[1];
+          xy[0] >= self.xy[0] &&
+          xy[0] <= self.xy[0] + self.wh[0] &&
+          xy[1] >= self.xy[1] &&
+          xy[1] <= self.xy[1] + self.wh[1];
     const inside = this.points.reduce(
       (prev, curr) => prev && insideCheck(curr[0]),
       true
@@ -890,12 +890,12 @@ class Tin {
               vertexDelta.forw[0] == 0
                 ? Infinity
                 : ((vertexDelta.forw[0] < 0 ? minx : maxx) - centroid.forw[0]) /
-                vertexDelta.forw[0];
+                  vertexDelta.forw[0];
             const yRate =
               vertexDelta.forw[1] == 0
                 ? Infinity
                 : ((vertexDelta.forw[1] < 0 ? miny : maxy) - centroid.forw[1]) /
-                vertexDelta.forw[1];
+                  vertexDelta.forw[1];
             // xRate, yRateが同じ値であれば重心と地図頂点を結ぶ線上に乗る
             if (Math.abs(xRate) / Math.abs(yRate) < 1.1) {
               const point = {
@@ -960,12 +960,12 @@ class Tin {
                   self.vertexMode == Tin.VERTEX_BIRDEYE
                   ? prev
                   : prev.reduce(
-                    (pre, cur) => {
-                      const ret = [pre[0].concat(cur)];
-                      return ret;
-                    },
-                    [[]]
-                  );
+                      (pre, cur) => {
+                        const ret = [pre[0].concat(cur)];
+                        return ret;
+                      },
+                      [[]]
+                    );
               }
               return prev;
             },
@@ -1050,17 +1050,17 @@ class Tin {
               const intersect_ = intersect.features[0];
               const expandDist = Math.sqrt(
                 Math.pow(expand.bakw[0] - centroid.bakw[0], 2) +
-                Math.pow(expand.bakw[1] - centroid.bakw[1], 2)
+                  Math.pow(expand.bakw[1] - centroid.bakw[1], 2)
               );
               const onSideDist = Math.sqrt(
                 Math.pow(
                   intersect_.geometry.coordinates[0] - centroid.bakw[0],
                   2
                 ) +
-                Math.pow(
-                  intersect_.geometry.coordinates[1] - centroid.bakw[1],
-                  2
-                )
+                  Math.pow(
+                    intersect_.geometry.coordinates[1] - centroid.bakw[1],
+                    2
+                  )
               );
               const rate = expandDist / onSideDist;
               if (rate > expandRate[i]) expandRate[i] = rate;
@@ -1222,11 +1222,11 @@ class Tin {
                   const weight =
                     Math.sqrt(
                       Math.pow(toi[0] - toj[0], 2) +
-                      Math.pow(toi[1] - toj[1], 2)
+                        Math.pow(toi[1] - toj[1], 2)
                     ) /
                     Math.sqrt(
                       Math.pow(fromi[0] - fromj[0], 2) +
-                      Math.pow(fromi[1] - fromj[1], 2)
+                        Math.pow(fromi[1] - fromj[1], 2)
                     );
 
                   if (!weightBuffer[target][indexi])
@@ -1417,11 +1417,11 @@ function vertexCalc(list, centroid) {
 function normalizeRadian(target, noNegative) {
   const rangeFunc = noNegative
     ? function (val) {
-      return !(val >= 0 && val < Math.PI * 2);
-    }
+        return !(val >= 0 && val < Math.PI * 2);
+      }
     : function (val) {
-      return !(val > -1 * Math.PI && val <= Math.PI);
-    };
+        return !(val > -1 * Math.PI && val <= Math.PI);
+      };
   while (rangeFunc(target)) {
     target = target + 2 * Math.PI * (target > 0 ? -1 : 1);
   }
@@ -1625,23 +1625,23 @@ function indexesToTri(indexes, points, edgeNodes, cent, bboxes, bakw) {
     const point_base = isFinite(index)
       ? points[index]
       : index == "cent"
-        ? cent
-        : index == "bbox0"
-          ? bboxes[0]
-          : index == "bbox1"
-            ? bboxes[1]
-            : index == "bbox2"
-              ? bboxes[2]
-              : index == "bbox3"
-                ? bboxes[3]
-                : (function () {
-                  const match = index.match(/edgeNode(\d+)/);
-                  if (match) {
-                    const nodeIndex = parseInt(match[1]);
-                    return edgeNodes[nodeIndex];
-                  }
-                  return undefined;
-                })();
+      ? cent
+      : index == "bbox0"
+      ? bboxes[0]
+      : index == "bbox1"
+      ? bboxes[1]
+      : index == "bbox2"
+      ? bboxes[2]
+      : index == "bbox3"
+      ? bboxes[3]
+      : (function () {
+          const match = index.match(/edgeNode(\d+)/);
+          if (match) {
+            const nodeIndex = parseInt(match[1]);
+            return edgeNodes[nodeIndex];
+          }
+          return undefined;
+        })();
     return bakw
       ? [[point_base[1], point_base[0]], index]
       : [[point_base[0], point_base[1]], index];

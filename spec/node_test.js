@@ -1,4 +1,4 @@
-const Tin = require("../lib/index");
+import Tin from "../lib/index";
 
 const tin = new Tin({
   bounds: [
