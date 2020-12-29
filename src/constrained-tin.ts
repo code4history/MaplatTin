@@ -457,10 +457,7 @@ function isDelaunay2(v_tri: [Point, Point, Point], p: Point): boolean {
     vecp0.x * (vecp1.y * p2_sq - p1_sq * vecp2.y) -
     vecp0.y * (vecp1.x * p2_sq - p1_sq * vecp2.x) +
     p0_sq * (vecp1.x * vecp2.y - vecp1.y * vecp2.x);
-  if (det > 0)
-    //p is inside circumcircle of v_tri
-    return false;
-  else return true;
+  return det <= 0;
 }
 
 function constrainEdges(meshData: Mesh) {
@@ -594,9 +591,7 @@ function getEdgeIntersections(meshData: Mesh, iedge: any) {
     if (intersections.length == 0) throw "Cannot have no intersections!";
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      // @ts-expect-error ts-migrate(7022) FIXME: 'prev_intersection' implicitly has type 'any' beca... Remove this comment to see the full error message
-      const prev_intersection = intersections[intersections.length - 1]; //[tri ind][node ind for edge]
-      // @ts-expect-error ts-migrate(7022) FIXME: 'tri_ind' implicitly has type 'any' because it doe... Remove this comment to see the full error message
+      const prev_intersection: any = intersections[intersections.length - 1]; //[tri ind][node ind for edge]
       const tri_ind = adjacency[prev_intersection[0]][prev_intersection[1]];
       if (
         triangles[tri_ind][0] == edge_v1_ind ||
@@ -744,7 +739,6 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
   if (typeof points !== "object" || points.type !== "FeatureCollection")
     throw "Argument points must be FeatureCollection";
   if (!Array.isArray(edges)) throw "Argument points must be Array of Array";
-  if (z && typeof z !== "string") throw "Argument z must be string";
   let isPointZ = false;
   // Caluculating scale factor
   // Original cdt-js not working well with coordinates between (0,0)-(1,1)
@@ -766,7 +760,7 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
       return prev;
     },
     [[], [], []]
-  ) as [[number, number, number], [number, number, number]];
+  ) as [[number, number, number], [number, number, number], any];
 
   const xMax = Math.max.apply(null, xyzs[0]);
   const xMin = Math.min.apply(null, xyzs[0]);
@@ -801,16 +795,14 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
   const keys = ["a", "b", "c"] as const;
   return featureCollection(
     meshData.tri.map(indices => {
-      const properties = {};
+      const properties: any = {};
       const coords = indices.map((index, i) => {
         const coord: [number, number] = [xyzs[0][index], xyzs[1][index]];
-        // @ts-expect-error
         if (xyzs[2][index] !== undefined) {
           if (isPointZ) {
             // @ts-expect-error
             coord[2] = xyzs[2][index];
           } else {
-            // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
             properties[keys[i]] = xyzs[2][index];
           }
         }

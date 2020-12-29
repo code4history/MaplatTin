@@ -1,3 +1,3 @@
-var Tin = require('../src/index');
+import Tin from "../src";
 
-window.Tin = Tin.default;
+window.Tin = Tin;
