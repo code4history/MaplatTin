@@ -70,7 +70,7 @@ const testSet = () => {
       // @ts-expect-error
       expect(tin.transform([140, 150])).toBeDeepCloseTo(
         [277.25085848926574, -162.19095375292216],
-        1
+        7
       );
       expect(
         tin.transform([277.25085848926574, -162.19095375292216], true)
@@ -82,7 +82,7 @@ const testSet = () => {
       // @ts-expect-error
       expect(tin.transform([200, 130], false, true)).toBeDeepCloseTo(
         [401.98029725204117, -110.95171624700066],
-        1
+        7
       );
       expect(
         tin.transform([401.98029725204117, -110.95171624700066], true, true)
