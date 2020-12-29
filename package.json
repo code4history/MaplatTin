@@ -17,7 +17,8 @@
     "preinstall": "npx npm-force-resolutions || echo 'ignore'",
     "lint": "npm run lint:eslint && npm run lint:prettier",
     "lint:eslint": "eslint \"{src,spec}/**/*.{js,ts}\" --fix",
-    "lint:prettier": "prettier \"./{src,spec}/**/*.{js,ts}\" --write"
+    "lint:prettier": "prettier \"./{src,spec}/**/*.{js,ts}\" --write",
+    "typecheck": "tsc --noEmit"
   },
   "repository": {
     "type": "git",
