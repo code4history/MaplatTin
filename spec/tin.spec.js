@@ -65,24 +65,12 @@ const testSet = () => {
       await tin.updateTinAsync();
       expect(tin.xy).toEqual([50, 50]);
       expect(tin.wh).toEqual([100, 150]);
-      expect(tin.transform([140, 150])).toBeDeepCloseTo(
-        [277.25085848926574, -162.19095375292216],
-        1
-      );
-      expect(
-        tin.transform([277.25085848926574, -162.19095375292216], true)
-      ).toEqual([140, 150]);
+      expect(tin.transform([140, 150])).toBeDeepCloseTo([277.25085848926574, -162.19095375292216], 7);
+      expect(tin.transform([277.25085848926574, -162.19095375292216], true)).toEqual([140, 150]);
       expect(tin.transform([200, 130])).toEqual(false);
-      expect(
-        tin.transform([401.98029725204117, -110.95171624700066], true)
-      ).toEqual(false);
-      expect(tin.transform([200, 130], false, true)).toBeDeepCloseTo(
-        [401.98029725204117, -110.95171624700066],
-        1
-      );
-      expect(
-        tin.transform([401.98029725204117, -110.95171624700066], true, true)
-      ).toEqual([200, 130]);
+      expect(tin.transform([401.98029725204117, -110.95171624700066], true)).toEqual(false);
+      expect(tin.transform([200, 130], false, true)).toBeDeepCloseTo([401.98029725204117, -110.95171624700066], 7);
+      expect(tin.transform([401.98029725204117, -110.95171624700066], true, true)).toEqual([200, 130]);
       done();
     });
   });
