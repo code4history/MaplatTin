@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-var-requires */
-import Tin from "../src/";
+import Tin from "../src";
 const load_map = require("./maps/fushimijo_maplat.json");
 const load_cmp = require("./compiled/fushimijo_maplat.json");
 
@@ -66,6 +67,7 @@ const testSet = () => {
       await tin.updateTinAsync();
       expect(tin.xy).toEqual([50, 50]);
       expect(tin.wh).toEqual([100, 150]);
+      // @ts-expect-error
       expect(tin.transform([140, 150])).toBeDeepCloseTo(
         [277.25085848926574, -162.19095375292216],
         1
@@ -77,6 +79,7 @@ const testSet = () => {
       expect(
         tin.transform([401.98029725204117, -110.95171624700066], true)
       ).toEqual(false);
+      // @ts-expect-error
       expect(tin.transform([200, 130], false, true)).toBeDeepCloseTo(
         [401.98029725204117, -110.95171624700066],
         1
@@ -126,7 +129,7 @@ const testSet = () => {
     it("データコンパイルテスト", async done => {
       await tin.updateTinAsync();
       expect(tin.strict_status).toEqual(Tin.STATUS_LOOSE);
-      let err = "";
+      let err: any = "";
       try {
         err = tin.transform([240, 120], true);
       } catch (e) {
@@ -153,7 +156,7 @@ const testSet = () => {
 
   describe("エラーケーステスト", () => {
     it("コンストラクタ", async done => {
-      let tin;
+      let tin: Tin;
       let err = "";
       try {
         tin = new Tin({
@@ -162,8 +165,11 @@ const testSet = () => {
       } catch (e) {
         err = "err";
       }
+
       expect(err).not.toEqual("err");
+      // @ts-ignore
       tin.setWh([100, 100]);
+      // @ts-ignore
       tin.setPoints([
         [
           [20, 20],
@@ -179,6 +185,7 @@ const testSet = () => {
         ]
       ]);
       err = "";
+      // @ts-ignore
       await tin.updateTinAsync().catch(e => {
         err = e;
       });
