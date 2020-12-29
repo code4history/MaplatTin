@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 // This library is based on
 // https://github.com/mbloch/mapshaper
 // Copyright (c) 2013, Matthew Bloch
@@ -626,7 +627,8 @@ let exportAPI;
   };
 
   // Return a bounding box with the same extent as this one.
-  Bounds.prototype.cloneBounds = Bounds.prototype.clone = function () { // alias so child classes can override clone()
+  Bounds.prototype.cloneBounds = Bounds.prototype.clone = function () {
+    // alias so child classes can override clone()
     return new Bounds(this.xmin, this.ymin, this.xmax, this.ymax);
   };
 
@@ -1904,9 +1906,9 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
       a =
         Math.sin(dphi / 2) * Math.sin(dphi / 2) +
         Math.cos(phi1) *
-        Math.cos(phi2) *
-        Math.sin(dlam / 2) *
-        Math.sin(dlam / 2),
+          Math.cos(phi2) *
+          Math.sin(dlam / 2) *
+          Math.sin(dlam / 2),
       c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return c;
   }
@@ -2006,8 +2008,8 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
       0.5 *
       Math.sqrt(
         detSq(ax, ay, bx, by, cx, cy) +
-        detSq(ax, az, bx, bz, cx, cz) +
-        detSq(ay, az, by, bz, cy, cz)
+          detSq(ax, az, bx, bz, cx, cz) +
+          detSq(ay, az, by, bz, cy, cz)
       );
     return area;
   }
@@ -3134,7 +3136,7 @@ function convLngLatToSph(xsrc, ysrc, xbuf, ybuf, zbuf) {
   function segmentHit(ax, ay, bx, by, cx, cy, dx, dy) {
     return (
       orient2D(ax, ay, bx, by, cx, cy) * orient2D(ax, ay, bx, by, dx, dy) <=
-      0 &&
+        0 &&
       orient2D(cx, cy, dx, dy, ax, ay) * orient2D(cx, cy, dx, dy, bx, by) <= 0
     );
   }

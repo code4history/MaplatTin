@@ -11,14 +11,14 @@
   },
   "extends": [
     "eslint:recommended",
-    // "plugin:@typescript-eslint/recommended",
-    // "plugin:@typescript-eslint/eslint-recommended",
-    "prettier"
-    // "prettier/@typescript-eslint"
+    "plugin:@typescript-eslint/recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "prettier",
+    "prettier/@typescript-eslint"
   ],
-  // "parser": "@typescript-eslint/parser",
+  "parser": "@typescript-eslint/parser",
   "rules": {
-    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-unused-vars": "off",
     "arrow-body-style": "error",
     "arrow-parens": ["warn", "as-needed"],
     "arrow-spacing": "error",
@@ -36,21 +36,18 @@
     "prefer-template": "error",
     "rest-spread-spacing": "error",
     "template-curly-spacing": "error",
-    "yield-star-spacing": "error"
-
-    // typescript
-    // "no-unused-vars": "off",
-    // "@typescript-eslint/explicit-module-boundary-types": "off",
-    // "@typescript-eslint/explicit-function-return-type": "off",
-    // "@typescript-eslint/no-explicit-any": "off",
-    // "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }]
+    "yield-star-spacing": "error",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      { "argsIgnorePattern": "^_" }
+    ],
 
     // TODO
-    // "@typescript-eslint/no-this-alias": "warn",
-    // "@typescript-eslint/no-empty-function": "warn"
+    "@typescript-eslint/no-this-alias": "warn",
+    "@typescript-eslint/no-empty-function": "warn"
   },
-  "plugins": [
-    // "@typescript-eslint",
-    "jest"
-  ]
+  "plugins": ["@typescript-eslint", "jest"]
 }
