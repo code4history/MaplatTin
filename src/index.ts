@@ -4,7 +4,7 @@ import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import centroid from "@turf/centroid";
 import convex from "@turf/convex";
 import difference from "@turf/difference";
-import { polygon, featureCollection, point, lineString } from "@turf/helpers";
+import { featureCollection, lineString, point, polygon } from "@turf/helpers";
 import intersect from "@turf/intersect";
 import { getCoords } from "@turf/invariant";
 import lineIntersect from "@turf/line-intersect";
@@ -17,7 +17,6 @@ import union from "@turf/union";
 //     constructor(...args: any);
 //   }
 // }
-
 import constrainedTin from "./constrained-tin";
 // @ts-expect-error
 import internal from "./mapshaper-maplat";
@@ -73,6 +72,7 @@ class Tin {
   wh: any;
   xy: any;
   yaxisMode: any;
+  pointsSet: any;
 
   constructor(options: Partial<Options> = {} as Options) {
     if (options.bounds) {
@@ -95,11 +95,9 @@ class Tin {
   }
   setPoints(points: Point[]) {
     if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
-      // @ts-expect-error
-      points = points.map((point: any) => {
-        // NOTE(@kobakazu0429 to @kochizufan): I think next line maybe return it.
-        [point[0], [point[1][0], -1 * point[1][1]]];
-      });
+      points = points.map(
+        (point: any) => [point[0], [point[1][0], -1 * point[1][1]]] as Point
+      );
     }
     this.points = points;
     this.tins = undefined;
@@ -114,25 +112,20 @@ class Tin {
   }
   setBounds(bounds: any) {
     this.bounds = bounds;
-    let minx, miny, maxx, maxy, coords;
-    for (let i = 0; i < bounds.length; i++) {
+    let minx = bounds[0][0];
+    let maxx = minx;
+    let miny = bounds[0][1];
+    let maxy = miny;
+    const coords = [bounds[0]];
+    for (let i = 1; i < bounds.length; i++) {
       const xy = bounds[i];
-      if (i == 0) {
-        minx = maxx = xy[0];
-        miny = maxy = xy[1];
-        coords = [xy];
-      } else {
-        if (xy[0] < minx) minx = xy[0];
-        if (xy[0] > maxx) maxx = xy[0];
-        if (xy[1] < miny) miny = xy[1];
-        if (xy[1] > maxy) maxy = xy[1];
-        // @ts-expect-error ts-migrate(2454) FIXME: Variable 'coords' is used before being assigned.
-        coords.push(xy);
-      }
+      if (xy[0] < minx) minx = xy[0];
+      if (xy[0] > maxx) maxx = xy[0];
+      if (xy[1] < miny) miny = xy[1];
+      if (xy[1] > maxy) maxy = xy[1];
+      coords.push(xy);
     }
-    // @ts-expect-error ts-migrate(2454) FIXME: Variable 'coords' is used before being assigned.
     coords.push(bounds[0]);
-    // @ts-expect-error ts-migrate(2322) FIXME: Type 'any[] | undefined' is not assignable to type... Remove this comment to see the full error message
     this.boundsPolygon = polygon([coords]);
     this.xy = [minx, miny];
     this.wh = [maxx - minx, maxy - miny];
@@ -532,24 +525,21 @@ class Tin {
     this.indexedTins = undefined;
   }
   calcurateStrictTinAsync() {
-    const self = this;
-    const edges = (self as any).pointsSet.edges;
+    const edges = this.pointsSet.edges;
     return Promise.all(
-      self.tins.forw.features.map((tri: any) =>
+      this.tins.forw.features.map((tri: any) =>
         Promise.resolve(counterTri(tri))
       )
     )
-      .then(tris => {
-        // @ts-expect-error ts-migrate(2769) FIXME: No overload matches this call.
-        self.tins.bakw = featureCollection(tris);
+      .then((tris: any) => {
+        this.tins.bakw = featureCollection(tris);
       })
       .then(() => {
         const searchIndex = {};
         return Promise.all(
-          self.tins.forw.features.map((forTri: any, index: any) => {
-            const bakTri = self.tins.bakw.features[index];
+          this.tins.forw.features.map((forTri: any, index: any) => {
+            const bakTri = this.tins.bakw.features[index];
             return Promise.resolve(
-              // @ts-expect-error ts-migrate(2554) FIXME: Expected 3 arguments, but got 2.
               insertSearchIndex(searchIndex, { forw: forTri, bakw: bakTri })
             );
           })
@@ -562,11 +552,10 @@ class Tin {
       .then(searchIndex => [overlapCheckAsync(searchIndex), searchIndex])
       .then(prevResult => {
         const overlapped = prevResult[0];
-        const searchIndex = prevResult[1];
+        const searchIndex: any = prevResult[1];
         if ((overlapped as any).bakw)
           Object.keys((overlapped as any).bakw).map(key => {
             if ((overlapped as any).bakw[key] == "Not include case") return;
-            // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
             const trises = searchIndex[key];
             const forUnion = union(trises[0].forw, trises[1].forw);
             const forConvex = convex(
@@ -611,8 +600,8 @@ class Tin {
                       vtx.prop.index != sharedVtx[1].prop.index
                   )[0]
             );
-            removeSearchIndex(searchIndex, trises[0], self.tins);
-            removeSearchIndex(searchIndex, trises[1], self.tins);
+            removeSearchIndex(searchIndex, trises[0], this.tins);
+            removeSearchIndex(searchIndex, trises[1], this.tins);
             sharedVtx.map(sVtx => {
               const newTriCoords = [
                 sVtx.geom,
@@ -630,14 +619,14 @@ class Tin {
               insertSearchIndex(
                 searchIndex,
                 { forw: newForTri, bakw: newBakTri },
-                self.tins
+                this.tins
               );
             });
           });
         return Promise.all(
           ["forw", "bakw"].map(direc =>
             new Promise(resolve => {
-              const coords = self.tins[direc].features.map(
+              const coords = this.tins[direc].features.map(
                 (poly: any) => poly.geometry.coordinates[0]
               );
               const xy = findIntersections(coords);
@@ -658,22 +647,17 @@ class Tin {
             })
           )
         )
-          .then(result => {
-            // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
+          .then((result: any) => {
             if (result[0].length == 0 && result[1].length == 0) {
-              self.strict_status = Tin.STATUS_STRICT;
-              delete self.kinks;
+              this.strict_status = Tin.STATUS_STRICT;
+              delete this.kinks;
             } else {
-              self.strict_status = Tin.STATUS_ERROR;
-              self.kinks = {};
-              // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
+              this.strict_status = Tin.STATUS_ERROR;
+              this.kinks = {};
               if (result[0].length > 0)
-                // @ts-expect-error ts-migrate(2769) FIXME: No overload matches this call.
-                self.kinks.forw = featureCollection(result[0]);
-              // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
+                this.kinks.forw = featureCollection(result[0]);
               if (result[1].length > 0)
-                // @ts-expect-error ts-migrate(2769) FIXME: No overload matches this call.
-                self.kinks.bakw = featureCollection(result[1]);
+                this.kinks.bakw = featureCollection(result[1]);
             }
           })
           .catch(err => {
@@ -685,33 +669,30 @@ class Tin {
       });
   }
   generatePointsSet() {
-    const self = this;
-    const pointsArray = { forw: [], bakw: [] };
-    for (let i = 0; i < self.points.length; i++) {
-      const mapxy = self.points[i][0];
-      const mercs = self.points[i][1];
+    const pointsArray = { forw: [] as any[], bakw: [] as any[] };
+    for (let i = 0; i < this.points.length; i++) {
+      const mapxy = this.points[i][0];
+      const mercs = this.points[i][1];
       const forPoint = createPoint(mapxy, mercs, i);
-      // @ts-expect-error ts-migrate(2345) FIXME: Argument of type 'Feature<Point, { target: { geom:... Remove this comment to see the full error message
-      pointsArray.forw.push(forPoint);
-      // @ts-expect-error ts-migrate(2345) FIXME: Argument of type 'Feature<Point, { target: { geom:... Remove this comment to see the full error message
+      pointsArray.forw.push(forPoint as any);
       pointsArray.bakw.push(counterPoint(forPoint));
     }
     const edges = [];
     let edgeNodeIndex = 0;
-    self.edgeNodes = [];
-    if (!self.edges) self.edges = [];
-    for (let i = 0; i < self.edges.length; i++) {
-      const startEnd = self.edges[i].startEnd;
-      const illstNodes = Object.assign([], self.edges[i].illstNodes);
-      const mercNodes = Object.assign([], self.edges[i].mercNodes);
+    this.edgeNodes = [];
+    if (!this.edges) this.edges = [];
+    for (let i = 0; i < this.edges.length; i++) {
+      const startEnd = this.edges[i].startEnd;
+      const illstNodes = Object.assign([], this.edges[i].illstNodes);
+      const mercNodes = Object.assign([], this.edges[i].mercNodes);
       if (illstNodes.length === 0 && mercNodes.length === 0) {
         edges.push(startEnd);
         continue;
       }
-      illstNodes.unshift(self.points[startEnd[0]][0]);
-      illstNodes.push(self.points[startEnd[1]][0]);
-      mercNodes.unshift(self.points[startEnd[0]][1]);
-      mercNodes.push(self.points[startEnd[1]][1]);
+      illstNodes.unshift(this.points[startEnd[0]][0]);
+      illstNodes.push(this.points[startEnd[1]][0]);
+      mercNodes.unshift(this.points[startEnd[0]][1]);
+      mercNodes.push(this.points[startEnd[1]][1]);
       const lengths = [illstNodes, mercNodes].map(nodes => {
         const eachLengths = nodes.map((node: any, index: any, arr: any) => {
           if (index === 0) return 0;
@@ -737,12 +718,13 @@ class Tin {
         .map((thisLengths, i) => {
           const anotherLengths = lengths[i ? 0 : 1];
           return thisLengths
-            .filter((val: any, index: any) =>
-              index === 0 ||
-              index === thisLengths.length - 1 ||
-              val[4] === "handled"
-                ? false
-                : true
+            .filter(
+              (val: any, index: any) =>
+                !(
+                  index === 0 ||
+                  index === thisLengths.length - 1 ||
+                  val[4] === "handled"
+                )
             )
             .map((lengthItem: any) => {
               const node = lengthItem[0];
@@ -785,16 +767,14 @@ class Tin {
         .reduce((prev, nodes) => prev.concat(nodes), [])
         .sort((a: any, b: any) => (a[2] < b[2] ? -1 : 1))
         .map((node: any, index: any, arr: any) => {
-          self.edgeNodes[edgeNodeIndex] = [node[0], node[1]];
+          this.edgeNodes[edgeNodeIndex] = [node[0], node[1]];
           const forPoint = createPoint(
             node[0],
             node[1],
             `edgeNode${edgeNodeIndex}`
           );
           edgeNodeIndex++;
-          // @ts-expect-error ts-migrate(2345) FIXME: Argument of type 'Feature<Point, { target: { geom:... Remove this comment to see the full error message
           pointsArray.forw.push(forPoint);
-          // @ts-expect-error ts-migrate(2345) FIXME: Argument of type 'Feature<Point, { target: { geom:... Remove this comment to see the full error message
           pointsArray.bakw.push(counterPoint(forPoint));
           if (index === 0) {
             edges.push([startEnd[0], pointsArray.forw.length - 1]);
@@ -816,19 +796,18 @@ class Tin {
     };
   }
   updateTinAsync() {
-    const self = this;
     let strict = this.strictMode;
-    const minx = self.xy[0] - 0.05 * self.wh[0];
-    const maxx = self.xy[0] + 1.05 * self.wh[0];
-    const miny = self.xy[1] - 0.05 * self.wh[1];
-    const maxy = self.xy[1] + 1.05 * self.wh[1];
+    const minx = this.xy[0] - 0.05 * this.wh[0];
+    const maxx = this.xy[0] + 1.05 * this.wh[0];
+    const miny = this.xy[1] - 0.05 * this.wh[1];
+    const maxy = this.xy[1] + 1.05 * this.wh[1];
     const insideCheck = this.bounds
-      ? (xy: any) => booleanPointInPolygon(xy, self.boundsPolygon)
+      ? (xy: any) => booleanPointInPolygon(xy, this.boundsPolygon)
       : (xy: any) =>
-          xy[0] >= self.xy[0] &&
-          xy[0] <= self.xy[0] + self.wh[0] &&
-          xy[1] >= self.xy[1] &&
-          xy[1] <= self.xy[1] + self.wh[1];
+          xy[0] >= this.xy[0] &&
+          xy[0] <= this.xy[0] + this.wh[0] &&
+          xy[1] >= this.xy[1] &&
+          xy[1] <= this.xy[1] + this.wh[1];
     const inside = this.points.reduce(
       (prev: any, curr: any) => prev && insideCheck(curr[0]),
       true
@@ -842,7 +821,7 @@ class Tin {
       if (strict != Tin.MODE_STRICT && strict != Tin.MODE_LOOSE)
         strict = Tin.MODE_AUTO;
       let bbox: any = [];
-      if (self.wh) {
+      if (this.wh) {
         bbox = [
           [minx, miny],
           [maxx, miny],
@@ -850,11 +829,10 @@ class Tin {
           [maxx, maxy]
         ];
       }
-      const pointsSet = self.generatePointsSet();
+      const pointsSet = this.generatePointsSet();
       resolve([pointsSet, bbox]);
     })
-      .then(prevResults => {
-        // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
+      .then((prevResults: any) => {
         const pointsSet = prevResults[0];
         // Forward TIN for calcurating Backward Centroid and Backward Vertices
         return Promise.all([
@@ -873,69 +851,58 @@ class Tin {
         });
       })
       .then(prevResults => {
-        const tinForCentroid = prevResults[0];
-        const tinBakCentroid = prevResults[1];
-        const forCentroidFt = prevResults[2];
-        const pointsSetBbox = prevResults[3];
-        // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
-        const pointsSet = pointsSetBbox[0];
+        const tinForCentroid: any = prevResults[0];
+        const tinBakCentroid: any = prevResults[1];
+        const forCentroidFt: any = prevResults[2];
+        const pointsSetBbox: any = prevResults[3];
+        const pointsSet: any = pointsSetBbox[0];
         if (
-          // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
           tinForCentroid.features.length == 0 ||
-          // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
           tinBakCentroid.features.length == 0
         )
           throw "TOO LINEAR1";
         // Calcurating Forward/Backward Centroid
-        // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
         const centroid = { forw: forCentroidFt.geometry.coordinates };
-        // @ts-expect-error ts-migrate(2554) FIXME: Expected 8 arguments, but got 2.
         (centroid as any).bakw = transformArr(forCentroidFt, tinForCentroid);
-        self.centroid = {
+        this.centroid = {
           forw: createPoint(centroid.forw, (centroid as any).bakw, "cent")
         };
-        self.centroid.bakw = counterPoint(self.centroid.forw);
-        const convexBuf = {};
+        this.centroid.bakw = counterPoint(this.centroid.forw);
+        const convexBuf: any = {};
         return Promise.all([
           new Promise(resolve => {
-            // @ts-expect-error ts-migrate(2531) FIXME: Object is possibly 'null'.
-            const forConvex = convex(pointsSet.forw).geometry.coordinates[0];
+            const forConvex = (convex(pointsSet.forw).geometry as any)
+              .coordinates[0];
             let vconvex;
             try {
-              vconvex = forConvex.map(forw => ({
+              vconvex = forConvex.map((forw: any) => ({
                 forw,
-                // @ts-expect-error ts-migrate(2554) FIXME: Expected 8 arguments, but got 2.
                 bakw: transformArr(point(forw), tinForCentroid)
               }));
             } catch (e) {
               throw "TOO LINEAR2";
             }
-            vconvex.map(vertex => {
-              // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
+            vconvex.map((vertex: any) => {
               convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = vertex;
             });
-            // @ts-expect-error ts-migrate(2794) FIXME: Expected 1 arguments, but got 0. Did you forget to... Remove this comment to see the full error message
-            resolve();
+            resolve(undefined);
           }),
           new Promise(resolve => {
-            // @ts-expect-error ts-migrate(2531) FIXME: Object is possibly 'null'.
-            const bakConvex = convex(pointsSet.bakw).geometry.coordinates[0];
+            const bakConvex = (convex(pointsSet.bakw).geometry as any)
+              .coordinates[0];
             let vconvex;
             try {
-              vconvex = bakConvex.map(bakw => ({
+              vconvex = bakConvex.map((bakw: any) => ({
                 bakw,
-                // @ts-expect-error ts-migrate(2554) FIXME: Expected 8 arguments, but got 2.
                 forw: transformArr(point(bakw), tinBakCentroid)
               }));
             } catch (e) {
               throw "TOO LINEAR2";
             }
-            vconvex.map(vertex => {
-              // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
+            vconvex.map((vertex: any) => {
               convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = vertex;
             });
-            // @ts-expect-error ts-migrate(2794) FIXME: Expected 1 arguments, but got 0. Did you forget to... Remove this comment to see the full error message
-            resolve();
+            resolve(undefined);
           })
         ])
           .then(() => [centroid, convexBuf, pointsSetBbox])
@@ -948,109 +915,79 @@ class Tin {
         const convexBuf = prevResults[1];
         const pointsSetBbox = prevResults[2];
         // Calcurating Convex full to get Convex full polygon's vertices
-        // @ts-expect-error ts-migrate(2769) FIXME: No overload matches this call.
         const expandConvex = Object.keys(convexBuf).reduce(
           (prev, key, _, _array) => {
-            // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
             const forVertex = convexBuf[key].forw;
-            // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
             const bakVertex = convexBuf[key].bakw;
             // Convexhullの各頂点に対し、重心からの差分を取る
             const vertexDelta = {
               forw: [
-                // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                 forVertex[0] - centroid.forw[0],
-                // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                 forVertex[1] - centroid.forw[1]
               ]
             };
             (vertexDelta as any).bakw = [
-              // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
               bakVertex[0] - centroid.bakw[0],
-              // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
               bakVertex[1] - centroid.bakw[1]
             ];
             // X軸方向、Y軸方向それぞれに対し、地図外郭XY座標との重心との比を取る
             const xRate =
               vertexDelta.forw[0] == 0
                 ? Infinity
-                : // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
-                  ((vertexDelta.forw[0] < 0 ? minx : maxx) - centroid.forw[0]) /
+                : ((vertexDelta.forw[0] < 0 ? minx : maxx) - centroid.forw[0]) /
                   vertexDelta.forw[0];
             const yRate =
               vertexDelta.forw[1] == 0
                 ? Infinity
-                : // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
-                  ((vertexDelta.forw[1] < 0 ? miny : maxy) - centroid.forw[1]) /
+                : ((vertexDelta.forw[1] < 0 ? miny : maxy) - centroid.forw[1]) /
                   vertexDelta.forw[1];
             // xRate, yRateが同じ値であれば重心と地図頂点を結ぶ線上に乗る
             if (Math.abs(xRate) / Math.abs(yRate) < 1.1) {
               const point = {
                 forw: [
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   vertexDelta.forw[0] * xRate + centroid.forw[0],
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   vertexDelta.forw[1] * xRate + centroid.forw[1]
                 ],
                 bakw: [
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   (vertexDelta as any).bakw[0] * xRate + centroid.bakw[0],
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   (vertexDelta as any).bakw[1] * xRate + centroid.bakw[1]
                 ]
               };
-              if (vertexDelta.forw[0] < 0)
-                // @ts-expect-error ts-migrate(2345) FIXME: Argument of type '{ forw: any[]; bakw: any[]; }' i... Remove this comment to see the full error message
-                prev[3].push(point);
-              // @ts-expect-error ts-migrate(2345) FIXME: Argument of type '{ forw: any[]; bakw: any[]; }' i... Remove this comment to see the full error message
-              else prev[1].push(point);
+              if (vertexDelta.forw[0] < 0) (prev[3] as any[]).push(point);
+              else (prev[1] as any[]).push(point);
             }
             if (Math.abs(yRate) / Math.abs(xRate) < 1.1) {
               const point = {
                 forw: [
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   vertexDelta.forw[0] * yRate + centroid.forw[0],
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   vertexDelta.forw[1] * yRate + centroid.forw[1]
                 ],
                 bakw: [
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   (vertexDelta as any).bakw[0] * yRate + centroid.bakw[0],
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   (vertexDelta as any).bakw[1] * yRate + centroid.bakw[1]
                 ]
               };
-              if (vertexDelta.forw[1] < 0)
-                // @ts-expect-error ts-migrate(2345) FIXME: Argument of type '{ forw: any[]; bakw: any[]; }' i... Remove this comment to see the full error message
-                prev[0].push(point);
-              // @ts-expect-error ts-migrate(2345) FIXME: Argument of type '{ forw: any[]; bakw: any[]; }' i... Remove this comment to see the full error message
-              else prev[2].push(point);
+              if (vertexDelta.forw[1] < 0) (prev[0] as any[]).push(point);
+              else (prev[2] as any[]).push(point);
             }
             return prev;
           },
           [[], [], [], []]
         );
         // Calcurating Average scaling factors and rotation factors per orthants
-        // @ts-expect-error ts-migrate(2769) FIXME: No overload matches this call.
         let orthant = Object.keys(convexBuf)
           .reduce(
             (prev, key, idx, array) => {
-              // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
               const forVertex = convexBuf[key].forw;
-              // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
               const bakVertex = convexBuf[key].bakw;
               const vertexDelta = {
                 forw: [
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   forVertex[0] - centroid.forw[0],
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   forVertex[1] - centroid.forw[1]
                 ]
               };
               (vertexDelta as any).bakw = [
-                // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                 bakVertex[0] - centroid.bakw[0],
-                // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                 centroid.bakw[1] - bakVertex[1]
               ];
               if (vertexDelta.forw[0] == 0 || vertexDelta.forw[1] == 0)
@@ -1058,21 +995,17 @@ class Tin {
               let index = 0;
               if (vertexDelta.forw[0] > 0) index += 1;
               if (vertexDelta.forw[1] > 0) index += 2;
-              // @ts-expect-error ts-migrate(2322) FIXME: Type 'number[]' is not assignable to type 'never'.
-              prev[index].push([vertexDelta.forw, (vertexDelta as any).bakw]);
+              (prev[index] as any[]).push([
+                vertexDelta.forw,
+                (vertexDelta as any).bakw
+              ]);
               if (idx == array.length - 1) {
                 // If some orthants have no Convex full polygon's vertices, use same average factor to every orthants
                 return prev.length ==
                   prev.filter(val => val.length > 0).length &&
-                  self.vertexMode == Tin.VERTEX_BIRDEYE
+                  this.vertexMode == Tin.VERTEX_BIRDEYE
                   ? prev
-                  : prev.reduce(
-                      (pre, cur) => {
-                        const ret = [pre[0].concat(cur)];
-                        return ret;
-                      },
-                      [[]]
-                    );
+                  : prev.reduce((pre, cur) => [pre[0].concat(cur)], [[]]);
               }
               return prev;
             },
@@ -1080,32 +1013,29 @@ class Tin {
           )
           .map(item =>
             // Finalize calcuration of Average scaling factors and rotation factors
-            // @ts-expect-error ts-migrate(2769) FIXME: No overload matches this call.
-            item.reduce((prev, curr, index, arr) => {
-              if (!prev)
-                // @ts-expect-error ts-migrate(2322) FIXME: Type 'number[]' is not assignable to type 'null'.
-                prev = [Infinity, 0, 0];
-              // if (!prev) prev = [0, 0, 0];
-              // var distanceSum = prev[0] + Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) /
-              //     Math.sqrt(Math.pow(curr[1][0], 2) + Math.pow(curr[1][1], 2));
-              let distanceSum =
-                Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) /
-                Math.sqrt(Math.pow(curr[1][0], 2) + Math.pow(curr[1][1], 2));
-              // @ts-expect-error ts-migrate(2531) FIXME: Object is possibly 'null'.
-              distanceSum = distanceSum < prev[0] ? distanceSum : prev[0];
-              const thetaDelta =
-                Math.atan2(curr[0][0], curr[0][1]) -
-                Math.atan2(curr[1][0], curr[1][1]);
-              // @ts-expect-error ts-migrate(2531) FIXME: Object is possibly 'null'.
-              const sumThetaX = prev[1] + Math.cos(thetaDelta);
-              // @ts-expect-error ts-migrate(2531) FIXME: Object is possibly 'null'.
-              const sumThetaY = prev[2] + Math.sin(thetaDelta);
-              if (index == arr.length - 1) {
-                // return [distanceSum / arr.length, Math.atan2(sumThetaY, sumThetaX)];
-                return [distanceSum, Math.atan2(sumThetaY, sumThetaX)];
-              }
-              return [distanceSum, sumThetaX, sumThetaY];
-            }, null)
+            item.reduce(
+              (prev: number[] | null, curr: any, index: number, arr: any[]) => {
+                if (!prev) prev = [Infinity, 0, 0];
+                // if (!prev) prev = [0, 0, 0];
+                // var distanceSum = prev[0] + Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) /
+                //     Math.sqrt(Math.pow(curr[1][0], 2) + Math.pow(curr[1][1], 2));
+                let distanceSum =
+                  Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) /
+                  Math.sqrt(Math.pow(curr[1][0], 2) + Math.pow(curr[1][1], 2));
+                distanceSum = distanceSum < prev[0] ? distanceSum : prev[0];
+                const thetaDelta =
+                  Math.atan2(curr[0][0], curr[0][1]) -
+                  Math.atan2(curr[1][0], curr[1][1]);
+                const sumThetaX = prev[1] + Math.cos(thetaDelta);
+                const sumThetaY = prev[2] + Math.sin(thetaDelta);
+                if (index == arr.length - 1) {
+                  // return [distanceSum / arr.length, Math.atan2(sumThetaY, sumThetaX)];
+                  return [distanceSum, Math.atan2(sumThetaY, sumThetaX)];
+                }
+                return [distanceSum, sumThetaX, sumThetaY];
+              },
+              null
+            )
           );
         // "Using same average factor to every orthants" case
         if (orthant.length == 1)
@@ -1116,18 +1046,13 @@ class Tin {
         const orthant = prevResults[0];
         const centroid = prevResults[1];
         const expandConvex = prevResults[2];
-        // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
         const pointsSet = prevResults[3][0];
-        // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
         const bbox = prevResults[3][1];
         // Calcurating Backward Bounding box of map
-        // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
         let verticesSet = orthant.map((delta: any, index: any) => {
           const forVertex = bbox[index];
           const forDelta = [
-            // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
             forVertex[0] - centroid.forw[0],
-            // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
             forVertex[1] - centroid.forw[1]
           ];
           const forDistance = Math.sqrt(
@@ -1137,9 +1062,7 @@ class Tin {
           const forTheta = Math.atan2(forDelta[0], forDelta[1]);
           const bakTheta = forTheta - delta[1];
           const bakVertex = [
-            // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
             centroid.bakw[0] + bakDistance * Math.sin(bakTheta),
-            // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
             centroid.bakw[1] - bakDistance * Math.cos(bakTheta)
           ];
           return { forw: forVertex, bakw: bakVertex };
@@ -1152,10 +1075,8 @@ class Tin {
         for (let i = 0; i < 4; i++) {
           const j = (i + 1) % 4;
           const side = lineString([verticesSet[i].bakw, verticesSet[j].bakw]);
-          // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
           const expands = expandConvex[i];
           expands.map((expand: any) => {
-            // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
             const expandLine = lineString([centroid.bakw, expand.bakw]);
             const intersect = lineIntersect(side, expandLine);
             if (
@@ -1164,20 +1085,18 @@ class Tin {
             ) {
               const intersect_ = intersect.features[0];
               const expandDist = Math.sqrt(
-                // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                 Math.pow(expand.bakw[0] - centroid.bakw[0], 2) +
-                  // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
                   Math.pow(expand.bakw[1] - centroid.bakw[1], 2)
               );
               const onSideDist = Math.sqrt(
                 Math.pow(
-                  // @ts-expect-error ts-migrate(2531) FIXME: Object is possibly 'null'.
-                  intersect_.geometry.coordinates[0] - centroid.bakw[0],
+                  (intersect_.geometry as any).coordinates[0] -
+                    centroid.bakw[0],
                   2
                 ) +
                   Math.pow(
-                    // @ts-expect-error ts-migrate(2531) FIXME: Object is possibly 'null'.
-                    intersect_.geometry.coordinates[1] - centroid.bakw[1],
+                    (intersect_.geometry as any).coordinates[1] -
+                      centroid.bakw[1],
                     2
                   )
               );
@@ -1190,9 +1109,7 @@ class Tin {
         verticesSet = verticesSet.map((vertex: any, index: any) => {
           const rate = expandRate[index];
           const point = [
-            // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
             (vertex.bakw[0] - centroid.bakw[0]) * rate + centroid.bakw[0],
-            // @ts-expect-error ts-migrate(2571) FIXME: Object is of type 'unknown'.
             (vertex.bakw[1] - centroid.bakw[1]) * rate + centroid.bakw[1]
           ];
           return { forw: vertex.forw, bakw: point };
@@ -1202,7 +1119,7 @@ class Tin {
       .then(prevResults => {
         const verticesSet = prevResults[0];
         const pointsSet = prevResults[1];
-        const verticesList = { forw: [], bakw: [] };
+        const verticesList = { forw: [] as any[], bakw: [] as any[] };
         for (let i = 0; i < verticesSet.length; i++) {
           const forVertex = verticesSet[i].forw;
           const bakVertex = verticesSet[i].bakw;
@@ -1210,20 +1127,18 @@ class Tin {
           const bakVertexFt = counterPoint(forVertexFt);
           pointsSet.forw.features.push(forVertexFt);
           pointsSet.bakw.features.push(bakVertexFt);
-          // @ts-expect-error ts-migrate(2345) FIXME: Argument of type 'Feature<Point, { target: { geom:... Remove this comment to see the full error message
           verticesList.forw.push(forVertexFt);
-          // @ts-expect-error ts-migrate(2345) FIXME: Argument of type 'Feature<Point, { target: { geom:... Remove this comment to see the full error message
           verticesList.bakw.push(bakVertexFt);
         }
-        (self as any).pointsSet = pointsSet;
-        self.tins = {
+        (this as any).pointsSet = pointsSet;
+        this.tins = {
           forw: rotateVerticesTriangle(
             constrainedTin(pointsSet.forw, pointsSet.edges, "target")
           )
         };
         let prom;
         if (strict == Tin.MODE_STRICT || strict == Tin.MODE_AUTO) {
-          prom = self.calcurateStrictTinAsync();
+          prom = this.calcurateStrictTinAsync();
         } else {
           prom = Promise.resolve();
         }
@@ -1232,20 +1147,20 @@ class Tin {
             if (
               strict == Tin.MODE_LOOSE ||
               (strict == Tin.MODE_AUTO &&
-                self.strict_status == Tin.STATUS_ERROR)
+                this.strict_status == Tin.STATUS_ERROR)
             ) {
-              self.tins.bakw = rotateVerticesTriangle(
+              this.tins.bakw = rotateVerticesTriangle(
                 constrainedTin(pointsSet.bakw, pointsSet.edges, "target")
               );
-              delete self.kinks;
-              self.strict_status = Tin.STATUS_LOOSE;
+              delete this.kinks;
+              this.strict_status = Tin.STATUS_LOOSE;
             }
-            self.vertices_params = {
-              forw: vertexCalc(verticesList.forw, self.centroid.forw),
-              bakw: vertexCalc(verticesList.bakw, self.centroid.bakw)
+            this.vertices_params = {
+              forw: vertexCalc(verticesList.forw, this.centroid.forw),
+              bakw: vertexCalc(verticesList.bakw, this.centroid.bakw)
             };
-            self.addIndexedTin();
-            return self.calculatePointsWeightAsync();
+            this.addIndexedTin();
+            return this.calculatePointsWeightAsync();
           })
           .catch(err => {
             throw err;
@@ -1309,16 +1224,14 @@ class Tin {
     return ret;
   }
   calculatePointsWeightAsync() {
-    const self = this;
     const calcTargets = ["forw"];
-    if (self.strict_status == Tin.STATUS_LOOSE) calcTargets.push("bakw");
-    const weightBuffer = {};
+    if (this.strict_status == Tin.STATUS_LOOSE) calcTargets.push("bakw");
+    const weightBuffer: any = {};
     return Promise.all(
       calcTargets.map(target => {
-        // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
         weightBuffer[target] = {};
-        const alreadyChecked = {};
-        const tin = self.tins[target];
+        const alreadyChecked: any = {};
+        const tin = this.tins[target];
         return Promise.all(
           tin.features.map((tri: any) => {
             const vtxes = ["a", "b", "c"];
@@ -1330,13 +1243,11 @@ class Tin {
                 const indexi = tri.properties[vi].index;
                 const indexj = tri.properties[vj].index;
                 const key = [indexi, indexj].sort().join("-");
-                // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
                 if (!alreadyChecked[key]) {
                   const fromi = tri.geometry.coordinates[0][i];
                   const fromj = tri.geometry.coordinates[0][j];
                   const toi = tri.properties[vi].geom;
                   const toj = tri.properties[vj].geom;
-                  // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
                   alreadyChecked[key] = 1;
                   const weight =
                     Math.sqrt(
@@ -1347,22 +1258,15 @@ class Tin {
                       Math.pow(fromi[0] - fromj[0], 2) +
                         Math.pow(fromi[1] - fromj[1], 2)
                     );
-                  // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
                   if (!weightBuffer[target][indexi])
-                    // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
                     weightBuffer[target][indexi] = {};
-                  // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
                   if (!weightBuffer[target][indexj])
-                    // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
                     weightBuffer[target][indexj] = {};
-                  // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
                   weightBuffer[target][indexi][key] = weight;
-                  // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
                   weightBuffer[target][indexj][key] = weight;
                 }
               }
-              // @ts-expect-error ts-migrate(2794) FIXME: Expected 1 arguments, but got 0. Did you forget to... Remove this comment to see the full error message
-              resolve();
+              resolve(undefined);
             });
           })
         ).catch(err => {
@@ -1374,19 +1278,16 @@ class Tin {
         const pointsWeightBuffer: Record<string, any> = {};
         calcTargets.map(target => {
           pointsWeightBuffer[target] = {};
-          if (self.strict_status == Tin.STATUS_STRICT)
+          if (this.strict_status == Tin.STATUS_STRICT)
             pointsWeightBuffer["bakw"] = {};
-          // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
           Object.keys(weightBuffer[target]).map(vtx => {
             pointsWeightBuffer[target][vtx] = Object.keys(
-              // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
               weightBuffer[target][vtx]
             ).reduce((prev, key, idx, arr) => {
-              // @ts-expect-error ts-migrate(7053) FIXME: Element implicitly has an 'any' type because expre... Remove this comment to see the full error message
               prev = prev + weightBuffer[target][vtx][key];
               return idx == arr.length - 1 ? prev / arr.length : prev;
             }, 0);
-            if (self.strict_status == Tin.STATUS_STRICT)
+            if (this.strict_status == Tin.STATUS_STRICT)
               pointsWeightBuffer["bakw"][vtx] =
                 1 / pointsWeightBuffer[target][vtx];
           });
@@ -1398,11 +1299,11 @@ class Tin {
             },
             0
           );
-          if (self.strict_status == Tin.STATUS_STRICT)
+          if (this.strict_status == Tin.STATUS_STRICT)
             pointsWeightBuffer["bakw"]["cent"] =
               1 / pointsWeightBuffer[target]["cent"];
         });
-        self.pointsWeightBuffer = pointsWeightBuffer;
+        this.pointsWeightBuffer = pointsWeightBuffer;
       })
       .catch(err => {
         throw err;
@@ -1521,16 +1422,14 @@ function vertexCalc(list: any, centroid: any) {
     })
     .reduce(
       (prev, curr) => {
-        // @ts-expect-error ts-migrate(2345) FIXME: Argument of type 'number | FeatureCollection<Polyg... Remove this comment to see the full error message
         prev[0].push(curr[0]);
-        // @ts-expect-error ts-migrate(2345) FIXME: Argument of type 'number | FeatureCollection<Polyg... Remove this comment to see the full error message
         prev[1].push(curr[1]);
         return prev;
       },
-      [[], []]
+      [[] as any[], [] as any[]]
     );
 }
-function normalizeRadian(target: any, noNegative: any) {
+function normalizeRadian(target: any, noNegative = false) {
   const rangeFunc = noNegative
     ? function (val: any) {
         return !(val >= 0 && val < Math.PI * 2);
@@ -1544,13 +1443,11 @@ function normalizeRadian(target: any, noNegative: any) {
   return target;
 }
 function decideUseVertex(radian: any, radianList: any) {
-  // @ts-expect-error ts-migrate(2554) FIXME: Expected 2 arguments, but got 1.
   let idel = normalizeRadian(radian - radianList[0]);
   let minTheta = Math.PI * 2;
   let minIndex;
   for (let i = 0; i < radianList.length; i++) {
     const j = (i + 1) % radianList.length;
-    // @ts-expect-error ts-migrate(2554) FIXME: Expected 2 arguments, but got 1.
     const jdel = normalizeRadian(radian - radianList[j]);
     const minDel = Math.min(Math.abs(idel), Math.abs(jdel));
     if (idel * jdel <= 0 && minDel < minTheta) {
@@ -1577,6 +1474,7 @@ function counterPoint(apoint: any) {
 function transformTin(of: any, tri: any, weightBuffer: any) {
   return point(transformTinArr(of, tri, weightBuffer));
 }
+
 function transformTinArr(of: any, tri: any, weightBuffer: any) {
   const a = tri.geometry.coordinates[0][0];
   const b = tri.geometry.coordinates[0][1];
@@ -1609,11 +1507,10 @@ function transformTinArr(of: any, tri: any, weightBuffer: any) {
     }
     abv = nabv;
   }
-  const od = [
+  return [
     abv * abd[0] + acv * acd[0] + ad[0],
     abv * abd[1] + acv * acd[1] + ad[1]
   ];
-  return od;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1625,9 +1522,10 @@ function useVertices(
 ) {
   return point(useVerticesArr(o, verticesParams, centroid, weightBuffer));
 }
+
 function useVerticesArr(
   o: any,
-  verticesParams: any,
+  verticesParams: [any, any[]],
   centroid: any,
   weightBuffer: any
 ) {
@@ -1635,8 +1533,7 @@ function useVerticesArr(
   const centCoord = centroid.geometry.coordinates;
   const radian = Math.atan2(coord[0] - centCoord[0], coord[1] - centCoord[1]);
   const index = decideUseVertex(radian, verticesParams[0]);
-  // @ts-expect-error ts-migrate(2538) FIXME: Type 'undefined' cannot be used as an index type.
-  const tin = verticesParams[1][index];
+  const tin = verticesParams[1][index as any];
   return transformTinArr(o, tin.features[0], weightBuffer);
 }
 function hit(point: any, tins: any) {
@@ -1657,12 +1554,12 @@ function unitCalc(coord: any, origin: any, unit: any, gridNum: any) {
 function transform(
   point: any,
   tins: any,
-  indexedTins: any,
-  verticesParams: any,
-  centroid: any,
-  weightBuffer: any,
-  stateTriangle: any,
-  stateSetFunc: any
+  indexedTins: any = undefined,
+  verticesParams: any = undefined,
+  centroid: any = undefined,
+  weightBuffer: any = undefined,
+  stateTriangle: any = undefined,
+  stateSetFunc: any = undefined
 ) {
   return point(
     transformArr(
@@ -1680,12 +1577,12 @@ function transform(
 function transformArr(
   point: any,
   tins: any,
-  indexedTins: any,
-  verticesParams: any,
-  centroid: any,
-  weightBuffer: any,
-  stateTriangle: any,
-  stateSetFunc: any
+  indexedTins: any = undefined,
+  verticesParams: any = undefined,
+  centroid: any = undefined,
+  weightBuffer: any = undefined,
+  stateTriangle: any = undefined,
+  stateSetFunc: any = undefined
 ) {
   let tin;
   if (stateTriangle) {
@@ -1772,15 +1669,13 @@ function indexesToTri(
   return buildTri(points_);
 }
 function overlapCheckAsync(searchIndex: any) {
-  const retValue = { forw: {}, bakw: {} };
+  const retValue = { forw: {} as any, bakw: {} as any };
   return Promise.all(
     Object.keys(searchIndex).map(
       key =>
         new Promise(resolve => {
           const searchResult = searchIndex[key];
-          if (searchResult.length < 2)
-            // @ts-expect-error ts-migrate(2794) FIXME: Expected 1 arguments, but got 0. Did you forget to... Remove this comment to see the full error message
-            return resolve();
+          if (searchResult.length < 2) return resolve(undefined);
           ["forw", "bakw"].map(dir => {
             const result = intersect(
               searchResult[0][dir],
@@ -1791,35 +1686,22 @@ function overlapCheckAsync(searchIndex: any) {
               result.geometry.type == "Point" ||
               result.geometry.type == "LineString"
             )
-              // @ts-expect-error ts-migrate(2794) FIXME: Expected 1 arguments, but got 0. Did you forget to... Remove this comment to see the full error message
-              return resolve();
-            //const diff1 = difference(searchResult[0][dir], result);
-            //const diff2 = difference(searchResult[1][dir], result);
-            /* if (!diff1 || !diff2) {
-                    searchResult[dir][key] = 'Include case';
-                } else {
-                    searchResult[dir][key] = 'Not include case';
-                }*/
-            // @ts-expect-error ts-migrate(2794) FIXME: Expected 1 arguments, but got 0. Did you forget to... Remove this comment to see the full error message
-            resolve();
+              return resolve(undefined);
+            resolve(undefined);
           });
         })
     )
   )
     .then(() => {
-      if (Object.keys(retValue.forw).length == 0)
-        // @ts-expect-error ts-migrate(2790) FIXME: The operand of a 'delete' operator must be optiona... Remove this comment to see the full error message
-        delete retValue.forw;
-      if (Object.keys(retValue.bakw).length == 0)
-        // @ts-expect-error ts-migrate(2790) FIXME: The operand of a 'delete' operator must be optiona... Remove this comment to see the full error message
-        delete retValue.bakw;
+      if (Object.keys(retValue.forw).length == 0) delete retValue.forw;
+      if (Object.keys(retValue.bakw).length == 0) delete retValue.bakw;
       return retValue;
     })
     .catch(err => {
       throw err;
     });
 }
-function insertSearchIndex(searchIndex: any, tris: any, tins: any) {
+function insertSearchIndex(searchIndex: any, tris: any, tins: any = undefined) {
   const keys = calcSearchKeys(tris.forw);
   const bakKeys = calcSearchKeys(tris.bakw);
   if (JSON.stringify(keys) != JSON.stringify(bakKeys))
@@ -1871,13 +1753,12 @@ function calcSearchKeys(tri: any) {
     [1, 2],
     [0, 1, 2]
   ]
-    .map(set => {
-      const index = set
+    .map(set =>
+      set
         .map(i => vtx[i])
         .sort()
-        .join("-");
-      return index;
-    })
+        .join("-")
+    )
     .sort();
 }
 
