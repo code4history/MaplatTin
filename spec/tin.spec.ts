@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-var-requires */
-import Tin from "../src";
-const load_map = require("./maps/fushimijo_maplat.json");
+import Tin, { Options } from "../src";
 const load_cmp = require("./compiled/fushimijo_maplat.json");
 
 import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
@@ -10,22 +9,25 @@ expect.extend({ toBeDeepCloseTo });
 let stateFull = false;
 const testSet = () => {
   describe("実データテスト", () => {
-    const tin = new Tin({
-      wh: [load_map.width, load_map.height],
-      strictMode: load_map.strictMode,
-      vertexMode: load_map.vertexMode,
-      stateFull
-    });
-    tin.setPoints(load_map.gcps);
+    async () => {
+      const load_map = await import("./maps/fushimijo_maplat.json");
+      const tin = new Tin({
+        wh: [load_map.width, load_map.height],
+        strictMode: load_map.strictMode as Options["strictMode"],
+        vertexMode: load_map.vertexMode as Options["vertexMode"],
+        stateFull
+      });
+      tin.setPoints(load_map.gcps as Options["points"]);
 
-    it("実データ比較", async done => {
-      await tin.updateTinAsync();
-      const target = JSON.parse(JSON.stringify(load_cmp));
-      expect(tin.getCompiled()).not.toEqual(target.compiled);
-      target.compiled.wh = tin.wh;
-      expect(tin.getCompiled()).toEqual(target.compiled);
-      done();
-    });
+      it("実データ比較", async done => {
+        await tin.updateTinAsync();
+        const target = JSON.parse(JSON.stringify(load_cmp));
+        expect(tin.getCompiled()).not.toEqual(target.compiled);
+        target.compiled.wh = tin.wh;
+        expect(tin.getCompiled()).toEqual(target.compiled);
+        done();
+      });
+    };
   });
 
   describe("boundsケーステスト(エラーなし)", () => {
