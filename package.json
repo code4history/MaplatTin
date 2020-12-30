@@ -2,19 +2,18 @@
   "name": "@maplat/tin",
   "version": "0.6.7",
   "description": "JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.",
-  "main": "lib/index.js",
-  "module": "src/index.js",
+  "main": "es5/index.js",
+  "module": "lib/index.js",
   "files": [
-    "lib/",
-    "src/",
-    "www/"
+    "es5/",
+    "lib/"
   ],
   "scripts": {
-    "www_build": "webpack",
-    "npm_build": "babel src/ --out-dir lib/ --source-maps",
+    "build": "npm run build:es5 && npm run build:es6",
+    "build:es5": "webpack",
+    "build:es6": "tsc",
     "test": "jest",
-    "prepublish": "npm run lint && npm run test && npm run www_build && npm run npm_build",
-    "preinstall": "npx npm-force-resolutions || echo 'ignore'",
+    "prepublish": "npm run lint && npm run test && npm run build",
     "lint": "npm run lint:eslint && npm run lint:prettier",
     "lint:eslint": "eslint \"{src,spec}/**/*.{js,ts}\" --fix",
     "lint:prettier": "prettier \"./{src,spec}/**/*.{js,ts}\" --write",

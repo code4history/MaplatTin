@@ -7,11 +7,11 @@ module.exports = {
   devtool: 'source-map',
 
   entry: {
-    "maplat_tin": "./src/index.ts"
+    "index": "./src/index.ts"
   },
 
   output: {
-    path: `${__dirname}/www`,
+    path: `${__dirname}/es5`,
     filename: '[name].js',
     library: 'Tin',
     libraryTarget: 'umd',
