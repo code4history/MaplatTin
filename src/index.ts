@@ -1,35 +1,56 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 "use strict";
-import { polygon, featureCollection, point, lineString } from "@turf/helpers";
-import union from "@turf/union";
-import convex from "@turf/convex";
-import difference from "@turf/difference";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import centroid from "@turf/centroid";
-import lineIntersect from "@turf/line-intersect";
+import convex from "@turf/convex";
+import difference from "@turf/difference";
+import { polygon, featureCollection, point, lineString } from "@turf/helpers";
 import intersect from "@turf/intersect";
 import { getCoords } from "@turf/invariant";
-declare module "./mapshaper-maplat" {
-  function dedupIntersections(xy: any): any[];
-  function findSegmentIntersections(args: any): any;
-  class ArcCollection {
-    constructor(...args: any);
-  }
-}
-import * as internal from "./mapshaper-maplat";
+import lineIntersect from "@turf/line-intersect";
+import union from "@turf/union";
+
+// declare module "./mapshaper-maplat" {
+//   function dedupIntersections(xy: any): any[];
+//   function findSegmentIntersections(args: any): any;
+//   class ArcCollection {
+//     constructor(...args: any);
+//   }
+// }
+
 import constrainedTin from "./constrained-tin";
+// @ts-expect-error
+import internal from "./mapshaper-maplat";
+
+type VertexMode = "plain" | "birdeye";
+type StrictMode = "strict" | "auto";
+type YaxisMode = "follow" | "invert";
+type Point = [[number, number], [number, number]];
+
+export interface Options {
+  bounds: [number, number][];
+  wh: [number, number];
+  vertexMode: VertexMode;
+  strictMode: StrictMode;
+  yaxisMode: YaxisMode;
+  importance: number;
+  priority: number;
+  stateFull: boolean;
+  points: Point[];
+  edges: any[];
+}
 
 class Tin {
-  static VERTEX_PLAIN = "plain";
-  static VERTEX_BIRDEYE = "birdeye";
-  static MODE_STRICT = "strict";
-  static MODE_AUTO = "auto";
-  static MODE_LOOSE = "loose";
-  static STATUS_STRICT = "strict";
-  static STATUS_ERROR = "strict_error";
-  static STATUS_LOOSE = "loose";
-  static YAXIS_FOLLOW = "follow";
-  static YAXIS_INVERT = "invert";
+  static VERTEX_PLAIN = "plain" as const;
+  static VERTEX_BIRDEYE = "birdeye" as const;
+  static MODE_STRICT = "strict" as const;
+  static MODE_AUTO = "auto" as const;
+  static MODE_LOOSE = "loose" as const;
+  static STATUS_STRICT = "strict" as const;
+  static STATUS_ERROR = "strict_error" as const;
+  static STATUS_LOOSE = "loose" as const;
+  static YAXIS_FOLLOW = "follow" as const;
+  static YAXIS_INVERT = "invert" as const;
   bounds: any;
   boundsPolygon: any;
   centroid: any;
@@ -52,8 +73,8 @@ class Tin {
   wh: any;
   xy: any;
   yaxisMode: any;
-  constructor(options: any) {
-    options = options || {};
+
+  constructor(options: Partial<Options> = {} as Options) {
     if (options.bounds) {
       this.setBounds(options.bounds);
     } else {
@@ -72,9 +93,11 @@ class Tin {
       this.setEdges(options.edges);
     }
   }
-  setPoints(points: any) {
+  setPoints(points: Point[]) {
     if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
+      // @ts-expect-error
       points = points.map((point: any) => {
+        // NOTE(@kobakazu0429 to @kochizufan): I think next line maybe return it.
         [point[0], [point[1][0], -1 * point[1][1]]];
       });
     }
@@ -618,6 +641,7 @@ class Tin {
                 (poly: any) => poly.geometry.coordinates[0]
               );
               const xy = findIntersections(coords);
+              // @ts-expect-error
               const retXy = internal
                 .dedupIntersections(xy)
                 .reduce((prev: any, apoint: any, index: any, array: any) => {
@@ -1458,7 +1482,9 @@ function rotateVerticesTriangle(tins: any) {
   return tins;
 }
 function findIntersections(coords: any) {
+  // @ts-expect-error
   const arcs = new internal.ArcCollection(coords);
+  // @ts-expect-error
   return internal.findSegmentIntersections(arcs);
 }
 function vertexCalc(list: any, centroid: any) {
@@ -1836,6 +1862,7 @@ function removeSearchIndex(searchIndex: any, tris: any, tins: any) {
     tins.bakw.features = newArray;
   }
 }
+
 function calcSearchKeys(tri: any) {
   const vtx = ["a", "b", "c"].map(key => tri.properties[key].index);
   return [
@@ -1853,7 +1880,5 @@ function calcSearchKeys(tri: any) {
     })
     .sort();
 }
+
 export default Tin;
-if (typeof module === "object" && module.exports) {
-  module.exports = Tin;
-}

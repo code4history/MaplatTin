@@ -1,4 +1,5 @@
-import Tin from "../lib/index";
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const Tin = require("../www/maplat_tin");
 
 const tin = new Tin({
   bounds: [
