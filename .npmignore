@@ -3,10 +3,8 @@
 .prettierrc
 babel.config.js
 jest.config.js
-webpack.config.js
+webpack_config
 tsconfig.json
 package-lock.json
-index.html
-tmpl
 spec
 src

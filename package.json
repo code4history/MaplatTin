@@ -9,8 +9,9 @@
     "lib/"
   ],
   "scripts": {
+    "server": "webpack-dev-server --config webpack_config/webpack.config.devserver.js --mode=development --devtool=inline-source-map",
     "build": "npm run build:es5 && npm run build:es6",
-    "build:es5": "webpack",
+    "build:es5": "webpack --config webpack_config/webpack.config.product.js",
     "build:es6": "tsc",
     "test": "jest",
     "prepublish": "npm run lint && npm run test && npm run build",
@@ -48,17 +49,21 @@
     "@typescript-eslint/parser": "^4.11.1",
     "babel-jest": "^26.6.3",
     "babel-loader": "^8.2.2",
+    "clean-webpack-plugin": "^3.0.0",
     "core-js": "^3.8.1",
     "eslint": "^7.16.0",
     "eslint-config-prettier": "^7.1.0",
     "eslint-loader": "^4.0.2",
     "eslint-plugin-jest": "^24.1.3",
+    "html-webpack-plugin": "^4.5.0",
     "jest": "^26.6.3",
     "jest-matcher-deep-close-to": "^2.0.1",
     "prettier": "^2.2.1",
     "ts-jest": "^26.4.4",
     "typescript": "^4.1.3",
     "webpack": "^4.39.3",
-    "webpack-cli": "^3.3.7"
+    "webpack-cli": "^3.3.7",
+    "webpack-dev-server": "^3.11.1",
+    "webpack-merge": "^5.7.3"
   }
 }

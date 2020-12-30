@@ -8,7 +8,7 @@ expect.extend({ toBeDeepCloseTo });
 
 let stateFull = false;
 const testSet = () => {
-  describe("実データテスト", () => {
+  describe("Test by actual data", () => {
     async () => {
       const load_map = await import("./maps/fushimijo_maplat.json");
       const tin = new Tin({
@@ -19,7 +19,7 @@ const testSet = () => {
       });
       tin.setPoints(load_map.gcps as Options["points"]);
 
-      it("実データ比較", async done => {
+      it("Compare with actual data", async done => {
         await tin.updateTinAsync();
         const target = JSON.parse(JSON.stringify(load_cmp));
         expect(tin.getCompiled()).not.toEqual(target.compiled);
@@ -30,7 +30,7 @@ const testSet = () => {
     };
   });
 
-  describe("boundsケーステスト(エラーなし)", () => {
+  describe("Test case for bounds (w/o error)", () => {
     const tin = new Tin({
       bounds: [
         [100, 50],
@@ -65,7 +65,7 @@ const testSet = () => {
       ]
     ]);
 
-    it("データコンパイルテスト", async done => {
+    it("Test for compiling data", async done => {
       await tin.updateTinAsync();
       expect(tin.xy).toEqual([50, 50]);
       expect(tin.wh).toEqual([100, 150]);
@@ -93,7 +93,7 @@ const testSet = () => {
     });
   });
 
-  describe("boundsケーステスト(エラーあり)", () => {
+  describe("Test case for bounds (w/ error)", () => {
     const tin = new Tin({
       bounds: [
         [100, 50],
@@ -128,10 +128,10 @@ const testSet = () => {
       ]
     ]);
 
-    it("データコンパイルテスト", async done => {
+    it("Test for compiling data", async done => {
       await tin.updateTinAsync();
       expect(tin.strict_status).toEqual(Tin.STATUS_LOOSE);
-      let err: any = "";
+      let err: any;
       try {
         err = tin.transform([240, 120], true);
       } catch (e) {
@@ -143,7 +143,7 @@ const testSet = () => {
       tin.setStrictMode(Tin.MODE_STRICT);
       await tin.updateTinAsync();
       expect(tin.strict_status).toEqual(Tin.STATUS_ERROR);
-      err = "";
+
       try {
         err = tin.transform([240, 120], true);
       } catch (e) {
@@ -156,8 +156,8 @@ const testSet = () => {
     });
   });
 
-  describe("エラーケーステスト", () => {
-    it("コンストラクタ", async done => {
+  describe("Test for exception case", () => {
+    it("Constructor", async done => {
       let tin: Tin;
       let err = "";
       try {
@@ -197,6 +197,6 @@ const testSet = () => {
   });
 };
 
-describe("Tin 動作テスト", testSet);
+describe("Test for Tin function", testSet);
 stateFull = true;
-describe("Tin 動作テスト (StateFull)", testSet);
+describe("Test for Tin function (StateFull)", testSet);
