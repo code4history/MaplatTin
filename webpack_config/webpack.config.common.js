@@ -20,6 +20,11 @@ module.exports = {
     extensions: [".js", ".ts"],
   },
 
+  node: {
+    fs: 'empty',
+    child_process: "empty"
+  },
+
   module: {
     rules: [
       {
@@ -35,14 +40,6 @@ module.exports = {
       banner: `${pjson.name} v${pjson.version} | ${pjson.author} | license: ${pjson.license}`
     }),
     new CleanWebpackPlugin(),
-  ],
-
-  externals: [
-    {
-      fs: "fs",
-      child_process: "child_process",
-      flatbush: "flatbush"
-    }
   ],
 
   devServer: {

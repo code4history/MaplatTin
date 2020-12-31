@@ -9,20 +9,8 @@ import intersect from "@turf/intersect";
 import { getCoords } from "@turf/invariant";
 import lineIntersect from "@turf/line-intersect";
 import union from "@turf/union";
-
-// declare module "./mapshaper-maplat" {
-//   function dedupIntersections(xy: any): any[];
-//   function findSegmentIntersections(args: any): any;
-//   class ArcCollection {
-//     constructor(...args: any);
-//   }
-// }
+import { internal } from "mapshaper";
 import constrainedTin from "./constrained-tin";
-// @ts-expect-error
-//import internal from "./mapshaper-maplat";
-import mapshaper from "mapshaper";
-console.log(`Mapshaper: ${mapshaper}`);
-const internal = mapshaper.internal;
 
 type VertexMode = "plain" | "birdeye";
 type StrictMode = "strict" | "auto";
@@ -1384,10 +1372,12 @@ function rotateVerticesTriangle(tins: any) {
   }
   return tins;
 }
+
 function findIntersections(coords: any) {
   const arcs = new internal.ArcCollection(coords);
   return internal.findSegmentIntersections(arcs);
 }
+
 function vertexCalc(list: any, centroid: any) {
   const centCoord = centroid.geometry.coordinates;
   return [0, 1, 2, 3]
