@@ -24,7 +24,7 @@ module.exports = {
     rules: [
       {
         test: /\.(js|ts)$/,
-        exclude: /node_modules/,
+        exclude: /node_modules(?!.+[/\\]mapshaper\.js$)/,
         loader: 'babel-loader',
       },
     ]
@@ -35,6 +35,14 @@ module.exports = {
       banner: `${pjson.name} v${pjson.version} | ${pjson.author} | license: ${pjson.license}`
     }),
     new CleanWebpackPlugin(),
+  ],
+
+  externals: [
+    {
+      fs: "fs",
+      child_process: "child_process",
+      flatbush: "flatbush"
+    }
   ],
 
   devServer: {

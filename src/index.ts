@@ -19,7 +19,10 @@ import union from "@turf/union";
 // }
 import constrainedTin from "./constrained-tin";
 // @ts-expect-error
-import internal from "./mapshaper-maplat";
+//import internal from "./mapshaper-maplat";
+import mapshaper from "mapshaper";
+console.log(`Mapshaper: ${mapshaper}`);
+const internal = mapshaper.internal;
 
 type VertexMode = "plain" | "birdeye";
 type StrictMode = "strict" | "auto";
@@ -630,7 +633,6 @@ class Tin {
                 (poly: any) => poly.geometry.coordinates[0]
               );
               const xy = findIntersections(coords);
-              // @ts-expect-error
               const retXy = internal
                 .dedupIntersections(xy)
                 .reduce((prev: any, apoint: any, index: any, array: any) => {
@@ -1383,9 +1385,7 @@ function rotateVerticesTriangle(tins: any) {
   return tins;
 }
 function findIntersections(coords: any) {
-  // @ts-expect-error
   const arcs = new internal.ArcCollection(coords);
-  // @ts-expect-error
   return internal.findSegmentIntersections(arcs);
 }
 function vertexCalc(list: any, centroid: any) {

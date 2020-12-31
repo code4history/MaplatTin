@@ -37,7 +37,8 @@
   },
   "homepage": "https://github.com/code4history/MaplatTin/wiki",
   "dependencies": {
-    "@turf/turf": "^5.1.6"
+    "@turf/turf": "^5.1.6",
+    "mapshaper": "^0.5.28"
   },
   "devDependencies": {
     "@babel/cli": "^7.12.10",
