@@ -37,6 +37,8 @@ type Centroid = { forw: Feature<Point>, bakw: Feature<Point> };
 type Edge = { illstNodes: Position[], mercNodes: Position[], startEnd: number[] };
 type Tins = { forw: FeatureCollection<Polygon>, bakw?: FeatureCollection<Polygon> };
 type WeightBuffer = { [index: string]: number };
+type Kinks = { forw?: FeatureCollection<Point>, bakw?: FeatureCollection<Point> };
+type VerticesParams = { forw: [number[], FeatureCollection<Polygon>[]?], bakw: [number[], FeatureCollection<Polygon>[]?] };
 
 export interface Options {
   bounds: Position[];
@@ -53,13 +55,25 @@ export interface Options {
 
 export interface Compiled {
   // For old Interface
-  tins?: Tins
+  tins?: Tins,
+  centroid? : Centroid,
+  kinks? : Kinks,
   // Current Interface
   points: PointSet[],
   tins_points: number[][],
   weight_buffer: WeightBuffer,
   strict_status?: StrictStatus,
-  centroid_point: Position[]
+  centroid_point: Position[],
+  edgeNodes?: PointSet[],
+  kinks_points?: Position[],
+  yaxisMode?: YaxisMode,
+  vertices_params: number[][] | VerticesParams,
+  vertices_points: PointSet[],
+  edges: Edge[],
+  bounds?: number[][],
+  boundsPolygon?: Feature<Polygon>,
+  wh?: number[],
+  xy?: number[]
 }
 
 class Tin {
@@ -80,7 +94,7 @@ class Tin {
   edges?: Edge[];
   importance: number;
   indexedTins: any;
-  kinks: any;
+  kinks?: Kinks;
   points: PointSet[] = [];
   pointsWeightBuffer?: WeightBuffer;
   priority: number;
@@ -91,7 +105,7 @@ class Tin {
   strict_status?: StrictStatus;
   tins?: Tins;
   vertexMode?: VertexMode;
-  vertices_params: any;
+  vertices_params?: VerticesParams;
   wh?: number[];
   xy?: number[];
   yaxisMode: YaxisMode;
@@ -174,8 +188,8 @@ class Tin {
       }
       // vertices_paramsを復元
       this.vertices_params = {
-        forw: [compiled.vertices_params[0]],
-        bakw: [compiled.vertices_params[1]]
+        forw: [(compiled.vertices_params as number[][])[0]],
+        bakw: [(compiled.vertices_params as number[][])[1]]
       };
       this.vertices_params.forw[1] = [0, 1, 2, 3].map(idx => {
         const idxNxt = (idx + 1) % 4;
@@ -252,7 +266,7 @@ class Tin {
       if (compiled.kinks_points) {
         this.kinks = {
           bakw: featureCollection(
-            compiled.kinks_points.map((coord: any) => point(coord))
+            compiled.kinks_points.map((coord: Position) => point(coord))
           )
         };
       }
@@ -280,7 +294,7 @@ class Tin {
       this.addIndexedTin();
       this.strict_status = compiled.strict_status;
       this.pointsWeightBuffer = compiled.weight_buffer;
-      this.vertices_params = compiled.vertices_params;
+      this.vertices_params = compiled.vertices_params as VerticesParams;
       this.centroid = compiled.centroid;
       this.kinks = compiled.kinks;
       const points: any = [];
@@ -325,16 +339,16 @@ class Tin {
     ];
     // vertices_paramsの最初の値はそのまま保存
     (compiled as any).vertices_params = [
-      this.vertices_params.forw[0],
-      this.vertices_params.bakw[0]
+      this.vertices_params!.forw[0],
+      this.vertices_params!.bakw[0]
     ];
     // vertices_paramsの2番目の値（セントロイドと地図頂点の三角形ポリゴン）は、地図頂点座標のみ記録
     (compiled as any).vertices_points = [];
-    const vertices = this.vertices_params.forw[1];
+    const vertices = this.vertices_params!.forw[1];
     [0, 1, 2, 3].map(i => {
-      const vertex_data = vertices[i].features[0];
-      const forw = vertex_data.geometry.coordinates[0][1];
-      const bakw = vertex_data.properties.b.geom;
+      const vertex_data = vertices![i].features[0];
+      const forw = vertex_data.geometry!.coordinates[0][1];
+      const bakw = vertex_data.properties!.b.geom;
       (compiled as any).vertices_points[i] = [forw, bakw];
     });
     (compiled as any).strict_status = this.strict_status;
@@ -355,7 +369,7 @@ class Tin {
         );
       });
     } else if (this.strict_status == Tin.STATUS_ERROR) {
-      (compiled as any).kinks_points = this.kinks.bakw.features.map(
+      compiled.kinks_points = this.kinks!.bakw!.features.map(
         (kink: any) => kink.geometry.coordinates
       );
     }
@@ -1182,8 +1196,8 @@ class Tin {
               this.strict_status = Tin.STATUS_LOOSE;
             }
             this.vertices_params = {
-              forw: vertexCalc(verticesList.forw, this.centroid!.forw),
-              bakw: vertexCalc(verticesList.bakw, this.centroid!.bakw)
+              forw: vertexCalc(verticesList.forw, this.centroid!.forw) as any,
+              bakw: vertexCalc(verticesList.bakw, this.centroid!.bakw) as any
             };
             this.addIndexedTin();
             return this.calculatePointsWeightAsync();
@@ -1212,12 +1226,12 @@ class Tin {
       ? this.indexedTins.bakw
       : this.indexedTins.forw;
     const verticesParams = backward
-      ? this.vertices_params.bakw
-      : this.vertices_params.forw;
+      ? this.vertices_params!.bakw
+      : this.vertices_params!.forw;
     const centroid = backward ? this.centroid!.bakw : this.centroid!.forw;
     const weightBuffer = backward
-      ? this.pointsWeightBuffer.bakw
-      : this.pointsWeightBuffer.forw;
+      ? this.pointsWeightBuffer!.bakw
+      : this.pointsWeightBuffer!.forw;
     let stateTriangle = undefined,
       stateSetFunc = undefined;
     if (this.stateFull) {
