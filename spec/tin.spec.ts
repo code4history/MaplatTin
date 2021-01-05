@@ -23,7 +23,7 @@ const testSet = () => {
         });
         tin.setPoints(load_m.gcps as Options["points"]);
         if (load_m.edges) {
-          tin.setEdges(load_m.edges);
+          tin.setEdges(load_m.edges as Options["edges"]);
         }
 
         await tin.updateTinAsync();

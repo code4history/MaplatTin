@@ -34,6 +34,9 @@ type StrictStatus = "strict" | "strict_error" | "loose";
 type YaxisMode = "follow" | "invert";
 type PointSet = [Position, Position];
 type Centroid = { forw: Feature<Point>, bakw: Feature<Point> };
+type Edge = { illstNodes: Position[], mercNodes: Position[], startEnd: number[] };
+type Tins = { forw: FeatureCollection<Polygon>, bakw?: FeatureCollection<Polygon> };
+type WeightBuffer = { [index: string]: number };
 
 export interface Options {
   bounds: Position[];
@@ -45,7 +48,18 @@ export interface Options {
   priority: number;
   stateFull: boolean;
   points: PointSet[];
-  edges: any[];
+  edges: Edge[];
+}
+
+export interface Compiled {
+  // For old Interface
+  tins?: Tins
+  // Current Interface
+  points: PointSet[],
+  tins_points: number[][],
+  weight_buffer: WeightBuffer,
+  strict_status?: StrictStatus,
+  centroid_point: Position[]
 }
 
 class Tin {
@@ -62,20 +76,20 @@ class Tin {
   bounds?: number[][];
   boundsPolygon?: Feature<Polygon>;
   centroid?: Centroid;
-  edgeNodes: any;
-  edges: any;
+  edgeNodes?: PointSet[];
+  edges?: Edge[];
   importance: number;
   indexedTins: any;
   kinks: any;
   points: PointSet[] = [];
-  pointsWeightBuffer: any;
+  pointsWeightBuffer?: WeightBuffer;
   priority: number;
   stateBackward: any;
   stateFull: boolean;
   stateTriangle: any;
   strictMode: StrictMode;
   strict_status?: StrictStatus;
-  tins: any;
+  tins?: Tins;
   vertexMode?: VertexMode;
   vertices_params: any;
   wh?: number[];
@@ -142,7 +156,7 @@ class Tin {
     this.tins = undefined;
     this.indexedTins = undefined;
   }
-  setCompiled(compiled: any) {
+  setCompiled(compiled: Compiled) {
     if (!compiled.tins && compiled.points && compiled.tins_points) {
       // 新コンパイルロジック
       // pointsはそのままpoints, weightBufferも
@@ -270,12 +284,12 @@ class Tin {
       this.centroid = compiled.centroid;
       this.kinks = compiled.kinks;
       const points: any = [];
-      for (let i = 0; i < this.tins.forw.features.length; i++) {
-        const tri = this.tins.forw.features[i];
+      for (let i = 0; i < this.tins!.forw.features.length; i++) {
+        const tri = this.tins!.forw.features[i];
         ["a", "b", "c"].map((key, idx) => {
-          const forw = tri.geometry.coordinates[0][idx];
-          const bakw = tri.properties[key].geom;
-          const pIdx = tri.properties[key].index;
+          const forw = tri.geometry!.coordinates[0][idx];
+          const bakw = tri.properties![key].geom;
+          const pIdx = tri.properties![key].index;
           points[pIdx] = [forw, bakw];
         });
       }
@@ -291,8 +305,8 @@ class Tin {
       kinks: this.kinks
     };
   }
-  getCompiled() {
-    const compiled = {};
+  getCompiled() : Compiled {
+    const compiled: Partial<Compiled> = {};
     /* old logic
             compiled.tins = this.tins;
             compiled.strict_status = this.strict_status;
@@ -302,10 +316,10 @@ class Tin {
             compiled.kinks = this.kinks;*/
     // 新compileロジック
     // points, weightBufferはそのまま保存
-    (compiled as any).points = this.points;
-    (compiled as any).weight_buffer = this.pointsWeightBuffer;
+    compiled.points = this.points;
+    compiled.weight_buffer = this.pointsWeightBuffer;
     // centroidは座標の対応のみ保存
-    (compiled as any).centroid_point = [
+    compiled.centroid_point = [
       this.centroid!.forw.geometry!.coordinates,
       this.centroid!.forw.properties!.target.geom
     ];
@@ -326,7 +340,7 @@ class Tin {
     (compiled as any).strict_status = this.strict_status;
     // tinは座標インデックスのみ記録
     (compiled as any).tins_points = [[]];
-    this.tins.forw.features.map((tin: any) => {
+    this.tins!.forw.features.map((tin: any) => {
       (compiled as any).tins_points[0].push(
         ["a", "b", "c"].map(idx => tin.properties[idx].index)
       );
@@ -335,7 +349,7 @@ class Tin {
     // 厳格モードでエラーがある時（strict_error）は、エラー点情報(kinks)を記録。
     if (this.strict_status == Tin.STATUS_LOOSE) {
       (compiled as any).tins_points[1] = [];
-      this.tins.bakw.features.map((tin: any) => {
+      this.tins!.bakw!.features.map((tin: any) => {
         (compiled as any).tins_points[1].push(
           ["a", "b", "c"].map(idx => tin.properties[idx].index)
         );
@@ -361,10 +375,10 @@ class Tin {
     // edge対応
     (compiled as any).edges = this.edges;
     (compiled as any).edgeNodes = this.edgeNodes;
-    return compiled;
+    return compiled as Compiled;
   }
   addIndexedTin() {
-    const tins = this.tins;
+    const tins = this.tins!;
     const forw = tins.forw;
     const bakw = tins.bakw;
     const gridNum = Math.ceil(Math.sqrt(forw.features.length));
@@ -435,7 +449,7 @@ class Tin {
       },
       []
     );
-    const bakwEachBound = bakw.features.map((tri: any) => {
+    const bakwEachBound = bakw!.features.map((tri: any) => {
       let eachBound: any = null;
       getCoords(tri)[0].map((point: any) => {
         if (bakwBound == null)
@@ -536,18 +550,18 @@ class Tin {
   calcurateStrictTinAsync() {
     const edges = this.pointsSet.edges;
     return Promise.all(
-      this.tins.forw.features.map((tri: any) =>
+      this.tins!.forw.features.map((tri: any) =>
         Promise.resolve(counterTri(tri))
       )
     )
       .then((tris: any) => {
-        this.tins.bakw = featureCollection(tris);
+        this.tins!.bakw = featureCollection(tris);
       })
       .then(() => {
         const searchIndex = {};
         return Promise.all(
-          this.tins.forw.features.map((forTri: any, index: any) => {
-            const bakTri = this.tins.bakw.features[index];
+          this.tins!.forw.features.map((forTri: any, index: any) => {
+            const bakTri = this.tins!.bakw!.features[index];
             return Promise.resolve(
               insertSearchIndex(searchIndex, { forw: forTri, bakw: bakTri })
             );
@@ -633,9 +647,9 @@ class Tin {
             });
           });
         return Promise.all(
-          ["forw", "bakw"].map(direc =>
+            ["forw", "bakw"].map((direc) =>
             new Promise(resolve => {
-              const coords = this.tins[direc].features.map(
+              const coords = this.tins![direc as keyof Tins]!.features.map(
                 (poly: any) => poly.geometry.coordinates[0]
               );
               const xy = findIntersections(coords);
@@ -776,7 +790,7 @@ class Tin {
         .reduce((prev, nodes) => prev.concat(nodes), [])
         .sort((a: any, b: any) => (a[2] < b[2] ? -1 : 1))
         .map((node: any, index: any, arr: any) => {
-          this.edgeNodes[edgeNodeIndex] = [node[0], node[1]];
+          this.edgeNodes![edgeNodeIndex] = [node[0], node[1]];
           const forPoint = createPoint(
             node[0],
             node[1],
@@ -1161,7 +1175,7 @@ class Tin {
               (strict == Tin.MODE_AUTO &&
                 this.strict_status == Tin.STATUS_ERROR)
             ) {
-              this.tins.bakw = rotateVerticesTriangle(
+              this.tins!.bakw = rotateVerticesTriangle(
                 constrainedTin(pointsSet.bakw, pointsSet.edges, "target")
               );
               delete this.kinks;
@@ -1193,7 +1207,7 @@ class Tin {
     if (this.bounds && !backward && !ignoreBounds) {
       if (!booleanPointInPolygon(tpoint, this.boundsPolygon!)) return false;
     }
-    const tins = backward ? this.tins.bakw : this.tins.forw;
+    const tins = backward ? this.tins!.bakw : this.tins!.forw;
     const indexedTins = backward
       ? this.indexedTins.bakw
       : this.indexedTins.forw;
@@ -1243,9 +1257,9 @@ class Tin {
       calcTargets.map(target => {
         weightBuffer[target] = {};
         const alreadyChecked: any = {};
-        const tin = this.tins[target];
+        const tin = this.tins![target as keyof Tins];
         return Promise.all(
-          tin.features.map((tri: any) => {
+          tin!.features.map((tri: any) => {
             const vtxes = ["a", "b", "c"];
             return new Promise(resolve => {
               for (let i = 0; i < 3; i++) {
