@@ -33,6 +33,7 @@ type StrictMode = "strict" | "auto" | "loose";
 type StrictStatus = "strict" | "strict_error" | "loose";
 type YaxisMode = "follow" | "invert";
 type PointSet = [Position, Position];
+type Centroid = { forw: Feature<Point>, bakw: Feature<Point> };
 
 export interface Options {
   bounds: Position[];
@@ -60,7 +61,7 @@ class Tin {
   static YAXIS_INVERT = "invert" as const;
   bounds?: number[][];
   boundsPolygon?: Feature<Polygon>;
-  centroid: any;
+  centroid?: Centroid;
   edgeNodes: any;
   edges: any;
   importance: number;
@@ -305,8 +306,8 @@ class Tin {
     (compiled as any).weight_buffer = this.pointsWeightBuffer;
     // centroidは座標の対応のみ保存
     (compiled as any).centroid_point = [
-      this.centroid.forw.geometry.coordinates,
-      this.centroid.forw.properties.target.geom
+      this.centroid!.forw.geometry!.coordinates,
+      this.centroid!.forw.properties!.target.geom
     ];
     // vertices_paramsの最初の値はそのまま保存
     (compiled as any).vertices_params = [
@@ -870,12 +871,11 @@ class Tin {
         )
           throw "TOO LINEAR1";
         // Calcurating Forward/Backward Centroid
-        const centroid = { forw: forCentroidFt.geometry.coordinates };
-        (centroid as any).bakw = transformArr(forCentroidFt, tinForCentroid);
-        this.centroid = {
-          forw: createPoint(centroid.forw, (centroid as any).bakw, "cent")
-        };
-        this.centroid.bakw = counterPoint(this.centroid.forw);
+        const forwCoord = forCentroidFt.geometry.coordinates;
+        const bakwCoord = transformArr(forCentroidFt, tinForCentroid);
+        const forwPoint = createPoint(forwCoord, bakwCoord, "cent");
+        const bakwPoint = counterPoint(forwPoint);
+        this.centroid = { forw: forwPoint, bakw: bakwPoint };
         const convexBuf: any = {};
         return Promise.all([
           new Promise(resolve => {
@@ -1164,8 +1164,8 @@ class Tin {
               this.strict_status = Tin.STATUS_LOOSE;
             }
             this.vertices_params = {
-              forw: vertexCalc(verticesList.forw, this.centroid.forw),
-              bakw: vertexCalc(verticesList.bakw, this.centroid.bakw)
+              forw: vertexCalc(verticesList.forw, this.centroid!.forw),
+              bakw: vertexCalc(verticesList.bakw, this.centroid!.bakw)
             };
             this.addIndexedTin();
             return this.calculatePointsWeightAsync();
@@ -1196,7 +1196,7 @@ class Tin {
     const verticesParams = backward
       ? this.vertices_params.bakw
       : this.vertices_params.forw;
-    const centroid = backward ? this.centroid.bakw : this.centroid.forw;
+    const centroid = backward ? this.centroid!.bakw : this.centroid!.forw;
     const weightBuffer = backward
       ? this.pointsWeightBuffer.bakw
       : this.pointsWeightBuffer.forw;
