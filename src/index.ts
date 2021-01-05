@@ -115,7 +115,7 @@ class Tin {
     if (options.bounds) {
       this.setBounds(options.bounds);
     } else {
-      this.setWh(options.wh);
+      this.setWh(options.wh!);
       this.vertexMode = options.vertexMode || Tin.VERTEX_PLAIN;
     }
     this.strictMode = options.strictMode || Tin.MODE_AUTO;
@@ -140,14 +140,13 @@ class Tin {
     this.tins = undefined;
     this.indexedTins = undefined;
   }
-  setEdges(edges: any) {
-    if (!edges) edges = [];
+  setEdges(edges: Edge[] = []) {
     this.edges = edges;
     this.edgeNodes = undefined;
     this.tins = undefined;
     this.indexedTins = undefined;
   }
-  setBounds(bounds: any) {
+  setBounds(bounds: number[][]) {
     this.bounds = bounds;
     let minx = bounds[0][0];
     let maxx = minx;
@@ -543,7 +542,7 @@ class Tin {
       }
     };
   }
-  setWh(wh: any) {
+  setWh(wh: number[]) {
     this.wh = wh;
     this.xy = [0, 0];
     this.bounds = undefined;
@@ -551,12 +550,12 @@ class Tin {
     this.tins = undefined;
     this.indexedTins = undefined;
   }
-  setVertexMode(mode: any) {
+  setVertexMode(mode: VertexMode) {
     this.vertexMode = mode;
     this.tins = undefined;
     this.indexedTins = undefined;
   }
-  setStrictMode(mode: any) {
+  setStrictMode(mode: StrictMode) {
     this.strictMode = mode;
     this.tins = undefined;
     this.indexedTins = undefined;
@@ -1210,7 +1209,7 @@ class Tin {
         throw err;
       });
   }
-  transform(apoint: [any, any], backward?: boolean, ignoreBounds?: boolean) {
+  transform(apoint: number[], backward?: boolean, ignoreBounds?: boolean) {
     if (backward && this.strict_status == Tin.STATUS_ERROR)
       throw 'Backward transform is not allowed if strict_status == "strict_error"';
     // if (!this.tins) this.updateTin();
@@ -1350,70 +1349,70 @@ class Tin {
       });
   }
 }
-function rotateVerticesTriangle(tins: any) {
+function rotateVerticesTriangle(tins: FeatureCollection<Polygon>) {
   const features = tins.features;
   for (let i = 0; i < features.length; i++) {
     const feature = features[i];
     if (
-      `${feature.properties.a.index}`.substring(0, 4) == "bbox" &&
-      `${feature.properties.b.index}`.substring(0, 4) == "bbox"
+      `${feature.properties!.a.index}`.substring(0, 4) == "bbox" &&
+      `${feature.properties!.b.index}`.substring(0, 4) == "bbox"
     ) {
       features[i] = {
         geometry: {
           type: "Polygon",
           coordinates: [
             [
-              feature.geometry.coordinates[0][2],
-              feature.geometry.coordinates[0][0],
-              feature.geometry.coordinates[0][1],
-              feature.geometry.coordinates[0][2]
+              feature.geometry!.coordinates[0][2],
+              feature.geometry!.coordinates[0][0],
+              feature.geometry!.coordinates[0][1],
+              feature.geometry!.coordinates[0][2]
             ]
           ]
         },
         properties: {
           a: {
-            geom: feature.properties.c.geom,
-            index: feature.properties.c.index
+            geom: feature.properties!.c.geom,
+            index: feature.properties!.c.index
           },
           b: {
-            geom: feature.properties.a.geom,
-            index: feature.properties.a.index
+            geom: feature.properties!.a.geom,
+            index: feature.properties!.a.index
           },
           c: {
-            geom: feature.properties.b.geom,
-            index: feature.properties.b.index
+            geom: feature.properties!.b.geom,
+            index: feature.properties!.b.index
           }
         },
         type: "Feature"
       };
     } else if (
-      `${feature.properties.c.index}`.substring(0, 4) == "bbox" &&
-      `${feature.properties.a.index}`.substring(0, 4) == "bbox"
+      `${feature.properties!.c.index}`.substring(0, 4) == "bbox" &&
+      `${feature.properties!.a.index}`.substring(0, 4) == "bbox"
     ) {
       features[i] = {
         geometry: {
           type: "Polygon",
           coordinates: [
             [
-              feature.geometry.coordinates[0][1],
-              feature.geometry.coordinates[0][2],
-              feature.geometry.coordinates[0][0],
-              feature.geometry.coordinates[0][1]
+              feature.geometry!.coordinates[0][1],
+              feature.geometry!.coordinates[0][2],
+              feature.geometry!.coordinates[0][0],
+              feature.geometry!.coordinates[0][1]
             ]
           ]
         },
         properties: {
           a: {
-            geom: feature.properties.b.geom,
-            index: feature.properties.b.index
+            geom: feature.properties!.b.geom,
+            index: feature.properties!.b.index
           },
           b: {
-            geom: feature.properties.c.geom,
-            index: feature.properties.c.index
+            geom: feature.properties!.c.geom,
+            index: feature.properties!.c.index
           },
           c: {
-            geom: feature.properties.a.geom,
-            index: feature.properties.a.index
+            geom: feature.properties!.a.geom,
+            index: feature.properties!.a.index
           }
         },
         type: "Feature"
