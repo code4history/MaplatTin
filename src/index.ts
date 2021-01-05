@@ -871,11 +871,15 @@ class Tin {
         )
           throw "TOO LINEAR1";
         // Calcurating Forward/Backward Centroid
-        const forwCoord = forCentroidFt.geometry.coordinates;
-        const bakwCoord = transformArr(forCentroidFt, tinForCentroid);
-        const forwPoint = createPoint(forwCoord, bakwCoord, "cent");
-        const bakwPoint = counterPoint(forwPoint);
-        this.centroid = { forw: forwPoint, bakw: bakwPoint };
+        const centroid = {
+          forw: forCentroidFt.geometry.coordinates,
+          bakw: transformArr(forCentroidFt, tinForCentroid)
+        };
+        const forwBuf = createPoint(centroid.forw, centroid.bakw, "cent");
+        this.centroid = {
+          forw: forwBuf,
+          bakw: counterPoint(forwBuf)
+        };
         const convexBuf: any = {};
         return Promise.all([
           new Promise(resolve => {

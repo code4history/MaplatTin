@@ -2,13 +2,14 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 import Tin, { Options } from "../src";
 const load_cmp = require("./compiled/fushimijo_maplat.json");
+const load_cmp_nara = require("./compiled/naramachi_yasui_bunko.json");
 
 import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
 expect.extend({ toBeDeepCloseTo });
 
 let stateFull = false;
 const testSet = () => {
-  describe("Test by actual data", () => {
+  describe("Test by actual data (Fushimi)", () => {
     async () => {
       const load_map = await import("./maps/fushimijo_maplat.json");
       const tin = new Tin({
@@ -28,6 +29,30 @@ const testSet = () => {
         done();
       });
     };
+  });
+
+  describe("Test by actual data (Nara)", () => {
+    //async () => {
+
+      it("Compare with actual data", async done => {
+        const load_map = await import("./maps/naramachi_yasui_bunko.json");
+        const tin = new Tin({
+          wh: [load_map.width, load_map.height],
+          strictMode: load_map.strictMode as Options["strictMode"],
+          vertexMode: load_map.vertexMode as Options["vertexMode"],
+          stateFull
+        });
+        tin.setPoints(load_map.gcps as Options["points"]);
+        tin.setEdges(load_map.edges);
+        await tin.updateTinAsync();
+        const target = treeWalk(JSON.parse(JSON.stringify(load_cmp_nara)).compiled);
+        const expected = treeWalk(tin.getCompiled());
+        expect(expected).not.toEqual(target);
+        target.wh = tin.wh;
+        expect(expected).toEqual(target);
+        done();
+      });
+    //};
   });
 
   describe("Test case for bounds (w/o error)", () => {
@@ -200,3 +225,15 @@ const testSet = () => {
 describe("Test for Tin function", testSet);
 stateFull = true;
 describe("Test for Tin function (StateFull)", testSet);
+
+function treeWalk(obj: any, n = 0) {
+  //console.log(n + 1);
+  /*if (Array.isArray(obj)) {
+    [obj as any[]].forEach((val, idx) => obj[idx] = treeWalk(val, n + 1));
+  } else*/ if (typeof obj === "object") {
+    Object.keys(obj).forEach(key => obj[key] = treeWalk(obj[key], n + 1));
+  } else if (typeof obj === "number" && !`${obj}`.match(/^\d+$/)) {
+    obj = Math.round(obj * Math.pow(10, 7)) / Math.pow(10, 7);
+  }
+  return obj;
+}
