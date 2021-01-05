@@ -9,6 +9,7 @@ import intersect from "@turf/intersect";
 import { getCoords } from "@turf/invariant";
 import lineIntersect from "@turf/line-intersect";
 import union from "@turf/union";
+import { Position } from "@turf/turf";
 
 // declare module "./mapshaper-maplat" {
 //   function dedupIntersections(xy: any): any[];
@@ -22,13 +23,14 @@ import constrainedTin from "./constrained-tin";
 import internal from "./mapshaper-maplat";
 
 type VertexMode = "plain" | "birdeye";
-type StrictMode = "strict" | "auto";
+type StrictMode = "strict" | "auto" | "loose";
+type StrictStatus = "strict" | "strict_error" | "loose";
 type YaxisMode = "follow" | "invert";
-type Point = [[number, number], [number, number]];
+type Point = [Position, Position];
 
 export interface Options {
-  bounds: [number, number][];
-  wh: [number, number];
+  bounds: Position[];
+  wh: number[];
   vertexMode: VertexMode;
   strictMode: StrictMode;
   yaxisMode: YaxisMode;
@@ -55,23 +57,23 @@ class Tin {
   centroid: any;
   edgeNodes: any;
   edges: any;
-  importance: any;
+  importance: number;
   indexedTins: any;
   kinks: any;
   points: any;
   pointsWeightBuffer: any;
-  priority: any;
+  priority: number;
   stateBackward: any;
-  stateFull: any;
+  stateFull: boolean;
   stateTriangle: any;
-  strictMode: any;
-  strict_status: any;
+  strictMode: StrictMode;
+  strict_status?: StrictStatus;
   tins: any;
-  vertexMode: any;
+  vertexMode?: VertexMode;
   vertices_params: any;
-  wh: any;
-  xy: any;
-  yaxisMode: any;
+  wh?: number[];
+  xy?: number[];
+  yaxisMode: YaxisMode;
   pointsSet: any;
 
   constructor(options: Partial<Options> = {} as Options) {
@@ -85,7 +87,7 @@ class Tin {
     this.yaxisMode = options.yaxisMode || Tin.YAXIS_INVERT;
     this.importance = options.importance || 0;
     this.priority = options.priority || 0;
-    this.stateFull = options.stateFull;
+    this.stateFull = options.stateFull || false;
     if (options.points) {
       this.setPoints(options.points);
     }
@@ -797,17 +799,17 @@ class Tin {
   }
   updateTinAsync() {
     let strict = this.strictMode;
-    const minx = this.xy[0] - 0.05 * this.wh[0];
-    const maxx = this.xy[0] + 1.05 * this.wh[0];
-    const miny = this.xy[1] - 0.05 * this.wh[1];
-    const maxy = this.xy[1] + 1.05 * this.wh[1];
+    const minx = this.xy![0] - 0.05 * this.wh![0];
+    const maxx = this.xy![0] + 1.05 * this.wh![0];
+    const miny = this.xy![1] - 0.05 * this.wh![1];
+    const maxy = this.xy![1] + 1.05 * this.wh![1];
     const insideCheck = this.bounds
       ? (xy: any) => booleanPointInPolygon(xy, this.boundsPolygon)
       : (xy: any) =>
-          xy[0] >= this.xy[0] &&
-          xy[0] <= this.xy[0] + this.wh[0] &&
-          xy[1] >= this.xy[1] &&
-          xy[1] <= this.xy[1] + this.wh[1];
+          xy[0] >= this.xy![0] &&
+          xy[0] <= this.xy![0] + this.wh![0] &&
+          xy[1] >= this.xy![1] &&
+          xy[1] <= this.xy![1] + this.wh![1];
     const inside = this.points.reduce(
       (prev: any, curr: any) => prev && insideCheck(curr[0]),
       true
