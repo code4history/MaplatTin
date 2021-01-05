@@ -1,58 +1,54 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-var-requires */
 import Tin, { Options } from "../src";
-const load_cmp = require("./compiled/fushimijo_maplat.json");
-const load_cmp_nara = require("./compiled/naramachi_yasui_bunko.json");
-
 import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
 expect.extend({ toBeDeepCloseTo });
 
 let stateFull = false;
 const testSet = () => {
-  describe("Test by actual data (Fushimi)", () => {
-    async () => {
-      const load_map = await import("./maps/fushimijo_maplat.json");
-      const tin = new Tin({
-        wh: [load_map.width, load_map.height],
-        strictMode: load_map.strictMode as Options["strictMode"],
-        vertexMode: load_map.vertexMode as Options["vertexMode"],
-        stateFull
-      });
-      tin.setPoints(load_map.gcps as Options["points"]);
+  [ ["Nara", "naramachi_yasui_bunko"],
+    ["Fushimi", "fushimijo_maplat"] ].map((dataset) => {
+    const town = dataset[0];
+    const filename = dataset[1];
+    describe(`Test by actual data (${town})`, () => {
+      it(`Compare with actual data (${town})`, async done => {
+        const load_m = await import(`./maps/${filename}.json`);
+        const load_c = await import(`./compiled/${filename}.json`);
 
-      it("Compare with actual data", async done => {
-        await tin.updateTinAsync();
-        const target = JSON.parse(JSON.stringify(load_cmp));
-        expect(tin.getCompiled()).not.toEqual(target.compiled);
-        target.compiled.wh = tin.wh;
-        expect(tin.getCompiled()).toEqual(target.compiled);
-        done();
-      });
-    };
-  });
-
-  describe("Test by actual data (Nara)", () => {
-    //async () => {
-
-      it("Compare with actual data", async done => {
-        const load_map = await import("./maps/naramachi_yasui_bunko.json");
         const tin = new Tin({
-          wh: [load_map.width, load_map.height],
-          strictMode: load_map.strictMode as Options["strictMode"],
-          vertexMode: load_map.vertexMode as Options["vertexMode"],
+          wh: [load_m.width, load_m.height],
+          strictMode: load_m.strictMode as Options["strictMode"],
+          vertexMode: load_m.vertexMode as Options["vertexMode"],
           stateFull
         });
-        tin.setPoints(load_map.gcps as Options["points"]);
-        tin.setEdges(load_map.edges);
+        tin.setPoints(load_m.gcps as Options["points"]);
+        if (load_m.edges) {
+          tin.setEdges(load_m.edges);
+        }
+
         await tin.updateTinAsync();
-        const target = treeWalk(JSON.parse(JSON.stringify(load_cmp_nara)).compiled);
-        const expected = treeWalk(tin.getCompiled());
-        expect(expected).not.toEqual(target);
-        target.wh = tin.wh;
-        expect(expected).toEqual(target);
+        const target = JSON.parse(JSON.stringify(load_c.compiled));
+        const expected = JSON.parse(JSON.stringify(tin.getCompiled()));
+
+        // points
+        expect(treeWalk(expected.points, 5)).toEqual(treeWalk(target.points, 5));
+
+        // edges
+        expect(treeWalk(expected.edges, 5)).toEqual(treeWalk(target.edges, 5));
+
+        // weight buffer
+        expect(treeWalk(expected.weight_buffer.forw, 1)).toEqual(treeWalk(target.weight_buffer.forw, 1));
+        expect(treeWalk(expected.weight_buffer.bakw, 1)).toEqual(treeWalk(target.weight_buffer.bakw, 1));
+
+        // tins points
+        expect(sortTinsPoint(expected.tins_points[0])).toEqual(sortTinsPoint(target.tins_points[0]));
+
+        // edge nodes
+        expect(treeWalk(expected.edgeNodes, 5)).toEqual(treeWalk(target.edgeNodes, 5));
+
         done();
       });
-    //};
+    });
   });
 
   describe("Test case for bounds (w/o error)", () => {
@@ -226,14 +222,15 @@ describe("Test for Tin function", testSet);
 stateFull = true;
 describe("Test for Tin function (StateFull)", testSet);
 
-function treeWalk(obj: any, n = 0) {
-  //console.log(n + 1);
-  /*if (Array.isArray(obj)) {
-    [obj as any[]].forEach((val, idx) => obj[idx] = treeWalk(val, n + 1));
-  } else*/ if (typeof obj === "object") {
-    Object.keys(obj).forEach(key => obj[key] = treeWalk(obj[key], n + 1));
+function treeWalk(obj: any, depth: number) {
+  if (typeof obj === "object") {
+    Object.keys(obj).forEach(key => obj[key] = treeWalk(obj[key], depth));
   } else if (typeof obj === "number" && !`${obj}`.match(/^\d+$/)) {
-    obj = Math.round(obj * Math.pow(10, 7)) / Math.pow(10, 7);
+    obj = Math.round(obj * Math.pow(10, depth)) / Math.pow(10, depth);
   }
   return obj;
+}
+
+function sortTinsPoint(tins_points: any[][]) {
+  return tins_points.map(points => points.map(key => `${key}`).sort().join("_")).sort();
 }
