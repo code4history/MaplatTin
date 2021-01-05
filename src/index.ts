@@ -9,7 +9,13 @@ import intersect from "@turf/intersect";
 import { getCoords } from "@turf/invariant";
 import lineIntersect from "@turf/line-intersect";
 import union from "@turf/union";
-import { Position } from "@turf/turf";
+import {
+  Feature,
+  FeatureCollection,
+  Polygon,
+  Point,
+  Position
+} from "@turf/turf";
 
 // declare module "./mapshaper-maplat" {
 //   function dedupIntersections(xy: any): any[];
@@ -26,7 +32,7 @@ type VertexMode = "plain" | "birdeye";
 type StrictMode = "strict" | "auto" | "loose";
 type StrictStatus = "strict" | "strict_error" | "loose";
 type YaxisMode = "follow" | "invert";
-type Point = [Position, Position];
+type PointSet = [Position, Position];
 
 export interface Options {
   bounds: Position[];
@@ -37,7 +43,7 @@ export interface Options {
   importance: number;
   priority: number;
   stateFull: boolean;
-  points: Point[];
+  points: PointSet[];
   edges: any[];
 }
 
@@ -52,15 +58,15 @@ class Tin {
   static STATUS_LOOSE = "loose" as const;
   static YAXIS_FOLLOW = "follow" as const;
   static YAXIS_INVERT = "invert" as const;
-  bounds: any;
-  boundsPolygon: any;
+  bounds?: number[][];
+  boundsPolygon?: Feature<Polygon>;
   centroid: any;
   edgeNodes: any;
   edges: any;
   importance: number;
   indexedTins: any;
   kinks: any;
-  points: any;
+  points: PointSet[] = [];
   pointsWeightBuffer: any;
   priority: number;
   stateBackward: any;
@@ -95,10 +101,10 @@ class Tin {
       this.setEdges(options.edges);
     }
   }
-  setPoints(points: Point[]) {
+  setPoints(points: PointSet[]) {
     if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
       points = points.map(
-        (point: any) => [point[0], [point[1][0], -1 * point[1][1]]] as Point
+        point => [point[0], [point[1][0], -1 * point[1][1]]]
       );
     }
     this.points = points;
@@ -804,7 +810,7 @@ class Tin {
     const miny = this.xy![1] - 0.05 * this.wh![1];
     const maxy = this.xy![1] + 1.05 * this.wh![1];
     const insideCheck = this.bounds
-      ? (xy: any) => booleanPointInPolygon(xy, this.boundsPolygon)
+      ? (xy: any) => booleanPointInPolygon(xy, this.boundsPolygon!)
       : (xy: any) =>
           xy[0] >= this.xy![0] &&
           xy[0] <= this.xy![0] + this.wh![0] &&
@@ -1181,7 +1187,7 @@ class Tin {
     }
     const tpoint = point(apoint);
     if (this.bounds && !backward && !ignoreBounds) {
-      if (!booleanPointInPolygon(tpoint, this.boundsPolygon)) return false;
+      if (!booleanPointInPolygon(tpoint, this.boundsPolygon!)) return false;
     }
     const tins = backward ? this.tins.bakw : this.tins.forw;
     const indexedTins = backward
@@ -1219,7 +1225,7 @@ class Tin {
     );
     if (this.bounds && backward && !ignoreBounds) {
       const rpoint = point(ret);
-      if (!booleanPointInPolygon(rpoint, this.boundsPolygon)) return false;
+      if (!booleanPointInPolygon(rpoint, this.boundsPolygon!)) return false;
     } else if (this.yaxisMode == Tin.YAXIS_FOLLOW && !backward) {
       ret = [ret[0], -1 * ret[1]];
     }
