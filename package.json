@@ -4,6 +4,7 @@
   "description": "JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.",
   "main": "es5/index.js",
   "module": "lib/index.js",
+  "types": "lib/index.d.ts",
   "sideEffects": false,
   "files": [
     "es5/",

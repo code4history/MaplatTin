@@ -4,29 +4,49 @@ declare type StrictMode = "strict" | "auto" | "loose";
 declare type StrictStatus = "strict" | "strict_error" | "loose";
 declare type YaxisMode = "follow" | "invert";
 declare type PointSet = [Position, Position];
-declare type Centroid = {
-    forw: Feature<Point>;
-    bakw: Feature<Point>;
+declare type Centroid = Feature<Point>;
+declare type CentroidBD = {
+    forw: Centroid;
+    bakw: Centroid;
 };
 declare type Edge = {
     illstNodes: Position[];
     mercNodes: Position[];
     startEnd: number[];
 };
-declare type Tins = {
-    forw: FeatureCollection<Polygon>;
-    bakw?: FeatureCollection<Polygon>;
+declare type Tins = FeatureCollection<Polygon>;
+declare type TinsBD = {
+    forw: Tins;
+    bakw?: Tins;
 };
 declare type WeightBuffer = {
     [index: string]: number;
 };
-declare type Kinks = {
-    forw?: FeatureCollection<Point>;
-    bakw?: FeatureCollection<Point>;
+declare type WeightBufferBD = {
+    forw: WeightBuffer;
+    bakw: WeightBuffer;
 };
-declare type VerticesParams = {
-    forw: [number[], FeatureCollection<Polygon>[]?];
-    bakw: [number[], FeatureCollection<Polygon>[]?];
+declare type Kinks = FeatureCollection<Point>;
+declare type KinksBD = {
+    forw?: Kinks;
+    bakw?: Kinks;
+};
+declare type VerticesParams = [number[], FeatureCollection<Polygon>[]?];
+declare type VerticesParamsBD = {
+    forw: VerticesParams;
+    bakw: VerticesParams;
+};
+interface IndexedTins {
+    gridNum: any;
+    xOrigin: any;
+    yOrigin: any;
+    xUnit: any;
+    yUnit: any;
+    gridCache: any;
+}
+declare type IndexedTinsBD = {
+    forw: IndexedTins;
+    bakw: IndexedTins;
 };
 export interface Options {
     bounds: Position[];
@@ -41,18 +61,18 @@ export interface Options {
     edges: Edge[];
 }
 export interface Compiled {
-    tins?: Tins;
-    centroid?: Centroid;
-    kinks?: Kinks;
+    tins?: TinsBD;
+    centroid?: CentroidBD;
+    kinks?: KinksBD;
     points: PointSet[];
     tins_points: number[][];
-    weight_buffer: WeightBuffer;
+    weight_buffer: WeightBufferBD;
     strict_status?: StrictStatus;
     centroid_point: Position[];
     edgeNodes?: PointSet[];
     kinks_points?: Position[];
     yaxisMode?: YaxisMode;
-    vertices_params: number[][] | VerticesParams;
+    vertices_params: number[][] | VerticesParamsBD;
     vertices_points: PointSet[];
     edges: Edge[];
     bounds?: number[][];
@@ -73,23 +93,23 @@ declare class Tin {
     static YAXIS_INVERT: "invert";
     bounds?: number[][];
     boundsPolygon?: Feature<Polygon>;
-    centroid?: Centroid;
+    centroid?: CentroidBD;
     edgeNodes?: PointSet[];
     edges?: Edge[];
     importance: number;
-    indexedTins: any;
-    kinks?: Kinks;
+    indexedTins?: IndexedTinsBD;
+    kinks?: KinksBD;
     points: PointSet[];
-    pointsWeightBuffer?: WeightBuffer;
+    pointsWeightBuffer?: WeightBufferBD;
     priority: number;
     stateBackward: any;
     stateFull: boolean;
-    stateTriangle: any;
+    stateTriangle?: Feature<Polygon>;
     strictMode: StrictMode;
     strict_status?: StrictStatus;
-    tins?: Tins;
+    tins?: TinsBD;
     vertexMode?: VertexMode;
-    vertices_params?: VerticesParams;
+    vertices_params?: VerticesParamsBD;
     wh?: number[];
     xy?: number[];
     yaxisMode: YaxisMode;
@@ -99,12 +119,12 @@ declare class Tin {
     setEdges(edges?: Edge[]): void;
     setBounds(bounds: number[][]): void;
     setCompiled(compiled: Compiled): {
-        tins: Tins | undefined;
+        tins: TinsBD | undefined;
         strict_status: "strict" | "loose" | "strict_error" | undefined;
-        weight_buffer: WeightBuffer;
-        vertices_params: VerticesParams;
-        centroid: Centroid | undefined;
-        kinks: Kinks | undefined;
+        weight_buffer: WeightBufferBD;
+        vertices_params: VerticesParamsBD;
+        centroid: CentroidBD | undefined;
+        kinks: KinksBD | undefined;
     };
     getCompiled(): Compiled;
     addIndexedTin(): void;
@@ -118,7 +138,7 @@ declare class Tin {
         edges: number[][];
     };
     updateTinAsync(): Promise<unknown>;
-    transform(apoint: number[], backward?: boolean, ignoreBounds?: boolean): false | any[];
+    transform(apoint: number[], backward?: boolean, ignoreBounds?: boolean): false | Position;
     calculatePointsWeightAsync(): Promise<void>;
 }
 export default Tin;

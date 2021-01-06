@@ -33,12 +33,27 @@ type StrictMode = "strict" | "auto" | "loose";
 type StrictStatus = "strict" | "strict_error" | "loose";
 type YaxisMode = "follow" | "invert";
 type PointSet = [Position, Position];
-type Centroid = { forw: Feature<Point>, bakw: Feature<Point> };
+type Centroid = Feature<Point>;
+type CentroidBD = { forw: Centroid, bakw: Centroid };
 type Edge = { illstNodes: Position[], mercNodes: Position[], startEnd: number[] };
-type Tins = { forw: FeatureCollection<Polygon>, bakw?: FeatureCollection<Polygon> };
+type Tins = FeatureCollection<Polygon>;
+type TinsBD = { forw: Tins, bakw?: Tins };
 type WeightBuffer = { [index: string]: number };
-type Kinks = { forw?: FeatureCollection<Point>, bakw?: FeatureCollection<Point> };
-type VerticesParams = { forw: [number[], FeatureCollection<Polygon>[]?], bakw: [number[], FeatureCollection<Polygon>[]?] };
+type WeightBufferBD = { forw: WeightBuffer, bakw: WeightBuffer };
+type Kinks = FeatureCollection<Point>;
+type KinksBD = { forw?: Kinks, bakw?: Kinks };
+type VerticesParams = [number[], FeatureCollection<Polygon>[]?];
+type VerticesParamsBD = { forw: VerticesParams, bakw: VerticesParams };
+
+interface IndexedTins {
+  gridNum: any;
+  xOrigin: any;
+  yOrigin: any;
+  xUnit: any;
+  yUnit: any;
+  gridCache: any;
+}
+type IndexedTinsBD = { forw: IndexedTins, bakw: IndexedTins };
 
 export interface Options {
   bounds: Position[];
@@ -55,19 +70,19 @@ export interface Options {
 
 export interface Compiled {
   // For old Interface
-  tins?: Tins,
-  centroid? : Centroid,
-  kinks? : Kinks,
+  tins?: TinsBD,
+  centroid? : CentroidBD,
+  kinks? : KinksBD,
   // Current Interface
   points: PointSet[],
   tins_points: number[][],
-  weight_buffer: WeightBuffer,
+  weight_buffer: WeightBufferBD,
   strict_status?: StrictStatus,
   centroid_point: Position[],
   edgeNodes?: PointSet[],
   kinks_points?: Position[],
   yaxisMode?: YaxisMode,
-  vertices_params: number[][] | VerticesParams,
+  vertices_params: number[][] | VerticesParamsBD,
   vertices_points: PointSet[],
   edges: Edge[],
   bounds?: number[][],
@@ -89,23 +104,23 @@ class Tin {
   static YAXIS_INVERT = "invert" as const;
   bounds?: number[][];
   boundsPolygon?: Feature<Polygon>;
-  centroid?: Centroid;
+  centroid?: CentroidBD;
   edgeNodes?: PointSet[];
   edges?: Edge[];
   importance: number;
-  indexedTins: any;
-  kinks?: Kinks;
+  indexedTins?: IndexedTinsBD;
+  kinks?: KinksBD;
   points: PointSet[] = [];
-  pointsWeightBuffer?: WeightBuffer;
+  pointsWeightBuffer?: WeightBufferBD;
   priority: number;
   stateBackward: any;
   stateFull: boolean;
-  stateTriangle: any;
+  stateTriangle?: Feature<Polygon>;
   strictMode: StrictMode;
   strict_status?: StrictStatus;
-  tins?: Tins;
+  tins?: TinsBD;
   vertexMode?: VertexMode;
-  vertices_params?: VerticesParams;
+  vertices_params?: VerticesParamsBD;
   wh?: number[];
   xy?: number[];
   yaxisMode: YaxisMode;
@@ -293,7 +308,7 @@ class Tin {
       this.addIndexedTin();
       this.strict_status = compiled.strict_status;
       this.pointsWeightBuffer = compiled.weight_buffer;
-      this.vertices_params = compiled.vertices_params as VerticesParams;
+      this.vertices_params = compiled.vertices_params as VerticesParamsBD;
       this.centroid = compiled.centroid;
       this.kinks = compiled.kinks;
       const points: any = [];
@@ -662,7 +677,7 @@ class Tin {
         return Promise.all(
             ["forw", "bakw"].map((direc) =>
             new Promise(resolve => {
-              const coords = this.tins![direc as keyof Tins]!.features.map(
+              const coords = this.tins![direc as keyof TinsBD]!.features.map(
                 (poly: any) => poly.geometry.coordinates[0]
               );
               const xy = findIntersections(coords);
@@ -1222,8 +1237,8 @@ class Tin {
     }
     const tins = backward ? this.tins!.bakw : this.tins!.forw;
     const indexedTins = backward
-      ? this.indexedTins.bakw
-      : this.indexedTins.forw;
+      ? this.indexedTins!.bakw
+      : this.indexedTins!.forw;
     const verticesParams = backward
       ? this.vertices_params!.bakw
       : this.vertices_params!.forw;
@@ -1240,13 +1255,13 @@ class Tin {
         this.stateBackward = backward;
         this.stateTriangle = undefined;
       }
-      stateSetFunc = (tri: any) => {
+      stateSetFunc = (tri: Feature<Polygon>) => {
         this.stateTriangle = tri;
       };
     }
     let ret = transformArr(
       tpoint,
-      tins,
+      tins!,
       indexedTins,
       verticesParams,
       centroid,
@@ -1263,14 +1278,14 @@ class Tin {
     return ret;
   }
   calculatePointsWeightAsync() {
-    const calcTargets = ["forw"];
+    const calcTargets: [keyof WeightBufferBD | keyof TinsBD] = ["forw"];
     if (this.strict_status == Tin.STATUS_LOOSE) calcTargets.push("bakw");
     const weightBuffer: any = {};
     return Promise.all(
       calcTargets.map(target => {
         weightBuffer[target] = {};
         const alreadyChecked: any = {};
-        const tin = this.tins![target as keyof Tins];
+        const tin = this.tins![target];
         return Promise.all(
           tin!.features.map((tri: any) => {
             const vtxes = ["a", "b", "c"];
@@ -1314,7 +1329,7 @@ class Tin {
       })
     )
       .then(() => {
-        const pointsWeightBuffer: Record<string, any> = {};
+        const pointsWeightBuffer: WeightBufferBD = { forw: {}, bakw: {}};
         calcTargets.map(target => {
           pointsWeightBuffer[target] = {};
           if (this.strict_status == Tin.STATUS_STRICT)
@@ -1591,18 +1606,18 @@ function unitCalc(coord: any, origin: any, unit: any, gridNum: any) {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function transform(
-  point: any,
-  tins: any,
-  indexedTins: any = undefined,
+  apoint: Feature<Point>,
+  tins: FeatureCollection<Polygon>,
+  indexedTins?: IndexedTins,
   verticesParams: any = undefined,
   centroid: any = undefined,
-  weightBuffer: any = undefined,
-  stateTriangle: any = undefined,
-  stateSetFunc: any = undefined
-) {
+  weightBuffer?: WeightBuffer,
+  stateTriangle?: Feature<Polygon>,
+  stateSetFunc?: (tri:Feature<Polygon>) => void
+): Feature<Point> {
   return point(
     transformArr(
-      point,
+      apoint,
       tins,
       indexedTins,
       verticesParams,
@@ -1614,22 +1629,22 @@ function transform(
   );
 }
 function transformArr(
-  point: any,
-  tins: any,
-  indexedTins: any = undefined,
+  point: Feature<Point>,
+  tins: FeatureCollection<Polygon>,
+  indexedTins?: IndexedTins,
   verticesParams: any = undefined,
   centroid: any = undefined,
-  weightBuffer: any = undefined,
-  stateTriangle: any = undefined,
-  stateSetFunc: any = undefined
-) {
+  weightBuffer?: WeightBuffer,
+  stateTriangle?: Feature<Polygon>,
+  stateSetFunc?: (tri:Feature<Polygon>) => void
+): Position {
   let tin;
   if (stateTriangle) {
     tin = hit(point, { features: [stateTriangle] });
   }
   if (!tin) {
     if (indexedTins) {
-      const coords = point.geometry.coordinates;
+      const coords = point.geometry!.coordinates;
       const gridNum = indexedTins.gridNum;
       const xOrigin = indexedTins.xOrigin;
       const yOrigin = indexedTins.yOrigin;
@@ -1643,7 +1658,7 @@ function transformArr(
           ? gridCache[normX][normY]
           : []
         : [];
-      tins = { features: tinsKey.map((key: any) => tins.features[key]) };
+      tins = featureCollection(tinsKey.map((key: any) => tins.features[key]));
     }
     tin = hit(point, tins);
   }
