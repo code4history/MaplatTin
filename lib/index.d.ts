@@ -37,12 +37,12 @@ declare type VerticesParamsBD = {
     bakw: VerticesParams;
 };
 interface IndexedTins {
-    gridNum: any;
-    xOrigin: any;
-    yOrigin: any;
-    xUnit: any;
-    yUnit: any;
-    gridCache: any;
+    gridNum: number;
+    xOrigin: number;
+    yOrigin: number;
+    xUnit: number;
+    yUnit: number;
+    gridCache: number[][][];
 }
 declare type IndexedTinsBD = {
     forw: IndexedTins;
@@ -61,9 +61,6 @@ export interface Options {
     edges: Edge[];
 }
 export interface Compiled {
-    tins?: TinsBD;
-    centroid?: CentroidBD;
-    kinks?: KinksBD;
     points: PointSet[];
     tins_points: number[][];
     weight_buffer: WeightBufferBD;
@@ -72,13 +69,19 @@ export interface Compiled {
     edgeNodes?: PointSet[];
     kinks_points?: Position[];
     yaxisMode?: YaxisMode;
-    vertices_params: number[][] | VerticesParamsBD;
+    vertices_params: number[][];
     vertices_points: PointSet[];
     edges: Edge[];
     bounds?: number[][];
     boundsPolygon?: Feature<Polygon>;
     wh?: number[];
     xy?: number[];
+}
+interface LegacyCompiled extends Compiled {
+    tins?: TinsBD;
+    centroid?: CentroidBD;
+    kinks?: KinksBD;
+    vertices_params: number[][] & VerticesParamsBD;
 }
 declare class Tin {
     static VERTEX_PLAIN: "plain";
@@ -118,7 +121,7 @@ declare class Tin {
     setPoints(points: PointSet[]): void;
     setEdges(edges?: Edge[]): void;
     setBounds(bounds: number[][]): void;
-    setCompiled(compiled: Compiled): {
+    setCompiled(compiled: LegacyCompiled): {
         tins: TinsBD | undefined;
         strict_status: "strict" | "loose" | "strict_error" | undefined;
         weight_buffer: WeightBufferBD;

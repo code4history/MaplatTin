@@ -46,12 +46,12 @@ type VerticesParams = [number[], FeatureCollection<Polygon>[]?];
 type VerticesParamsBD = { forw: VerticesParams, bakw: VerticesParams };
 
 interface IndexedTins {
-  gridNum: any;
-  xOrigin: any;
-  yOrigin: any;
-  xUnit: any;
-  yUnit: any;
-  gridCache: any;
+  gridNum: number;
+  xOrigin: number;
+  yOrigin: number;
+  xUnit: number;
+  yUnit: number;
+  gridCache: number[][][];
 }
 type IndexedTinsBD = { forw: IndexedTins, bakw: IndexedTins };
 
@@ -69,11 +69,6 @@ export interface Options {
 }
 
 export interface Compiled {
-  // For old Interface
-  tins?: TinsBD,
-  centroid? : CentroidBD,
-  kinks? : KinksBD,
-  // Current Interface
   points: PointSet[],
   tins_points: number[][],
   weight_buffer: WeightBufferBD,
@@ -82,13 +77,21 @@ export interface Compiled {
   edgeNodes?: PointSet[],
   kinks_points?: Position[],
   yaxisMode?: YaxisMode,
-  vertices_params: number[][] | VerticesParamsBD,
+  vertices_params: number[][],
   vertices_points: PointSet[],
   edges: Edge[],
   bounds?: number[][],
   boundsPolygon?: Feature<Polygon>,
   wh?: number[],
   xy?: number[]
+}
+
+// For old Interface
+interface LegacyCompiled extends Compiled{
+  tins?: TinsBD,
+  centroid? : CentroidBD,
+  kinks? : KinksBD,
+  vertices_params: number[][] & VerticesParamsBD
 }
 
 class Tin {
@@ -184,7 +187,7 @@ class Tin {
     this.tins = undefined;
     this.indexedTins = undefined;
   }
-  setCompiled(compiled: Compiled) {
+  setCompiled(compiled: LegacyCompiled) {
     if (!compiled.tins && compiled.points && compiled.tins_points) {
       // 新コンパイルロジック
       // pointsはそのままpoints, weightBufferも
@@ -414,12 +417,12 @@ class Tin {
       this.indexedTins = undefined;
       return;
     }
-    let forwBound: any = null;
-    let bakwBound: any = null;
-    const forwEachBound = forw.features.map((tri: any) => {
-      let eachBound: any = null;
-      getCoords(tri)[0].map((point: any) => {
-        if (forwBound == null)
+    let forwBound: Position[] = [];
+    let bakwBound: Position[] = [];
+    const forwEachBound = forw.features.map((tri: Feature<Polygon>) => {
+      let eachBound: Position[] = [];
+      getCoords(tri)[0].map((point: Position) => {
+        if (forwBound.length === 0)
           forwBound = [Array.from(point), Array.from(point)];
         else {
           if (point[0] < forwBound[0][0]) forwBound[0][0] = point[0];
@@ -427,7 +430,7 @@ class Tin {
           if (point[1] < forwBound[0][1]) forwBound[0][1] = point[1];
           if (point[1] > forwBound[1][1]) forwBound[1][1] = point[1];
         }
-        if (eachBound == null)
+        if (eachBound.length === 0)
           eachBound = [Array.from(point), Array.from(point)];
         else {
           if (point[0] < eachBound[0][0]) eachBound[0][0] = point[0];
@@ -441,7 +444,7 @@ class Tin {
     const forwXUnit = (forwBound[1][0] - forwBound[0][0]) / gridNum;
     const forwYUnit = (forwBound[1][1] - forwBound[0][1]) / gridNum;
     const forwGridCache = forwEachBound.reduce(
-      (prev: any, bound: any, index: any) => {
+      (prev: number[][][], bound: Position[], index: number) => {
         const normXMin = unitCalc(
           bound[0][0],
           forwBound[0][0],
@@ -477,10 +480,10 @@ class Tin {
       },
       []
     );
-    const bakwEachBound = bakw!.features.map((tri: any) => {
-      let eachBound: any = null;
-      getCoords(tri)[0].map((point: any) => {
-        if (bakwBound == null)
+    const bakwEachBound = bakw!.features.map((tri: Feature<Polygon>) => {
+      let eachBound: Position[] = [];
+      getCoords(tri)[0].map((point: Position) => {
+        if (bakwBound.length === 0)
           bakwBound = [Array.from(point), Array.from(point)];
         else {
           if (point[0] < bakwBound[0][0]) bakwBound[0][0] = point[0];
@@ -488,7 +491,7 @@ class Tin {
           if (point[1] < bakwBound[0][1]) bakwBound[0][1] = point[1];
           if (point[1] > bakwBound[1][1]) bakwBound[1][1] = point[1];
         }
-        if (eachBound == null)
+        if (eachBound.length === 0)
           eachBound = [Array.from(point), Array.from(point)];
         else {
           if (point[0] < eachBound[0][0]) eachBound[0][0] = point[0];
