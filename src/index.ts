@@ -37,14 +37,18 @@ type PointSet = [Position, Position];
 type Centroid = Feature<Point>;
 type CentroidBD = { [key in BiDirectionKey]?: Centroid };
 type Edge = { illstNodes: Position[], mercNodes: Position[], startEnd: number[] };
-type Tins = FeatureCollection<Polygon>;
-type TinsBD = { [key in BiDirectionKey]?: Tins };
 type WeightBuffer = { [index: string]: number };
 type WeightBufferBD = { [key in BiDirectionKey]?: WeightBuffer };
 type Kinks = FeatureCollection<Point>;
 type KinksBD = { [key in BiDirectionKey]?: Kinks };
 type VerticesParams = [number[], FeatureCollection<Polygon>[]?];
 type VerticesParamsBD = { [key in BiDirectionKey]?: VerticesParams };
+type PropertyTri = { geom: Position, index: number | string };
+type PropertyTriKey = "a" | "b" | "c";
+type PropertiesTri = { [key in PropertyTriKey]: PropertyTri };
+type Tri = Feature<Polygon, PropertiesTri>;
+type Tins = FeatureCollection<Polygon, PropertiesTri>;
+type TinsBD = { [key in BiDirectionKey]?: Tins };
 
 interface IndexedTins {
   gridNum: number;
@@ -119,7 +123,7 @@ class Tin {
   priority: number;
   stateBackward?: boolean;
   stateFull: boolean;
-  stateTriangle?: Feature<Polygon>;
+  stateTriangle?: Tri;
   strictMode: StrictMode;
   strict_status?: StrictStatus;
   tins?: TinsBD;
@@ -318,7 +322,7 @@ class Tin {
       const points: any = [];
       for (let i = 0; i < this.tins!.forw!.features.length; i++) {
         const tri = this.tins!.forw!.features[i];
-        ["a", "b", "c"].map((key, idx) => {
+        (["a", "b", "c"] as PropertyTriKey[]).map((key, idx) => {
           const forw = tri.geometry!.coordinates[0][idx];
           const bakw = tri.properties![key].geom;
           const pIdx = tri.properties![key].index;
@@ -420,7 +424,7 @@ class Tin {
     }
     let forwBound: Position[] = [];
     let bakwBound: Position[] = [];
-    const forwEachBound = forw!.features.map((tri: Feature<Polygon>) => {
+    const forwEachBound = forw!.features.map((tri: Tri) => {
       let eachBound: Position[] = [];
       getCoords(tri)[0].map((point: Position) => {
         if (forwBound.length === 0)
@@ -481,7 +485,7 @@ class Tin {
       },
       []
     );
-    const bakwEachBound = bakw!.features.map((tri: Feature<Polygon>) => {
+    const bakwEachBound = bakw!.features.map((tri: Tri) => {
       let eachBound: Position[] = [];
       getCoords(tri)[0].map((point: Position) => {
         if (bakwBound.length === 0)
@@ -1259,7 +1263,7 @@ class Tin {
         this.stateBackward = backward;
         this.stateTriangle = undefined;
       }
-      stateSetFunc = (tri?: Feature<Polygon>) => {
+      stateSetFunc = (tri?: Tri) => {
         this.stateTriangle = tri;
       };
     }
@@ -1291,8 +1295,8 @@ class Tin {
         const alreadyChecked: any = {};
         const tin = this.tins![target];
         return Promise.all(
-          tin!.features.map((tri: Feature<Polygon>) => {
-            const vtxes = ["a", "b", "c"];
+          tin!.features.map((tri: Tri) => {
+            const vtxes = ["a", "b", "c"] as PropertyTriKey[];
             return new Promise(resolve => {
               for (let i = 0; i < 3; i++) {
                 const j = (i + 1) % 3;
@@ -1368,7 +1372,7 @@ class Tin {
       });
   }
 }
-function rotateVerticesTriangle(tins: FeatureCollection<Polygon>) {
+function rotateVerticesTriangle(tins: Tins) {
   const features = tins.features;
   for (let i = 0; i < features.length; i++) {
     const feature = features[i];
@@ -1594,7 +1598,7 @@ function useVerticesArr(
   const tin = verticesParams[1]![index as any];
   return transformTinArr(o, tin.features[0], weightBuffer);
 }
-function hit(point: Feature<Point>, tins: FeatureCollection<Polygon>): Feature<Polygon> | undefined {
+function hit(point: Feature<Point>, tins: Tins): Tri | undefined {
   for (let i = 0; i < tins.features.length; i++) {
     const inside = booleanPointInPolygon(point, tins.features[i]);
     if (inside) {
@@ -1611,13 +1615,13 @@ function unitCalc(coord: any, origin: any, unit: any, gridNum: any) {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function transform(
   apoint: Feature<Point>,
-  tins: FeatureCollection<Polygon>,
+  tins: Tins,
   indexedTins?: IndexedTins,
   verticesParams?: VerticesParams,
   centroid?: Centroid,
   weightBuffer?: WeightBuffer,
-  stateTriangle?: Feature<Polygon>,
-  stateSetFunc?: (tri?: Feature<Polygon>) => void
+  stateTriangle?: Tri,
+  stateSetFunc?: (tri?: Tri) => void
 ): Feature<Point> {
   return point(
     transformArr(
@@ -1634,15 +1638,15 @@ function transform(
 }
 function transformArr(
   point: Feature<Point>,
-  tins: FeatureCollection<Polygon>,
+  tins: Tins,
   indexedTins?: IndexedTins,
   verticesParams?: VerticesParams,
   centroid?: Centroid,
   weightBuffer?: WeightBuffer,
-  stateTriangle?: Feature<Polygon>,
-  stateSetFunc?: (tri?: Feature<Polygon>) => void
+  stateTriangle?: Tri,
+  stateSetFunc?: (tri?: Tri) => void
 ): Position {
-  let tin: Feature<Polygon> | undefined;
+  let tin: Tri | undefined;
   if (stateTriangle) {
     tin = hit(point, featureCollection([stateTriangle]));
   }
@@ -1682,7 +1686,7 @@ function counterTri(tri: any) {
   };
   return polygon([coordinates], properties);
 }
-function buildTri(points: any) {
+function buildTri(points: [Position[], (string | number)][]): Tri {
   const coordinates = [0, 1, 2, 0].map(i => points[i][0][0]);
   const properties = {
     a: { geom: points[0][0][1], index: points[0][1] },
@@ -1692,37 +1696,37 @@ function buildTri(points: any) {
   return polygon([coordinates], properties);
 }
 function indexesToTri(
-  indexes: any,
-  points: any,
-  edgeNodes: any,
-  cent: any,
-  bboxes: any,
-  bakw: any
-) {
-  const points_ = indexes.map((index: any) => {
-    const point_base = isFinite(index)
-      ? points[index]
-      : index == "cent"
+  indexes: (number | string)[],
+  points: Position[][],
+  edgeNodes: Position[][],
+  cent: Position[],
+  bboxes: Position[][],
+  bakw = false
+): Tri {
+  const points_: [Position[], (string | number)][] = indexes.map((index: number | string) => {
+    const point_base = isFinite(index as any)
+      ? points[index as number]
+      : index === "cent"
       ? cent
-      : index == "bbox0"
+      : index === "bbox0"
       ? bboxes[0]
-      : index == "bbox1"
+      : index === "bbox1"
       ? bboxes[1]
-      : index == "bbox2"
+      : index === "bbox2"
       ? bboxes[2]
-      : index == "bbox3"
+      : index === "bbox3"
       ? bboxes[3]
       : (function () {
-          const match = index.match(/edgeNode(\d+)/);
+          const match = (index as string).match(/edgeNode(\d+)/);
           if (match) {
             const nodeIndex = parseInt(match[1]);
             return edgeNodes[nodeIndex];
           }
-          return undefined;
+          throw "Bad index value for indexesToTri";
         })();
     return bakw
-      ? [[point_base[1], point_base[0]], index]
-      : [[point_base[0], point_base[1]], index];
+      ? [[point_base![1], point_base![0]], index]
+      : [[point_base![0], point_base![1]], index];
   });
   return buildTri(points_);
 }

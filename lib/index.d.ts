@@ -14,10 +14,6 @@ declare type Edge = {
     mercNodes: Position[];
     startEnd: number[];
 };
-declare type Tins = FeatureCollection<Polygon>;
-declare type TinsBD = {
-    [key in BiDirectionKey]?: Tins;
-};
 declare type WeightBuffer = {
     [index: string]: number;
 };
@@ -31,6 +27,19 @@ declare type KinksBD = {
 declare type VerticesParams = [number[], FeatureCollection<Polygon>[]?];
 declare type VerticesParamsBD = {
     [key in BiDirectionKey]?: VerticesParams;
+};
+declare type PropertyTri = {
+    geom: Position;
+    index: number | string;
+};
+declare type PropertyTriKey = "a" | "b" | "c";
+declare type PropertiesTri = {
+    [key in PropertyTriKey]: PropertyTri;
+};
+declare type Tri = Feature<Polygon, PropertiesTri>;
+declare type Tins = FeatureCollection<Polygon, PropertiesTri>;
+declare type TinsBD = {
+    [key in BiDirectionKey]?: Tins;
 };
 interface IndexedTins {
     gridNum: number;
@@ -102,7 +111,7 @@ declare class Tin {
     priority: number;
     stateBackward?: boolean;
     stateFull: boolean;
-    stateTriangle?: Feature<Polygon>;
+    stateTriangle?: Tri;
     strictMode: StrictMode;
     strict_status?: StrictStatus;
     tins?: TinsBD;
