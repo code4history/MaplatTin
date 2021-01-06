@@ -32,18 +32,19 @@ type VertexMode = "plain" | "birdeye";
 type StrictMode = "strict" | "auto" | "loose";
 type StrictStatus = "strict" | "strict_error" | "loose";
 type YaxisMode = "follow" | "invert";
+type BiDirectionKey = "forw" | "bakw";
 type PointSet = [Position, Position];
 type Centroid = Feature<Point>;
-type CentroidBD = { forw: Centroid, bakw: Centroid };
+type CentroidBD = { [key in BiDirectionKey]?: Centroid };
 type Edge = { illstNodes: Position[], mercNodes: Position[], startEnd: number[] };
 type Tins = FeatureCollection<Polygon>;
-type TinsBD = { forw: Tins, bakw?: Tins };
+type TinsBD = { [key in BiDirectionKey]?: Tins };
 type WeightBuffer = { [index: string]: number };
-type WeightBufferBD = { forw: WeightBuffer, bakw: WeightBuffer };
+type WeightBufferBD = { [key in BiDirectionKey]?: WeightBuffer };
 type Kinks = FeatureCollection<Point>;
-type KinksBD = { forw?: Kinks, bakw?: Kinks };
+type KinksBD = { [key in BiDirectionKey]?: Kinks };
 type VerticesParams = [number[], FeatureCollection<Polygon>[]?];
-type VerticesParamsBD = { forw: VerticesParams, bakw: VerticesParams };
+type VerticesParamsBD = { [key in BiDirectionKey]?: VerticesParams };
 
 interface IndexedTins {
   gridNum: number;
@@ -53,7 +54,7 @@ interface IndexedTins {
   yUnit: number;
   gridCache: number[][][];
 }
-type IndexedTinsBD = { forw: IndexedTins, bakw: IndexedTins };
+type IndexedTinsBD = { [key in BiDirectionKey]?: IndexedTins };
 
 export interface Options {
   bounds: Position[];
@@ -116,7 +117,7 @@ class Tin {
   points: PointSet[] = [];
   pointsWeightBuffer?: WeightBufferBD;
   priority: number;
-  stateBackward: any;
+  stateBackward?: boolean;
   stateFull: boolean;
   stateTriangle?: Feature<Polygon>;
   strictMode: StrictMode;
@@ -208,7 +209,7 @@ class Tin {
         forw: [(compiled.vertices_params as number[][])[0]],
         bakw: [(compiled.vertices_params as number[][])[1]]
       };
-      this.vertices_params.forw[1] = [0, 1, 2, 3].map(idx => {
+      this.vertices_params.forw![1] = [0, 1, 2, 3].map(idx => {
         const idxNxt = (idx + 1) % 4;
         const tri = indexesToTri(
           ["cent", `bbox${idx}`, `bbox${idxNxt}`],
@@ -220,7 +221,7 @@ class Tin {
         );
         return featureCollection([tri]);
       });
-      this.vertices_params.bakw[1] = [0, 1, 2, 3].map(idx => {
+      this.vertices_params.bakw![1] = [0, 1, 2, 3].map(idx => {
         const idxNxt = (idx + 1) % 4;
         const tri = indexesToTri(
           ["cent", `bbox${idx}`, `bbox${idxNxt}`],
@@ -315,8 +316,8 @@ class Tin {
       this.centroid = compiled.centroid;
       this.kinks = compiled.kinks;
       const points: any = [];
-      for (let i = 0; i < this.tins!.forw.features.length; i++) {
-        const tri = this.tins!.forw.features[i];
+      for (let i = 0; i < this.tins!.forw!.features.length; i++) {
+        const tri = this.tins!.forw!.features[i];
         ["a", "b", "c"].map((key, idx) => {
           const forw = tri.geometry!.coordinates[0][idx];
           const bakw = tri.properties![key].geom;
@@ -351,17 +352,17 @@ class Tin {
     compiled.weight_buffer = this.pointsWeightBuffer;
     // centroidは座標の対応のみ保存
     compiled.centroid_point = [
-      this.centroid!.forw.geometry!.coordinates,
-      this.centroid!.forw.properties!.target.geom
+      this.centroid!.forw!.geometry!.coordinates,
+      this.centroid!.forw!.properties!.target.geom
     ];
     // vertices_paramsの最初の値はそのまま保存
     (compiled as any).vertices_params = [
-      this.vertices_params!.forw[0],
-      this.vertices_params!.bakw[0]
+      this.vertices_params!.forw![0],
+      this.vertices_params!.bakw![0]
     ];
     // vertices_paramsの2番目の値（セントロイドと地図頂点の三角形ポリゴン）は、地図頂点座標のみ記録
     (compiled as any).vertices_points = [];
-    const vertices = this.vertices_params!.forw[1];
+    const vertices = this.vertices_params!.forw![1];
     [0, 1, 2, 3].map(i => {
       const vertex_data = vertices![i].features[0];
       const forw = vertex_data.geometry!.coordinates[0][1];
@@ -371,7 +372,7 @@ class Tin {
     (compiled as any).strict_status = this.strict_status;
     // tinは座標インデックスのみ記録
     (compiled as any).tins_points = [[]];
-    this.tins!.forw.features.map((tin: any) => {
+    this.tins!.forw!.features.map((tin: any) => {
       (compiled as any).tins_points[0].push(
         ["a", "b", "c"].map(idx => tin.properties[idx].index)
       );
@@ -412,14 +413,14 @@ class Tin {
     const tins = this.tins!;
     const forw = tins.forw;
     const bakw = tins.bakw;
-    const gridNum = Math.ceil(Math.sqrt(forw.features.length));
+    const gridNum = Math.ceil(Math.sqrt(forw!.features.length));
     if (gridNum < 3) {
       this.indexedTins = undefined;
       return;
     }
     let forwBound: Position[] = [];
     let bakwBound: Position[] = [];
-    const forwEachBound = forw.features.map((tri: Feature<Polygon>) => {
+    const forwEachBound = forw!.features.map((tri: Feature<Polygon>) => {
       let eachBound: Position[] = [];
       getCoords(tri)[0].map((point: Position) => {
         if (forwBound.length === 0)
@@ -581,7 +582,7 @@ class Tin {
   calcurateStrictTinAsync() {
     const edges = this.pointsSet.edges;
     return Promise.all(
-      this.tins!.forw.features.map((tri: any) =>
+      this.tins!.forw!.features.map((tri: any) =>
         Promise.resolve(counterTri(tri))
       )
     )
@@ -591,7 +592,7 @@ class Tin {
       .then(() => {
         const searchIndex = {};
         return Promise.all(
-          this.tins!.forw.features.map((forTri: any, index: any) => {
+          this.tins!.forw!.features.map((forTri: any, index: any) => {
             const bakTri = this.tins!.bakw!.features[index];
             return Promise.resolve(
               insertSearchIndex(searchIndex, { forw: forTri, bakw: bakTri })
@@ -678,9 +679,9 @@ class Tin {
             });
           });
         return Promise.all(
-            ["forw", "bakw"].map((direc) =>
+            (["forw", "bakw"] as BiDirectionKey[]).map((direc) =>
             new Promise(resolve => {
-              const coords = this.tins![direc as keyof TinsBD]!.features.map(
+              const coords = this.tins![direc]!.features.map(
                 (poly: any) => poly.geometry.coordinates[0]
               );
               const xy = findIntersections(coords);
@@ -1258,7 +1259,7 @@ class Tin {
         this.stateBackward = backward;
         this.stateTriangle = undefined;
       }
-      stateSetFunc = (tri: Feature<Polygon>) => {
+      stateSetFunc = (tri?: Feature<Polygon>) => {
         this.stateTriangle = tri;
       };
     }
@@ -1281,30 +1282,30 @@ class Tin {
     return ret;
   }
   calculatePointsWeightAsync() {
-    const calcTargets: [keyof WeightBufferBD | keyof TinsBD] = ["forw"];
+    const calcTargets: BiDirectionKey[] = ["forw"];
     if (this.strict_status == Tin.STATUS_LOOSE) calcTargets.push("bakw");
-    const weightBuffer: any = {};
+    const weightBuffer: any = {}; // Type of this is not WeightBufferBD
     return Promise.all(
       calcTargets.map(target => {
         weightBuffer[target] = {};
         const alreadyChecked: any = {};
         const tin = this.tins![target];
         return Promise.all(
-          tin!.features.map((tri: any) => {
+          tin!.features.map((tri: Feature<Polygon>) => {
             const vtxes = ["a", "b", "c"];
             return new Promise(resolve => {
               for (let i = 0; i < 3; i++) {
                 const j = (i + 1) % 3;
                 const vi = vtxes[i];
                 const vj = vtxes[j];
-                const indexi = tri.properties[vi].index;
-                const indexj = tri.properties[vj].index;
+                const indexi = tri.properties![vi].index;
+                const indexj = tri.properties![vj].index;
                 const key = [indexi, indexj].sort().join("-");
                 if (!alreadyChecked[key]) {
-                  const fromi = tri.geometry.coordinates[0][i];
-                  const fromj = tri.geometry.coordinates[0][j];
-                  const toi = tri.properties[vi].geom;
-                  const toj = tri.properties[vj].geom;
+                  const fromi = tri.geometry!.coordinates[0][i];
+                  const fromj = tri.geometry!.coordinates[0][j];
+                  const toi = tri.properties![vi].geom;
+                  const toj = tri.properties![vj].geom;
                   alreadyChecked[key] = 1;
                   const weight =
                     Math.sqrt(
@@ -1315,12 +1316,12 @@ class Tin {
                       Math.pow(fromi[0] - fromj[0], 2) +
                         Math.pow(fromi[1] - fromj[1], 2)
                     );
-                  if (!weightBuffer[target][indexi])
+                  if (!weightBuffer[target]![indexi])
                     weightBuffer[target][indexi] = {};
-                  if (!weightBuffer[target][indexj])
+                  if (!weightBuffer[target]![indexj])
                     weightBuffer[target][indexj] = {};
-                  weightBuffer[target][indexi][key] = weight;
-                  weightBuffer[target][indexj][key] = weight;
+                  weightBuffer[target]![indexi][key] = weight;
+                  weightBuffer[target]![indexj][key] = weight;
                 }
               }
               resolve(undefined);
@@ -1338,27 +1339,27 @@ class Tin {
           if (this.strict_status == Tin.STATUS_STRICT)
             pointsWeightBuffer["bakw"] = {};
           Object.keys(weightBuffer[target]).map(vtx => {
-            pointsWeightBuffer[target][vtx] = Object.keys(
+            pointsWeightBuffer[target]![vtx] = Object.keys(
               weightBuffer[target][vtx]
             ).reduce((prev, key, idx, arr) => {
               prev = prev + weightBuffer[target][vtx][key];
               return idx == arr.length - 1 ? prev / arr.length : prev;
             }, 0);
             if (this.strict_status == Tin.STATUS_STRICT)
-              pointsWeightBuffer["bakw"][vtx] =
-                1 / pointsWeightBuffer[target][vtx];
+              pointsWeightBuffer["bakw"]![vtx] =
+                1 / pointsWeightBuffer[target]![vtx];
           });
-          pointsWeightBuffer[target]["cent"] = [0, 1, 2, 3].reduce(
+          pointsWeightBuffer[target]!["cent"] = [0, 1, 2, 3].reduce(
             (prev, curr) => {
               const key = `bbox${curr}`;
-              prev = prev + pointsWeightBuffer[target][key];
+              prev = prev + pointsWeightBuffer[target]![key];
               return curr == 3 ? prev / 4 : prev;
             },
             0
           );
           if (this.strict_status == Tin.STATUS_STRICT)
-            pointsWeightBuffer["bakw"]["cent"] =
-              1 / pointsWeightBuffer[target]["cent"];
+            pointsWeightBuffer["bakw"]!["cent"] =
+              1 / pointsWeightBuffer[target]!["cent"];
         });
         this.pointsWeightBuffer = pointsWeightBuffer;
       })
@@ -1572,28 +1573,28 @@ function transformTinArr(of: any, tri: any, weightBuffer: any) {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function useVertices(
-  o: any,
-  verticesParams: any,
-  centroid: any,
-  weightBuffer: any
-) {
+  o: Feature<Point>,
+  verticesParams: VerticesParams,
+  centroid: Centroid,
+  weightBuffer: WeightBuffer
+): Feature<Point> {
   return point(useVerticesArr(o, verticesParams, centroid, weightBuffer));
 }
 
 function useVerticesArr(
-  o: any,
-  verticesParams: [any, any[]],
-  centroid: any,
-  weightBuffer: any
-) {
-  const coord = o.geometry.coordinates;
-  const centCoord = centroid.geometry.coordinates;
+  o: Feature<Point>,
+  verticesParams: VerticesParams,
+  centroid: Centroid,
+  weightBuffer: WeightBuffer
+): Position {
+  const coord = o.geometry!.coordinates;
+  const centCoord = centroid.geometry!.coordinates;
   const radian = Math.atan2(coord[0] - centCoord[0], coord[1] - centCoord[1]);
   const index = decideUseVertex(radian, verticesParams[0]);
-  const tin = verticesParams[1][index as any];
+  const tin = verticesParams[1]![index as any];
   return transformTinArr(o, tin.features[0], weightBuffer);
 }
-function hit(point: any, tins: any) {
+function hit(point: Feature<Point>, tins: FeatureCollection<Polygon>): Feature<Polygon> | undefined {
   for (let i = 0; i < tins.features.length; i++) {
     const inside = booleanPointInPolygon(point, tins.features[i]);
     if (inside) {
@@ -1612,11 +1613,11 @@ function transform(
   apoint: Feature<Point>,
   tins: FeatureCollection<Polygon>,
   indexedTins?: IndexedTins,
-  verticesParams: any = undefined,
-  centroid: any = undefined,
+  verticesParams?: VerticesParams,
+  centroid?: Centroid,
   weightBuffer?: WeightBuffer,
   stateTriangle?: Feature<Polygon>,
-  stateSetFunc?: (tri:Feature<Polygon>) => void
+  stateSetFunc?: (tri?: Feature<Polygon>) => void
 ): Feature<Point> {
   return point(
     transformArr(
@@ -1635,15 +1636,15 @@ function transformArr(
   point: Feature<Point>,
   tins: FeatureCollection<Polygon>,
   indexedTins?: IndexedTins,
-  verticesParams: any = undefined,
-  centroid: any = undefined,
+  verticesParams?: VerticesParams,
+  centroid?: Centroid,
   weightBuffer?: WeightBuffer,
   stateTriangle?: Feature<Polygon>,
-  stateSetFunc?: (tri:Feature<Polygon>) => void
+  stateSetFunc?: (tri?: Feature<Polygon>) => void
 ): Position {
-  let tin;
+  let tin: Feature<Polygon> | undefined;
   if (stateTriangle) {
-    tin = hit(point, { features: [stateTriangle] });
+    tin = hit(point, featureCollection([stateTriangle]));
   }
   if (!tin) {
     if (indexedTins) {
@@ -1668,7 +1669,7 @@ function transformArr(
   if (stateSetFunc) stateSetFunc(tin);
   return tin
     ? transformTinArr(point, tin, weightBuffer)
-    : useVerticesArr(point, verticesParams, centroid, weightBuffer);
+    : useVerticesArr(point, verticesParams!, centroid!, weightBuffer!);
 }
 function counterTri(tri: any) {
   const coordinates = ["a", "b", "c", "a"].map(key => tri.properties[key].geom);

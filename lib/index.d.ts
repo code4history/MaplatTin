@@ -3,11 +3,11 @@ declare type VertexMode = "plain" | "birdeye";
 declare type StrictMode = "strict" | "auto" | "loose";
 declare type StrictStatus = "strict" | "strict_error" | "loose";
 declare type YaxisMode = "follow" | "invert";
+declare type BiDirectionKey = "forw" | "bakw";
 declare type PointSet = [Position, Position];
 declare type Centroid = Feature<Point>;
 declare type CentroidBD = {
-    forw: Centroid;
-    bakw: Centroid;
+    [key in BiDirectionKey]?: Centroid;
 };
 declare type Edge = {
     illstNodes: Position[];
@@ -16,25 +16,21 @@ declare type Edge = {
 };
 declare type Tins = FeatureCollection<Polygon>;
 declare type TinsBD = {
-    forw: Tins;
-    bakw?: Tins;
+    [key in BiDirectionKey]?: Tins;
 };
 declare type WeightBuffer = {
     [index: string]: number;
 };
 declare type WeightBufferBD = {
-    forw: WeightBuffer;
-    bakw: WeightBuffer;
+    [key in BiDirectionKey]?: WeightBuffer;
 };
 declare type Kinks = FeatureCollection<Point>;
 declare type KinksBD = {
-    forw?: Kinks;
-    bakw?: Kinks;
+    [key in BiDirectionKey]?: Kinks;
 };
 declare type VerticesParams = [number[], FeatureCollection<Polygon>[]?];
 declare type VerticesParamsBD = {
-    forw: VerticesParams;
-    bakw: VerticesParams;
+    [key in BiDirectionKey]?: VerticesParams;
 };
 interface IndexedTins {
     gridNum: number;
@@ -45,8 +41,7 @@ interface IndexedTins {
     gridCache: number[][][];
 }
 declare type IndexedTinsBD = {
-    forw: IndexedTins;
-    bakw: IndexedTins;
+    [key in BiDirectionKey]?: IndexedTins;
 };
 export interface Options {
     bounds: Position[];
@@ -105,7 +100,7 @@ declare class Tin {
     points: PointSet[];
     pointsWeightBuffer?: WeightBufferBD;
     priority: number;
-    stateBackward: any;
+    stateBackward?: boolean;
     stateFull: boolean;
     stateTriangle?: Feature<Polygon>;
     strictMode: StrictMode;
