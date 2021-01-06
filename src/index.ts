@@ -36,21 +36,25 @@ type BiDirectionKey = "forw" | "bakw";
 type PointSet = [Position, Position];
 type Centroid = Feature<Point>;
 type CentroidBD = { [key in BiDirectionKey]?: Centroid };
-type Edge = { illstNodes: Position[], mercNodes: Position[], startEnd: number[] };
+type Edge = {
+  illstNodes: Position[];
+  mercNodes: Position[];
+  startEnd: number[];
+};
 type WeightBuffer = { [index: string]: number };
 type WeightBufferBD = { [key in BiDirectionKey]?: WeightBuffer };
 type Kinks = FeatureCollection<Point>;
 type KinksBD = { [key in BiDirectionKey]?: Kinks };
 type VerticesParams = [number[], FeatureCollection<Polygon>[]?];
 type VerticesParamsBD = { [key in BiDirectionKey]?: VerticesParams };
-type PropertyTri = { geom: Position, index: number | string };
+type PropertyTri = { geom: Position; index: number | string };
 type PropertyTriKey = "a" | "b" | "c";
 type PropertiesTri = { [key in PropertyTriKey]: PropertyTri };
 type Tri = Feature<Polygon, PropertiesTri>;
 type Tins = FeatureCollection<Polygon, PropertiesTri>;
 type TinsBD = { [key in BiDirectionKey]?: Tins };
 type SearchTris = { [key in BiDirectionKey]: Tri };
-type SearchIndex = {[key: string]: SearchTris[]};
+type SearchIndex = { [key: string]: SearchTris[] };
 
 interface IndexedTins {
   gridNum: number;
@@ -76,29 +80,29 @@ export interface Options {
 }
 
 export interface Compiled {
-  points: PointSet[],
-  tins_points: (number | string)[][][],
-  weight_buffer: WeightBufferBD,
-  strict_status?: StrictStatus,
-  centroid_point: Position[],
-  edgeNodes?: PointSet[],
-  kinks_points?: Position[],
-  yaxisMode?: YaxisMode,
-  vertices_params: number[][],
-  vertices_points: PointSet[],
-  edges: Edge[],
-  bounds?: number[][],
-  boundsPolygon?: Feature<Polygon>,
-  wh?: number[],
-  xy?: number[]
+  points: PointSet[];
+  tins_points: (number | string)[][][];
+  weight_buffer: WeightBufferBD;
+  strict_status?: StrictStatus;
+  centroid_point: Position[];
+  edgeNodes?: PointSet[];
+  kinks_points?: Position[];
+  yaxisMode?: YaxisMode;
+  vertices_params: number[][];
+  vertices_points: PointSet[];
+  edges: Edge[];
+  bounds?: number[][];
+  boundsPolygon?: Feature<Polygon>;
+  wh?: number[];
+  xy?: number[];
 }
 
 // For old Interface
-interface LegacyCompiled extends Compiled{
-  tins?: TinsBD,
-  centroid? : CentroidBD,
-  kinks? : KinksBD,
-  vertices_params: number[][] & VerticesParamsBD
+interface LegacyCompiled extends Compiled {
+  tins?: TinsBD;
+  centroid?: CentroidBD;
+  kinks?: KinksBD;
+  vertices_params: number[][] & VerticesParamsBD;
 }
 
 class Tin {
@@ -157,9 +161,7 @@ class Tin {
   }
   setPoints(points: PointSet[]) {
     if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
-      points = points.map(
-        point => [point[0], [point[1][0], -1 * point[1][1]]]
-      );
+      points = points.map(point => [point[0], [point[1][0], -1 * point[1][1]]]);
     }
     this.points = points;
     this.tins = undefined;
@@ -343,7 +345,7 @@ class Tin {
       kinks: this.kinks
     };
   }
-  getCompiled() : Compiled {
+  getCompiled(): Compiled {
     const compiled: Partial<Compiled> = {};
     /* old logic
             compiled.tins = this.tins;
@@ -380,7 +382,9 @@ class Tin {
     compiled.tins_points = [[]];
     this.tins!.forw!.features.map((tin: Tri) => {
       compiled.tins_points![0].push(
-          (["a", "b", "c"] as PropertyTriKey[]) .map(idx => tin.properties![idx]!.index)
+        (["a", "b", "c"] as PropertyTriKey[]).map(
+          idx => tin.properties![idx]!.index
+        )
       );
     });
     // 自動モードでエラーがある時（loose）は、逆方向のtinも記録。
@@ -389,7 +393,9 @@ class Tin {
       compiled.tins_points[1] = [];
       this.tins!.bakw!.features.map((tin: Tri) => {
         compiled.tins_points![1].push(
-            (["a", "b", "c"] as PropertyTriKey[]) .map(idx => tin.properties![idx]!.index)
+          (["a", "b", "c"] as PropertyTriKey[]).map(
+            idx => tin.properties![idx]!.index
+          )
         );
       });
     } else if (this.strict_status == Tin.STATUS_ERROR) {
@@ -605,7 +611,12 @@ class Tin {
             );
           })
         )
-          .then(() => Promise.all([overlapCheckAsync(searchIndex), Promise.resolve(searchIndex)]))
+          .then(() =>
+            Promise.all([
+              overlapCheckAsync(searchIndex),
+              Promise.resolve(searchIndex)
+            ])
+          )
           .catch(err => {
             throw err;
           });
@@ -684,7 +695,7 @@ class Tin {
             });
           });
         return Promise.all(
-            (["forw", "bakw"] as BiDirectionKey[]).map((direc) =>
+          (["forw", "bakw"] as BiDirectionKey[]).map(direc =>
             new Promise(resolve => {
               const coords = this.tins![direc]!.features.map(
                 (poly: any) => poly.geometry.coordinates[0]
@@ -1607,7 +1618,12 @@ function hit(point: Feature<Point>, tins: Tins): Tri | undefined {
     }
   }
 }
-function unitCalc(coord: number, origin: number, unit: number, gridNum: number) {
+function unitCalc(
+  coord: number,
+  origin: number,
+  unit: number,
+  gridNum: number
+) {
   let normCoord = Math.floor((coord - origin) / unit);
   if (normCoord >= gridNum) normCoord = gridNum - 1;
   return normCoord;
@@ -1677,7 +1693,9 @@ function transformArr(
     : useVerticesArr(point, verticesParams!, centroid!, weightBuffer!);
 }
 function counterTri(tri: Tri): Tri {
-  const coordinates = (["a", "b", "c", "a"] as PropertyTriKey[]).map(key => tri.properties![key].geom);
+  const coordinates = (["a", "b", "c", "a"] as PropertyTriKey[]).map(
+    key => tri.properties![key].geom
+  );
   const geoms = tri.geometry!.coordinates[0];
   const props = tri.properties!;
   const properties = {
@@ -1687,7 +1705,7 @@ function counterTri(tri: Tri): Tri {
   };
   return polygon([coordinates], properties);
 }
-function buildTri(points: [Position[], (string | number)][]): Tri {
+function buildTri(points: [Position[], string | number][]): Tri {
   const coordinates = [0, 1, 2, 0].map(i => points[i][0][0]);
   const properties = {
     a: { geom: points[0][0][1], index: points[0][1] },
@@ -1704,31 +1722,33 @@ function indexesToTri(
   bboxes: Position[][],
   bakw = false
 ): Tri {
-  const points_: [Position[], (string | number)][] = indexes.map((index: number | string) => {
-    const point_base = isFinite(index as any)
-      ? points[index as number]
-      : index === "cent"
-      ? cent
-      : index === "bbox0"
-      ? bboxes[0]
-      : index === "bbox1"
-      ? bboxes[1]
-      : index === "bbox2"
-      ? bboxes[2]
-      : index === "bbox3"
-      ? bboxes[3]
-      : (function () {
-          const match = (index as string).match(/edgeNode(\d+)/);
-          if (match) {
-            const nodeIndex = parseInt(match[1]);
-            return edgeNodes[nodeIndex];
-          }
-          throw "Bad index value for indexesToTri";
-        })();
-    return bakw
-      ? [[point_base![1], point_base![0]], index]
-      : [[point_base![0], point_base![1]], index];
-  });
+  const points_: [Position[], string | number][] = indexes.map(
+    (index: number | string) => {
+      const point_base = isFinite(index as any)
+        ? points[index as number]
+        : index === "cent"
+        ? cent
+        : index === "bbox0"
+        ? bboxes[0]
+        : index === "bbox1"
+        ? bboxes[1]
+        : index === "bbox2"
+        ? bboxes[2]
+        : index === "bbox3"
+        ? bboxes[3]
+        : (function () {
+            const match = (index as string).match(/edgeNode(\d+)/);
+            if (match) {
+              const nodeIndex = parseInt(match[1]);
+              return edgeNodes[nodeIndex];
+            }
+            throw "Bad index value for indexesToTri";
+          })();
+      return bakw
+        ? [[point_base![1], point_base![0]], index]
+        : [[point_base![0], point_base![1]], index];
+    }
+  );
   return buildTri(points_);
 }
 function overlapCheckAsync(searchIndex: SearchIndex) {
@@ -1764,7 +1784,11 @@ function overlapCheckAsync(searchIndex: SearchIndex) {
       throw err;
     });
 }
-function insertSearchIndex(searchIndex: SearchIndex, tris: SearchTris, tins?: TinsBD) {
+function insertSearchIndex(
+  searchIndex: SearchIndex,
+  tris: SearchTris,
+  tins?: TinsBD
+) {
   const keys = calcSearchKeys(tris.forw);
   const bakKeys = calcSearchKeys(tris.bakw);
   if (JSON.stringify(keys) != JSON.stringify(bakKeys))
@@ -1781,7 +1805,11 @@ function insertSearchIndex(searchIndex: SearchIndex, tris: SearchTris, tins?: Ti
     tins.bakw!.features.push(tris.bakw);
   }
 }
-function removeSearchIndex(searchIndex: SearchIndex, tris: SearchTris, tins?: TinsBD) {
+function removeSearchIndex(
+  searchIndex: SearchIndex,
+  tris: SearchTris,
+  tins?: TinsBD
+) {
   const keys = calcSearchKeys(tris.forw);
   const bakKeys = calcSearchKeys(tris.bakw);
   if (JSON.stringify(keys) != JSON.stringify(bakKeys))
@@ -1809,7 +1837,9 @@ function removeSearchIndex(searchIndex: SearchIndex, tris: SearchTris, tins?: Ti
 }
 
 function calcSearchKeys(tri: Tri): string[] {
-  const vtx = (["a", "b", "c"] as PropertyTriKey[]).map(key => tri.properties![key].index);
+  const vtx = (["a", "b", "c"] as PropertyTriKey[]).map(
+    key => tri.properties![key].index
+  );
   return [
     [0, 1],
     [0, 2],

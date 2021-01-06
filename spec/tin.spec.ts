@@ -7,11 +7,12 @@ import fs from "fs";
 
 let stateFull = false;
 const testSet = () => {
-  [ ["Nara", "naramachi_yasui_bunko"],
+  [
+    ["Nara", "naramachi_yasui_bunko"],
     ["Fushimi", "fushimijo_maplat"],
     ["Uno Loose", "uno_bus_gtfs_loose"],
-    ["Uno Error", "uno_bus_gtfs_error"],
-  ].map((dataset) => {
+    ["Uno Error", "uno_bus_gtfs_error"]
+  ].map(dataset => {
     const town = dataset[0];
     const filename = dataset[1];
     describe(`Test by actual data (${town})`, () => {
@@ -35,26 +36,38 @@ const testSet = () => {
         const expected = JSON.parse(JSON.stringify(tin.getCompiled()));
 
         // points
-        expect(treeWalk(expected.points, 5)).toEqual(treeWalk(target.points, 5));
+        expect(treeWalk(expected.points, 5)).toEqual(
+          treeWalk(target.points, 5)
+        );
 
         // edges
         expect(treeWalk(expected.edges, 5)).toEqual(treeWalk(target.edges, 5));
 
         // weight buffer
-        expect(treeWalk(expected.weight_buffer.forw, 1)).toEqual(treeWalk(target.weight_buffer.forw, 1));
-        expect(treeWalk(expected.weight_buffer.bakw, 1)).toEqual(treeWalk(target.weight_buffer.bakw, 1));
+        expect(treeWalk(expected.weight_buffer.forw, 1)).toEqual(
+          treeWalk(target.weight_buffer.forw, 1)
+        );
+        expect(treeWalk(expected.weight_buffer.bakw, 1)).toEqual(
+          treeWalk(target.weight_buffer.bakw, 1)
+        );
 
         // tins points
         expected.tins_points.forEach((expected_tins: any, index: number) => {
-          expect(sortTinsPoint(expected_tins)).toEqual(sortTinsPoint(target.tins_points[index]));
+          expect(sortTinsPoint(expected_tins)).toEqual(
+            sortTinsPoint(target.tins_points[index])
+          );
         });
 
         // edge nodes
-        expect(treeWalk(expected.edgeNodes, 5)).toEqual(treeWalk(target.edgeNodes, 5));
+        expect(treeWalk(expected.edgeNodes, 5)).toEqual(
+          treeWalk(target.edgeNodes, 5)
+        );
 
         // kinks points
         if (expected.kinks_points) {
-          expect(sortKinksPoint(expected.kinks_points)).toEqual(sortKinksPoint(target.kinks_points));
+          expect(sortKinksPoint(expected.kinks_points)).toEqual(
+            sortKinksPoint(target.kinks_points)
+          );
         }
 
         done();
@@ -235,7 +248,7 @@ describe("Test for Tin function (StateFull)", testSet);
 
 function treeWalk(obj: any, depth: number) {
   if (typeof obj === "object") {
-    Object.keys(obj).forEach(key => obj[key] = treeWalk(obj[key], depth));
+    Object.keys(obj).forEach(key => (obj[key] = treeWalk(obj[key], depth)));
   } else if (typeof obj === "number" && !`${obj}`.match(/^\d+$/)) {
     obj = Math.round(obj * Math.pow(10, depth)) / Math.pow(10, depth);
   }
@@ -243,13 +256,26 @@ function treeWalk(obj: any, depth: number) {
 }
 
 function sortTinsPoint(tins_points: any[][]) {
-  return tins_points.map(points => points.map(key => `${key}`).sort().join("_")).sort();
+  return tins_points
+    .map(points =>
+      points
+        .map(key => `${key}`)
+        .sort()
+        .join("_")
+    )
+    .sort();
 }
 
 function sortKinksPoint(kinks_points: number[][]) {
   return (treeWalk(kinks_points, 5) as number[][]).sort((a, b) =>
-    a[0] === b[0] ?
-        a[1] === b[1] ? 0 :
-            a[1] > b[1] ? 1 : -1 :
-        a[0] > b[0] ? 1: -1);
+    a[0] === b[0]
+      ? a[1] === b[1]
+        ? 0
+        : a[1] > b[1]
+        ? 1
+        : -1
+      : a[0] > b[0]
+      ? 1
+      : -1
+  );
 }
