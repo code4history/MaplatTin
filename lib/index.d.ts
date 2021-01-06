@@ -66,7 +66,7 @@ export interface Options {
 }
 export interface Compiled {
     points: PointSet[];
-    tins_points: number[][];
+    tins_points: (number | string)[][][];
     weight_buffer: WeightBufferBD;
     strict_status?: StrictStatus;
     centroid_point: Position[];

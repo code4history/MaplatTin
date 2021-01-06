@@ -75,7 +75,7 @@ export interface Options {
 
 export interface Compiled {
   points: PointSet[],
-  tins_points: number[][],
+  tins_points: (number | string)[][][],
   weight_buffer: WeightBufferBD,
   strict_status?: StrictStatus,
   centroid_point: Position[],
@@ -360,57 +360,57 @@ class Tin {
       this.centroid!.forw!.properties!.target.geom
     ];
     // vertices_paramsの最初の値はそのまま保存
-    (compiled as any).vertices_params = [
+    compiled.vertices_params = [
       this.vertices_params!.forw![0],
       this.vertices_params!.bakw![0]
     ];
     // vertices_paramsの2番目の値（セントロイドと地図頂点の三角形ポリゴン）は、地図頂点座標のみ記録
-    (compiled as any).vertices_points = [];
+    compiled.vertices_points = [];
     const vertices = this.vertices_params!.forw![1];
     [0, 1, 2, 3].map(i => {
       const vertex_data = vertices![i].features[0];
       const forw = vertex_data.geometry!.coordinates[0][1];
       const bakw = vertex_data.properties!.b.geom;
-      (compiled as any).vertices_points[i] = [forw, bakw];
+      compiled.vertices_points![i] = [forw, bakw];
     });
-    (compiled as any).strict_status = this.strict_status;
+    compiled.strict_status = this.strict_status;
     // tinは座標インデックスのみ記録
-    (compiled as any).tins_points = [[]];
-    this.tins!.forw!.features.map((tin: any) => {
-      (compiled as any).tins_points[0].push(
-        ["a", "b", "c"].map(idx => tin.properties[idx].index)
+    compiled.tins_points = [[]];
+    this.tins!.forw!.features.map((tin: Tri) => {
+      compiled.tins_points![0].push(
+          (["a", "b", "c"] as PropertyTriKey[]) .map(idx => tin.properties![idx]!.index)
       );
     });
     // 自動モードでエラーがある時（loose）は、逆方向のtinも記録。
     // 厳格モードでエラーがある時（strict_error）は、エラー点情報(kinks)を記録。
     if (this.strict_status == Tin.STATUS_LOOSE) {
-      (compiled as any).tins_points[1] = [];
-      this.tins!.bakw!.features.map((tin: any) => {
-        (compiled as any).tins_points[1].push(
-          ["a", "b", "c"].map(idx => tin.properties[idx].index)
+      compiled.tins_points[1] = [];
+      this.tins!.bakw!.features.map((tin: Tri) => {
+        compiled.tins_points![1].push(
+            (["a", "b", "c"] as PropertyTriKey[]) .map(idx => tin.properties![idx]!.index)
         );
       });
     } else if (this.strict_status == Tin.STATUS_ERROR) {
       compiled.kinks_points = this.kinks!.bakw!.features.map(
-        (kink: any) => kink.geometry.coordinates
+        (kink: Feature<Point>) => kink.geometry!.coordinates
       );
     }
     // yaxisMode対応
     if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
-      (compiled as any).yaxisMode = Tin.YAXIS_FOLLOW;
+      compiled.yaxisMode = Tin.YAXIS_FOLLOW;
     }
     // bounds対応
     if (this.bounds) {
-      (compiled as any).bounds = this.bounds;
-      (compiled as any).boundsPolygon = this.boundsPolygon;
-      (compiled as any).xy = this.xy;
-      (compiled as any).wh = this.wh;
+      compiled.bounds = this.bounds;
+      compiled.boundsPolygon = this.boundsPolygon;
+      compiled.xy = this.xy;
+      compiled.wh = this.wh;
     } else {
-      (compiled as any).wh = this.wh;
+      compiled.wh = this.wh;
     }
     // edge対応
-    (compiled as any).edges = this.edges;
-    (compiled as any).edgeNodes = this.edgeNodes;
+    compiled.edges = this.edges;
+    compiled.edgeNodes = this.edgeNodes;
     return compiled as Compiled;
   }
   addIndexedTin() {
