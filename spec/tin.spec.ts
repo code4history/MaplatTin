@@ -3,11 +3,15 @@
 import Tin, { Options } from "../src";
 import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
 expect.extend({ toBeDeepCloseTo });
+import fs from "fs";
 
 let stateFull = false;
 const testSet = () => {
   [ ["Nara", "naramachi_yasui_bunko"],
-    ["Fushimi", "fushimijo_maplat"] ].map((dataset) => {
+    ["Fushimi", "fushimijo_maplat"],
+    ["Uno Loose", "uno_bus_gtfs_loose"],
+    ["Uno Error", "uno_bus_gtfs_error"],
+  ].map((dataset) => {
     const town = dataset[0];
     const filename = dataset[1];
     describe(`Test by actual data (${town})`, () => {
@@ -41,10 +45,17 @@ const testSet = () => {
         expect(treeWalk(expected.weight_buffer.bakw, 1)).toEqual(treeWalk(target.weight_buffer.bakw, 1));
 
         // tins points
-        expect(sortTinsPoint(expected.tins_points[0])).toEqual(sortTinsPoint(target.tins_points[0]));
+        expected.tins_points.forEach((expected_tins: any, index: number) => {
+          expect(sortTinsPoint(expected_tins)).toEqual(sortTinsPoint(target.tins_points[index]));
+        });
 
         // edge nodes
         expect(treeWalk(expected.edgeNodes, 5)).toEqual(treeWalk(target.edgeNodes, 5));
+
+        // kinks points
+        if (expected.kinks_points) {
+          expect(sortKinksPoint(expected.kinks_points)).toEqual(sortKinksPoint(target.kinks_points));
+        }
 
         done();
       });
@@ -233,4 +244,12 @@ function treeWalk(obj: any, depth: number) {
 
 function sortTinsPoint(tins_points: any[][]) {
   return tins_points.map(points => points.map(key => `${key}`).sort().join("_")).sort();
+}
+
+function sortKinksPoint(kinks_points: number[][]) {
+  return (treeWalk(kinks_points, 5) as number[][]).sort((a, b) =>
+    a[0] === b[0] ?
+        a[1] === b[1] ? 0 :
+            a[1] > b[1] ? 1 : -1 :
+        a[0] > b[0] ? 1: -1);
 }

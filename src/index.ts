@@ -1338,7 +1338,7 @@ class Tin {
       })
     )
       .then(() => {
-        const pointsWeightBuffer: WeightBufferBD = { forw: {}, bakw: {}};
+        const pointsWeightBuffer: WeightBufferBD = {};
         calcTargets.map(target => {
           pointsWeightBuffer[target] = {};
           if (this.strict_status == Tin.STATUS_STRICT)
