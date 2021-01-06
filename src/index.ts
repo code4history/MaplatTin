@@ -49,6 +49,8 @@ type PropertiesTri = { [key in PropertyTriKey]: PropertyTri };
 type Tri = Feature<Polygon, PropertiesTri>;
 type Tins = FeatureCollection<Polygon, PropertiesTri>;
 type TinsBD = { [key in BiDirectionKey]?: Tins };
+type SearchTris = { [key in BiDirectionKey]: Tri };
+type SearchIndex = {[key: string]: SearchTris[]};
 
 interface IndexedTins {
   gridNum: number;
@@ -510,7 +512,7 @@ class Tin {
     const bakwXUnit = (bakwBound[1][0] - bakwBound[0][0]) / gridNum;
     const bakwYUnit = (bakwBound[1][1] - bakwBound[0][1]) / gridNum;
     const bakwGridCache = bakwEachBound.reduce(
-      (prev: any, bound: any, index: any) => {
+      (prev: any, bound: any, index: number) => {
         const normXMin = unitCalc(
           bound[0][0],
           bakwBound[0][0],
@@ -586,35 +588,34 @@ class Tin {
   calcurateStrictTinAsync() {
     const edges = this.pointsSet.edges;
     return Promise.all(
-      this.tins!.forw!.features.map((tri: any) =>
+      this.tins!.forw!.features.map((tri: Tri) =>
         Promise.resolve(counterTri(tri))
       )
     )
-      .then((tris: any) => {
+      .then((tris: Tri[]) => {
         this.tins!.bakw = featureCollection(tris);
       })
       .then(() => {
-        const searchIndex = {};
+        const searchIndex: SearchIndex = {};
         return Promise.all(
-          this.tins!.forw!.features.map((forTri: any, index: any) => {
-            const bakTri = this.tins!.bakw!.features[index];
+          this.tins!.forw!.features.map((forTri: Tri, index: number) => {
+            const bakTri: Tri = this.tins!.bakw!.features[index];
             return Promise.resolve(
               insertSearchIndex(searchIndex, { forw: forTri, bakw: bakTri })
             );
           })
         )
-          .then(() => searchIndex)
+          .then(() => Promise.all([overlapCheckAsync(searchIndex), Promise.resolve(searchIndex)]))
           .catch(err => {
             throw err;
           });
       })
-      .then(searchIndex => [overlapCheckAsync(searchIndex), searchIndex])
-      .then(prevResult => {
+      .then((prevResult: [any, SearchIndex]) => {
         const overlapped = prevResult[0];
-        const searchIndex: any = prevResult[1];
-        if ((overlapped as any).bakw)
-          Object.keys((overlapped as any).bakw).map(key => {
-            if ((overlapped as any).bakw[key] == "Not include case") return;
+        const searchIndex = prevResult[1];
+        if (overlapped.bakw)
+          Object.keys(overlapped.bakw).map(key => {
+            if (overlapped.bakw[key] == "Not include case") return;
             const trises = searchIndex[key];
             const forUnion = union(trises[0].forw, trises[1].forw);
             const forConvex = convex(
@@ -637,10 +638,10 @@ class Tin {
             }
             const sharedVtx = splittedKey.map(
               val =>
-                ["a", "b", "c"]
+                (["a", "b", "c"] as PropertyTriKey[])
                   .map((alpha, index) => {
-                    const prop = trises[0].bakw.properties[alpha];
-                    const geom = trises[0].bakw.geometry.coordinates[0][index];
+                    const prop = trises[0].bakw.properties![alpha];
+                    const geom = trises[0].bakw.geometry!.coordinates[0][index];
                     return { geom, prop };
                   })
                   .filter(vtx => vtx.prop.index == val)[0]
@@ -1606,7 +1607,7 @@ function hit(point: Feature<Point>, tins: Tins): Tri | undefined {
     }
   }
 }
-function unitCalc(coord: any, origin: any, unit: any, gridNum: any) {
+function unitCalc(coord: number, origin: number, unit: number, gridNum: number) {
   let normCoord = Math.floor((coord - origin) / unit);
   if (normCoord >= gridNum) normCoord = gridNum - 1;
   return normCoord;
@@ -1675,10 +1676,10 @@ function transformArr(
     ? transformTinArr(point, tin, weightBuffer)
     : useVerticesArr(point, verticesParams!, centroid!, weightBuffer!);
 }
-function counterTri(tri: any) {
-  const coordinates = ["a", "b", "c", "a"].map(key => tri.properties[key].geom);
-  const geoms = tri.geometry.coordinates[0];
-  const props = tri.properties;
+function counterTri(tri: Tri): Tri {
+  const coordinates = (["a", "b", "c", "a"] as PropertyTriKey[]).map(key => tri.properties![key].geom);
+  const geoms = tri.geometry!.coordinates[0];
+  const props = tri.properties!;
   const properties = {
     a: { geom: geoms[0], index: props["a"].index },
     b: { geom: geoms[1], index: props["b"].index },
@@ -1730,7 +1731,7 @@ function indexesToTri(
   });
   return buildTri(points_);
 }
-function overlapCheckAsync(searchIndex: any) {
+function overlapCheckAsync(searchIndex: SearchIndex) {
   const retValue = { forw: {} as any, bakw: {} as any };
   return Promise.all(
     Object.keys(searchIndex).map(
@@ -1738,7 +1739,7 @@ function overlapCheckAsync(searchIndex: any) {
         new Promise(resolve => {
           const searchResult = searchIndex[key];
           if (searchResult.length < 2) return resolve(undefined);
-          ["forw", "bakw"].map(dir => {
+          (["forw", "bakw"] as BiDirectionKey[]).map(dir => {
             const result = intersect(
               searchResult[0][dir],
               searchResult[1][dir]
@@ -1763,7 +1764,7 @@ function overlapCheckAsync(searchIndex: any) {
       throw err;
     });
 }
-function insertSearchIndex(searchIndex: any, tris: any, tins: any = undefined) {
+function insertSearchIndex(searchIndex: SearchIndex, tris: SearchTris, tins?: TinsBD) {
   const keys = calcSearchKeys(tris.forw);
   const bakKeys = calcSearchKeys(tris.bakw);
   if (JSON.stringify(keys) != JSON.stringify(bakKeys))
@@ -1776,11 +1777,11 @@ function insertSearchIndex(searchIndex: any, tris: any, tins: any = undefined) {
     searchIndex[key].push(tris);
   }
   if (tins) {
-    tins.forw.features.push(tris.forw);
-    tins.bakw.features.push(tris.bakw);
+    tins.forw!.features.push(tris.forw);
+    tins.bakw!.features.push(tris.bakw);
   }
 }
-function removeSearchIndex(searchIndex: any, tris: any, tins: any) {
+function removeSearchIndex(searchIndex: SearchIndex, tris: SearchTris, tins?: TinsBD) {
   const keys = calcSearchKeys(tris.forw);
   const bakKeys = calcSearchKeys(tris.bakw);
   if (JSON.stringify(keys) != JSON.stringify(bakKeys))
@@ -1796,19 +1797,19 @@ function removeSearchIndex(searchIndex: any, tris: any, tins: any) {
     else searchIndex[key] = newArray;
   }
   if (tins) {
-    let newArray = tins.forw.features.filter(
-      (eachTri: any) => eachTri != tris.forw
+    let newArray = tins.forw!.features.filter(
+      (eachTri: Tri) => eachTri != tris.forw
     );
-    tins.forw.features = newArray;
-    newArray = tins.bakw.features.filter(
-      (eachTri: any) => eachTri != tris.bakw
+    tins.forw!.features = newArray;
+    newArray = tins.bakw!.features.filter(
+      (eachTri: Tri) => eachTri != tris.bakw
     );
-    tins.bakw.features = newArray;
+    tins.bakw!.features = newArray;
   }
 }
 
-function calcSearchKeys(tri: any) {
-  const vtx = ["a", "b", "c"].map(key => tri.properties[key].index);
+function calcSearchKeys(tri: Tri): string[] {
+  const vtx = (["a", "b", "c"] as PropertyTriKey[]).map(key => tri.properties![key].index);
   return [
     [0, 1],
     [0, 2],
