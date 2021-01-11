@@ -201,9 +201,20 @@ class Tin {
   setCompiled(compiled: LegacyCompiled) {
     if (!compiled.tins && compiled.points && compiled.tins_points) {
       // 新コンパイルロジック
-      // pointsはそのままpoints, weightBufferも
+      // pointsはそのままpoints
       this.points = compiled.points;
-      this.pointsWeightBuffer = compiled.weight_buffer;
+      // After 0.7.3 Normalizing old formats for weightBuffer
+      this.pointsWeightBuffer = (["forw", "bakw"] as BiDirectionKey[]).reduce((bd, forb) => {
+        const base = compiled.weight_buffer[forb];
+        if (base) {
+          bd[forb] = Object.keys(base!).reduce((buffer, key) => {
+            const normKey = normalizeNodeKey(key);
+            buffer[normKey] = base![key];
+            return buffer;
+          }, {} as WeightBuffer);
+        }
+        return bd;
+      }, {} as WeightBufferBD);
       // kinksやtinsの存在状況でstrict_statusを判定
       if (compiled.strict_status) {
         this.strict_status = compiled.strict_status;
@@ -222,7 +233,7 @@ class Tin {
       this.vertices_params.forw![1] = [0, 1, 2, 3].map(idx => {
         const idxNxt = (idx + 1) % 4;
         const tri = indexesToTri(
-          ["cent", `bbox${idx}`, `bbox${idxNxt}`],
+          ["c", `b${idx}`, `b${idxNxt}`],
           compiled.points,
           compiled.edgeNodes || [],
           compiled.centroid_point,
@@ -234,7 +245,7 @@ class Tin {
       this.vertices_params.bakw![1] = [0, 1, 2, 3].map(idx => {
         const idxNxt = (idx + 1) % 4;
         const tri = indexesToTri(
-          ["cent", `bbox${idx}`, `bbox${idxNxt}`],
+          ["c", `b${idx}`, `b${idxNxt}`],
           compiled.points,
           compiled.edgeNodes || [],
           compiled.centroid_point,
@@ -248,13 +259,13 @@ class Tin {
         forw: point(compiled.centroid_point[0], {
           target: {
             geom: compiled.centroid_point[1],
-            index: "cent"
+            index: "c"
           }
         }),
         bakw: point(compiled.centroid_point[1], {
           target: {
             geom: compiled.centroid_point[0],
-            index: "cent"
+            index: "c"
           }
         })
       };
@@ -851,7 +862,7 @@ class Tin {
           const forPoint = createPoint(
             node[0],
             node[1],
-            `edgeNode${edgeNodeIndex}`
+            `e${edgeNodeIndex}`
           );
           edgeNodeIndex++;
           pointsArray.forw.push(forPoint);
@@ -946,7 +957,7 @@ class Tin {
           forw: forCentroidFt.geometry.coordinates,
           bakw: transformArr(forCentroidFt, tinForCentroid)
         };
-        const forwBuf = createPoint(centroid.forw, centroid.bakw, "cent");
+        const forwBuf = createPoint(centroid.forw, centroid.bakw, "c");
         this.centroid = {
           forw: forwBuf,
           bakw: counterPoint(forwBuf)
@@ -1206,7 +1217,7 @@ class Tin {
         for (let i = 0; i < verticesSet.length; i++) {
           const forVertex = verticesSet[i].forw;
           const bakVertex = verticesSet[i].bakw;
-          const forVertexFt = createPoint(forVertex, bakVertex, `bbox${i}`);
+          const forVertexFt = createPoint(forVertex, bakVertex, `b${i}`);
           const bakVertexFt = counterPoint(forVertexFt);
           pointsSet.forw.features.push(forVertexFt);
           pointsSet.bakw.features.push(bakVertexFt);
@@ -1374,17 +1385,17 @@ class Tin {
               pointsWeightBuffer["bakw"]![vtx] =
                 1 / pointsWeightBuffer[target]![vtx];
           });
-          pointsWeightBuffer[target]!["cent"] = [0, 1, 2, 3].reduce(
+          pointsWeightBuffer[target]!["c"] = [0, 1, 2, 3].reduce(
             (prev, curr) => {
-              const key = `bbox${curr}`;
+              const key = `b${curr}`;
               prev = prev + pointsWeightBuffer[target]![key];
               return curr == 3 ? prev / 4 : prev;
             },
             0
           );
           if (this.strict_status == Tin.STATUS_STRICT)
-            pointsWeightBuffer["bakw"]!["cent"] =
-              1 / pointsWeightBuffer[target]!["cent"];
+            pointsWeightBuffer["bakw"]!["c"] =
+              1 / pointsWeightBuffer[target]!["c"];
         });
         this.pointsWeightBuffer = pointsWeightBuffer;
       })
@@ -1398,8 +1409,8 @@ function rotateVerticesTriangle(tins: Tins) {
   for (let i = 0; i < features.length; i++) {
     const feature = features[i];
     if (
-      `${feature.properties!.a.index}`.substring(0, 4) == "bbox" &&
-      `${feature.properties!.b.index}`.substring(0, 4) == "bbox"
+      `${feature.properties!.a.index}`.substring(0, 4) == "b" &&
+      `${feature.properties!.b.index}`.substring(0, 4) == "b"
     ) {
       features[i] = {
         geometry: {
@@ -1430,8 +1441,8 @@ function rotateVerticesTriangle(tins: Tins) {
         type: "Feature"
       };
     } else if (
-      `${feature.properties!.c.index}`.substring(0, 4) == "bbox" &&
-      `${feature.properties!.a.index}`.substring(0, 4) == "bbox"
+      `${feature.properties!.c.index}`.substring(0, 4) == "b" &&
+      `${feature.properties!.a.index}`.substring(0, 4) == "b"
     ) {
       features[i] = {
         geometry: {
@@ -1733,20 +1744,21 @@ function indexesToTri(
 ): Tri {
   const points_: [Position[], string | number][] = indexes.map(
     (index: number | string) => {
+      index = normalizeNodeKey(index);
       const point_base = isFinite(index as any)
         ? points[index as number]
-        : index === "cent"
+        : index === "c"
         ? cent
-        : index === "bbox0"
+        : index === "b0"
         ? bboxes[0]
-        : index === "bbox1"
+        : index === "b1"
         ? bboxes[1]
-        : index === "bbox2"
+        : index === "b2"
         ? bboxes[2]
-        : index === "bbox3"
+        : index === "b3"
         ? bboxes[3]
         : (function () {
-            const match = (index as string).match(/edgeNode(\d+)/);
+            const match = (index as string).match(/e(\d+)/);
             if (match) {
               const nodeIndex = parseInt(match[1]);
               return edgeNodes[nodeIndex];
@@ -1760,6 +1772,13 @@ function indexesToTri(
   );
   return buildTri(points_);
 }
+
+// After 7.0.3 Normalizing node index key
+function normalizeNodeKey(index: number | string) {
+  if (typeof index === "number") return index;
+  return index.replace(/^(c|e|b)(?:ent|dgeNode|box)(\d+)?$/, "$1$2");
+}
+
 function overlapCheckAsync(searchIndex: SearchIndex) {
   const retValue = { forw: {} as any, bakw: {} as any };
   return Promise.all(

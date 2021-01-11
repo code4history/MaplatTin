@@ -17,7 +17,7 @@ const testSet = () => {
     describe(`Test by actual data (${town})`, () => {
       it(`Compare with actual data (${town})`, async done => {
         const load_m = await import(`./maps/${filename}.json`);
-        const load_c = await import(`./compiled/${filename}.json`);
+        let load_c = await import(`./compiled/${filename}.json`);
 
         const tin = new Tin({
           wh: [load_m.width, load_m.height],
@@ -29,45 +29,60 @@ const testSet = () => {
         if (load_m.edges) {
           tin.setEdges(load_m.edges as Options["edges"]);
         }
+        const lTin = new Tin({});
+        lTin.setCompiled(load_c.compiled);
+        load_c = JSON.parse(JSON.stringify(load_c)
+          .replace(/"edgeNode(\d+)"/g, "\"e$1\"")
+          .replace(/"cent"/g, "\"c\"").replace(/"bbox(\d+)"/g, "\"b$1\""));
 
         await tin.updateTinAsync();
-        const target = JSON.parse(JSON.stringify(load_c.compiled));
+        const compiled = JSON.parse(JSON.stringify(load_c.compiled));
         const expected = JSON.parse(JSON.stringify(tin.getCompiled()));
+        const loaded = JSON.parse(JSON.stringify(lTin.getCompiled()));
 
-        // points
-        expect(treeWalk(expected.points, 5)).toEqual(
-          treeWalk(target.points, 5)
-        );
-
-        // edges
-        expect(treeWalk(expected.edges, 5)).toEqual(treeWalk(target.edges, 5));
-
-        // weight buffer
-        expect(treeWalk(expected.weight_buffer.forw, 1)).toEqual(
-          treeWalk(target.weight_buffer.forw, 1)
-        );
-        expect(treeWalk(expected.weight_buffer.bakw, 1)).toEqual(
-          treeWalk(target.weight_buffer.bakw, 1)
-        );
-
-        // tins points
-        expected.tins_points.forEach((expected_tins: any, index: number) => {
-          expect(sortTinsPoint(expected_tins)).toEqual(
-            sortTinsPoint(target.tins_points[index])
+        // After 0.7.3 Old format load test
+        [compiled, loaded].forEach(target => {
+          // points
+          expect(treeWalk(expected.points, 5)).toEqual(
+              treeWalk(target.points, 5)
           );
+
+          // edges
+          expect(treeWalk(expected.edges, 5)).toEqual(treeWalk(target.edges, 5));
+
+          // weight buffer
+          expect(treeWalk(expected.weight_buffer.forw, 1)).toEqual(
+              treeWalk(target.weight_buffer.forw, 1)
+          );
+          expect(treeWalk(expected.weight_buffer.bakw, 1)).toEqual(
+              treeWalk(target.weight_buffer.bakw, 1)
+          );
+
+          // tins points
+          expected.tins_points.forEach((expected_tins: any, index: number) => {
+            expect(sortTinsPoint(expected_tins)).toEqual(
+                sortTinsPoint(target.tins_points[index])
+            );
+          });
+
+          // edge nodes
+          expect(treeWalk(expected.edgeNodes, 5)).toEqual(
+              treeWalk(target.edgeNodes, 5)
+          );
+
+          // kinks points
+          if (expected.kinks_points) {
+            expect(sortKinksPoint(expected.kinks_points)).toEqual(
+                sortKinksPoint(target.kinks_points)
+            );
+          }
         });
 
-        // edge nodes
-        expect(treeWalk(expected.edgeNodes, 5)).toEqual(
-          treeWalk(target.edgeNodes, 5)
-        );
-
-        // kinks points
-        if (expected.kinks_points) {
-          expect(sortKinksPoint(expected.kinks_points)).toEqual(
-            sortKinksPoint(target.kinks_points)
-          );
-        }
+        // After 0.7.3 Checking yAxisMode, vertexMode, strictMode & strictError
+        expect(expected.yaxisMode).toEqual(tin.yaxisMode);
+        expect(expected.vertexMode).toEqual(tin.vertexMode);
+        expect(expected.strictMode).toEqual(tin.strictMode);
+        expect(expected.strict_status).toEqual(tin.strict_status);
 
         done();
       });
