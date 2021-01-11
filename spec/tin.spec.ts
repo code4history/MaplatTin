@@ -3,7 +3,6 @@
 import Tin, { Options } from "../src";
 import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
 expect.extend({ toBeDeepCloseTo });
-import fs from "fs";
 
 let stateFull = false;
 const testSet = () => {

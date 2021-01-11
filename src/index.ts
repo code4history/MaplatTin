@@ -88,6 +88,8 @@ export interface Compiled {
   edgeNodes?: PointSet[];
   kinks_points?: Position[];
   yaxisMode?: YaxisMode;
+  vertexMode?: VertexMode;
+  strictMode?: StrictMode;
   vertices_params: number[][];
   vertices_points: PointSet[];
   edges: Edge[];
@@ -302,6 +304,13 @@ class Tin {
       } else {
         this.yaxisMode = Tin.YAXIS_INVERT;
       }
+      // After 0.7.3: Restore strict_mode & vertex_mode
+      if (compiled.vertexMode) {
+        this.vertexMode = compiled.vertexMode;
+      }
+      if (compiled.strictMode) {
+        this.strictMode = compiled.strictMode;
+      }
       // boundsを復元
       if (compiled.bounds) {
         this.bounds = compiled.bounds;
@@ -310,7 +319,7 @@ class Tin {
         this.wh = compiled.wh;
       } else {
         this.xy = [0, 0];
-        if (compiled.xy) this.wh = compiled.wh;
+        if (compiled.wh) this.wh = compiled.wh;
         this.bounds = undefined;
         this.boundsPolygon = undefined;
       }
@@ -403,10 +412,10 @@ class Tin {
         (kink: Feature<Point>) => kink.geometry!.coordinates
       );
     }
-    // yaxisMode対応
-    if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
-      compiled.yaxisMode = Tin.YAXIS_FOLLOW;
-    }
+    // After 0.7.3: Freeze strict_mode & vertex_mode & Update yAxis logic
+    compiled.yaxisMode = this.yaxisMode;
+    compiled.vertexMode = this.vertexMode;
+    compiled.strictMode = this.strictMode;
     // bounds対応
     if (this.bounds) {
       compiled.bounds = this.bounds;
