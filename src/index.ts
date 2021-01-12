@@ -17,6 +17,8 @@ import {
   Position
 } from "@turf/turf";
 
+const format_version = 2.00703; //(Version 2 format for library version 0.7.3)
+
 // declare module "./mapshaper-maplat" {
 //   function dedupIntersections(xy: any): any[];
 //   function findSegmentIntersections(args: any): any;
@@ -36,11 +38,12 @@ type BiDirectionKey = "forw" | "bakw";
 type PointSet = [Position, Position];
 type Centroid = Feature<Point>;
 type CentroidBD = { [key in BiDirectionKey]?: Centroid };
-type Edge = {
+type EdgeLegacy = {
   illstNodes: Position[];
   mercNodes: Position[];
   startEnd: number[];
 };
+type Edge = [Position[], Position[], number[]];
 type WeightBuffer = { [index: string]: number };
 type WeightBufferBD = { [key in BiDirectionKey]?: WeightBuffer };
 type Kinks = FeatureCollection<Point>;
@@ -80,6 +83,7 @@ export interface Options {
 }
 
 export interface Compiled {
+  version?: number,
   points: PointSet[];
   tins_points: (number | string)[][][];
   weight_buffer: WeightBufferBD;
@@ -105,6 +109,7 @@ interface LegacyCompiled extends Compiled {
   centroid?: CentroidBD;
   kinks?: KinksBD;
   vertices_params: number[][] & VerticesParamsBD;
+  edges: Edge[] & EdgeLegacy[];
 }
 
 class Tin {
@@ -161,6 +166,9 @@ class Tin {
       this.setEdges(options.edges);
     }
   }
+  getFormatVersion() {
+    return format_version;
+  }
   setPoints(points: PointSet[]) {
     if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
       points = points.map(point => [point[0], [point[1][0], -1 * point[1][1]]]);
@@ -169,8 +177,8 @@ class Tin {
     this.tins = undefined;
     this.indexedTins = undefined;
   }
-  setEdges(edges: Edge[] = []) {
-    this.edges = edges;
+  setEdges(edges: Edge[] | EdgeLegacy[] = []) {
+    this.edges = normalizeEdges(edges);
     this.edgeNodes = undefined;
     this.tins = undefined;
     this.indexedTins = undefined;
@@ -199,22 +207,23 @@ class Tin {
     this.indexedTins = undefined;
   }
   setCompiled(compiled: LegacyCompiled) {
-    if (!compiled.tins && compiled.points && compiled.tins_points) {
+    if (compiled.version || (!compiled.tins && compiled.points && compiled.tins_points)) {
       // 新コンパイルロジック
       // pointsはそのままpoints
       this.points = compiled.points;
       // After 0.7.3 Normalizing old formats for weightBuffer
-      this.pointsWeightBuffer = (["forw", "bakw"] as BiDirectionKey[]).reduce((bd, forb) => {
-        const base = compiled.weight_buffer[forb];
-        if (base) {
-          bd[forb] = Object.keys(base!).reduce((buffer, key) => {
-            const normKey = normalizeNodeKey(key);
-            buffer[normKey] = base![key];
-            return buffer;
-          }, {} as WeightBuffer);
-        }
-        return bd;
-      }, {} as WeightBufferBD);
+      this.pointsWeightBuffer = (!compiled.version || compiled.version < 2.00703) ?
+        (["forw", "bakw"] as BiDirectionKey[]).reduce((bd, forb) => {
+          const base = compiled.weight_buffer[forb];
+          if (base) {
+            bd[forb] = Object.keys(base!).reduce((buffer, key) => {
+              const normKey = normalizeNodeKey(key);
+              buffer[normKey] = base![key];
+              return buffer;
+            }, {} as WeightBuffer);
+          }
+          return bd;
+        }, {} as WeightBufferBD) : compiled.weight_buffer;
       // kinksやtinsの存在状況でstrict_statusを判定
       if (compiled.strict_status) {
         this.strict_status = compiled.strict_status;
@@ -238,7 +247,8 @@ class Tin {
           compiled.edgeNodes || [],
           compiled.centroid_point,
           compiled.vertices_points,
-          false
+          false,
+          format_version
         );
         return featureCollection([tri]);
       });
@@ -250,7 +260,8 @@ class Tin {
           compiled.edgeNodes || [],
           compiled.centroid_point,
           compiled.vertices_points,
-          true
+          true,
+          format_version
         );
         return featureCollection([tri]);
       });
@@ -270,7 +281,7 @@ class Tin {
         })
       };
       // edgesを復元
-      this.edges = compiled.edges || [];
+      this.edges = normalizeEdges(compiled.edges || []);
       this.edgeNodes = compiled.edgeNodes || [];
       // tinsを復元
       const bakwI = compiled.tins_points.length == 1 ? 0 : 1;
@@ -283,7 +294,8 @@ class Tin {
               compiled.edgeNodes || [],
               compiled.centroid_point,
               compiled.vertices_points,
-              false
+              false,
+              compiled.version
             )
           )
         ),
@@ -295,7 +307,8 @@ class Tin {
               compiled.edgeNodes || [],
               compiled.centroid_point,
               compiled.vertices_points,
-              true
+              true,
+              compiled.version
             )
           )
         )
@@ -367,14 +380,9 @@ class Tin {
   }
   getCompiled(): Compiled {
     const compiled: Partial<Compiled> = {};
-    /* old logic
-            compiled.tins = this.tins;
-            compiled.strict_status = this.strict_status;
-            compiled.weight_buffer = this.pointsWeightBuffer;
-            compiled.vertices_params = this.vertices_params;
-            compiled.centroid = this.centroid;
-            compiled.kinks = this.kinks;*/
     // 新compileロジック
+    // Formatバージョン
+    compiled.version = format_version;
     // points, weightBufferはそのまま保存
     compiled.points = this.points;
     compiled.weight_buffer = this.pointsWeightBuffer;
@@ -773,9 +781,9 @@ class Tin {
     this.edgeNodes = [];
     if (!this.edges) this.edges = [];
     for (let i = 0; i < this.edges.length; i++) {
-      const startEnd = this.edges[i].startEnd;
-      const illstNodes = Object.assign([], this.edges[i].illstNodes);
-      const mercNodes = Object.assign([], this.edges[i].mercNodes);
+      const startEnd = this.edges[i][2];
+      const illstNodes = Object.assign([], this.edges[i][0]);
+      const mercNodes = Object.assign([], this.edges[i][1]);
       if (illstNodes.length === 0 && mercNodes.length === 0) {
         edges.push(startEnd);
         continue;
@@ -1740,11 +1748,12 @@ function indexesToTri(
   edgeNodes: Position[][],
   cent: Position[],
   bboxes: Position[][],
-  bakw = false
+  bakw = false,
+  version?: number
 ): Tri {
   const points_: [Position[], string | number][] = indexes.map(
     (index: number | string) => {
-      index = normalizeNodeKey(index);
+      if (!version || version < 2.00703) index = normalizeNodeKey(index);
       const point_base = isFinite(index as any)
         ? points[index as number]
         : index === "c"
@@ -1777,6 +1786,11 @@ function indexesToTri(
 function normalizeNodeKey(index: number | string) {
   if (typeof index === "number") return index;
   return index.replace(/^(c|e|b)(?:ent|dgeNode|box)(\d+)?$/, "$1$2");
+}
+
+function normalizeEdges(edges: Edge[] | EdgeLegacy[], version?: number): Edge[] {
+  if ((version && version >= 2.00703) || Array.isArray(edges[0])) return edges as Edge[];
+  return (edges as EdgeLegacy[]).map(edge => [edge.illstNodes, edge.mercNodes, edge.startEnd]);
 }
 
 function overlapCheckAsync(searchIndex: SearchIndex) {

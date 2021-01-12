@@ -4,6 +4,8 @@ import Tin, { Options } from "../src";
 import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
 expect.extend({ toBeDeepCloseTo });
 
+import fs from "fs";
+
 let stateFull = false;
 const testSet = () => {
   [
@@ -31,9 +33,13 @@ const testSet = () => {
         }
         const lTin = new Tin({});
         lTin.setCompiled(load_c.compiled);
-        load_c = JSON.parse(JSON.stringify(load_c)
+        // Normalizing node index
+        let load_c_str = JSON.stringify(load_c)
           .replace(/"edgeNode(\d+)"/g, "\"e$1\"")
-          .replace(/"cent"/g, "\"c\"").replace(/"bbox(\d+)"/g, "\"b$1\""));
+          .replace(/"cent"/g, "\"c\"").replace(/"bbox(\d+)"/g, "\"b$1\"");
+        // Normalizing edges structure
+        load_c_str = load_c_str.replace(/{"illstNodes":(\[(?:[[\]\d.,]*)]),"mercNodes":(\[(?:[[\]\d.,]*)]),"startEnd":(\[(?:[\d,]+)])}/g, "[$1,$2,$3]");
+        load_c = JSON.parse(load_c_str);
 
         await tin.updateTinAsync();
         const compiled = JSON.parse(JSON.stringify(load_c.compiled));
@@ -83,6 +89,10 @@ const testSet = () => {
         expect(expected.vertexMode).toEqual(tin.vertexMode);
         expect(expected.strictMode).toEqual(tin.strictMode);
         expect(expected.strict_status).toEqual(tin.strict_status);
+
+        // Checking format version
+        expect(compiled.version).toEqual(undefined);
+        expect(loaded.version).toEqual(expected.version);
 
         done();
       });
