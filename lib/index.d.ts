@@ -9,11 +9,12 @@ declare type Centroid = Feature<Point>;
 declare type CentroidBD = {
     [key in BiDirectionKey]?: Centroid;
 };
-declare type Edge = {
+declare type EdgeLegacy = {
     illstNodes: Position[];
     mercNodes: Position[];
     startEnd: number[];
 };
+declare type Edge = [Position[], Position[], number[]];
 declare type WeightBuffer = {
     [index: string]: number;
 };
@@ -65,6 +66,7 @@ export interface Options {
     edges: Edge[];
 }
 export interface Compiled {
+    version?: number;
     points: PointSet[];
     tins_points: (number | string)[][][];
     weight_buffer: WeightBufferBD;
@@ -73,6 +75,8 @@ export interface Compiled {
     edgeNodes?: PointSet[];
     kinks_points?: Position[];
     yaxisMode?: YaxisMode;
+    vertexMode?: VertexMode;
+    strictMode?: StrictMode;
     vertices_params: number[][];
     vertices_points: PointSet[];
     edges: Edge[];
@@ -86,6 +90,7 @@ interface LegacyCompiled extends Compiled {
     centroid?: CentroidBD;
     kinks?: KinksBD;
     vertices_params: number[][] & VerticesParamsBD;
+    edges: Edge[] & EdgeLegacy[];
 }
 declare class Tin {
     static VERTEX_PLAIN: "plain";
@@ -122,8 +127,9 @@ declare class Tin {
     yaxisMode: YaxisMode;
     pointsSet: any;
     constructor(options?: Partial<Options>);
+    getFormatVersion(): number;
     setPoints(points: PointSet[]): void;
-    setEdges(edges?: Edge[]): void;
+    setEdges(edges?: Edge[] | EdgeLegacy[]): void;
     setBounds(bounds: number[][]): void;
     setCompiled(compiled: LegacyCompiled): {
         tins: TinsBD | undefined;
