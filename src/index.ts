@@ -1417,8 +1417,8 @@ function rotateVerticesTriangle(tins: Tins) {
   for (let i = 0; i < features.length; i++) {
     const feature = features[i];
     if (
-      `${feature.properties!.a.index}`.substring(0, 4) == "b" &&
-      `${feature.properties!.b.index}`.substring(0, 4) == "b"
+      `${feature.properties!.a.index}`.substring(0, 1) === "b" &&
+      `${feature.properties!.b.index}`.substring(0, 1) === "b"
     ) {
       features[i] = {
         geometry: {
@@ -1449,8 +1449,8 @@ function rotateVerticesTriangle(tins: Tins) {
         type: "Feature"
       };
     } else if (
-      `${feature.properties!.c.index}`.substring(0, 4) == "b" &&
-      `${feature.properties!.a.index}`.substring(0, 4) == "b"
+      `${feature.properties!.c.index}`.substring(0, 1) === "b" &&
+      `${feature.properties!.a.index}`.substring(0, 1) === "b"
     ) {
       features[i] = {
         geometry: {
