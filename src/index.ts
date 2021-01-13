@@ -352,6 +352,8 @@ class Tin {
       }
     } else {
       // 旧コンパイルロジック
+      compiled = JSON.parse(JSON.stringify(compiled)
+        .replace("\"cent\"", "\"c\"").replace(/"bbox(\d+)"/, "b$1"));
       this.tins = compiled.tins;
       this.addIndexedTin();
       this.strict_status = compiled.strict_status;
