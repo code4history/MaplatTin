@@ -241,7 +241,6 @@ class Tin {
       };
       this.vertices_params.forw![1] = [0, 1, 2, 3].map(idx => {
         const idxNxt = (idx + 1) % 4;
-        console.log(`1: ${format_version}`);
         const tri = indexesToTri(
           ["c", `b${idx}`, `b${idxNxt}`],
           compiled.points,
@@ -255,7 +254,6 @@ class Tin {
       });
       this.vertices_params.bakw![1] = [0, 1, 2, 3].map(idx => {
         const idxNxt = (idx + 1) % 4;
-        console.log(`2: ${format_version}`);
         const tri = indexesToTri(
           ["c", `b${idx}`, `b${idxNxt}`],
           compiled.points,
@@ -287,7 +285,6 @@ class Tin {
       this.edgeNodes = compiled.edgeNodes || [];
       // tinsを復元
       const bakwI = compiled.tins_points.length == 1 ? 0 : 1;
-      console.log(`3: ${compiled.version}`);
       this.tins = {
         forw: featureCollection(
           compiled.tins_points[0].map((idxes: any) =>
