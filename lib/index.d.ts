@@ -1,10 +1,10 @@
 import { Feature, FeatureCollection, Polygon, Point, Position } from "@turf/turf";
-declare type VertexMode = "plain" | "birdeye";
-declare type StrictMode = "strict" | "auto" | "loose";
-declare type StrictStatus = "strict" | "strict_error" | "loose";
-declare type YaxisMode = "follow" | "invert";
+export declare type VertexMode = "plain" | "birdeye";
+export declare type StrictMode = "strict" | "auto" | "loose";
+export declare type StrictStatus = "strict" | "strict_error" | "loose";
+export declare type YaxisMode = "follow" | "invert";
 declare type BiDirectionKey = "forw" | "bakw";
-declare type PointSet = [Position, Position];
+export declare type PointSet = [Position, Position];
 declare type Centroid = Feature<Point>;
 declare type CentroidBD = {
     [key in BiDirectionKey]?: Centroid;
@@ -14,7 +14,7 @@ declare type EdgeLegacy = {
     mercNodes: Position[];
     startEnd: number[];
 };
-declare type Edge = [Position[], Position[], number[]];
+export declare type Edge = [Position[], Position[], number[]];
 declare type WeightBuffer = {
     [index: string]: number;
 };

@@ -30,12 +30,12 @@ import constrainedTin from "./constrained-tin";
 // @ts-expect-error
 import internal from "./mapshaper-maplat";
 
-type VertexMode = "plain" | "birdeye";
-type StrictMode = "strict" | "auto" | "loose";
-type StrictStatus = "strict" | "strict_error" | "loose";
-type YaxisMode = "follow" | "invert";
+export type VertexMode = "plain" | "birdeye";
+export type StrictMode = "strict" | "auto" | "loose";
+export type StrictStatus = "strict" | "strict_error" | "loose";
+export type YaxisMode = "follow" | "invert";
 type BiDirectionKey = "forw" | "bakw";
-type PointSet = [Position, Position];
+export type PointSet = [Position, Position];
 type Centroid = Feature<Point>;
 type CentroidBD = { [key in BiDirectionKey]?: Centroid };
 type EdgeLegacy = {
@@ -43,7 +43,7 @@ type EdgeLegacy = {
   mercNodes: Position[];
   startEnd: number[];
 };
-type Edge = [Position[], Position[], number[]];
+export type Edge = [Position[], Position[], number[]];
 type WeightBuffer = { [index: string]: number };
 type WeightBufferBD = { [key in BiDirectionKey]?: WeightBuffer };
 type Kinks = FeatureCollection<Point>;
