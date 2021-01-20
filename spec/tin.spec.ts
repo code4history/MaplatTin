@@ -35,10 +35,14 @@ const testSet = () => {
         lTin.setCompiled(load_c.compiled);
         // Normalizing node index
         let load_c_str = JSON.stringify(load_c)
-          .replace(/"edgeNode(\d+)"/g, "\"e$1\"")
-          .replace(/"cent"/g, "\"c\"").replace(/"bbox(\d+)"/g, "\"b$1\"");
+          .replace(/"edgeNode(\d+)"/g, '"e$1"')
+          .replace(/"cent"/g, '"c"')
+          .replace(/"bbox(\d+)"/g, '"b$1"');
         // Normalizing edges structure
-        load_c_str = load_c_str.replace(/{"illstNodes":(\[(?:[[\]\d.,]*)]),"mercNodes":(\[(?:[[\]\d.,]*)]),"startEnd":(\[(?:[\d,]+)])}/g, "[$1,$2,$3]");
+        load_c_str = load_c_str.replace(
+          /{"illstNodes":(\[(?:[[\]\d.,]*)]),"mercNodes":(\[(?:[[\]\d.,]*)]),"startEnd":(\[(?:[\d,]+)])}/g,
+          "[$1,$2,$3]"
+        );
         load_c = JSON.parse(load_c_str);
 
         await tin.updateTinAsync();
@@ -50,36 +54,38 @@ const testSet = () => {
         [compiled, loaded].forEach(target => {
           // points
           expect(treeWalk(expected.points, 5)).toEqual(
-              treeWalk(target.points, 5)
+            treeWalk(target.points, 5)
           );
 
           // edges
-          expect(treeWalk(expected.edges, 5)).toEqual(treeWalk(target.edges, 5));
+          expect(treeWalk(expected.edges, 5)).toEqual(
+            treeWalk(target.edges, 5)
+          );
 
           // weight buffer
           expect(treeWalk(expected.weight_buffer.forw, 1)).toEqual(
-              treeWalk(target.weight_buffer.forw, 1)
+            treeWalk(target.weight_buffer.forw, 1)
           );
           expect(treeWalk(expected.weight_buffer.bakw, 1)).toEqual(
-              treeWalk(target.weight_buffer.bakw, 1)
+            treeWalk(target.weight_buffer.bakw, 1)
           );
 
           // tins points
           expected.tins_points.forEach((expected_tins: any, index: number) => {
             expect(sortTinsPoint(expected_tins)).toEqual(
-                sortTinsPoint(target.tins_points[index])
+              sortTinsPoint(target.tins_points[index])
             );
           });
 
           // edge nodes
           expect(treeWalk(expected.edgeNodes, 5)).toEqual(
-              treeWalk(target.edgeNodes, 5)
+            treeWalk(target.edgeNodes, 5)
           );
 
           // kinks points
           if (expected.kinks_points) {
             expect(sortKinksPoint(expected.kinks_points)).toEqual(
-                sortKinksPoint(target.kinks_points)
+              sortKinksPoint(target.kinks_points)
             );
           }
         });

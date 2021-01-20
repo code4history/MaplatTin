@@ -83,7 +83,7 @@ export interface Options {
 }
 
 export interface Compiled {
-  version?: number,
+  version?: number;
   points: PointSet[];
   tins_points: (number | string)[][][];
   weight_buffer: WeightBufferBD;
@@ -104,7 +104,7 @@ export interface Compiled {
 }
 
 // For old Interface
-interface LegacyCompiled extends Compiled {
+interface CompiledLegacy extends Compiled {
   tins?: TinsBD;
   centroid?: CentroidBD;
   kinks?: KinksBD;
@@ -206,24 +206,29 @@ class Tin {
     this.tins = undefined;
     this.indexedTins = undefined;
   }
-  setCompiled(compiled: LegacyCompiled) {
-    if (compiled.version || (!compiled.tins && compiled.points && compiled.tins_points)) {
+  setCompiled(compiled: Compiled | CompiledLegacy) {
+    if (
+      compiled.version ||
+      (!(compiled as any).tins && compiled.points && compiled.tins_points)
+    ) {
       // 新コンパイルロジック
       // pointsはそのままpoints
       this.points = compiled.points;
       // After 0.7.3 Normalizing old formats for weightBuffer
-      this.pointsWeightBuffer = (!compiled.version || compiled.version < 2.00703) ?
-        (["forw", "bakw"] as BiDirectionKey[]).reduce((bd, forb) => {
-          const base = compiled.weight_buffer[forb];
-          if (base) {
-            bd[forb] = Object.keys(base!).reduce((buffer, key) => {
-              const normKey = normalizeNodeKey(key);
-              buffer[normKey] = base![key];
-              return buffer;
-            }, {} as WeightBuffer);
-          }
-          return bd;
-        }, {} as WeightBufferBD) : compiled.weight_buffer;
+      this.pointsWeightBuffer =
+        !compiled.version || compiled.version < 2.00703
+          ? (["forw", "bakw"] as BiDirectionKey[]).reduce((bd, forb) => {
+              const base = compiled.weight_buffer[forb];
+              if (base) {
+                bd[forb] = Object.keys(base!).reduce((buffer, key) => {
+                  const normKey = normalizeNodeKey(key);
+                  buffer[normKey] = base![key];
+                  return buffer;
+                }, {} as WeightBuffer);
+              }
+              return bd;
+            }, {} as WeightBufferBD)
+          : compiled.weight_buffer;
       // kinksやtinsの存在状況でstrict_statusを判定
       if (compiled.strict_status) {
         this.strict_status = compiled.strict_status;
@@ -349,15 +354,18 @@ class Tin {
       }
     } else {
       // 旧コンパイルロジック
-      compiled = JSON.parse(JSON.stringify(compiled)
-        .replace("\"cent\"", "\"c\"").replace(/"bbox(\d+)"/g, "\"b$1\""));
-      this.tins = compiled.tins;
+      compiled = JSON.parse(
+        JSON.stringify(compiled)
+          .replace('"cent"', '"c"')
+          .replace(/"bbox(\d+)"/g, '"b$1"')
+      );
+      this.tins = (compiled as CompiledLegacy).tins;
       this.addIndexedTin();
       this.strict_status = compiled.strict_status;
       this.pointsWeightBuffer = compiled.weight_buffer;
       this.vertices_params = compiled.vertices_params as VerticesParamsBD;
-      this.centroid = compiled.centroid;
-      this.kinks = compiled.kinks;
+      this.centroid = (compiled as CompiledLegacy).centroid;
+      this.kinks = (compiled as CompiledLegacy).kinks;
       const points: any = [];
       for (let i = 0; i < this.tins!.forw!.features.length; i++) {
         const tri = this.tins!.forw!.features[i];
@@ -869,11 +877,7 @@ class Tin {
         .sort((a: any, b: any) => (a[2] < b[2] ? -1 : 1))
         .map((node: any, index: any, arr: any) => {
           this.edgeNodes![edgeNodeIndex] = [node[0], node[1]];
-          const forPoint = createPoint(
-            node[0],
-            node[1],
-            `e${edgeNodeIndex}`
-          );
+          const forPoint = createPoint(node[0], node[1], `e${edgeNodeIndex}`);
           edgeNodeIndex++;
           pointsArray.forw.push(forPoint);
           pointsArray.bakw.push(counterPoint(forPoint));
@@ -1790,9 +1794,17 @@ function normalizeNodeKey(index: number | string) {
   return index.replace(/^(c|e|b)(?:ent|dgeNode|box)(\d+)?$/, "$1$2");
 }
 
-function normalizeEdges(edges: Edge[] | EdgeLegacy[], version?: number): Edge[] {
-  if ((version && version >= 2.00703) || Array.isArray(edges[0])) return edges as Edge[];
-  return (edges as EdgeLegacy[]).map(edge => [edge.illstNodes, edge.mercNodes, edge.startEnd]);
+function normalizeEdges(
+  edges: Edge[] | EdgeLegacy[],
+  version?: number
+): Edge[] {
+  if ((version && version >= 2.00703) || Array.isArray(edges[0]))
+    return edges as Edge[];
+  return (edges as EdgeLegacy[]).map(edge => [
+    edge.illstNodes,
+    edge.mercNodes,
+    edge.startEnd
+  ]);
 }
 
 function overlapCheckAsync(searchIndex: SearchIndex) {

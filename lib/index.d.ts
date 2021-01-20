@@ -85,7 +85,7 @@ export interface Compiled {
     wh?: number[];
     xy?: number[];
 }
-interface LegacyCompiled extends Compiled {
+interface CompiledLegacy extends Compiled {
     tins?: TinsBD;
     centroid?: CentroidBD;
     kinks?: KinksBD;
@@ -131,7 +131,7 @@ declare class Tin {
     setPoints(points: PointSet[]): void;
     setEdges(edges?: Edge[] | EdgeLegacy[]): void;
     setBounds(bounds: number[][]): void;
-    setCompiled(compiled: LegacyCompiled): {
+    setCompiled(compiled: Compiled | CompiledLegacy): {
         tins: TinsBD | undefined;
         strict_status: "strict" | "loose" | "strict_error" | undefined;
         weight_buffer: WeightBufferBD;
