@@ -250,7 +250,6 @@ class ArcCollection {
       intersections = [];
     let arr;
     for (i = 0; i < stripeCount; i++) {
-      // @ ts-expect-error
       arr = intersectSegments(stripes[i], raw.xx, raw.yy);
       for (j = 0; j < arr.length; j++) {
         intersections.push(arr[j]);
@@ -352,8 +351,7 @@ function intersectSegments(ids:any, xx:any, yy:any) {
 
   // Sort segments by xmin, to allow efficient exclusion of segments with
   // non-overlapping x extents.
-  // @ts-expect-error
-  internal.sortSegmentIds(xx, ids); // sort by ascending xmin
+  sortSegmentIds(xx, ids); // sort by ascending xmin
 
   i = 0;
   while (i < lim) {
@@ -408,14 +406,12 @@ function intersectSegments(ids:any, xx:any, yy:any) {
         seg1 = [s1p1, s1p2];
         seg2 = [s2p1, s2p2];
         intersections.push(
-          // @ts-expect-error
-          internal.formatIntersection(hit, seg1, seg2, xx, yy)
+          formatIntersection(hit, seg1, seg2, xx, yy)
         );
         if (hit.length == 4) {
           // two collinear segments may have two endpoint intersections
           intersections.push(
-            // @ts-expect-error
-            internal.formatIntersection(hit.slice(2), seg1, seg2, xx, yy)
+            formatIntersection(hit.slice(2), seg1, seg2, xx, yy)
           );
         }
       }
@@ -639,6 +635,97 @@ function endpointHit(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:
 
 function inside(x:any, minX:any, maxX:any) {
   return x > minX && x < maxX;
+}
+
+// @xx array of x coords
+// @ids an array of segment endpoint ids [a0, b0, a1, b1, ...]
+// Sort @ids in place so that xx[a(n)] <= xx[b(n)] and xx[a(n)] <= xx[a(n+1)]
+function sortSegmentIds(xx:any, ids:any) {
+  orderSegmentIds(xx, ids);
+  quicksortSegmentIds(xx, ids, 0, ids.length - 2);
+}
+
+function orderSegmentIds(xx:any, ids:any) {
+  for (let i = 0, n = ids.length; i < n; i += 2) {
+    if (xx[ids[i]] > xx[ids[i + 1]]) {
+      swap(ids, i, i + 1);
+    }
+  }
+}
+
+function swap(ids:any, i:number, j:number) {
+  const tmp = ids[i];
+  ids[i] = ids[j];
+  ids[j] = tmp;
+}
+
+function quicksortSegmentIds(a:any, ids:any, lo:any, hi:any) {
+  let i = lo,
+      j = hi,
+      pivot,
+      tmp;
+  while (i < hi) {
+    pivot = a[ids[((lo + hi) >> 2) << 1]]; // avoid n^2 performance on sorted arrays
+    while (i <= j) {
+      while (a[ids[i]] < pivot) i += 2;
+      while (a[ids[j]] > pivot) j -= 2;
+      if (i <= j) {
+        tmp = ids[i];
+        ids[i] = ids[j];
+        ids[j] = tmp;
+        tmp = ids[i + 1];
+        ids[i + 1] = ids[j + 1];
+        ids[j + 1] = tmp;
+        i += 2;
+        j -= 2;
+      }
+    }
+
+    if (j - lo < 40) insertionSortSegmentIds(a, ids, lo, j);
+    else quicksortSegmentIds(a, ids, lo, j);
+    if (hi - i < 40) {
+      insertionSortSegmentIds(a, ids, i, hi);
+      return;
+    }
+    lo = i;
+    j = hi;
+  }
+}
+
+function insertionSortSegmentIds(arr:any, ids:any, start:any, end:any) {
+  let id, id2;
+  for (let j = start + 2; j <= end; j += 2) {
+    id = ids[j];
+    id2 = ids[j + 1];
+    let i;
+    for (i = j - 2; i >= start && arr[id] < arr[ids[i]]; i -= 2) {
+      ids[i + 2] = ids[i];
+      ids[i + 3] = ids[i + 1];
+    }
+    ids[i + 2] = id;
+    ids[i + 3] = id2;
+  }
+}
+
+function formatIntersection(xy:any, s1:any, s2:any, xx:any, yy:any) {
+  const x = xy[0],
+    y = xy[1];
+  s1 = formatIntersectingSegment(x, y, s1[0], s1[1], xx, yy);
+  s2 = formatIntersectingSegment(x, y, s2[0], s2[1], xx, yy);
+  const a = s1[0] < s2[0] ? s1 : s2;
+  const b = a == s1 ? s2 : s1;
+  return { x, y, a, b };
+}
+
+function formatIntersectingSegment(x:any, y:any, id1:any, id2:any, xx:any, yy:any) {
+  let i = id1 < id2 ? id1 : id2,
+      j = i === id1 ? id2 : id1;
+  if (xx[i] == x && yy[i] == y) {
+    j = i;
+  } else if (xx[j] == x && yy[j] == y) {
+    i = j;
+  }
+  return [i, j];
 }
 
 // Constructor takes arrays of coords: xx, yy, zz (optional)
