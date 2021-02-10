@@ -20,16 +20,7 @@ import findIntersections from "./kinks";
 
 const format_version = 2.00703; //(Version 2 format for library version 0.7.3)
 
-// declare module "./mapshaper-maplat" {
-//   function dedupIntersections(xy: any): any[];
-//   function findSegmentIntersections(args: any): any;
-//   class ArcCollection {
-//     constructor(...args: any);
-//   }
-// }
 import constrainedTin from "./constrained-tin";
-// @ ts-expect-error
-//import internal from "./mapshaper-maplat";
 
 export type VertexMode = "plain" | "birdeye";
 export type StrictMode = "strict" | "auto" | "loose";
@@ -738,19 +729,6 @@ class Tin {
             new Promise(resolve => {
               const coords = this.tins![direc]!.features.map(poly => poly.geometry!.coordinates[0]);
               resolve(findIntersections(coords));
-              /*const xy = findIntersections(coords);
-              // @ts-expect-error
-              const retXy = internal
-                .dedupIntersections(xy)
-                .reduce((prev: any, apoint: any, index: any, array: any) => {
-                  if (!prev) prev = {};
-                  prev[`${apoint.x}:${apoint.y}`] = apoint;
-                  if (index != array.length - 1) return prev;
-                  return Object.keys(prev).map(key =>
-                    point([prev[key].x, prev[key].y])
-                  );
-                }, []);
-              resolve(retXy);*/
             }).catch(err => {
               throw err;
             })
@@ -1490,12 +1468,7 @@ function rotateVerticesTriangle(tins: Tins) {
   }
   return tins;
 }
-/*function findIntersections(coords: any) {
-  // @ts-expect-error
-  const arcs = new internal.ArcCollection(coords);
-  // @ts-expect-error
-  return internal.findSegmentIntersections(arcs);
-}*/
+
 function vertexCalc(list: any, centroid: any) {
   const centCoord = centroid.geometry.coordinates;
   return [0, 1, 2, 3]
