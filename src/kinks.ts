@@ -250,8 +250,8 @@ class ArcCollection {
       intersections = [];
     let arr;
     for (i = 0; i < stripeCount; i++) {
-      // @ts-expect-error
-      arr = internal.intersectSegments(stripes[i], raw.xx, raw.yy);
+      // @ ts-expect-error
+      arr = intersectSegments(stripes[i], raw.xx, raw.yy);
       for (j = 0; j < arr.length; j++) {
         intersections.push(arr[j]);
       }
@@ -320,6 +320,325 @@ function initializeArray(arr:any, init:any) {
     arr[i] = init;
   }
   return arr;
+}
+
+// Find intersections among a group of line segments
+//
+// TODO: handle case where a segment starts and ends at the same point (i.e. duplicate coords);
+//
+// @ids: Array of indexes: [s0p0, s0p1, s1p0, s1p1, ...] where xx[sip0] <= xx[sip1]
+// @xx, @yy: Arrays of x- and y-coordinates
+//
+function intersectSegments(ids:any, xx:any, yy:any) {
+  const lim = ids.length - 2,
+    intersections = [];
+  let s1p1,
+    s1p2,
+    s2p1,
+    s2p2,
+    s1p1x,
+    s1p2x,
+    s2p1x,
+    s2p2x,
+    s1p1y,
+    s1p2y,
+    s2p1y,
+    s2p2y,
+    hit,
+    seg1,
+    seg2,
+    i,
+    j;
+
+  // Sort segments by xmin, to allow efficient exclusion of segments with
+  // non-overlapping x extents.
+  // @ts-expect-error
+  internal.sortSegmentIds(xx, ids); // sort by ascending xmin
+
+  i = 0;
+  while (i < lim) {
+    s1p1 = ids[i];
+    s1p2 = ids[i + 1];
+    s1p1x = xx[s1p1];
+    s1p2x = xx[s1p2];
+    s1p1y = yy[s1p1];
+    s1p2y = yy[s1p2];
+    // count++;
+
+    j = i;
+    while (j < lim) {
+      j += 2;
+      s2p1 = ids[j];
+      s2p1x = xx[s2p1];
+
+      if (s1p2x < s2p1x) break; // x extent of seg 2 is greater than seg 1: done with seg 1
+      //if (s1p2x <= s2p1x) break; // this misses point-segment intersections when s1 or s2 is vertical
+
+      s2p1y = yy[s2p1];
+      s2p2 = ids[j + 1];
+      s2p2x = xx[s2p2];
+      s2p2y = yy[s2p2];
+
+      // skip segments with non-overlapping y ranges
+      if (s1p1y >= s2p1y) {
+        if (s1p1y > s2p2y && s1p2y > s2p1y && s1p2y > s2p2y) continue;
+      } else {
+        if (s1p1y < s2p2y && s1p2y < s2p1y && s1p2y < s2p2y) continue;
+      }
+
+      // skip segments that are adjacent in a path (optimization)
+      // TODO: consider if this eliminates some cases that should
+      // be detected, e.g. spikes formed by unequal segments
+      if (s1p1 == s2p1 || s1p1 == s2p2 || s1p2 == s2p1 || s1p2 == s2p2) {
+        continue;
+      }
+
+      // test two candidate segments for intersection
+      hit = segmentIntersection(
+        s1p1x,
+        s1p1y,
+        s1p2x,
+        s1p2y,
+        s2p1x,
+        s2p1y,
+        s2p2x,
+        s2p2y
+      );
+      if (hit) {
+        seg1 = [s1p1, s1p2];
+        seg2 = [s2p1, s2p2];
+        intersections.push(
+          // @ts-expect-error
+          internal.formatIntersection(hit, seg1, seg2, xx, yy)
+        );
+        if (hit.length == 4) {
+          // two collinear segments may have two endpoint intersections
+          intersections.push(
+            // @ts-expect-error
+            internal.formatIntersection(hit.slice(2), seg1, seg2, xx, yy)
+          );
+        }
+      }
+    }
+    i += 2;
+  }
+  return intersections;
+};
+
+// Find the interection between two 2D segments
+// Returns 0, 1 or two x, y locations as null, [x, y], or [x1, y1, x2, y2]
+// Special cases:
+// If the segments touch at an endpoint of both segments, it is not treated as an intersection
+// If the segments touch at a T-intersection, it is treated as an intersection
+// If the segments are collinear and partially overlapping, each subsumed endpoint
+//    is counted as an intersection (there will be one or two)
+//
+function segmentIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+  const hit = segmentHit(ax, ay, bx, by, cx, cy, dx, dy);
+  let p = null;
+  if (hit) {
+    p = crossIntersection(ax, ay, bx, by, cx, cy, dx, dy);
+    if (!p) {
+      // collinear if p is null
+      p = collinearIntersection(ax, ay, bx, by, cx, cy, dx, dy);
+    } else if (endpointHit(ax, ay, bx, by, cx, cy, dx, dy)) {
+      p = null; // filter out segments that only intersect at an endpoint
+    }
+  }
+  return p;
+}
+
+// Source: Sedgewick, _Algorithms in C_
+// (Tried various other functions that failed owing to floating point errors)
+function segmentHit(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+  return (
+    orient2D(ax, ay, bx, by, cx, cy) * orient2D(ax, ay, bx, by, dx, dy) <= 0 &&
+    orient2D(cx, cy, dx, dy, ax, ay) * orient2D(cx, cy, dx, dy, bx, by) <= 0
+  );
+}
+
+// returns a positive value if the points a, b, and c are arranged in
+// counterclockwise order, a negative value if the points are in clockwise
+// order, and zero if the points are collinear.
+// Source: Jonathan Shewchuk http://www.cs.berkeley.edu/~jrs/meshpapers/robnotes.pdf
+function orient2D(ax:any, ay:any, bx:any, by:any, cx:any, cy:any) {
+  return determinant2D(ax - cx, ay - cy, bx - cx, by - cy);
+}
+
+// Determinant of matrix
+//  | a  b |
+//  | c  d |
+function determinant2D(a:any, b:any, c:any, d:any) {
+  return a * d - b * c;
+}
+
+// Get intersection point if segments are non-collinear, else return null
+// Assumes that segments have been intersect
+function crossIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+  let p = lineIntersection(ax, ay, bx, by, cx, cy, dx, dy);
+  let nearest;
+  if (p) {
+    // Re-order operands so intersection point is closest to a (better precision)
+    // Source: Jonathan Shewchuk http://www.cs.berkeley.edu/~jrs/meshpapers/robnotes.pdf
+    nearest = nearestPoint(p[0], p[1], ax, ay, bx, by, cx, cy, dx, dy);
+    if (nearest == 1) {
+      p = lineIntersection(bx, by, ax, ay, cx, cy, dx, dy);
+    } else if (nearest == 2) {
+      p = lineIntersection(cx, cy, dx, dy, ax, ay, bx, by);
+    } else if (nearest == 3) {
+      p = lineIntersection(dx, dy, cx, cy, ax, ay, bx, by);
+    }
+  }
+  if (p) {
+    clampIntersectionPoint(p, ax, ay, bx, by, cx, cy, dx, dy);
+  }
+  return p;
+}
+
+function lineIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+  const den = determinant2D(bx - ax, by - ay, dx - cx, dy - cy);
+  const eps = 1e-18;
+  let p;
+  if (den === 0) return null;
+  const m = orient2D(cx, cy, dx, dy, ax, ay) / den;
+  if (den <= eps && den >= -eps) {
+    // tiny denominator = low precision; using one of the endpoints as intersection
+    p = findEndpointInRange(ax, ay, bx, by, cx, cy, dx, dy);
+    /*if (!p) {
+      debug("[lineIntersection()]");
+      debugSegmentIntersection([], ax, ay, bx, by, cx, cy, dx, dy);
+    }*/
+  } else {
+    p = [ax + m * (bx - ax), ay + m * (by - ay)];
+  }
+  return p;
+}
+
+function findEndpointInRange(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+  let p = null;
+  if (!outsideRange(ax, cx, dx) && !outsideRange(ay, cy, dy)) {
+    p = [ax, ay];
+  } else if (!outsideRange(bx, cx, dx) && !outsideRange(by, cy, dy)) {
+    p = [bx, by];
+  } else if (!outsideRange(cx, ax, bx) && !outsideRange(cy, ay, by)) {
+    p = [cx, cy];
+  } else if (!outsideRange(dx, ax, bx) && !outsideRange(dy, ay, by)) {
+    p = [dx, dy];
+  }
+  return p;
+}
+
+// a: coordinate of point
+// b: endpoint coordinate of segment
+// c: other endpoint of segment
+function outsideRange(a:any, b:any, c:any) {
+  let out;
+  if (b < c) {
+    out = a < b || a > c;
+  } else if (b > c) {
+    out = a > b || a < c;
+  } else {
+    out = a != b;
+  }
+  return out;
+}
+
+// Return id of nearest point to x, y, among x0, y0, x1, y1, ...
+function nearestPoint(x:any, y:any, ...args:any[]) {
+  let minIdx = -1,
+    minDist = Infinity,
+    dist;
+  for (let i = 0, j = 0, n = args.length; j < n; i++, j += 2) {
+    dist = distanceSq(x, y, args[j], args[j + 1]);
+    if (dist < minDist) {
+      minDist = dist;
+      minIdx = i;
+    }
+  }
+  return minIdx;
+}
+
+function distanceSq(ax:any, ay:any, bx:any, by:any) {
+  const dx = ax - bx,
+    dy = ay - by;
+  return dx * dx + dy * dy;
+}
+
+function clampIntersectionPoint(p:any, ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+  // Handle intersection points that fall outside the x-y range of either
+  // segment by snapping to nearest endpoint coordinate. Out-of-range
+  // intersection points can be caused by floating point rounding errors
+  // when a segment is vertical or horizontal. This has caused problems when
+  // repeatedly applying bbox clipping along the same segment
+  let x = p[0],
+      y = p[1];
+  // assumes that segment ranges intersect
+  x = clampToCloseRange(x, ax, bx);
+  x = clampToCloseRange(x, cx, dx);
+  y = clampToCloseRange(y, ay, by);
+  y = clampToCloseRange(y, cy, dy);
+  p[0] = x;
+  p[1] = y;
+}
+
+function clampToCloseRange(a:any, b:any, c:any) {
+  let lim;
+  if (outsideRange(a, b, c)) {
+    lim = Math.abs(a - b) < Math.abs(a - c) ? b : c;
+    if (Math.abs(a - lim) > 1e-15) {
+      //debug("[clampToCloseRange()] large clamping interval", a, b, c);
+    }
+    a = lim;
+  }
+  return a;
+}
+
+// Assume segments s1 and s2 are collinear and overlap; find one or two internal endpoints
+function collinearIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+  const minX = Math.min(ax, bx, cx, dx),
+    maxX = Math.max(ax, bx, cx, dx),
+    minY = Math.min(ay, by, cy, dy),
+    maxY = Math.max(ay, by, cy, dy),
+    useY = maxY - minY > maxX - minX;
+  let coords:any = [];
+
+  if (useY ? inside(ay, minY, maxY) : inside(ax, minX, maxX)) {
+    coords.push(ax, ay);
+  }
+  if (useY ? inside(by, minY, maxY) : inside(bx, minX, maxX)) {
+    coords.push(bx, by);
+  }
+  if (useY ? inside(cy, minY, maxY) : inside(cx, minX, maxX)) {
+    coords.push(cx, cy);
+  }
+  if (useY ? inside(dy, minY, maxY) : inside(dx, minX, maxX)) {
+    coords.push(dx, dy);
+  }
+  if (coords.length != 2 && coords.length != 4) {
+    coords = null;
+    //debug("Invalid collinear segment intersection", coords);
+  } else if (
+      coords.length == 4 &&
+      coords[0] == coords[2] &&
+      coords[1] == coords[3]
+  ) {
+    // segs that meet in the middle don't count
+    coords = null;
+  }
+  return coords;
+}
+
+function endpointHit(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+  return (
+    (ax == cx && ay == cy) ||
+    (ax == dx && ay == dy) ||
+    (bx == cx && by == cy) ||
+    (bx == dx && by == dy)
+  );
+}
+
+function inside(x:any, minX:any, maxX:any) {
+  return x > minX && x < maxX;
 }
 
 // Constructor takes arrays of coords: xx, yy, zz (optional)
