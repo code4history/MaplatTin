@@ -1,18 +1,18 @@
 import { Position } from "@turf/turf";
-import {point} from "@turf/helpers";
+import { point } from "@turf/helpers";
 
 export default function findIntersections(coords: Position[][]) {
   const arcs = new ArcCollection(coords);
   const xy = arcs.findSegmentIntersections();
-  return dedupIntersections(xy)
-    .reduce((prev: any, apoint: any, index: any, array: any) => {
+  return dedupIntersections(xy).reduce(
+    (prev: any, apoint: any, index: any, array: any) => {
       if (!prev) prev = {};
       prev[`${apoint.x}:${apoint.y}`] = apoint;
       if (index != array.length - 1) return prev;
-      return Object.keys(prev).map(key =>
-        point([prev[key].x, prev[key].y])
-      );
-    }, []);
+      return Object.keys(prev).map(key => point([prev[key].x, prev[key].y]));
+    },
+    []
+  );
 }
 
 class ArcCollection {
@@ -33,7 +33,8 @@ class ArcCollection {
   }
 
   initArcs(arcs: Position[][]) {
-    const xx: number[] = [], yy: number[] = [];
+    const xx: number[] = [],
+      yy: number[] = [];
     const nn = arcs.map(points => {
       const n = points ? points.length : 0;
       for (let i = 0; i < n; i++) {
@@ -77,13 +78,13 @@ class ArcCollection {
     this._allBounds = data.bounds;
   }
 
-  calcArcBounds_(xx:Float64Array, yy:Float64Array, nn:Uint32Array) {
+  calcArcBounds_(xx: Float64Array, yy: Float64Array, nn: Uint32Array) {
     const numArcs = nn.length,
       bb = new Float64Array(numArcs * 4),
       bounds = new Bounds();
     let arcOffs = 0,
-      arcLen:number,
-      j:number,
+      arcLen: number,
+      j: number,
       b: number[];
     for (let i = 0; i < numArcs; i++) {
       arcLen = nn[i];
@@ -122,7 +123,7 @@ class ArcCollection {
   }
 
   // @cb function(i, j, xx, yy)
-  forEachArcSegment(arcId:any, cb:any): any {
+  forEachArcSegment(arcId: any, cb: any): any {
     const fw = arcId >= 0,
       absId = fw ? arcId : ~arcId,
       zlim = this.getRetainedInterval(),
@@ -159,7 +160,7 @@ class ArcCollection {
     };
   }
 
-  getUint32Array(count:number) {
+  getUint32Array(count: number) {
     const bytes = count * 4;
     if (!this.buf || this.buf.byteLength < bytes) {
       this.buf = new ArrayBuffer(bytes);
@@ -171,10 +172,12 @@ class ArcCollection {
   getAvgSegment2() {
     let dx = 0,
       dy = 0;
-    const count = this.forEachSegment((i:number, j:number, xx:number[], yy:number[]) => {
-      dx += Math.abs(xx[i] - xx[j]);
-      dy += Math.abs(yy[i] - yy[j]);
-    });
+    const count = this.forEachSegment(
+      (i: number, j: number, xx: number[], yy: number[]) => {
+        dx += Math.abs(xx[i] - xx[j]);
+        dy += Math.abs(yy[i] - yy[j]);
+      }
+    );
     return [dx / count || 0, dy / count || 0];
   }
 
@@ -194,28 +197,31 @@ class ArcCollection {
       yrange = bounds.ymax - ymin,
       stripeCount = this.calcSegmentIntersectionStripeCount(),
       stripeSizes = new Uint32Array(stripeCount),
-      stripeId = stripeCount > 1 ?
-        (y:number) => Math.floor(((stripeCount - 1) * (y - ymin)) / yrange) :
-        () => 0;
+      stripeId =
+        stripeCount > 1
+          ? (y: number) => Math.floor(((stripeCount - 1) * (y - ymin)) / yrange)
+          : () => 0;
     let i, j;
 
     // Count segments in each stripe
-    this.forEachSegment((id1:number, id2:number, xx:number[], yy:number[]) => {
-      let s1 = stripeId(yy[id1]);
-      const s2 = stripeId(yy[id2]);
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        stripeSizes[s1] = stripeSizes[s1] + 2;
-        if (s1 == s2) break;
-        s1 += s2 > s1 ? 1 : -1;
+    this.forEachSegment(
+      (id1: number, id2: number, xx: number[], yy: number[]) => {
+        let s1 = stripeId(yy[id1]);
+        const s2 = stripeId(yy[id2]);
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          stripeSizes[s1] = stripeSizes[s1] + 2;
+          if (s1 == s2) break;
+          s1 += s2 > s1 ? 1 : -1;
+        }
       }
-    });
+    );
 
     // Allocate arrays for segments in each stripe
     const stripeData = this.getUint32Array(utilsSum(stripeSizes));
     let offs = 0;
-    const stripes:any[] = [];
-    utilsForEach(stripeSizes, (stripeSize:number) => {
+    const stripes: any[] = [];
+    utilsForEach(stripeSizes, (stripeSize: number) => {
       const start = offs;
       offs += stripeSize;
       stripes.push(stripeData.subarray(start, offs));
@@ -223,21 +229,23 @@ class ArcCollection {
     // Assign segment ids to each stripe
     initializeArray(stripeSizes, 0);
 
-    this.forEachSegment((id1:number, id2:number, xx:number[], yy:number[]) => {
-      let s1 = stripeId(yy[id1]);
-      const s2 = stripeId(yy[id2]);
-      let count, stripe;
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        count = stripeSizes[s1];
-        stripeSizes[s1] = count + 2;
-        stripe = stripes[s1];
-        stripe[count] = id1;
-        stripe[count + 1] = id2;
-        if (s1 == s2) break;
-        s1 += s2 > s1 ? 1 : -1;
+    this.forEachSegment(
+      (id1: number, id2: number, xx: number[], yy: number[]) => {
+        let s1 = stripeId(yy[id1]);
+        const s2 = stripeId(yy[id2]);
+        let count, stripe;
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          count = stripeSizes[s1];
+          stripeSizes[s1] = count + 2;
+          stripe = stripes[s1];
+          stripe[count] = id1;
+          stripe[count + 1] = id2;
+          if (s1 == s2) break;
+          s1 += s2 > s1 ? 1 : -1;
+        }
       }
-    });
+    );
 
     // Detect intersections among segments in each stripe.
     const raw = this.getVertexData(),
@@ -258,7 +266,7 @@ function error(...args: any[]) {
   throw new Error(msg);
 }
 
-function isArrayLike(obj:any) {
+function isArrayLike(obj: any) {
   if (!obj) return false;
   if (isArray(obj)) return true;
   if (isString(obj)) return false;
@@ -266,20 +274,19 @@ function isArrayLike(obj:any) {
   return obj.length > 0;
 }
 
-function isString(obj:any) {
+function isString(obj: any) {
   return obj != null && obj.toString === String.prototype.toString;
 }
 
-function isArray(obj:any) {
+function isArray(obj: any) {
   return Array.isArray(obj);
 }
 
 // Calc sum, skip falsy and NaN values
 // Assumes: no other non-numeric objects in array
 //
-function utilsSum(arr:Uint32Array, info?:any) {
-  if (!isArrayLike(arr))
-    error("utils.sum() expects an array, received:", arr);
+function utilsSum(arr: Uint32Array, info?: any) {
+  if (!isArrayLike(arr)) error("utils.sum() expects an array, received:", arr);
   let tot = 0,
     nan = 0,
     val;
@@ -298,7 +305,7 @@ function utilsSum(arr:Uint32Array, info?:any) {
 }
 
 // Support for iterating over array-like objects, like typed arrays
-function utilsForEach(arr:any, func:any, ctx?:any) {
+function utilsForEach(arr: any, func: any, ctx?: any) {
   if (!isArrayLike(arr)) {
     throw new Error(`#forEach() takes an array-like argument. ${arr}`);
   }
@@ -307,7 +314,7 @@ function utilsForEach(arr:any, func:any, ctx?:any) {
   }
 }
 
-function initializeArray(arr:any, init:any) {
+function initializeArray(arr: any, init: any) {
   for (let i = 0, len = arr.length; i < len; i++) {
     arr[i] = init;
   }
@@ -321,7 +328,7 @@ function initializeArray(arr:any, init:any) {
 // @ids: Array of indexes: [s0p0, s0p1, s1p0, s1p1, ...] where xx[sip0] <= xx[sip1]
 // @xx, @yy: Arrays of x- and y-coordinates
 //
-function intersectSegments(ids:any, xx:any, yy:any) {
+function intersectSegments(ids: any, xx: any, yy: any) {
   const lim = ids.length - 2,
     intersections = [];
   let s1p1,
@@ -398,9 +405,7 @@ function intersectSegments(ids:any, xx:any, yy:any) {
       if (hit) {
         seg1 = [s1p1, s1p2];
         seg2 = [s2p1, s2p2];
-        intersections.push(
-          formatIntersection(hit, seg1, seg2, xx, yy)
-        );
+        intersections.push(formatIntersection(hit, seg1, seg2, xx, yy));
         if (hit.length == 4) {
           // two collinear segments may have two endpoint intersections
           intersections.push(
@@ -412,7 +417,7 @@ function intersectSegments(ids:any, xx:any, yy:any) {
     i += 2;
   }
   return intersections;
-};
+}
 
 // Find the interection between two 2D segments
 // Returns 0, 1 or two x, y locations as null, [x, y], or [x1, y1, x2, y2]
@@ -422,7 +427,16 @@ function intersectSegments(ids:any, xx:any, yy:any) {
 // If the segments are collinear and partially overlapping, each subsumed endpoint
 //    is counted as an intersection (there will be one or two)
 //
-function segmentIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+function segmentIntersection(
+  ax: any,
+  ay: any,
+  bx: any,
+  by: any,
+  cx: any,
+  cy: any,
+  dx: any,
+  dy: any
+) {
   const hit = segmentHit(ax, ay, bx, by, cx, cy, dx, dy);
   let p = null;
   if (hit) {
@@ -439,7 +453,16 @@ function segmentIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:
 
 // Source: Sedgewick, _Algorithms in C_
 // (Tried various other functions that failed owing to floating point errors)
-function segmentHit(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+function segmentHit(
+  ax: any,
+  ay: any,
+  bx: any,
+  by: any,
+  cx: any,
+  cy: any,
+  dx: any,
+  dy: any
+) {
   return (
     orient2D(ax, ay, bx, by, cx, cy) * orient2D(ax, ay, bx, by, dx, dy) <= 0 &&
     orient2D(cx, cy, dx, dy, ax, ay) * orient2D(cx, cy, dx, dy, bx, by) <= 0
@@ -450,20 +473,29 @@ function segmentHit(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:a
 // counterclockwise order, a negative value if the points are in clockwise
 // order, and zero if the points are collinear.
 // Source: Jonathan Shewchuk http://www.cs.berkeley.edu/~jrs/meshpapers/robnotes.pdf
-function orient2D(ax:any, ay:any, bx:any, by:any, cx:any, cy:any) {
+function orient2D(ax: any, ay: any, bx: any, by: any, cx: any, cy: any) {
   return determinant2D(ax - cx, ay - cy, bx - cx, by - cy);
 }
 
 // Determinant of matrix
 //  | a  b |
 //  | c  d |
-function determinant2D(a:any, b:any, c:any, d:any) {
+function determinant2D(a: any, b: any, c: any, d: any) {
   return a * d - b * c;
 }
 
 // Get intersection point if segments are non-collinear, else return null
 // Assumes that segments have been intersect
-function crossIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+function crossIntersection(
+  ax: any,
+  ay: any,
+  bx: any,
+  by: any,
+  cx: any,
+  cy: any,
+  dx: any,
+  dy: any
+) {
   let p = lineIntersection(ax, ay, bx, by, cx, cy, dx, dy);
   let nearest;
   if (p) {
@@ -484,7 +516,16 @@ function crossIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:an
   return p;
 }
 
-function lineIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+function lineIntersection(
+  ax: any,
+  ay: any,
+  bx: any,
+  by: any,
+  cx: any,
+  cy: any,
+  dx: any,
+  dy: any
+) {
   const den = determinant2D(bx - ax, by - ay, dx - cx, dy - cy);
   const eps = 1e-18;
   let p;
@@ -503,7 +544,16 @@ function lineIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any
   return p;
 }
 
-function findEndpointInRange(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+function findEndpointInRange(
+  ax: any,
+  ay: any,
+  bx: any,
+  by: any,
+  cx: any,
+  cy: any,
+  dx: any,
+  dy: any
+) {
   let p = null;
   if (!outsideRange(ax, cx, dx) && !outsideRange(ay, cy, dy)) {
     p = [ax, ay];
@@ -520,7 +570,7 @@ function findEndpointInRange(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:
 // a: coordinate of point
 // b: endpoint coordinate of segment
 // c: other endpoint of segment
-function outsideRange(a:any, b:any, c:any) {
+function outsideRange(a: any, b: any, c: any) {
   let out;
   if (b < c) {
     out = a < b || a > c;
@@ -533,7 +583,7 @@ function outsideRange(a:any, b:any, c:any) {
 }
 
 // Return id of nearest point to x, y, among x0, y0, x1, y1, ...
-function nearestPoint(x:any, y:any, ...args:any[]) {
+function nearestPoint(x: any, y: any, ...args: any[]) {
   let minIdx = -1,
     minDist = Infinity,
     dist;
@@ -547,20 +597,30 @@ function nearestPoint(x:any, y:any, ...args:any[]) {
   return minIdx;
 }
 
-function distanceSq(ax:any, ay:any, bx:any, by:any) {
+function distanceSq(ax: any, ay: any, bx: any, by: any) {
   const dx = ax - bx,
     dy = ay - by;
   return dx * dx + dy * dy;
 }
 
-function clampIntersectionPoint(p:any, ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+function clampIntersectionPoint(
+  p: any,
+  ax: any,
+  ay: any,
+  bx: any,
+  by: any,
+  cx: any,
+  cy: any,
+  dx: any,
+  dy: any
+) {
   // Handle intersection points that fall outside the x-y range of either
   // segment by snapping to nearest endpoint coordinate. Out-of-range
   // intersection points can be caused by floating point rounding errors
   // when a segment is vertical or horizontal. This has caused problems when
   // repeatedly applying bbox clipping along the same segment
   let x = p[0],
-      y = p[1];
+    y = p[1];
   // assumes that segment ranges intersect
   x = clampToCloseRange(x, ax, bx);
   x = clampToCloseRange(x, cx, dx);
@@ -570,7 +630,7 @@ function clampIntersectionPoint(p:any, ax:any, ay:any, bx:any, by:any, cx:any, c
   p[1] = y;
 }
 
-function clampToCloseRange(a:any, b:any, c:any) {
+function clampToCloseRange(a: any, b: any, c: any) {
   let lim;
   if (outsideRange(a, b, c)) {
     lim = Math.abs(a - b) < Math.abs(a - c) ? b : c;
@@ -583,13 +643,22 @@ function clampToCloseRange(a:any, b:any, c:any) {
 }
 
 // Assume segments s1 and s2 are collinear and overlap; find one or two internal endpoints
-function collinearIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+function collinearIntersection(
+  ax: any,
+  ay: any,
+  bx: any,
+  by: any,
+  cx: any,
+  cy: any,
+  dx: any,
+  dy: any
+) {
   const minX = Math.min(ax, bx, cx, dx),
     maxX = Math.max(ax, bx, cx, dx),
     minY = Math.min(ay, by, cy, dy),
     maxY = Math.max(ay, by, cy, dy),
     useY = maxY - minY > maxX - minX;
-  let coords:any = [];
+  let coords: any = [];
 
   if (useY ? inside(ay, minY, maxY) : inside(ax, minX, maxX)) {
     coords.push(ax, ay);
@@ -607,9 +676,9 @@ function collinearIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, d
     coords = null;
     //debug("Invalid collinear segment intersection", coords);
   } else if (
-      coords.length == 4 &&
-      coords[0] == coords[2] &&
-      coords[1] == coords[3]
+    coords.length == 4 &&
+    coords[0] == coords[2] &&
+    coords[1] == coords[3]
   ) {
     // segs that meet in the middle don't count
     coords = null;
@@ -617,7 +686,16 @@ function collinearIntersection(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, d
   return coords;
 }
 
-function endpointHit(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:any) {
+function endpointHit(
+  ax: any,
+  ay: any,
+  bx: any,
+  by: any,
+  cx: any,
+  cy: any,
+  dx: any,
+  dy: any
+) {
   return (
     (ax == cx && ay == cy) ||
     (ax == dx && ay == dy) ||
@@ -626,19 +704,19 @@ function endpointHit(ax:any, ay:any, bx:any, by:any, cx:any, cy:any, dx:any, dy:
   );
 }
 
-function inside(x:any, minX:any, maxX:any) {
+function inside(x: any, minX: any, maxX: any) {
   return x > minX && x < maxX;
 }
 
 // @xx array of x coords
 // @ids an array of segment endpoint ids [a0, b0, a1, b1, ...]
 // Sort @ids in place so that xx[a(n)] <= xx[b(n)] and xx[a(n)] <= xx[a(n+1)]
-function sortSegmentIds(xx:any, ids:any) {
+function sortSegmentIds(xx: any, ids: any) {
   orderSegmentIds(xx, ids);
   quicksortSegmentIds(xx, ids, 0, ids.length - 2);
 }
 
-function orderSegmentIds(xx:any, ids:any) {
+function orderSegmentIds(xx: any, ids: any) {
   for (let i = 0, n = ids.length; i < n; i += 2) {
     if (xx[ids[i]] > xx[ids[i + 1]]) {
       swap(ids, i, i + 1);
@@ -646,17 +724,17 @@ function orderSegmentIds(xx:any, ids:any) {
   }
 }
 
-function swap(ids:any, i:number, j:number) {
+function swap(ids: any, i: number, j: number) {
   const tmp = ids[i];
   ids[i] = ids[j];
   ids[j] = tmp;
 }
 
-function quicksortSegmentIds(a:any, ids:any, lo:any, hi:any) {
+function quicksortSegmentIds(a: any, ids: any, lo: any, hi: any) {
   let i = lo,
-      j = hi,
-      pivot,
-      tmp;
+    j = hi,
+    pivot,
+    tmp;
   while (i < hi) {
     pivot = a[ids[((lo + hi) >> 2) << 1]]; // avoid n^2 performance on sorted arrays
     while (i <= j) {
@@ -685,7 +763,7 @@ function quicksortSegmentIds(a:any, ids:any, lo:any, hi:any) {
   }
 }
 
-function insertionSortSegmentIds(arr:any, ids:any, start:any, end:any) {
+function insertionSortSegmentIds(arr: any, ids: any, start: any, end: any) {
   let id, id2;
   for (let j = start + 2; j <= end; j += 2) {
     id = ids[j];
@@ -700,7 +778,7 @@ function insertionSortSegmentIds(arr:any, ids:any, start:any, end:any) {
   }
 }
 
-function formatIntersection(xy:any, s1:any, s2:any, xx:any, yy:any) {
+function formatIntersection(xy: any, s1: any, s2: any, xx: any, yy: any) {
   const x = xy[0],
     y = xy[1];
   s1 = formatIntersectingSegment(x, y, s1[0], s1[1], xx, yy);
@@ -710,9 +788,16 @@ function formatIntersection(xy:any, s1:any, s2:any, xx:any, yy:any) {
   return { x, y, a, b };
 }
 
-function formatIntersectingSegment(x:any, y:any, id1:any, id2:any, xx:any, yy:any) {
+function formatIntersectingSegment(
+  x: any,
+  y: any,
+  id1: any,
+  id2: any,
+  xx: any,
+  yy: any
+) {
   let i = id1 < id2 ? id1 : id2,
-      j = i === id1 ? id2 : id1;
+    j = i === id1 ? id2 : id1;
   if (xx[i] == x && yy[i] == y) {
     j = i;
   } else if (xx[j] == x && yy[j] == y) {
@@ -721,9 +806,9 @@ function formatIntersectingSegment(x:any, y:any, id1:any, id2:any, xx:any, yy:an
   return [i, j];
 }
 
-function dedupIntersections(arr:any) {
-  const index:any = {};
-  return arr.filter((o:any) => {
+function dedupIntersections(arr: any) {
+  const index: any = {};
+  return arr.filter((o: any) => {
     const key = getIntersectionKey(o);
     if (key in index) {
       return false;
@@ -735,7 +820,7 @@ function dedupIntersections(arr:any) {
 
 // Get an indexable key from an intersection object
 // Assumes that vertex ids of o.a and o.b are sorted
-function getIntersectionKey(o:any) {
+function getIntersectionKey(o: any) {
   return `${o.a.join(",")};${o.b.join(",")}`;
 }
 
@@ -751,16 +836,26 @@ class ArcIter {
   x = 0;
   y = 0;
 
-  constructor(xx:Float64Array, yy:Float64Array) {
+  constructor(xx: Float64Array, yy: Float64Array) {
     this._xx = xx;
     this._yy = yy;
   }
 }
 
-function calcArcBounds(xx: Float64Array, yy:Float64Array, start:number, len:number) {
+function calcArcBounds(
+  xx: Float64Array,
+  yy: Float64Array,
+  start: number,
+  len: number
+) {
   let i = start | 0;
   const n = isNaN(len) ? xx.length - i : len + i;
-  let x:number, y:number, xmin:number, ymin:number, xmax:number, ymax:number;
+  let x: number,
+    y: number,
+    xmin: number,
+    ymin: number,
+    xmax: number,
+    ymax: number;
   if (n > 0) {
     xmin = xmax = xx[i];
     ymin = ymax = yy[i];
@@ -777,10 +872,10 @@ function calcArcBounds(xx: Float64Array, yy:Float64Array, start:number, len:numb
 }
 
 class Bounds {
-  xmin?:number;
-  ymin?:number;
-  xmax?:number;
-  ymax?:number;
+  xmin?: number;
+  ymin?: number;
+  xmax?: number;
+  ymax?: number;
 
   constructor(...args: any[]) {
     if (args.length > 0) {
@@ -806,8 +901,7 @@ class Bounds {
     return this.ymax! - this.ymin! || 0;
   }
 
-
-  setBounds(a:any, b?:number, c?:number, d?:number) {
+  setBounds(a: any, b?: number, c?: number, d?: number) {
     if (arguments.length == 1) {
       // assume first arg is a Bounds or array
       if (isArrayLike(a)) {
@@ -833,7 +927,7 @@ class Bounds {
   }
 
   update() {
-    let tmp:number;
+    let tmp: number;
     if (this.xmin! > this.xmax!) {
       tmp = this.xmin!;
       this.xmin = this.xmax;
@@ -847,7 +941,7 @@ class Bounds {
   }
 
   mergeBounds(bb: number | number[] | Bounds, ...args: number[]) {
-    let a:number, b:number, c:number, d:number;
+    let a: number, b: number, c: number, d: number;
     if (bb instanceof Bounds) {
       a = bb.xmin!;
       b = bb.ymin!;

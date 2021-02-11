@@ -727,7 +727,9 @@ class Tin {
         return Promise.all(
           (["forw", "bakw"] as BiDirectionKey[]).map(direc =>
             new Promise(resolve => {
-              const coords = this.tins![direc]!.features.map(poly => poly.geometry!.coordinates[0]);
+              const coords = this.tins![direc]!.features.map(
+                poly => poly.geometry!.coordinates[0]
+              );
               resolve(findIntersections(coords));
             }).catch(err => {
               throw err;
