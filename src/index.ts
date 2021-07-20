@@ -662,7 +662,7 @@ export default class Tin {
             const forConvex = convex(
               featureCollection([trises[0].forw, trises[1].forw])
             );
-            const forDiff = difference(forConvex, forUnion);
+            const forDiff = difference(forConvex!, forUnion!);
             if (forDiff) return;
             const splittedKey = key.split("-");
             if (
@@ -959,7 +959,7 @@ export default class Tin {
         const convexBuf: any = {};
         return Promise.all([
           new Promise(resolve => {
-            const forConvex = (convex(pointsSet.forw).geometry as any)
+            const forConvex = (convex(pointsSet.forw)!.geometry as any)
               .coordinates[0];
             let vconvex;
             try {
@@ -976,7 +976,7 @@ export default class Tin {
             resolve(undefined);
           }),
           new Promise(resolve => {
-            const bakConvex = (convex(pointsSet.bakw).geometry as any)
+            const bakConvex = (convex(pointsSet.bakw)!.geometry as any)
               .coordinates[0];
             let vconvex;
             try {
@@ -1797,8 +1797,8 @@ function overlapCheckAsync(searchIndex: SearchIndex) {
             );
             if (
               !result ||
-              result.geometry.type == "Point" ||
-              result.geometry.type == "LineString"
+              (result.geometry as any).type == "Point" ||
+              (result.geometry as any).type == "LineString"
             )
               return resolve(undefined);
             resolve(undefined);
