@@ -38,9 +38,7 @@
   },
   "homepage": "https://github.com/code4history/MaplatTin/wiki",
   "dependencies": {
-    "@turf/nearest-point-to-line": "^6.0.0",
-    "@turf/point-to-line-distance": "^6.0.0",
-    "@turf/turf": "^5.1.6"
+    "@turf/turf": "^6.4.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.14.5",
@@ -70,6 +68,10 @@
     "webpack": "^5.40.0",
     "webpack-cli": "^4.7.2",
     "webpack-dev-server": "^3.11.2",
-    "webpack-merge": "^5.7.3"
+    "webpack-merge": "^5.7.3",
+    "concaveman": "https://github.com/grassick/concaveman#patch-1"
+  },
+  "resolutions": {
+    "concaveman": "https://github.com/grassick/concaveman#patch-1"
   }
 }
