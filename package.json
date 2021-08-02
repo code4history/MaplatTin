@@ -24,8 +24,7 @@
     "lint:eslint": "eslint \"{src,spec}/**/*.{js,ts}\" --fix",
     "lint:prettier": "prettier \"./{src,spec}/**/*.{js,ts}\" --write",
     "typecheck": "tsc --noEmit",
-    "git_keep": "gulp git_keep",
-    "git_open": "gulp git_open"
+    "git_switch": "gulp git_switch"
   },
   "repository": {
     "type": "git",
