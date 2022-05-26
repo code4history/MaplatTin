@@ -9,7 +9,7 @@
 // https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-728.pdf
 
 import { polygon, featureCollection, FeatureCollection } from "@turf/helpers";
-
+/*
 class Point {
   // eslint-disable-next-line no-useless-constructor
   constructor(public x: number, public y: number) {}
@@ -44,13 +44,17 @@ class Point {
     this.x = p.x;
     this.y = p.y;
   }
+}*/
+
+function cross(vec0: number[], vec1: number[]): number {
+  return vec0[0] * vec1[1] - vec0[1] * vec1[0]
 }
 
-function cross(vec0: Point, vec1: Point): number {
-  return vec0.x * vec1.y - vec0.y * vec1.x;
+function sub(vec0: number[], vec1: number[]): number[] {
+  return [vec0[0] - vec1[0], vec0[1] - vec1[1]]
 }
 
-function getPointOrientation(edge: [Point, Point], p: Point): number {
+/*function getPointOrientation(edge: [Point, Point], p: Point): number {
   const vec_edge01 = edge[1].sub(edge[0]);
   const vec_edge0_to_p = p.sub(edge[0]);
   return cross(vec_edge01, vec_edge0_to_p);
@@ -85,22 +89,22 @@ function isSameEdge(edge0: Edge, edge1: Edge): boolean {
     (edge0[0] == edge1[0] && edge0[1] == edge1[1]) ||
     (edge0[1] == edge1[0] && edge0[0] == edge1[1])
   );
-}
+}*/
 
 function isEdgeIntersecting(
-  edgeA: [Point, Point],
-  edgeB: [Point, Point]
+  edgeA: number[][],
+  edgeB: number[][]
 ): boolean {
-  const vecA0A1 = edgeA[1].sub(edgeA[0]);
-  const vecA0B0 = edgeB[0].sub(edgeA[0]);
-  const vecA0B1 = edgeB[1].sub(edgeA[0]);
+  const vecA0A1 = sub(edgeA[1], edgeA[0]);
+  const vecA0B0 = sub(edgeB[0], edgeA[0]);
+  const vecA0B1 = sub(edgeB[1], edgeA[0]);
   const AxB0 = cross(vecA0A1, vecA0B0);
   const AxB1 = cross(vecA0A1, vecA0B1);
   //Check if the endpoints of edgeB are on the same side of edgeA
   if ((AxB0 > 0 && AxB1 > 0) || (AxB0 < 0 && AxB1 < 0)) return false;
-  const vecB0B1 = edgeB[1].sub(edgeB[0]);
-  const vecB0A0 = edgeA[0].sub(edgeB[0]);
-  const vecB0A1 = edgeA[1].sub(edgeB[0]);
+  const vecB0B1 = sub(edgeB[1], edgeB[0]);
+  const vecB0A0 = sub(edgeA[0], edgeB[0]);
+  const vecB0A1 = sub(edgeA[1], edgeB[0]);
   const BxA0 = cross(vecB0B1, vecB0A0);
   const BxA1 = cross(vecB0B1, vecB0A1);
   //Check if the endpoints of edgeA are on the same side of edgeB
@@ -109,31 +113,31 @@ function isEdgeIntersecting(
   if (Math.abs(AxB0) < 1e-14 && Math.abs(AxB1) < 1e-14) {
     //Separated in x
     if (
-      Math.max(edgeB[0].x, edgeB[1].x) < Math.min(edgeA[0].x, edgeA[1].x) ||
-      Math.min(edgeB[0].x, edgeB[1].x) > Math.max(edgeA[0].x, edgeA[1].x)
+      Math.max(edgeB[0][0], edgeB[1][0]) < Math.min(edgeA[0][0], edgeA[1][0]) ||
+      Math.min(edgeB[0][0], edgeB[1][0]) > Math.max(edgeA[0][0], edgeA[1][0])
     )
       return false;
     //Separated in y
     if (
-      Math.max(edgeB[0].y, edgeB[1].y) < Math.min(edgeA[0].y, edgeA[1].y) ||
-      Math.min(edgeB[0].y, edgeB[1].y) > Math.max(edgeA[0].y, edgeA[1].y)
+      Math.max(edgeB[0][1], edgeB[1][1]) < Math.min(edgeA[0][1], edgeA[1][1]) ||
+      Math.min(edgeB[0][1], edgeB[1][1]) > Math.max(edgeA[0][1], edgeA[1][1])
     )
-      return false;
+    return false;
   }
   return true;
 }
 
 interface Mesh {
-  vert: Point[];
-  scaled_vert: Point[];
-  bin: Bin[];
+  vert: number[][];
+  //scaled_vert: Point[];
+  //bin: Bin[];
   tri: [[number, number, number]];
   adj: [[number, number, number]];
   vert_to_tri: any[];
   con_edge: Edge[];
 }
 
-function setupDelaunay(meshData: Mesh) {
+/*function setupDelaunay(meshData: Mesh) {
   const nVertex = meshData.vert.length;
   const nBinsX = Math.round(Math.pow(nVertex, 0.25));
   //Compute scaled vertex coordinates and assign each vertex to a bin
@@ -672,7 +676,7 @@ function fixEdgeIntersections(
       }
     } //is convex
   } //loop over intersections
-}
+}*/
 function loadEdges(meshData: Mesh, edges: Edge[]) {
   const nVertex = meshData.vert.length;
   meshData.con_edge = [];
@@ -706,7 +710,7 @@ function isEdgeValid(
   edgeList: Mesh["con_edge"],
   vertices: Mesh["vert"]
 ): boolean {
-  const new_edge_verts: [Point, Point] = [
+  const new_edge_verts: number[][] = [
     vertices[newEdge[0]],
     vertices[newEdge[1]]
   ];
@@ -722,7 +726,7 @@ function isEdgeValid(
       edgeList[i][0] == newEdge[1] ||
       edgeList[i][1] == newEdge[0] ||
       edgeList[i][1] == newEdge[1];
-    const edge_verts: [Point, Point] = [
+    const edge_verts: number[][] = [
       vertices[edgeList[i][0]],
       vertices[edgeList[i][1]]
     ];
@@ -779,7 +783,7 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
       (xy[0] - xCenter) / maxDiff + 0.5,
       (xy[1] - yCenter) / maxDiff + 0.5
     ];
-    return new Point(normXy[0], normXy[1]);
+    return [normXy[0], normXy[1]];
   });
   // Create data structure for cdt-js
   const meshData = {

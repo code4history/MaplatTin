@@ -41,6 +41,8 @@
   },
   "homepage": "https://github.com/code4history/MaplatTin/wiki",
   "dependencies": {
+    "@kninnug/constrainautor": "^4.0.0",
+    "delaunator": "^5.0.0",
     "@turf/turf": "^6.5.0"
   },
   "devDependencies": {
