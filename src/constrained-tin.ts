@@ -9,6 +9,9 @@
 // https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-728.pdf
 
 import { polygon, featureCollection, FeatureCollection } from "@turf/helpers";
+import Delaunator from "delaunator"
+import Constrainautor from "@kninnug/constrainautor"
+
 /*
 class Point {
   // eslint-disable-next-line no-useless-constructor
