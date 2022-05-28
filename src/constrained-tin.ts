@@ -11,6 +11,7 @@
 import { polygon, featureCollection, FeatureCollection } from "@turf/helpers";
 import Delaunator from "delaunator"
 import Constrainautor from "@kninnug/constrainautor"
+import fs from "fs"
 
 type Edge = [number, number];
 
@@ -36,6 +37,10 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
       del.triangles[i + 2]
     ]);
   }
+
+  fs.writeFileSync("./points.json", JSON.stringify(del_points, null, 1));
+  fs.writeFileSync("./edges.json", JSON.stringify(edges, null, 1));
+  fs.writeFileSync("./triangles.json", JSON.stringify(tris, null, 1));
 
   const keys = ["a", "b", "c"] as const;
   return featureCollection(
