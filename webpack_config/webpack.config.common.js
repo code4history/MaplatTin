@@ -38,25 +38,27 @@ module.exports = {
   ],
 
   devServer: {
-    host: "0.0.0.0",
-    public: `localhost:${port}`,
+    host: "localhost",
     port,
-    openPage: "index.html",
-    disableHostCheck: true,
-    contentBase: path.resolve(__dirname, '../'),
-    watchContentBase: true,
-    noInfo: true,
+    allowedHosts: "all",
+    static: {
+      directory: path.resolve(__dirname, '../'),
+      watch: true
+    },
     hot: true,
-    open: true,
+    open: {
+      target: ["index.html"]
+    },
     historyApiFallback: true,
-    overlay: true,
-    inline: true,
+    client: {
+      overlay: true
+    },
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Pragma": "no-cache",
       "Cache-Control": "no-cache"
     },
-    before(_app, _server, _compiler) {
+    onBeforeSetupMiddleware(devServer) {
       console.log(`Server running at http://localhost:${port}`);
     }
   }
