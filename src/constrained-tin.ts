@@ -38,9 +38,9 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
     ]);
   }
 
-  //fs.writeFileSync("./points.json", JSON.stringify(del_points, null, 1));
-  //fs.writeFileSync("./edges.json", JSON.stringify(edges, null, 1));
-  //fs.writeFileSync("./triangles.json", JSON.stringify(tris, null, 1));
+  fs.writeFileSync("./points.json", JSON.stringify(del_points, null, 1));
+  fs.writeFileSync("./edges.json", JSON.stringify(edges, null, 1));
+  fs.writeFileSync("./triangles.json", JSON.stringify(tris, null, 1));
 
   const keys = ["a", "b", "c"] as const;
   return featureCollection(
