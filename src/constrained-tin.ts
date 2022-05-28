@@ -21,11 +21,13 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
   if (!Array.isArray(edges)) throw "Argument points must be Array of Array";
 
   const del_points = points.features.map(point => (point.geometry as any).coordinates as number[]);
-  const del = Delaunator.from(del_points);
+  let del = Delaunator.from(del_points);
   let con;
   const tris = [];
   if (del.triangles.length !== 0 && edges.length !== 0) {
     con = new Constrainautor(del);
+    con.delaunify(true);
+    del = con.del as any;
   }
   for (let i = 0; i < del.triangles.length; i += 3) {
     tris.push([
