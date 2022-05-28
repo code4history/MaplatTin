@@ -73,6 +73,7 @@
     "webpack-merge": "^5.8.0"
   },
   "dependencies": {
-    "@turf/turf": "^6.5.0"
+    "@turf/turf": "^6.5.0",
+    "cdt2d": "^1.0.0"
   }
 }

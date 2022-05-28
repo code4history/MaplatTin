@@ -9,8 +9,9 @@
 // https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-728.pdf
 
 import { polygon, featureCollection, FeatureCollection } from "@turf/helpers";
+import cdt2d from "cdt2d"
 
-class Point {
+/*class Point {
   // eslint-disable-next-line no-useless-constructor
   constructor(public x: number, public y: number) {}
 
@@ -812,4 +813,4 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
       return polygon([coords], properties);
     })
   );
-}
+}*/
