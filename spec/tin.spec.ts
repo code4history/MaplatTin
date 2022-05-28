@@ -15,7 +15,7 @@ const testSet = () => {
     const town = dataset[0];
     const filename = dataset[1];
     describe(`Test by actual data (${town})`, () => {
-      it(`Compare with actual data (${town})`, async done => {
+      it(`Compare with actual data (${town})`, async () => {
         const load_m = await import(`./maps/${filename}.json`);
         let load_c = await import(`./compiled/${filename}.json`);
 
@@ -97,8 +97,6 @@ const testSet = () => {
         // Checking format version
         expect(compiled.version).toEqual(undefined);
         expect(loaded.version).toEqual(expected.version);
-
-        done();
       });
     });
   });
@@ -138,11 +136,10 @@ const testSet = () => {
       ]
     ]);
 
-    it("Test for compiling data", async done => {
+    it("Test for compiling data", async () => {
       await tin.updateTinAsync();
       expect(tin.xy).toEqual([50, 50]);
       expect(tin.wh).toEqual([100, 150]);
-      // @ts-expect-error
       expect(tin.transform([140, 150])).toBeDeepCloseTo(
         [277.25085848926574, -162.19095375292216],
         7
@@ -154,7 +151,6 @@ const testSet = () => {
       expect(
         tin.transform([401.98029725204117, -110.95171624700066], true)
       ).toEqual(false);
-      // @ts-expect-error
       expect(tin.transform([200, 130], false, true)).toBeDeepCloseTo(
         [401.98029725204117, -110.95171624700066],
         7
@@ -162,7 +158,6 @@ const testSet = () => {
       expect(
         tin.transform([401.98029725204117, -110.95171624700066], true, true)
       ).toEqual([200, 130]);
-      done();
     });
   });
 
@@ -201,7 +196,7 @@ const testSet = () => {
       ]
     ]);
 
-    it("Test for compiling data", async done => {
+    it("Test for compiling data", async () => {
       await tin.updateTinAsync();
       expect(tin.strict_status).toEqual(Tin.STATUS_LOOSE);
       let err: any;
@@ -225,12 +220,11 @@ const testSet = () => {
       expect(err).toEqual(
         'Backward transform is not allowed if strict_status == "strict_error"'
       );
-      done();
     });
   });
 
   describe("Test for exception case", () => {
-    it("Constructor", async done => {
+    it("Constructor", async () => {
       let tin: Tin;
       let err = "";
       try {
@@ -265,7 +259,6 @@ const testSet = () => {
         err = e;
       });
       expect(err).toEqual("TOO LINEAR1");
-      done();
     });
   });
 };
