@@ -1,13 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// This library is based on
-// https://savithru-j.github.io/cdt-js/
-// Copyright 2018 Savithru Jayasinghe
-// Licensed under the MIT License
-// A fast algorithm for generating constrained delaunay triangulations
-// https://www.sciencedirect.com/science/article/pii/004579499390239A
-// A robust efficient algorithm for point location in triangulations
-// https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-728.pdf
-
 import { polygon, featureCollection, FeatureCollection } from "@turf/helpers";
 import Delaunator from "delaunator"
 import Constrainautor from "@kninnug/constrainautor"
@@ -27,6 +17,7 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
   if (del.triangles.length !== 0 && edges.length !== 0) {
     con = new Constrainautor(del);
     con.constrainAll(edges);
+    console.log("Constrainautor");
   }
   for (let i = 0; i < del.triangles.length; i += 3) {
     tris.push([
