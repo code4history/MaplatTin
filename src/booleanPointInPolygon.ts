@@ -54,7 +54,7 @@ export default function booleanPointInPolygon<
   }
 
   const pt = getCoord(point);
-  const geom = getGeom(polygon);
+  const geom = getGeom(polygon as G);
   const type = geom.type;
   const bbox = polygon.bbox;
   let polys: any[] = geom.coordinates;

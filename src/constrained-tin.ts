@@ -1,5 +1,6 @@
 import { polygon, featureCollection, FeatureCollection } from "@turf/helpers";
-import cdt2d from "cdt2d";
+import Delaunator from "delaunator";
+import Constrainautor from "@kninnug/constrainautor";
 
 type Edge = [number, number];
 
@@ -10,9 +11,18 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
   if (!Array.isArray(edges)) throw "Argument points must be Array of Array";
 
   const del_points = points.features.map(
-    point => (point.geometry as any).coordinates as [number, number]
+    point => (point.geometry as any).coordinates as number[]
   );
-  const tris = cdt2d(del_points, edges) as number[][];
+  const del = Delaunator.from(del_points);
+  let con;
+  const tris = [];
+  if (del.triangles.length !== 0 && edges.length !== 0) {
+    con = new Constrainautor(del);
+    con.constrainAll(edges);
+  }
+  for (let i = 0; i < del.triangles.length; i += 3) {
+    tris.push([del.triangles[i], del.triangles[i + 1], del.triangles[i + 2]]);
+  }
 
   const keys = ["a", "b", "c"] as const;
   return featureCollection(
