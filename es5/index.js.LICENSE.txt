@@ -1,4 +1,4 @@
-/*! @maplat/tin v0.9.3 | Kohei Otsuka, Code for History | license: Maplat Limited License 1.1 */
+/*! @maplat/tin v0.9.4 | Kohei Otsuka, Code for History | license: Maplat Limited License 1.1 */
 
 /**
    * splaytree v3.1.0
