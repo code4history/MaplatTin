@@ -767,21 +767,22 @@ export default class Tin {
       pointsArray.bakw.push(counterPoint(forPoint));
     }
     const edges = [];
+    const excludeEdges: any[] = [];
     let edgeNodeIndex = 0;
     this.edgeNodes = [];
     if (!this.edges) this.edges = [];
     for (let i = 0; i < this.edges.length; i++) {
-      const startEnd = this.edges[i][2];
+      const startEnd = this.edges[i][2]; //Start-End => [snode, enode]
       const illstNodes = Object.assign([], this.edges[i][0]);
       const mercNodes = Object.assign([], this.edges[i][1]);
       if (illstNodes.length === 0 && mercNodes.length === 0) {
         edges.push(startEnd);
         continue;
       }
-      illstNodes.unshift(this.points[startEnd[0]][0]);
-      illstNodes.push(this.points[startEnd[1]][0]);
-      mercNodes.unshift(this.points[startEnd[0]][1]);
-      mercNodes.push(this.points[startEnd[1]][1]);
+      illstNodes.unshift(this.points[startEnd[0]][0]); // このノードの先頭にStartノードのポイントを追加
+      illstNodes.push(this.points[startEnd[1]][0]); // このノードの最後にEndノードのポイントを追加
+      mercNodes.unshift(this.points[startEnd[0]][1]); // このノードの先頭にStartノードのポイントを追加
+      mercNodes.push(this.points[startEnd[1]][1]); // このノードの最後にEndノードのポイントを追加
       const lengths = [illstNodes, mercNodes].map(nodes => {
         const eachLengths = nodes.map((node: any, index: any, arr: any) => {
           if (index === 0) return 0;
@@ -802,9 +803,10 @@ export default class Tin {
           const ratio = eachSum / arr[arr.length - 1];
           return [nodes[index], eachLengths[index], sumLengths[index], ratio];
         });
-      });
+      }); // [ illstNodesSet, mercNodesSet ]が返る NodesSetの定義は、[nodexy, そのノードの長さ, 累積長さ, 長さ比]
+      let previousFlag: any, previousNode: any, excludeArray: any[] = [];
       lengths
-        .map((thisLengths, i) => {
+        .map((thisLengths, i) => { // illst と mercの両方で回す
           const anotherLengths = lengths[i ? 0 : 1];
           return thisLengths
             .filter(
@@ -814,7 +816,8 @@ export default class Tin {
                   index === thisLengths.length - 1 ||
                   val[4] === "handled"
                 )
-            )
+            )  // 先頭ノード、最終ノード、および処理済みのノードはスキップ
+               // （ノードリストに入っていないノードを生成するのが目的のため）
             .map((lengthItem: any) => {
               const node = lengthItem[0];
               const ratio = lengthItem[3];
@@ -822,20 +825,20 @@ export default class Tin {
                 (prev: any, item: any, index: any, arr: any) => {
                   if (prev) return prev;
                   const next = arr[index + 1];
-                  if (item[3] === ratio) {
-                    item[4] = "handled";
+                  if (item[3] === ratio) {    // （ほぼないと思うが）ratioが完全一致する点があれば、それを対応付ける
+                    item[4] = "handled";      // その場合は処理済みフラグを建てる
                     return [item];
                   }
-                  if (item[3] < ratio && next[3] > ratio) return [item, next];
+                  if (item[3] < ratio && next[3] > ratio) return [item, next];    // ratioが完全一致する点がなければ、その前後の点をピックアップ
                   return;
                 },
                 undefined
               );
-              if (anotherSets.length === 1) {
+              if (anotherSets.length === 1) { // もしratio一致の場合は、対応付けられた点のセットをratio付きで返す
                 return i === 0
                   ? [node, anotherSets[0][0], ratio]
                   : [anotherSets[0][0], node, ratio];
-              } else {
+              } else { // ratio一致しない場合は、前後の点から比例配分で対応点を生成
                 const anotherPrev = anotherSets[0];
                 const anotherNext = anotherSets[1];
                 const ratioDelta = ratio - anotherPrev[3];
@@ -847,13 +850,13 @@ export default class Tin {
                   (anotherNext[0][1] - anotherPrev[0][1]) * ratioInEdge +
                     anotherPrev[0][1]
                 ];
-                return i === 0
-                  ? [node, anotherNode, ratio]
-                  : [anotherNode, node, ratio];
+                return i === 0 // 生成された対応点をratio付きで返す, 最後の1, 0は、生成対応点を示すフラグ、1か0かはillstとmercの判別
+                  ? [node, anotherNode, ratio, 1]
+                  : [anotherNode, node, ratio, 0];
               }
             });
         })
-        .reduce((prev, nodes) => prev.concat(nodes), [])
+        .reduce((prev, nodes) => prev.concat(nodes), []) // illstとmercの両方で生成した中間ノード群をマージ
         .sort((a: any, b: any) => (a[2] < b[2] ? -1 : 1))
         .map((node: any, index: any, arr: any) => {
           this.edgeNodes![edgeNodeIndex] = [node[0], node[1]];
@@ -863,21 +866,47 @@ export default class Tin {
           pointsArray.bakw.push(counterPoint(forPoint));
           if (index === 0) {
             edges.push([startEnd[0], pointsArray.forw.length - 1]);
+            previousFlag = undefined;
+            previousNode = startEnd[0];
           } else {
             edges.push([
               pointsArray.forw.length - 2,
               pointsArray.forw.length - 1
             ]);
+            const currentFlag = node[3];
+            const currentNode = pointsArray.forw.length - 1;
+            if (previousFlag !== currentFlag) {
+              if (excludeArray.length > 1) {
+                excludeArray.push(currentNode);
+                for (let i = 0; i < excludeArray.length - 2; i++) {
+                  for (let j = i + 2; j < excludeArray.length; j++) {
+                    excludeEdges.push([excludeArray[i], excludeArray[j]]);
+                  }
+                }
+              }
+              excludeArray = [previousNode, currentNode];
+              previousFlag = currentFlag;
+              previousNode = currentNode;
+            } else {
+              excludeArray.push(currentNode);
+            }
           }
           if (index === arr.length - 1) {
             edges.push([pointsArray.forw.length - 1, startEnd[1]]);
+            excludeArray.push(startEnd[1]);
+            for (let i = 0; i < excludeArray.length - 2; i++) {
+              for (let j = i + 2; j < excludeArray.length; j++) {
+                excludeEdges.push([excludeArray[i], excludeArray[j]]);
+              }
+            }
           }
         });
     }
     return {
       forw: featureCollection(pointsArray.forw),
       bakw: featureCollection(pointsArray.bakw),
-      edges
+      edges,
+      excludeEdges
     };
   }
   updateTinAsync() {
