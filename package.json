@@ -16,6 +16,7 @@
     "build:es5": "webpack --config webpack_config/webpack.config.product.js",
     "build:es6": "tsc",
     "test": "npm run test:src && npm run test:node",
+    "test:new": "jest spec/new.spec.ts",
     "test:src": "jest spec/tin.spec.ts",
     "test:node": "npm run build:es5 && jest spec/tin_node.spec.js",
     "preversion": "npm run lint & npm run test",
