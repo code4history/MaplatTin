@@ -1,45 +1,45 @@
 import { Feature, FeatureCollection, Polygon, Point, Position } from "@turf/turf";
-export declare type VertexMode = "plain" | "birdeye";
-export declare type StrictMode = "strict" | "auto" | "loose";
-export declare type StrictStatus = "strict" | "strict_error" | "loose";
-export declare type YaxisMode = "follow" | "invert";
-declare type BiDirectionKey = "forw" | "bakw";
-export declare type PointSet = [Position, Position];
-declare type Centroid = Feature<Point>;
-declare type CentroidBD = {
+export type VertexMode = "plain" | "birdeye";
+export type StrictMode = "strict" | "auto" | "loose";
+export type StrictStatus = "strict" | "strict_error" | "loose";
+export type YaxisMode = "follow" | "invert";
+type BiDirectionKey = "forw" | "bakw";
+export type PointSet = [Position, Position];
+type Centroid = Feature<Point>;
+type CentroidBD = {
     [key in BiDirectionKey]?: Centroid;
 };
-declare type EdgeLegacy = {
+type EdgeLegacy = {
     illstNodes: Position[];
     mercNodes: Position[];
     startEnd: number[];
 };
-export declare type Edge = [Position[], Position[], number[]];
-declare type WeightBuffer = {
+export type Edge = [Position[], Position[], number[]];
+type WeightBuffer = {
     [index: string]: number;
 };
-declare type WeightBufferBD = {
+type WeightBufferBD = {
     [key in BiDirectionKey]?: WeightBuffer;
 };
-declare type Kinks = FeatureCollection<Point>;
-declare type KinksBD = {
+type Kinks = FeatureCollection<Point>;
+type KinksBD = {
     [key in BiDirectionKey]?: Kinks;
 };
-declare type VerticesParams = [number[], FeatureCollection<Polygon>[]?];
-declare type VerticesParamsBD = {
+type VerticesParams = [number[], FeatureCollection<Polygon>[]?];
+type VerticesParamsBD = {
     [key in BiDirectionKey]?: VerticesParams;
 };
-declare type PropertyTri = {
+type PropertyTri = {
     geom: Position;
     index: number | string;
 };
-declare type PropertyTriKey = "a" | "b" | "c";
-declare type PropertiesTri = {
+type PropertyTriKey = "a" | "b" | "c";
+type PropertiesTri = {
     [key in PropertyTriKey]: PropertyTri;
 };
-declare type Tri = Feature<Polygon, PropertiesTri>;
-declare type Tins = FeatureCollection<Polygon, PropertiesTri>;
-declare type TinsBD = {
+type Tri = Feature<Polygon, PropertiesTri>;
+type Tins = FeatureCollection<Polygon, PropertiesTri>;
+type TinsBD = {
     [key in BiDirectionKey]?: Tins;
 };
 interface IndexedTins {
@@ -50,7 +50,7 @@ interface IndexedTins {
     yUnit: number;
     gridCache: number[][][];
 }
-declare type IndexedTinsBD = {
+type IndexedTinsBD = {
     [key in BiDirectionKey]?: IndexedTins;
 };
 export interface Options {
@@ -149,6 +149,7 @@ export default class Tin {
         forw: FeatureCollection<import("@turf/helpers").Geometry, import("@turf/helpers").Properties>;
         bakw: FeatureCollection<import("@turf/helpers").Geometry, import("@turf/helpers").Properties>;
         edges: number[][];
+        excludeEdges: any[];
     };
     updateTinAsync(): Promise<unknown>;
     transform(apoint: number[], backward?: boolean, ignoreBounds?: boolean): false | Position;

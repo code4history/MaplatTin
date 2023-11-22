@@ -13,7 +13,7 @@ module.exports = {
     "@babel/preset-typescript"
   ],
   plugins: [
-    "@babel/plugin-proposal-class-properties"
+    "@babel/plugin-transform-class-properties"
   ],
   env: {
     test: {
