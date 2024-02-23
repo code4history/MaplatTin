@@ -1916,4 +1916,4 @@ function calcSearchKeys(tri: Tri): string[] {
 }
 
 // @ts-ignore
-global.Tin = Tin;
+//global.Tin = Tin;
