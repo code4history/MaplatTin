@@ -9,13 +9,7 @@ import intersect from "@turf/intersect";
 import { getCoords } from "@turf/invariant";
 import lineIntersect from "@turf/line-intersect";
 import union from "@turf/union";
-import {
-  Feature,
-  FeatureCollection,
-  Polygon,
-  Point,
-  Position
-} from "@turf/turf";
+import { Feature, FeatureCollection, Polygon, Point, Position } from "geojson";
 import findIntersections from "./kinks";
 
 const format_version = 2.00703; //(Version 2 format for library version 0.7.3)
@@ -658,11 +652,9 @@ export default class Tin {
           Object.keys(overlapped.bakw).map(key => {
             if (overlapped.bakw[key] == "Not include case") return;
             const trises = searchIndex[key];
-            const forUnion = union(trises[0].forw, trises[1].forw);
-            const forConvex = convex(
-              featureCollection([trises[0].forw, trises[1].forw])
-            );
-            const forDiff = difference(forConvex!, forUnion!);
+            const forUnion = union(featureCollection([trises[0].forw, trises[1].forw])) as Feature<Polygon>;
+            const forConvex = convex(featureCollection([trises[0].forw, trises[1].forw]))!;
+            const forDiff = difference(featureCollection<Polygon>([forConvex, forUnion]));
             if (forDiff) return;
             const splittedKey = key.split("-");
             if (
@@ -898,7 +890,7 @@ export default class Tin {
       true
     );
     if (!inside) {
-      return new Promise((resolve, reject) => {
+      return new Promise((_resolve, reject) => {
         reject("SOME POINTS OUTSIDE");
       });
     }
@@ -1554,9 +1546,9 @@ function counterPoint(apoint: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function transformTin(of: any, tri: any, weightBuffer: any) {
-  return point(transformTinArr(of, tri, weightBuffer));
-}
+//function transformTin(of: any, tri: any, weightBuffer: any) {
+//  return point(transformTinArr(of, tri, weightBuffer));
+//}
 
 function transformTinArr(of: any, tri: any, weightBuffer: any) {
   const a = tri.geometry.coordinates[0][0];
@@ -1597,14 +1589,14 @@ function transformTinArr(of: any, tri: any, weightBuffer: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function useVertices(
-  o: Feature<Point>,
-  verticesParams: VerticesParams,
-  centroid: Centroid,
-  weightBuffer: WeightBuffer
-): Feature<Point> {
-  return point(useVerticesArr(o, verticesParams, centroid, weightBuffer));
-}
+//function useVertices(
+//  o: Feature<Point>,
+//  verticesParams: VerticesParams,
+//  centroid: Centroid,
+//  weightBuffer: WeightBuffer
+//): Feature<Point> {
+//  return point(useVerticesArr(o, verticesParams, centroid, weightBuffer));
+//}
 
 function useVerticesArr(
   o: Feature<Point>,
@@ -1639,29 +1631,29 @@ function unitCalc(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function transform(
-  apoint: Feature<Point>,
-  tins: Tins,
-  indexedTins?: IndexedTins,
-  verticesParams?: VerticesParams,
-  centroid?: Centroid,
-  weightBuffer?: WeightBuffer,
-  stateTriangle?: Tri,
-  stateSetFunc?: (tri?: Tri) => void
-): Feature<Point> {
-  return point(
-    transformArr(
-      apoint,
-      tins,
-      indexedTins,
-      verticesParams,
-      centroid,
-      weightBuffer,
-      stateTriangle,
-      stateSetFunc
-    )
-  );
-}
+//function transform(
+//  apoint: Feature<Point>,
+//  tins: Tins,
+//  indexedTins?: IndexedTins,
+//  verticesParams?: VerticesParams,
+//  centroid?: Centroid,
+//  weightBuffer?: WeightBuffer,
+//  stateTriangle?: Tri,
+//  stateSetFunc?: (tri?: Tri) => void
+//): Feature<Point> {
+//  return point(
+//    transformArr(
+//      apoint,
+//      tins,
+//      indexedTins,
+//      verticesParams,
+//      centroid,
+//      weightBuffer,
+//      stateTriangle,
+//      stateSetFunc
+//    )
+//  );
+//}
 function transformArr(
   point: Feature<Point>,
   tins: Tins,
@@ -1792,8 +1784,7 @@ function overlapCheckAsync(searchIndex: SearchIndex) {
           if (searchResult.length < 2) return resolve(undefined);
           (["forw", "bakw"] as BiDirectionKey[]).map(dir => {
             const result = intersect(
-              searchResult[0][dir],
-              searchResult[1][dir]
+              featureCollection([searchResult[0][dir], searchResult[1][dir]])
             );
             if (
               !result ||
@@ -1887,4 +1878,10 @@ function calcSearchKeys(tri: Tri): string[] {
 }
 
 // @ts-ignore
-global.Tin = Tin;
+if (typeof window !== 'undefined') {
+  // ブラウザ環境
+  (window as any).Tin = Tin;
+} else if (typeof global !== 'undefined') {
+  // Node環境
+  (global as any).Tin = Tin;
+}

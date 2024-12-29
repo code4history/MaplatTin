@@ -1,4 +1,4 @@
-import { Position } from "@turf/turf";
+import { Position } from "geojson";
 import { point } from "@turf/helpers";
 
 export default function findIntersections(coords: Position[][]) {
@@ -205,7 +205,7 @@ class ArcCollection {
 
     // Count segments in each stripe
     this.forEachSegment(
-      (id1: number, id2: number, xx: number[], yy: number[]) => {
+      (id1: number, id2: number, _xx: number[], yy: number[]) => {
         let s1 = stripeId(yy[id1]);
         const s2 = stripeId(yy[id2]);
         // eslint-disable-next-line no-constant-condition
@@ -230,7 +230,7 @@ class ArcCollection {
     initializeArray(stripeSizes, 0);
 
     this.forEachSegment(
-      (id1: number, id2: number, xx: number[], yy: number[]) => {
+      (id1: number, id2: number, _xx: number[], yy: number[]) => {
         let s1 = stripeId(yy[id1]);
         const s2 = stripeId(yy[id2]);
         let count, stripe;

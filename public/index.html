@@ -1,20 +1,42 @@
 <!DOCTYPE html>
-<html lang="ja-jp">
+<html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>Maplat Tin</title>
+    <meta charset="UTF-8">
+    <title>MaplatTin Test</title>
+    <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+    <script src="https://unpkg.com/delaunator/delaunator.min.js"></script>
+    <script src="https://unpkg.com/@kninnug/constrainautor/lib/Constrainautor.min.js"></script>
 </head>
 <body>
+    <h1>MaplatTin Test</h1>
+    <div id="output"></div>
+    <script type="module">
+        import Tin from '/src/index.ts';
+        
+        const tin = new Tin({
+            bounds: [[100, 50], [150, 150], [150, 200], [60, 190], [50, 100]],
+            strictMode: Tin.MODE_STRICT
+        });
+
+        tin.setPoints([
+            [[80, 90], [160, -90]],
+            [[120, 120], [240, -120]],
+            [[100, 140], [200, -140]],
+            [[130, 180], [260, -180]],
+            [[70, 150], [140, -150]]
+        ]);
+
+        tin.updateTinAsync().then(() => {
+            const output = document.getElementById('output');
+            const result1 = tin.transform([140, 150]);
+            const result2 = tin.transform(result1, true);
+            
+            output.innerHTML = `
+                <h2>Test Results:</h2>
+                <p>Forward transform [140, 150] => [${result1.join(', ')}]</p>
+                <p>Backward transform [${result1.join(', ')}] => [${result2.join(', ')}]</p>
+            `;
+        });
+    </script>
 </body>
-<script>
-  var tin = new Tin({
-    bounds: [[100, 50], [150, 150], [150, 200], [60, 190], [50, 100]],
-    strictMode: Tin.MODE_STRICT
-  });
-  tin.setPoints([[[80, 90], [160, -90]], [[120, 120], [240, -120]], [[100, 140], [200, -140]], [[130, 180], [260, -180]], [[70, 150], [140, -150]]]);
-  tin.updateTinAsync().then(function() {
-    console.log(tin.transform([140, 150])); // 277.25085848926574, -162.19095375292216
-    console.log(tin.transform([277.25085848926574, -162.19095375292216], true)); // 140, 150
-  });
-</script>
 </html>

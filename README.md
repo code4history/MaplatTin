@@ -5,23 +5,28 @@ This is part of [Maplat](https://github.com/code4nara/Maplat/wiki) project.
 
 ## Installation
 
-### node.js
-
-The easiest way to install maplat_tin is with [`npm`][npm].
-
-[npm]: https://www.npmjs.com/
+### npm
 
 ```sh
+# Install the main package
 npm install @maplat/tin
+
+# Install required peer dependencies
+npm install @turf/turf delaunator @kninnug/constrainautor
 ```
 
 ### Browser
 
-Use [maplat_tin.js](https://code4history.github.io/MaplatTin/www/maplat_tin.js)
+Before loading maplat_tin.js, you need to include its dependencies in the following order:
 
 ```html
-<script type="text/javascript" src="maplat_tin.js"></script>
-```
+<!-- Required dependencies -->
+<script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+<script src="https://unpkg.com/delaunator/delaunator.min.js"></script>
+<script src="https://unpkg.com/@kninnug/constrainautor/lib/Constrainautor.min.js"></script>
+
+<!-- Then load Maplat Tin -->
+<script src="maplat_tin.js"></script>
 
 
 ## How to use (node.js case)

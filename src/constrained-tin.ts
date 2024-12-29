@@ -1,5 +1,7 @@
-import { polygon, featureCollection, FeatureCollection } from "@turf/helpers";
+import { polygon, featureCollection } from "@turf/helpers";
+import { FeatureCollection } from "geojson";
 import Delaunator from "delaunator";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 import Constrainautor from "@kninnug/constrainautor";
 
 type Edge = [number, number];

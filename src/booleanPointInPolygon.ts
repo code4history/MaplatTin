@@ -1,11 +1,5 @@
-import {
-  BBox,
-  Coord,
-  Feature,
-  MultiPolygon,
-  Polygon,
-  Properties
-} from "@turf/helpers";
+import { Coord } from "@turf/helpers";
+import { BBox, Feature, MultiPolygon, Polygon, GeoJsonProperties as Properties } from "geojson";
 import { getCoord, getGeom } from "@turf/invariant";
 
 // http://en.wikipedia.org/wiki/Even%E2%80%93odd_rule
