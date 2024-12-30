@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 "use strict";
-import booleanPointInPolygon from "./booleanPointInPolygon";
-import centroid from "@turf/centroid";
+import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
+import centroidFunc from "@turf/centroid";
 import convex from "@turf/convex";
 import difference from "@turf/difference";
 import { featureCollection, lineString, point, polygon } from "@turf/helpers";
@@ -33,7 +33,7 @@ type EdgeSetLegacy = {
   startEnd: Edge;
 };
 
-export type EdgeSet = [Position[], Position[], number[]];
+export type EdgeSet = [Position[], Position[], Edge];
 type WeightBuffer = { [index: string]: number };
 type WeightBufferBD = { [key in BiDirectionKey]?: WeightBuffer };
 type Kinks = FeatureCollection<Point>;
@@ -942,79 +942,58 @@ export default class Tin {
   
     const { pointsSet, bbox, minx, maxx, miny, maxy } = this.validateAndPrepareInputs();
   
+    const tinForCentroid = constrainedTin(pointsSet.forw, pointsSet.edges, "target");
+    const tinBakCentroid = constrainedTin(pointsSet.bakw, pointsSet.edges, "target");
+    const forCentroidFt = centroidFunc(pointsSet.forw);
+
+    if ( tinForCentroid.features.length == 0 || tinBakCentroid.features.length == 0 ) {
+      throw "TOO LINEAR1";
+    }
+
+    // Convex Hull（凸包）の計算と変換
+    const convexBuf: { [key: string]: { forw: Position; bakw: Position } } = {};
+
+    // Forward方向の凸包計算
+    const forConvex = (convex(pointsSet.forw)!.geometry).coordinates[0];
+    let vconvex;
+    try {
+      // Forward方向の頂点の変換
+      vconvex = forConvex.map((forw) => ({
+        forw,
+        bakw: transformArr(point(forw), tinForCentroid)
+      }));
+      vconvex.forEach(vertex => {
+        convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = vertex;
+      });
+    } catch (e) {
+      throw "TOO LINEAR2";
+    }
+
+    // Backward方向の凸包計算
+    const bakConvex = (convex(pointsSet.bakw)!.geometry).coordinates[0];
+    try {
+      // Backward方向の頂点の変換
+      vconvex = bakConvex.map((bakw) => ({
+        bakw,
+        forw: transformArr(point(bakw), tinBakCentroid)
+      }));
+      vconvex.forEach(vertex => {
+        convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = vertex;
+      });
+    } catch (e) {
+      throw "TOO LINEAR2";
+    }
+
+    // Calcurating Forward/Backward Centroid
+    const centroid = {
+      forw: forCentroidFt.geometry.coordinates,
+      bakw: transformArr(forCentroidFt, tinForCentroid)
+    };
+    const forwBuf = createPoint(centroid.forw, centroid.bakw, "c");
+    this.centroid = { forw: forwBuf, bakw: counterPoint(forwBuf) };
+
     // 以降の既存のPromiseチェーンはそのまま
-    return Promise.all([
-      Promise.resolve(constrainedTin(pointsSet.forw, pointsSet.edges as any, "target")),
-      Promise.resolve(constrainedTin(pointsSet.bakw, pointsSet.edges as any, "target")),
-      Promise.resolve(centroid(pointsSet.forw)),
-      Promise.resolve([pointsSet, bbox])
-    ]).then((prevResults: any) => {
-        const tinForCentroid: any = prevResults[0];
-        const tinBakCentroid: any = prevResults[1];
-        const forCentroidFt: any = prevResults[2];
-        const pointsSetBbox: any = prevResults[3];
-        const pointsSet: any = pointsSetBbox[0];
-        if (
-          tinForCentroid.features.length == 0 ||
-          tinBakCentroid.features.length == 0
-        )
-          throw "TOO LINEAR1";
-        // Calcurating Forward/Backward Centroid
-        const centroid = {
-          forw: forCentroidFt.geometry.coordinates,
-          bakw: transformArr(forCentroidFt, tinForCentroid)
-        };
-        const forwBuf = createPoint(centroid.forw, centroid.bakw, "c");
-        this.centroid = {
-          forw: forwBuf,
-          bakw: counterPoint(forwBuf)
-        };
-        const convexBuf: any = {};
-        return Promise.all([
-          new Promise(resolve => {
-            const forConvex = (convex(pointsSet.forw)!.geometry as any)
-              .coordinates[0];
-            let vconvex;
-            try {
-              vconvex = forConvex.map((forw: any) => ({
-                forw,
-                bakw: transformArr(point(forw), tinForCentroid)
-              }));
-            } catch (e) {
-              throw "TOO LINEAR2";
-            }
-            vconvex.map((vertex: any) => {
-              convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = vertex;
-            });
-            resolve(undefined);
-          }),
-          new Promise(resolve => {
-            const bakConvex = (convex(pointsSet.bakw)!.geometry as any)
-              .coordinates[0];
-            let vconvex;
-            try {
-              vconvex = bakConvex.map((bakw: any) => ({
-                bakw,
-                forw: transformArr(point(bakw), tinBakCentroid)
-              }));
-            } catch (e) {
-              throw "TOO LINEAR2";
-            }
-            vconvex.map((vertex: any) => {
-              convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = vertex;
-            });
-            resolve(undefined);
-          })
-        ])
-          .then(() => [centroid, convexBuf, pointsSetBbox])
-          .catch(err => {
-            throw err;
-          });
-      })
-      .then(prevResults => {
-        const centroid = prevResults[0];
-        const convexBuf = prevResults[1];
-        const pointsSetBbox = prevResults[2];
+    return Promise.resolve().then(() => {
         // Calcurating Convex full to get Convex full polygon's vertices
         const expandConvex = Object.keys(convexBuf).reduce(
           (prev, key, _, _array) => {
@@ -1141,14 +1120,12 @@ export default class Tin {
         // "Using same average factor to every orthants" case
         if (orthant.length == 1)
           orthant = [orthant[0], orthant[0], orthant[0], orthant[0]];
-        return [orthant, centroid, expandConvex, pointsSetBbox];
+        return [orthant, centroid, expandConvex];
       })
       .then(prevResults => {
         const orthant = prevResults[0];
         const centroid = prevResults[1];
         const expandConvex = prevResults[2];
-        const pointsSet = prevResults[3][0];
-        const bbox = prevResults[3][1];
         // Calcurating Backward Bounding box of map
         let verticesSet = orthant.map((delta: any, index: any) => {
           const forVertex = bbox[index];
