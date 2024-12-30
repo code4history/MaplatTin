@@ -20,16 +20,20 @@ export type VertexMode = "plain" | "birdeye";
 export type StrictMode = "strict" | "auto" | "loose";
 export type StrictStatus = "strict" | "strict_error" | "loose";
 export type YaxisMode = "follow" | "invert";
-type BiDirectionKey = "forw" | "bakw";
 export type PointSet = [Position, Position];
+export type Edge = [number, number];
+
+type BiDirectionKey = "forw" | "bakw";
 type Centroid = Feature<Point>;
 type CentroidBD = { [key in BiDirectionKey]?: Centroid };
-type EdgeLegacy = {
+
+type EdgeSetLegacy = {
   illstNodes: Position[];
   mercNodes: Position[];
-  startEnd: number[];
+  startEnd: Edge;
 };
-export type Edge = [Position[], Position[], number[]];
+
+export type EdgeSet = [Position[], Position[], number[]];
 type WeightBuffer = { [index: string]: number };
 type WeightBufferBD = { [key in BiDirectionKey]?: WeightBuffer };
 type Kinks = FeatureCollection<Point>;
@@ -53,6 +57,12 @@ interface IndexedTins {
   yUnit: number;
   gridCache: number[][][];
 }
+
+interface ValidationResult {
+  isValid: boolean;
+  error?: string;
+}
+
 type IndexedTinsBD = { [key in BiDirectionKey]?: IndexedTins };
 
 export interface Options {
@@ -65,7 +75,7 @@ export interface Options {
   priority: number;
   stateFull: boolean;
   points: PointSet[];
-  edges: Edge[];
+  edges: EdgeSet[];
 }
 
 export interface Compiled {
@@ -82,7 +92,7 @@ export interface Compiled {
   strictMode?: StrictMode;
   vertices_params: number[][];
   vertices_points: PointSet[];
-  edges: Edge[];
+  edges: EdgeSet[];
   bounds?: number[][];
   boundsPolygon?: Feature<Polygon>;
   wh?: number[];
@@ -95,7 +105,7 @@ interface CompiledLegacy extends Compiled {
   centroid?: CentroidBD;
   kinks?: KinksBD;
   vertices_params: number[][] & VerticesParamsBD;
-  edges: Edge[] & EdgeLegacy[];
+  edges: EdgeSet[] & EdgeSetLegacy[];
 }
 
 export default class Tin {
@@ -113,7 +123,7 @@ export default class Tin {
   boundsPolygon?: Feature<Polygon>;
   centroid?: CentroidBD;
   edgeNodes?: PointSet[];
-  edges?: Edge[];
+  edges?: EdgeSet[];
   importance: number;
   indexedTins?: IndexedTinsBD;
   kinks?: KinksBD;
@@ -163,7 +173,7 @@ export default class Tin {
     this.tins = undefined;
     this.indexedTins = undefined;
   }
-  setEdges(edges: Edge[] | EdgeLegacy[] = []) {
+  setEdges(edges: EdgeSet[] | EdgeSetLegacy[] = []) {
     this.edges = normalizeEdges(edges);
     this.edgeNodes = undefined;
     this.tins = undefined;
@@ -872,62 +882,73 @@ export default class Tin {
       edges
     };
   }
-  updateTinAsync() {
-    let strict = this.strictMode;
+
+  /**
+   * 入力データの検証と初期データの準備
+   * - 境界値のチェック
+   * - バッファー付き境界の計算
+   * - 点群セットの生成
+   * @returns {object} 検証済みの点群セットと境界データ
+   * @throws {Error} "SOME POINTS OUTSIDE" 制御点が境界外にある場合
+   */
+  private validateAndPrepareInputs() {
+    // バッファー付き境界の計算
     const minx = this.xy![0] - 0.05 * this.wh![0];
     const maxx = this.xy![0] + 1.05 * this.wh![0];
     const miny = this.xy![1] - 0.05 * this.wh![1];
     const maxy = this.xy![1] + 1.05 * this.wh![1];
-    const insideCheck = this.bounds
-      ? (xy: any) => booleanPointInPolygon(xy, this.boundsPolygon!)
-      : (xy: any) =>
-          xy[0] >= this.xy![0] &&
-          xy[0] <= this.xy![0] + this.wh![0] &&
-          xy[1] >= this.xy![1] &&
-          xy[1] <= this.xy![1] + this.wh![1];
+
+    // 境界チェック
     const inside = this.points.reduce(
-      (prev: any, curr: any) => prev && insideCheck(curr[0]),
+      (prev: boolean, curr: PointSet) => prev && (
+        this.bounds
+          ? booleanPointInPolygon(curr[0], this.boundsPolygon!)
+          : (
+            curr[0][0] >= minx &&
+            curr[0][0] <= maxx &&
+            curr[0][1] >= miny &&
+            curr[0][1] <= maxy
+          )
+      ),
       true
     );
+
     if (!inside) {
-      return new Promise((_resolve, reject) => {
-        reject("SOME POINTS OUTSIDE");
-      });
+      throw "SOME POINTS OUTSIDE";
     }
-    return new Promise(resolve => {
-      if (strict != Tin.MODE_STRICT && strict != Tin.MODE_LOOSE)
-        strict = Tin.MODE_AUTO;
-      let bbox: any = [];
-      if (this.wh) {
-        bbox = [
-          [minx, miny],
-          [maxx, miny],
-          [minx, maxy],
-          [maxx, maxy]
-        ];
-      }
-      const pointsSet = this.generatePointsSet();
-      resolve([pointsSet, bbox]);
-    })
-      .then((prevResults: any) => {
-        const pointsSet = prevResults[0];
-        // Forward TIN for calcurating Backward Centroid and Backward Vertices
-        return Promise.all([
-          new Promise(resolve => {
-            resolve(constrainedTin(pointsSet.forw, pointsSet.edges, "target"));
-          }),
-          new Promise(resolve => {
-            resolve(constrainedTin(pointsSet.bakw, pointsSet.edges, "target"));
-          }),
-          new Promise(resolve => {
-            resolve(centroid(pointsSet.forw));
-          }),
-          Promise.resolve(prevResults)
-        ]).catch(err => {
-          throw err;
-        });
-      })
-      .then(prevResults => {
+
+    // 境界ボックスの準備
+    let bbox: any = [];
+    if (this.wh) {
+      bbox = [
+        [minx, miny],
+        [maxx, miny],
+        [minx, maxy],
+        [maxx, maxy]
+      ];
+    }
+
+    // 点群セットの生成
+    const pointsSet = this.generatePointsSet();
+
+    return { pointsSet, bbox, minx, maxx, miny, maxy };
+  }
+
+  async updateTinAsync() {
+    let strict = this.strictMode;
+    if (strict != Tin.MODE_STRICT && strict != Tin.MODE_LOOSE) {
+      strict = Tin.MODE_AUTO;
+    }
+  
+    const { pointsSet, bbox, minx, maxx, miny, maxy } = this.validateAndPrepareInputs();
+  
+    // 以降の既存のPromiseチェーンはそのまま
+    return Promise.all([
+      Promise.resolve(constrainedTin(pointsSet.forw, pointsSet.edges as any, "target")),
+      Promise.resolve(constrainedTin(pointsSet.bakw, pointsSet.edges as any, "target")),
+      Promise.resolve(centroid(pointsSet.forw)),
+      Promise.resolve([pointsSet, bbox])
+    ]).then((prevResults: any) => {
         const tinForCentroid: any = prevResults[0];
         const tinBakCentroid: any = prevResults[1];
         const forCentroidFt: any = prevResults[2];
@@ -1762,12 +1783,12 @@ function normalizeNodeKey(index: number | string) {
 }
 
 function normalizeEdges(
-  edges: Edge[] | EdgeLegacy[],
+  edges: EdgeSet[] | EdgeSetLegacy[],
   version?: number
-): Edge[] {
+): EdgeSet[] {
   if ((version && version >= 2.00703) || Array.isArray(edges[0]))
-    return edges as Edge[];
-  return (edges as EdgeLegacy[]).map(edge => [
+    return edges as EdgeSet[];
+  return (edges as EdgeSetLegacy[]).map(edge => [
     edge.illstNodes,
     edge.mercNodes,
     edge.startEnd

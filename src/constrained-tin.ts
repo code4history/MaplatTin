@@ -3,8 +3,7 @@ import { FeatureCollection } from "geojson";
 import Delaunator from "delaunator";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import Constrainautor from "@kninnug/constrainautor";
-
-type Edge = [number, number];
+import { Edge } from "./index";
 
 export default function (points: FeatureCollection, edges: Edge[], z: string) {
   if (!edges) edges = [];
