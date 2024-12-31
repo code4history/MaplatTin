@@ -86,7 +86,7 @@ describe('Tin', () => {
         
         load_c = JSON.parse(load_c_str);
 
-        await tin.updateTinAsync();
+        tin.updateTin();
         const compiled = JSON.parse(JSON.stringify(load_c.compiled));
         const expected = JSON.parse(JSON.stringify(tin.getCompiled()));
         const loaded = JSON.parse(JSON.stringify(lTin.getCompiled()));
@@ -149,7 +149,7 @@ describe('Tin', () => {
         [[70, 150], [140, -150]]
       ]);
 
-      await tin.updateTinAsync();
+      tin.updateTin();
       
       expect(tin.xy).toEqual([50, 50]);
       expect(tin.wh).toEqual([100, 150]);
