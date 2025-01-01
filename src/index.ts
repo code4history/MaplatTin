@@ -1,3 +1,18 @@
+/**
+ * Tin (Triangulated Irregular Network) Class
+ * 
+ * このクラスは2つの平面座標系間の同相変換を実現します。
+ * Transformクラスを継承し、設定ファイルの生成と管理の機能を追加しています。
+ * 
+ * 主な機能：
+ * - 制御点に基づくTINネットワークの生成
+ * - 双方向の座標変換（順方向・逆方向）
+ * - 境界チェックと管理
+ * - 設定の永続化（コンパイル）と復元
+ * 
+ * @extends Transform
+ */
+
 "use strict";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import centroidFunc from "@turf/centroid";
@@ -23,6 +38,20 @@ import type {
   WeightBufferBD
 } from "./transform";
 
+/**
+ * Tinクラスの初期化オプション
+ * 
+ * @property {Position[]} bounds - 境界ポリゴンを定義する頂点配列
+ * @property {number[]} wh - 幅と高さ [width, height]
+ * @property {VertexMode} vertexMode - 頂点モード ("plain" | "birdeye")
+ * @property {StrictMode} strictMode - 厳密性モード ("strict" | "auto" | "loose")
+ * @property {YaxisMode} yaxisMode - Y軸の向き ("follow" | "invert")
+ * @property {number} importance - 重要度
+ * @property {number} priority - 優先度
+ * @property {boolean} stateFull - 状態を保持するかどうか
+ * @property {PointSet[]} points - 制御点の配列
+ * @property {EdgeSet[]} edges - エッジ（制約線）の配列
+ */
 export interface Options {
   bounds: Position[];
   wh: number[];
@@ -36,11 +65,25 @@ export interface Options {
   edges: EdgeSet[];
 }
 
+/**
+ * Tin (Triangulated Irregular Network) クラス
+ * 2つの平面座標系間の同相変換を実現します。
+ * 
+ * @property {number} importance - マップの重要度
+ * @property {number} priority - マップの優先度
+ * @property {any} pointsSet - 変換用の点群セット
+ */
 export default class Tin extends Transform {
   importance: number;
   priority: number;
   pointsSet: any;
 
+  /**
+   * Tinクラスのインスタンスを生成します
+   * 
+   * @param {Partial<Options>} options - 初期化オプション
+   * bounds または wh のどちらかが必須です
+   */
   constructor(options: Partial<Options> = {} as Options) {
     super();
     if (options.bounds) {
@@ -61,9 +104,24 @@ export default class Tin extends Transform {
       this.setEdges(options.edges);
     }
   }
+
+  /**
+   * フォーマットバージョンを取得します
+   * 
+   * @returns {number} 現在のフォーマットバージョン
+   */
   getFormatVersion() {
     return format_version;
   }
+
+  /**
+   * 制御点（GCP: Ground Control Points）を設定します
+   * 
+   * @param points - 制御点の配列。各要素は [ソース座標, ターゲット座標] の形式
+   * 
+   * 注意：この操作によりTINネットワークはリセットされ、
+   * 再度updateTin()を呼び出す必要があります。
+   */
   setPoints(points: PointSet[]) {
     if (this.yaxisMode == Tin.YAXIS_FOLLOW) {
       points = points.map(point => [point[0], [point[1][0], -1 * point[1][1]]]);
@@ -72,12 +130,31 @@ export default class Tin extends Transform {
     this.tins = undefined;
     this.indexedTins = undefined;
   }
+
+  /**
+   * エッジ（制約線）を設定します
+   * 
+   * @param edges - エッジの配列。新規フォーマットまたはレガシーフォーマットに対応
+   * 
+   * 注意：この操作によりTINネットワークはリセットされ、
+   * 再度updateTin()を呼び出す必要があります。
+   */
   setEdges(edges: EdgeSet[] | EdgeSetLegacy[] = []) {
     this.edges = normalizeEdges(edges);
     this.edgeNodes = undefined;
     this.tins = undefined;
     this.indexedTins = undefined;
   }
+
+  /**
+   * 境界ポリゴンを設定します
+   * 
+   * @param bounds - 境界を定義する頂点座標の配列
+   * 
+   * - 境界ポリゴンの計算
+   * - バウンディングボックスの計算
+   * - 内部状態の更新
+   */
   setBounds(bounds: number[][]) {
     this.bounds = bounds;
     let minx = bounds[0][0];
@@ -102,6 +179,18 @@ export default class Tin extends Transform {
     this.indexedTins = undefined;
   }
 
+  /**
+   * 現在の設定を永続化可能な形式にコンパイルします
+   * 
+   * @returns Compiled - コンパイルされた設定オブジェクト
+   * 
+   * 以下の情報が含まれます：
+   * - バージョン情報
+   * - 制御点データ
+   * - TINネットワーク情報
+   * - 境界情報
+   * - 各種モード設定
+   */
   getCompiled(): Compiled {
     const compiled: Partial<Compiled> = {};
     // 新compileロジック
@@ -174,6 +263,12 @@ export default class Tin extends Transform {
     return compiled as Compiled;
   }
 
+  /**
+   * 幅と高さを設定します
+   * 
+   * @param {number[]} wh - [width, height] の形式で指定
+   * この操作によりTINネットワークはリセットされます
+   */  
   setWh(wh: number[]) {
     this.wh = wh;
     this.xy = [0, 0];
@@ -182,16 +277,42 @@ export default class Tin extends Transform {
     this.tins = undefined;
     this.indexedTins = undefined;
   }
+
+  /**
+   * 頂点モードを設定します
+   * 
+   * @param {VertexMode} mode - "plain" または "birdeye"
+   * この操作によりTINネットワークはリセットされます
+   */
   setVertexMode(mode: VertexMode) {
     this.vertexMode = mode;
     this.tins = undefined;
     this.indexedTins = undefined;
   }
+
+  /**
+   * 厳密性モードを設定します
+   * 
+   * @param {StrictMode} mode - "strict", "auto", または "loose"
+   * この操作によりTINネットワークはリセットされます
+   */
   setStrictMode(mode: StrictMode) {
     this.strictMode = mode;
     this.tins = undefined;
     this.indexedTins = undefined;
   }
+
+  /**
+   * 厳密なTINを計算します
+   * 
+   * - 逆方向の三角形を生成
+   * - 交差チェックを実行
+   * - 結果に基づいてstrict_statusを更新
+   * 
+   * strict_statusは以下のいずれかになります：
+   * - STATUS_STRICT: 交差なし
+   * - STATUS_ERROR: 交差あり
+   */
   calcurateStrictTin() {
     const tris = this.tins!.forw!.features.map((tri: Tri) => counterTri(tri));
     this.tins!.bakw = featureCollection(tris);
@@ -221,6 +342,20 @@ export default class Tin extends Transform {
         this.kinks.bakw = featureCollection(result[1]);
     }
   }
+
+  /**
+   * 点群セットを生成します
+   * 
+   * 以下の処理を行います：
+   * 1. 制御点からポイントセットを生成
+   * 2. エッジ節点の生成と追加
+   * 3. エッジの接続関係の構築
+   * 
+   * @returns {object} 生成された点群セットと接続情報
+   * @property {FeatureCollection} forw - 順方向の点群
+   * @property {FeatureCollection} bakw - 逆方向の点群
+   * @property {Array} edges - エッジ接続情報
+   */
   generatePointsSet() {
     const pointsArray = { forw: [] as any[], bakw: [] as any[] };
     for (let i = 0; i < this.points.length; i++) {
@@ -396,6 +531,20 @@ export default class Tin extends Transform {
     return { pointsSet, bbox, minx, maxx, miny, maxy };
   }
 
+  /**
+   * TINネットワークを更新し、座標変換の準備を行います
+   * 
+   * このメソッドは以下の処理を実行します：
+   * 1. 入力データの検証
+   * 2. 制御点のTIN生成
+   * 3. Convex Hull（凸包）の計算
+   * 4. 境界の調整
+   * 5. 変換パラメータの計算
+   * 
+   * @throws {Error} "TOO LINEAR1" - 制御点が直線的すぎる場合
+   * @throws {Error} "TOO LINEAR2" - 変換後の点が直線的すぎる場合
+   * @throws {Error} "SOME POINTS OUTSIDE" - 制御点が境界外にある場合
+   */
   updateTin() {
     let strict = this.strictMode;
     if (strict != Tin.MODE_STRICT && strict != Tin.MODE_LOOSE) {
@@ -691,6 +840,15 @@ export default class Tin extends Transform {
     this.calculatePointsWeight();
   }
 
+  /**
+   * 点の重み付けを計算します
+   * 
+   * - 各点について周辺の三角形から重みを計算
+   * - 順方向と逆方向（必要な場合）の重みを計算
+   * - 重心点の重みも計算
+   * 
+   * 重みは変換の精度と安定性に影響を与えます
+   */
   calculatePointsWeight() {
     const calcTargets: BiDirectionKey[] = ["forw"];
     if (this.strict_status == Tin.STATUS_LOOSE) calcTargets.push("bakw");

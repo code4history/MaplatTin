@@ -1,6 +1,12 @@
 import { Position } from "geojson";
 import { point } from "@turf/helpers";
 
+/**
+ * 線分の交差点を検出するメインの関数
+ * 
+ * @param coords - 線分群の座標配列。各線分は始点と終点の座標で表現
+ * @returns 検出された交差点のFeature配列
+ */
 export default function findIntersections(coords: Position[][]) {
   const arcs = new ArcCollection(coords);
   const xy = arcs.findSegmentIntersections();
@@ -15,7 +21,17 @@ export default function findIntersections(coords: Position[][]) {
   );
 }
 
+/**
+ * 線分群を管理するクラス
+ * 効率的な交差判定のためのデータ構造と機能を提供
+ */
 class ArcCollection {
+  /**
+   * 座標データの配列
+   * _xx, _yy: Float64Array形式で座標を保持
+   * _ii: 各線分の開始インデックス
+   * _nn: 各線分の頂点数
+   */
   _xx?: Float64Array;
   _yy?: Float64Array; // coordinates data
   _ii?: Uint32Array;
@@ -28,6 +44,10 @@ class ArcCollection {
   _filteredArcIter: any; // path iterators
   buf?: ArrayBuffer;
 
+  /**
+   * 線分群からArcCollectionを初期化
+   * @param coords - 線分群の座標配列
+   */
   constructor(coords: Position[][]) {
     this.initArcs(coords);
   }
@@ -78,6 +98,10 @@ class ArcCollection {
     this._allBounds = data.bounds;
   }
 
+  /**
+   * データの境界を計算
+   * @returns バウンディングボックス情報
+   */
   calcArcBounds_(xx: Float64Array, yy: Float64Array, nn: Uint32Array) {
     const numArcs = nn.length,
       bb = new Float64Array(numArcs * 4),
@@ -181,6 +205,10 @@ class ArcCollection {
     return [dx / count || 0, dy / count || 0];
   }
 
+  /**
+   * 交差判定のためのストライプ数を計算
+   * 線分の平均長さに基づいて最適な分割数を決定
+   */
   calcSegmentIntersectionStripeCount() {
     const yrange = this.getBounds().height(),
       segLen = this.getAvgSegment2()[1];
@@ -191,6 +219,12 @@ class ArcCollection {
     return count || 1;
   }
 
+  /**
+   * 線分の交差を検出
+   * ストライプ分割による効率的な判定を実装
+   * 
+   * @returns 検出された交差点の配列
+   */
   findSegmentIntersections() {
     const bounds = this.getBounds(),
       ymin = bounds.ymin,
@@ -417,14 +451,26 @@ function intersectSegments(ids: any, xx: any, yy: any) {
   return intersections;
 }
 
-// Find the interection between two 2D segments
-// Returns 0, 1 or two x, y locations as null, [x, y], or [x1, y1, x2, y2]
-// Special cases:
-// If the segments touch at an endpoint of both segments, it is not treated as an intersection
-// If the segments touch at a T-intersection, it is treated as an intersection
-// If the segments are collinear and partially overlapping, each subsumed endpoint
-//    is counted as an intersection (there will be one or two)
-//
+/**
+ * 2つの2D線分間の交差を判定し、交差点を計算します
+ * 
+ * @param ax, ay - 第1線分の始点座標
+ * @param bx, by - 第1線分の終点座標
+ * @param cx, cy - 第2線分の始点座標
+ * @param dx, dy - 第2線分の終点座標
+ * 
+ * @returns 以下のいずれか：
+ * - null: 交差なし
+ * - [x, y]: 1点での交差
+ * - [x1, y1, x2, y2]: 線分が重なる場合の2点での交差
+ * 
+ * 特殊ケースの扱い：
+ * 1. 両線分の端点で接触する場合 → 交差としない
+ * 2. T字型に接触する場合 → 交差として扱う
+ * 3. 線分が同一直線上で部分的に重なる場合 → 重なる部分の端点を交差点として扱う（1または2点）
+ *    - 例: 線分ABとCDが重なる場合、重なり部分の両端点が交差点となる
+ *    - [x1, y1, x2, y2] の形式で返される
+ */
 function segmentIntersection(
   ax: any,
   ay: any,
@@ -475,9 +521,13 @@ function orient2D(ax: any, ay: any, bx: any, by: any, cx: any, cy: any) {
   return determinant2D(ax - cx, ay - cy, bx - cx, by - cy);
 }
 
-// Determinant of matrix
-//  | a  b |
-//  | c  d |
+/**
+ * 2次元の行列式を計算
+ * 
+ * @param a, b - 行列の第1行
+ * @param c, d - 行列の第2行
+ * @returns 行列式の値
+ */
 function determinant2D(a: any, b: any, c: any, d: any) {
   return a * d - b * c;
 }
@@ -565,9 +615,13 @@ function findEndpointInRange(
   return p;
 }
 
-// a: coordinate of point
-// b: endpoint coordinate of segment
-// c: other endpoint of segment
+/**
+ * 点が線分の範囲外にあるかを判定
+ * 
+ * @param a - 判定する点の座標
+ * @param b - 線分の一方の端点
+ * @param c - 線分のもう一方の端点
+ */
 function outsideRange(a: any, b: any, c: any) {
   let out;
   if (b < c) {
@@ -804,6 +858,12 @@ function formatIntersectingSegment(
   return [i, j];
 }
 
+/**
+ * 交差判定結果から重複を除去
+ * 
+ * @param arr - 交差点情報の配列
+ * @returns 重複を除去した交差点情報の配列
+ */
 function dedupIntersections(arr: any) {
   const index: any = {};
   return arr.filter((o: any) => {

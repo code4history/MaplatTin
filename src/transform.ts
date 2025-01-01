@@ -11,12 +11,51 @@ import type {
 import { unitCalc, transformArr } from "./geometry";
 import type { EdgeSet, EdgeSetLegacy } from "./edgeutils";
 
+/**
+ * 座標ペアの型定義。[ソース座標, ターゲット座標] の形式
+ */
 export type PointSet = [Position, Position];
+
+/**
+ * 変換の方向を示す型定義
+ * - forw: 順方向（ソース → ターゲット）
+ * - bakw: 逆方向（ターゲット → ソース）
+ */
 export type BiDirectionKey = "forw" | "bakw";
+
+/**
+ * 両方向の重み付けバッファの型定義
+ */
 export type WeightBufferBD = { [key in BiDirectionKey]?: WeightBuffer };
+
+/**
+ * 頂点モードの型定義
+ * - plain: 通常モード
+ * - birdeye: 鳥瞰図モード
+ */
 export type VertexMode = "plain" | "birdeye";
+
+/**
+ * 厳密性モードの型定義
+ * - strict: 厳密モード（交差なしを保証）
+ * - auto: 自動モード（可能な限り厳密に）
+ * - loose: 緩和モード（交差を許容）
+ */
 export type StrictMode = "strict" | "auto" | "loose";
+
+/**
+ * 厳密性モードの生成結果
+ * - strict: 厳密モード生成成功
+ * - auto: 厳密モードでエラー
+ * - loose: 緩和モード
+ */
 export type StrictStatus = "strict" | "strict_error" | "loose";
+
+/**
+ * Y軸の向きの型定義
+ * - follow: Y軸の向きを維持
+ * - invert: Y軸の向きを反転
+ */
 export type YaxisMode = "follow" | "invert";
 export type Centroid = Feature<Point>;
 export type CentroidBD = { [key in BiDirectionKey]?: Centroid };
@@ -28,6 +67,10 @@ export type IndexedTinsBD = { [key in BiDirectionKey]?: IndexedTins };
 
 export const format_version = 2.00703; //(Version 2 format for library version 0.7.3)
 
+/**
+ * コンパイルされた設定の型定義
+ * 変換に必要な全ての情報を含む
+ */
 export interface Compiled {
   version?: number;
   points: PointSet[];
@@ -58,8 +101,18 @@ export interface CompiledLegacy extends Compiled {
   edges: EdgeSet[] & EdgeSetLegacy[];
 }
 
-
+/**
+ * 座標変換の基本機能を提供するクラス
+ * 
+ * 2つの座標系間の変換を、TINネットワークを使用して実現します。
+ * このクラスは基本的な変換機能のみを提供し、
+ * 設定ファイルの生成などの追加機能はTinクラスで提供されます。
+ */
 export class Transform {
+  /**
+   * 各種モードの定数定義
+   * すべてreadonlyで、型安全性を確保
+   */
   static VERTEX_PLAIN = "plain" as const;
   static VERTEX_BIRDEYE = "birdeye" as const;
   static MODE_STRICT = "strict" as const;
@@ -94,6 +147,18 @@ export class Transform {
 
   constructor() {}
 
+  /**
+   * コンパイルされた設定を適用します
+   * 
+   * @param compiled - コンパイルされた設定オブジェクト
+   * @returns 変換に必要な主要なオブジェクトのセット
+   * 
+   * 以下の処理を行います：
+   * 1. バージョンに応じた設定の解釈
+   * 2. 各種パラメータの復元
+   * 3. TINネットワークの再構築
+   * 4. インデックスの作成
+   */
   setCompiled(compiled: Compiled | CompiledLegacy) {
     if (
       compiled.version ||
@@ -277,6 +342,13 @@ export class Transform {
     };
   }
 
+  /**
+   * TINネットワークのインデックスを作成します
+   * 
+   * インデックスは変換処理を高速化するために使用されます。
+   * グリッド形式のインデックスを作成し、各グリッドに
+   * 含まれる三角形を記録します。
+   */
   addIndexedTin() {
     const tins = this.tins!;
     const forw = tins.forw;
@@ -430,6 +502,16 @@ export class Transform {
     };
   }
 
+  /**
+   * 座標変換を実行します
+   * 
+   * @param apoint - 変換する座標
+   * @param backward - 逆方向の変換かどうか
+   * @param ignoreBounds - 境界チェックを無視するかどうか
+   * @returns 変換後の座標、または境界外の場合はfalse
+   * 
+   * @throws {Error} 逆方向変換が許可されていない状態での逆変換時
+   */
   transform(apoint: number[], backward?: boolean, ignoreBounds?: boolean) {
     if (backward && this.strict_status == Transform.STATUS_ERROR)
       throw 'Backward transform is not allowed if strict_status == "strict_error"';

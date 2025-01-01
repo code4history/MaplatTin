@@ -8,7 +8,8 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'MaplatTin',
-      fileName: 'maplat-tin'
+      fileName: 'maplat_tin',
+      formats: ['es', 'cjs', 'umd']
     },
     rollupOptions: {
       external: ['@turf/turf', 'delaunator', '@kninnug/constrainautor'],

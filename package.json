@@ -6,13 +6,13 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/maplat-tin.umd.js",
-  "module": "./dist/maplat-tin.js",
+  "main": "./dist/maplat_tin.umd.js",
+  "module": "./dist/maplat_tin.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/maplat-tin.js",
-      "require": "./dist/maplat-tin.umd.js",
+      "import": "./dist/maplat_tin.js",
+      "require": "./dist/maplat_tin.umd.js",
       "types": "./dist/index.d.ts"
     }
   },
