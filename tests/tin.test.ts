@@ -1,4 +1,3 @@
-// test/tin.spec.ts
 import { describe, it, expect } from 'vitest';
 import Tin, { Options } from '../src';
 import { toBeDeepCloseTo } from 'jest-matcher-deep-close-to';

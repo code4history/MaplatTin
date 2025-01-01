@@ -1,4 +1,3 @@
-// vitest.config.ts
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
 
@@ -6,6 +5,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    environmentOptions: {
+      jsdom: {
+        url: 'http://localhost'
+      }
+    },
+    include: ['tests/**/*.test.{ts,js}'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -13,13 +18,12 @@ export default defineConfig({
         'node_modules/**',
         'dist/**',
         '**/*.d.ts',
-        'test/**',
+        'tests/**',
         'vite.config.ts',
         'vitest.config.ts'
       ]
     },
-    include: ['test/**/*.test.{ts,js}'],
-    setupFiles: ['./test/setup.ts']
+    setupFiles: ['./tests/setup.ts']
   },
   resolve: {
     alias: {

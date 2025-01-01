@@ -1,44 +1,47 @@
 {
   "name": "@maplat/tin",
+  "private": false,
   "version": "0.10.0",
   "description": "JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.",
   "type": "module",
-  "files": [
-    "dist"
-  ],
-  "main": "./dist/maplat_tin.umd.js",
-  "module": "./dist/maplat_tin.js",
+  "main": "./dist/maplat_tin.cjs",
+  "module": "./dist/maplat_tinjs",
+  "browser": "./dist/maplat_tin.umd.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/maplat_tin.js",
-      "require": "./dist/maplat_tin.umd.js",
+      "require": "./dist/maplat_tin.cjs",
+      "browser": "./dist/maplat_tin.umd.js",
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
+    "build": "tsc && cross-env BUILD_MODE=package vite build",
+    "deploy": "cp public/*.html ./ && tsc && vite build",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "lint": "eslint src test",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "lint": "eslint src tests",
     "typecheck": "tsc --noEmit"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/code4history/MaplatTin.git"
   },
-  "keywords": [
-    "warp",
-    "GIS"
-  ],
   "author": "Code for History",
   "license": "Maplat Limited License 1.1",
   "bugs": {
     "url": "https://github.com/code4history/MaplatTin/issues"
   },
   "homepage": "https://github.com/code4history/MaplatTin/wiki",
+  "keywords": [ "triangulation", "warp", "GIS", "Maplat", "MaplatTin" ],
   "peerDependencies": {
     "@kninnug/constrainautor": "^4.0.0",
     "@turf/centroid": "^7.2.0",
@@ -62,10 +65,11 @@
     "@typescript-eslint/eslint-plugin": "^8.18.2",
     "@typescript-eslint/parser": "^8.18.2",
     "@vitest/coverage-v8": "^1.6.0",
+    "cross-env": "^7.0.3",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "jest-matcher-deep-close-to": "^3.0.2",
-    "jsdom": "^23.2.0",
+    "jsdom": "^25.0.1",
     "prettier": "^3.4.2",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
