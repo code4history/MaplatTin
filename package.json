@@ -22,7 +22,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src test --ext .ts --fix",
+    "lint": "eslint src test",
     "typecheck": "tsc --noEmit"
   },
   "repository": {
@@ -53,6 +53,7 @@
     "delaunator": "^5.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@turf/helpers": "^7.2.0",
     "@types/delaunator": "^5.0.3",

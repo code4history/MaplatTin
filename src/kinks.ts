@@ -208,7 +208,6 @@ class ArcCollection {
       (id1: number, id2: number, _xx: number[], yy: number[]) => {
         let s1 = stripeId(yy[id1]);
         const s2 = stripeId(yy[id2]);
-        // eslint-disable-next-line no-constant-condition
         while (true) {
           stripeSizes[s1] = stripeSizes[s1] + 2;
           if (s1 == s2) break;
@@ -234,7 +233,6 @@ class ArcCollection {
         let s1 = stripeId(yy[id1]);
         const s2 = stripeId(yy[id2]);
         let count, stripe;
-        // eslint-disable-next-line no-constant-condition
         while (true) {
           count = stripeSizes[s1];
           stripeSizes[s1] = count + 2;
