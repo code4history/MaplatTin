@@ -41,9 +41,14 @@
     "url": "https://github.com/code4history/MaplatTin/issues"
   },
   "homepage": "https://github.com/code4history/MaplatTin/wiki",
-  "keywords": [ "triangulation", "warp", "GIS", "Maplat", "MaplatTin" ],
+  "keywords": [
+    "triangulation",
+    "warp",
+    "GIS",
+    "Maplat",
+    "MaplatTin"
+  ],
   "peerDependencies": {
-    "@kninnug/constrainautor": "^4.0.0",
     "@turf/centroid": "^7.2.0",
     "@turf/convex": "^7.2.0",
     "@turf/difference": "^7.2.0",
@@ -75,5 +80,8 @@
     "vite": "^5.4.11",
     "vite-plugin-dts": "^4.4.0",
     "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "@maplat/edgeruler": "^0.1.1"
   }
 }

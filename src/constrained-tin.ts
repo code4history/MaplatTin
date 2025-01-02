@@ -1,7 +1,7 @@
 import { polygon, featureCollection } from "@turf/helpers";
 import { FeatureCollection } from "geojson";
 import Delaunator from "delaunator";
-import Constrainautor from "@kninnug/constrainautor";
+import EdgeRuler from "@maplat/edgeruler"
 import { Edge } from "./edgeutils";
 
 /**
@@ -46,7 +46,7 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
   let con;
   const tris = [];
   if (del.triangles.length !== 0 && edges.length !== 0) {
-    con = new Constrainautor(del);
+    con = new EdgeRuler(del);
     con.constrainAll(edges);
   }
 

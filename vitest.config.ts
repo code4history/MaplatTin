@@ -23,7 +23,8 @@ export default defineConfig({
         'vitest.config.ts'
       ]
     },
-    setupFiles: ['./tests/setup.ts']
+    setupFiles: ['./tests/setup.ts'],
+    silent: false
   },
   resolve: {
     alias: {

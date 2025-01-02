@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import Tin, { Options } from '../src';
 import { toBeDeepCloseTo } from 'jest-matcher-deep-close-to';
+import fs from 'fs';
 
 expect.extend({ toBeDeepCloseTo });
 
@@ -89,6 +90,19 @@ describe('Tin', () => {
         const compiled = JSON.parse(JSON.stringify(load_c.compiled));
         const expected = JSON.parse(JSON.stringify(tin.getCompiled()));
         const loaded = JSON.parse(JSON.stringify(lTin.getCompiled()));
+
+        /*const [width, height] = tin.wh!;
+        const testCase: [number, number][][] = [];
+        for (let xp = 0.1; xp < 1; xp += 0.1) { 
+          const x = width * xp;
+          for (let yp = 0.1; yp < 1; yp += 0.1) {
+            const y = height * yp;
+            const point = lTin.transform([x, y]) as [number, number];
+            //const rt = lTin.transform(point, true) as [number, number];
+            testCase.push([[x, y],point]/*, rt.map(v => Math.round(v)) as [number, number]]* /);
+          }
+        }*/
+        //fs.writeFileSync(`./tests/cases/${filename}.json`, JSON.stringify(testCase, null, 2));
 
         [compiled, loaded].forEach(target => {
           expect(treeWalk(expected.points, 5)).toEqual(
