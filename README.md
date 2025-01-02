@@ -1,10 +1,21 @@
-# Maplat Tin library
+# Maplat Tin
 
-JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.  
-This is part of [Maplat](https://github.com/code4history/Maplat/) project.
+A JavaScript library that defines and executes homeomorphic conversion between two plane coordinate systems based on control points.  
+This is part of the [Maplat](https://github.com/code4history/Maplat/) project.
 
-2つの平面座標系間で制御点に基づく同相変換を実現するJavaScriptライブラリです。  
-[Maplat](https://github.com/code4history/Maplat/)プロジェクトの一部として開発されています。
+日本語のREADMEは[こちら](./README.ja.md)
+
+## Key Features
+
+- **Generate Transformation Definitions:** Create coordinate transformation definitions based on control points and edge constraints
+- **Bidirectional Coordinate Transformation:** Convert coordinates between two planes in both directions
+- **Topology Preservation:** Maintains homeomorphic properties during transformation
+- **Flexible Configuration:** 
+  - Vertex handling modes (normal/bird's-eye view)
+  - Topology check modes (strict/auto/loose)
+  - Y-axis direction control
+- **Edge Constraints:** Ability to specify constrained edges for more accurate transformation
+- **State Management:** Save and restore transformation definitions
 
 ## Installation
 
@@ -14,37 +25,19 @@ This is part of [Maplat](https://github.com/code4history/Maplat/) project.
 # Install the main package
 npm install @maplat/tin
 
-# Install required peer dependencies
+# Install required dependency
 npm install delaunator
 ```
 
 ### Browser
 
-Before loading Maplat Tin, you need to include its dependencies in the following order:
-
 ```html
-<!-- Required dependencies -->
+<!-- Required dependency -->
 <script src="https://unpkg.com/delaunator/delaunator.min.js"></script>
 
-<!-- Then load Maplat Tin -->
+<!-- Maplat Tin -->
 <script src="https://unpkg.com/@maplat/tin/dist/maplat_tin.umd.js"></script>
 ```
-
-## Key Features
-
-- **Bidirectional Coordinate Transformation:** Convert coordinates between two planes in both directions
-- **Topology Preservation:** Maintains homeomorphic properties during transformation
-- **Flexible Configuration:** Supports various modes for vertex handling and strict checks
-- **Edge Constraints:** Ability to specify constrained edges for better control
-- **State Management:** Save and restore transformation states
-
-## 主な機能
-
-- **双方向座標変換：**2つの平面間で双方向の座標変換が可能
-- **位相保存：**変換時の同相性を維持
-- **柔軟な設定：**頂点処理や厳密性チェックの各種モードをサポート
-- **エッジ制約：**制約付きエッジの指定が可能
-- **状態管理：**変換状態の保存と復元をサポート
 
 ## Basic Usage
 
@@ -84,62 +77,46 @@ const restored = tin.transform(transformed, true);
 
 ### Constructor Options
 
-|  **Option**  |          **Type**           |         **Description**         | **Default**  |
-| ------------ | --------------------------- | ------------------------------- | ------------ |
-|   `bounds`   |        `Position[]`         |  **Boundary polygon vertices**  |     `-`      |
-|     `wh`     |         `number[]`          |   **Width and height [w, h]**   |     `-`      |
-| `vertexMode` |    `"plain"｜"birdeye"`     |    **Vertex handling mode**     |  `"plain"`   |
-| `strictMode` | `"strict"｜"auto"｜"loose"` |     **Topology check mode**     |   `"auto"`   |
-| `yaxisMode`  |    `"follow"｜"invert"`     |      **Y-axis direction**       |  `"invert"`  |
-| `importance` |           `number`          |        **Map importance**       |      `0`     |
-|  `priority`  |           `number`          |         **Map priority**        |      `0`     |
+| **Option** | **Type**                      | **Description**                   | **Default** |
+| ------------- | --------------------------- | ------------------------- | ------------- |
+| `bounds`      | `Position[]`                | **Boundary polygon vertices**        | `-`           |
+| `wh`          | `number[]`                  | **Width and height [w, h]**        | `-`           |
+| `vertexMode`  | `"plain"｜"birdeye"`        | **Vertex handling mode**          | `"plain"`     |
+| `strictMode`  | `"strict"｜"auto"｜"loose"` | **Topology check mode** | `"auto"`      |
+| `yaxisMode`   | `"follow"｜"invert"`        | **Y-axis direction**              | `"invert"`    |
+| `importance`  | `number`                    | **Map importance**           | `0`           |
+| `priority`    | `number`                    | **Map priority**           | `0`           |
 
 Either `bounds` or `wh` must be specified.
 
 ### Methods
 
-| **Method**                   | **Description**                      |
-| ---------------------------- | ------------------------------------ |
-| `setPoints(points)`          | **Set control points**               |
+| **Method**                  | **Description**                          |
+| ---------------------------- | --------------------------------- |
+| `setPoints(points)`          | **Set control points**                   |
 | `setEdges(edges)`            | **Set constrained edges**            |
-| `updateTin()`                | **Initialize or update TIN network** |
-| `transform(coords, inverse)` | **Transform coordinates**            |
-| `getCompiled()`              | **Get serializable state**           |
-| `setCompiled(state)`         | **Restore from serialized state**    |
+| `updateTin()`                | **Initialize/update TIN network**    |
+| `transform(coords, inverse)` | **Execute coordinate transformation**                 |
+| `getCompiled()`              | **Get serializable state**     |
+| `setCompiled(state)`         | **Restore from serialized state** |
 
-## State Management
+### Error Handling
 
-The library supports saving and restoring transformation states:
+The library may throw errors in the following cases:
 
-```javascript
-// Save current state
-const compiledState = tin.getCompiled();
-
-// Create new instance and restore state
-const tin2 = new Tin();
-tin2.setCompiled(compiledState);
-// Ready to transform without updateTin()
-```
-
-## Error Handling
-
-The library may throw following errors:
-
-- `"TOO LINEAR1"`, `"TOO LINEAR2"`: Control points are too linear
+- `"TOO LINEAR1"`,`"TOO LINEAR2"`: Control points are too linear
 - `"SOME POINTS OUTSIDE"`: Points outside boundary
-- Custom error when backward transform is not allowed
-
-## Contributing
-
-Contributions are welcome! Please check our [GitHub repository(https://github.com/code4history/MaplatTin) for issues and pull requests.
+- Custom error when attempting backward transformation in a disallowed state
 
 ## License
 
 Maplat Limited License 1.1
 
-## Support
+Copyright (c) 2024 Code for History
 
-Need help? Join our community:
+## Developers
 
-- Open Collective: [@maplat](https://opencollective.com/maplat)
-- GitHub Issues: [MaplatTin Issues](https://github.com/code4history/MaplatTin/issues)
+- Kohei Otsuka
+- Code for History
+
+We welcome your contributions! Feel free to submit [issues and pull requests](https://github.com/code4history/MaplatTin/issues).
