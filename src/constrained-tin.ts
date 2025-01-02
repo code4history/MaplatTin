@@ -2,7 +2,7 @@ import { polygon, featureCollection } from "@turf/helpers";
 import { FeatureCollection } from "geojson";
 import Delaunator from "delaunator";
 import EdgeRuler from "@maplat/edgeruler"
-import { Edge } from "./edgeutils";
+import { Edge } from "@maplat/transform";
 
 /**
  * 制約付きTIN（Triangulated Irregular Network）を生成します

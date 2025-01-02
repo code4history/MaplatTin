@@ -1,5 +1,5 @@
-import type { Tri, Tins } from "./geometry";
-import type { PropertyTriKey } from "./geometry";
+import type { Tri, Tins } from "@maplat/transform";
+import type { PropertyTriKey } from "@maplat/transform";
 
 type BiDirectionKey = "forw" | "bakw";
 type TinsBD = { [key in BiDirectionKey]?: Tins };

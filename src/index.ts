@@ -22,21 +22,20 @@ import { featureCollection, lineString, point, polygon } from "@turf/helpers";
 import lineIntersect from "@turf/line-intersect";
 import { Feature, Point, Position } from "geojson";
 import findIntersections from "./kinks";
-import type { EdgeSet, EdgeSetLegacy } from "./edgeutils";
-
+import type { EdgeSet, EdgeSetLegacy } from "@maplat/transform";
 import constrainedTin from "./constrained-tin";
-import { transformArr } from "./geometry";
-import type { Tri, PropertyTriKey } from "./geometry";
-import { rotateVerticesTriangle, counterTri } from "./triangulation";
+import { transformArr } from "@maplat/transform";
+import type { Tri, PropertyTriKey } from "@maplat/transform";
+import { rotateVerticesTriangle, counterTri } from "@maplat/transform";
 import { createPoint, counterPoint, vertexCalc } from "./vertexutils";
-import { normalizeEdges } from "./edgeutils";
+import { normalizeEdges } from "@maplat/transform";
 import { insertSearchIndex } from "./searchutils";
 import type { SearchIndex } from "./searchutils";
-import { Transform, Compiled, format_version } from "./transform";
+import { Transform, Compiled, format_version } from "@maplat/transform";
 import type { 
   BiDirectionKey, VertexMode, StrictMode, YaxisMode, PointSet,
   WeightBufferBD
-} from "./transform";
+} from "@maplat/transform";
 
 /**
  * Tinクラスの初期化オプション

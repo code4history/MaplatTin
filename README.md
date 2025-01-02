@@ -15,7 +15,7 @@ This is part of [Maplat](https://github.com/code4history/Maplat/) project.
 npm install @maplat/tin
 
 # Install required peer dependencies
-npm install @turf/turf delaunator @kninnug/constrainautor
+npm install delaunator
 ```
 
 ### Browser
@@ -24,9 +24,7 @@ Before loading Maplat Tin, you need to include its dependencies in the following
 
 ```html
 <!-- Required dependencies -->
-<script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
 <script src="https://unpkg.com/delaunator/delaunator.min.js"></script>
-<script src="https://unpkg.com/@kninnug/constrainautor/lib/Constrainautor.min.js"></script>
 
 <!-- Then load Maplat Tin -->
 <script src="https://unpkg.com/@maplat/tin/dist/maplat_tin.umd.js"></script>

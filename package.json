@@ -1,11 +1,14 @@
 {
   "name": "@maplat/tin",
   "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "version": "0.10.0",
   "description": "JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.",
   "type": "module",
   "main": "./dist/maplat_tin.cjs",
-  "module": "./dist/maplat_tinjs",
+  "module": "./dist/maplat_tin.js",
   "browser": "./dist/maplat_tin.umd.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -29,7 +32,8 @@
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "lint": "eslint src tests",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -49,21 +53,11 @@
     "MaplatTin"
   ],
   "peerDependencies": {
-    "@turf/centroid": "^7.2.0",
-    "@turf/convex": "^7.2.0",
-    "@turf/difference": "^7.2.0",
-    "@turf/helpers": "^7.2.0",
-    "@turf/intersect": "^7.2.0",
-    "@turf/invariant": "^7.2.0",
-    "@turf/line-intersect": "^7.2.0",
-    "@turf/turf": "^7.2.0",
-    "@turf/union": "^7.2.0",
     "delaunator": "^5.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@testing-library/jest-dom": "^6.6.3",
-    "@turf/helpers": "^7.2.0",
     "@types/delaunator": "^5.0.3",
     "@types/geojson": "^7946.0.15",
     "@types/node": "^22.10.2",
@@ -82,6 +76,12 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
-    "@maplat/edgeruler": "^0.1.1"
+    "@maplat/edgeruler": "^0.1.1",
+    "@maplat/transform": "^0.1.4",
+    "@turf/helpers": "^7.2.0",
+    "@turf/line-intersect": "^7.2.0",
+    "@turf/boolean-point-in-polygon": "^7.2.0",
+    "@turf/centroid": "^7.2.0",
+    "@turf/convex": "^7.2.0"
   }
 }

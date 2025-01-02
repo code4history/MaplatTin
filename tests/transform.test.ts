@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Transform } from '../src/transform';
+import { Transform } from '@maplat/transform';
 import fs from 'fs';
 
 const datasets = [
