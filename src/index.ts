@@ -19,7 +19,7 @@ import convex from "@turf/convex";
 import { featureCollection, lineString, point, polygon } from "@turf/helpers";
 
 import lineIntersect from "@turf/line-intersect";
-import { Feature, Point, Position } from "geojson";
+import type { Feature, Point, Position } from "geojson";
 import findIntersections from "./kinks";
 import type { EdgeSet, EdgeSetLegacy } from "@maplat/transform";
 import constrainedTin from "./constrained-tin";

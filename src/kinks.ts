@@ -1,4 +1,4 @@
-import { Position, Feature, Point } from "geojson";
+import type { Position, Feature, Point } from "geojson";
 import { point } from "@turf/helpers";
 import type { IntersectionPoint } from "./types/kinks.js";
 

@@ -1,0 +1,13 @@
+{
+  "imports": {
+    "geojson": "https://esm.sh/v135/@types/geojson@7946.0.15/index.d.ts",
+    "@turf/boolean-point-in-polygon": "https://esm.sh/@turf/boolean-point-in-polygon@7",
+    "@turf/centroid": "https://esm.sh/@turf/centroid@7",
+    "@turf/convex": "https://esm.sh/@turf/convex@7",
+    "@turf/helpers": "https://esm.sh/@turf/helpers@7",
+    "@turf/line-intersect": "https://esm.sh/@turf/line-intersect@7",
+    "@maplat/transform": "https://esm.sh/@maplat/transform@0.1.5",
+    "@maplat/edgeruler": "https://esm.sh/@maplat/edgeruler@0.1.1",
+    "delaunator": "https://esm.sh/delaunator@5"
+  }
+}

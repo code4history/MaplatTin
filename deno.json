@@ -2,6 +2,7 @@
   "name": "@maplat/tin",
   "version": "0.11.0",
   "exports": "./src/index.ts",
+  "importMap": "./import_map.json",
   "tasks": {
     "build": "deno task build:npm",
     "build:npm": "deno run --allow-all scripts/build_npm.ts",
@@ -13,16 +14,6 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
     "strict": true
-  },
-  "imports": {
-    "@turf/boolean-point-in-polygon": "https://esm.sh/@turf/boolean-point-in-polygon@7",
-    "@turf/centroid": "https://esm.sh/@turf/centroid@7",
-    "@turf/convex": "https://esm.sh/@turf/convex@7",
-    "@turf/helpers": "https://esm.sh/@turf/helpers@7",
-    "@turf/line-intersect": "https://esm.sh/@turf/line-intersect@7",
-    "delaunator": "https://esm.sh/delaunator@5",
-    "@maplat/transform": "https://esm.sh/@maplat/transform@0.1.5",
-    "@maplat/edgeruler": "https://esm.sh/@maplat/edgeruler@0.1.1"
   },
   "fmt": {
     "lineWidth": 100,

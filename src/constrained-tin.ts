@@ -1,8 +1,8 @@
 import { polygon, featureCollection } from "@turf/helpers";
-import { FeatureCollection, Point, Polygon } from "geojson";
+import type { FeatureCollection, Point, Polygon } from "geojson";
 import Delaunator from "delaunator";
 import EdgeRuler from "@maplat/edgeruler"
-import { Edge } from "@maplat/transform";
+import type { Edge } from "@maplat/transform";
 import type { TriangleProperties } from "./types/tin.js";
 
 /**
