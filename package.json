@@ -7,33 +7,30 @@
   "version": "0.11.0",
   "description": "JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.",
   "type": "module",
-  "main": "./dist/maplat_tin.cjs",
-  "module": "./dist/maplat_tin.js",
-  "browser": "./dist/maplat_tin.umd.js",
+  "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/maplat_tin.js",
-      "require": "./dist/maplat_tin.cjs",
-      "browser": "./dist/maplat_tin.umd.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
     "dist",
     "src",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && cross-env BUILD_MODE=package vite build",
-    "deploy": "cp public/*.html ./ && tsc && vite build",
+    "build": "tsc && vite build",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "lint": "eslint src tests",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "repository": {
     "type": "git",
@@ -50,11 +47,9 @@
     "warp",
     "GIS",
     "Maplat",
-    "MaplatTin"
+    "MaplatTin",
+    "deno"
   ],
-  "peerDependencies": {
-    "delaunator": "^5.0.0"
-  },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@testing-library/jest-dom": "^6.6.3",
@@ -64,7 +59,6 @@
     "@typescript-eslint/eslint-plugin": "^8.18.2",
     "@typescript-eslint/parser": "^8.18.2",
     "@vitest/coverage-v8": "^1.6.0",
-    "cross-env": "^7.0.3",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "jest-matcher-deep-close-to": "^3.0.2",
@@ -78,6 +72,7 @@
   "dependencies": {
     "@maplat/edgeruler": "^0.1.1",
     "@maplat/transform": "^0.1.5",
+    "delaunator": "^5.0.0",
     "@turf/boolean-point-in-polygon": "^7.2.0",
     "@turf/centroid": "^7.2.0",
     "@turf/convex": "^7.2.0",

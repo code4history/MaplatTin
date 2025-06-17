@@ -1,8 +1,9 @@
 import { polygon, featureCollection } from "@turf/helpers";
-import { FeatureCollection } from "geojson";
+import { FeatureCollection, Point, Polygon } from "geojson";
 import Delaunator from "delaunator";
 import EdgeRuler from "@maplat/edgeruler"
 import { Edge } from "@maplat/transform";
+import type { TriangleProperties } from "./types/tin.js";
 
 /**
  * 制約付きTIN（Triangulated Irregular Network）を生成します
@@ -30,7 +31,7 @@ import { Edge } from "@maplat/transform";
  * 2. 制約エッジに基づいて三角分割を調整
  * 3. 結果をGeoJSON形式に変換
  */
-export default function (points: FeatureCollection, edges: Edge[], z: string) {
+export default function (points: FeatureCollection<Point>, edges: Edge[], z: string): FeatureCollection<Polygon> {
   if (!edges) edges = [];
   if (typeof points !== "object" || points.type !== "FeatureCollection")
     throw "Argument points must be FeatureCollection";
@@ -38,7 +39,7 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
 
   // Delaunay三角分割の実行
   const del_points = points.features.map(
-    point => (point.geometry as any).coordinates as number[]
+    point => point.geometry!.coordinates as number[]
   );
   const del = Delaunator.from(del_points);
 
@@ -59,10 +60,10 @@ export default function (points: FeatureCollection, edges: Edge[], z: string) {
   const keys = ["a", "b", "c"] as const;
   return featureCollection(
     tris.map(indices => {
-      const properties: any = {};
+      const properties: TriangleProperties = {};
       const coords = indices.map((index, i) => {
         const point = points.features[index];
-        const xyz = (point.geometry as any).coordinates as number[];
+        const xyz = point.geometry!.coordinates as number[];
         const coord: number[] = [xyz[0], xyz[1]];
         if (xyz.length === 3) {
           coord[2] = xyz[2];

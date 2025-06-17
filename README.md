@@ -29,14 +29,32 @@ npm install @maplat/tin
 npm install delaunator
 ```
 
+### Deno
+
+```typescript
+// Import directly from npm or JSR
+import Tin from "npm:@maplat/tin@0.11.0";
+// or
+import Tin from "https://esm.sh/@maplat/tin@0.11.0";
+
+// Use the library
+const tin = new Tin({
+    wh: [500, 500],
+    yaxisMode: Tin.YAXIS_FOLLOW
+});
+```
+
 ### Browser
 
 ```html
-<!-- Required dependency -->
-<script src="https://unpkg.com/delaunator/delaunator.min.js"></script>
-
-<!-- Maplat Tin -->
-<script src="https://unpkg.com/@maplat/tin/dist/maplat_tin.umd.js"></script>
+<!-- Maplat Tin (ESM) -->
+<script type="module">
+import Tin from "https://unpkg.com/@maplat/tin/dist/index.js";
+// Use the library
+const tin = new Tin({
+    wh: [500, 500]
+});
+</script>
 ```
 
 ## Basic Usage

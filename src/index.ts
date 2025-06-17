@@ -13,7 +13,6 @@
  * @extends Transform
  */
 
-"use strict";
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import centroidFunc from "@turf/centroid";
 import convex from "@turf/convex";
@@ -36,6 +35,7 @@ import type {
   BiDirectionKey, VertexMode, StrictMode, YaxisMode, PointSet,
   WeightBufferBD
 } from "@maplat/transform";
+import type { PointsSetBD, VertexDelta, WeightBuffer, LengthItem, VertexPosition } from "./types/tin.js";
 
 /**
  * Tinクラスの初期化オプション
@@ -75,7 +75,7 @@ export interface Options {
 export default class Tin extends Transform {
   importance: number;
   priority: number;
-  pointsSet: any;
+  pointsSet: PointsSetBD | undefined;
 
   /**
    * Tinクラスのインスタンスを生成します
@@ -239,9 +239,11 @@ export default class Tin extends Transform {
         );
       });
     } else if (this.strict_status == Tin.STATUS_ERROR) {
-      compiled.kinks_points = this.kinks!.bakw!.features.map(
-        (kink: Feature<Point>) => kink.geometry!.coordinates
-      );
+      if (this.kinks?.bakw) {
+        compiled.kinks_points = this.kinks.bakw.features.map(
+          (kink: Feature<Point>) => kink.geometry!.coordinates
+        );
+      }
     }
     // After 0.7.3: Freeze strict_mode & vertex_mode & Update yAxis logic
     compiled.yaxisMode = this.yaxisMode;
@@ -356,12 +358,12 @@ export default class Tin extends Transform {
    * @property {Array} edges - エッジ接続情報
    */
   generatePointsSet() {
-    const pointsArray = { forw: [] as any[], bakw: [] as any[] };
+    const pointsArray = { forw: [] as Feature<Point>[], bakw: [] as Feature<Point>[] };
     for (let i = 0; i < this.points.length; i++) {
       const mapxy = this.points[i][0];
       const mercs = this.points[i][1];
       const forPoint = createPoint(mapxy, mercs, i);
-      pointsArray.forw.push(forPoint as any);
+      pointsArray.forw.push(forPoint);
       pointsArray.bakw.push(counterPoint(forPoint));
     }
     const edges = [];
@@ -389,14 +391,14 @@ export default class Tin extends Transform {
           );
         });
         const sumLengths = eachLengths.reduce(
-          (prev: any, node: any, index: any) => {
+          (prev: number[], node: number, index: number) => {
             if (index === 0) return [0];
             prev.push(prev[index - 1] + node);
             return prev;
           },
           []
         );
-        return sumLengths.map((eachSum: any, index: any, arr: any) => {
+        return sumLengths.map((eachSum: number, index: number, arr: number[]): LengthItem => {
           const ratio = eachSum / arr[arr.length - 1];
           return [nodes[index], eachLengths[index], sumLengths[index], ratio];
         });
@@ -413,29 +415,29 @@ export default class Tin extends Transform {
                   val[4] === "handled"
                 )
             )
-            .map((lengthItem: any) => {
+            .map((lengthItem: LengthItem) => {
               const node = lengthItem[0];
               const ratio = lengthItem[3];
               const anotherSets = anotherLengths.reduce(
-                (prev: any, item: any, index: any, arr: any) => {
+                (prev: [LengthItem, LengthItem] | [LengthItem] | undefined, item: LengthItem, index: number, arr: LengthItem[]): [LengthItem, LengthItem] | [LengthItem] | undefined => {
                   if (prev) return prev;
                   const next = arr[index + 1];
                   if (item[3] === ratio) {
                     item[4] = "handled";
-                    return [item];
+                    return [item] as [LengthItem];
                   }
                   if (item[3] < ratio && next[3] > ratio) return [item, next];
-                  return;
+                  return undefined;
                 },
                 undefined
               );
-              if (anotherSets.length === 1) {
+              if (anotherSets && anotherSets.length === 1) {
                 return i === 0
-                  ? [node, anotherSets[0][0], ratio]
-                  : [anotherSets[0][0], node, ratio];
-              } else {
-                const anotherPrev = anotherSets[0];
-                const anotherNext = anotherSets[1];
+                  ? [node, (anotherSets as [LengthItem])[0][0], ratio]
+                  : [(anotherSets as [LengthItem])[0][0], node, ratio];
+              } else if (anotherSets && anotherSets.length === 2) {
+                const anotherPrev = (anotherSets as [LengthItem, LengthItem])[0];
+                const anotherNext = (anotherSets as [LengthItem, LengthItem])[1];
                 const ratioDelta = ratio - anotherPrev[3];
                 const ratioAnother = anotherNext[3] - anotherPrev[3];
                 const ratioInEdge = ratioDelta / ratioAnother;
@@ -449,11 +451,12 @@ export default class Tin extends Transform {
                   ? [node, anotherNode, ratio]
                   : [anotherNode, node, ratio];
               }
+              return [];
             });
         })
-        .reduce((prev, nodes) => prev.concat(nodes), [])
-        .sort((a: any, b: any) => (a[2] < b[2] ? -1 : 1))
-        .map((node: any, index: any, arr: any) => {
+        .reduce((prev: any[], nodes: any[]) => prev.concat(nodes), [] as any[])
+        .sort((a: [Position, Position, number], b: [Position, Position, number]) => (a[2] < b[2] ? -1 : 1))
+        .map((node: [Position, Position, number], index: number, arr: [Position, Position, number][]) => {
           this.edgeNodes![edgeNodeIndex] = [node[0], node[1]];
           const forPoint = createPoint(node[0], node[1], `e${edgeNodeIndex}`);
           edgeNodeIndex++;
@@ -570,7 +573,7 @@ export default class Tin extends Transform {
       // Forward方向の頂点の変換
       vconvex = forConvex.map((forw) => ({
         forw,
-        bakw: transformArr(point(forw), tinForCentroid)
+        bakw: transformArr(point(forw), tinForCentroid as any)
       }));
       vconvex.forEach(vertex => {
         convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = vertex;
@@ -585,7 +588,7 @@ export default class Tin extends Transform {
       // Backward方向の頂点の変換
       vconvex = bakConvex.map((bakw) => ({
         bakw,
-        forw: transformArr(point(bakw), tinBakCentroid)
+        forw: transformArr(point(bakw), tinBakCentroid as any)
       }));
       vconvex.forEach(vertex => {
         convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = vertex;
@@ -597,7 +600,7 @@ export default class Tin extends Transform {
     // Calcurating Forward/Backward Centroid
     const centroid = {
       forw: forCentroidFt.geometry.coordinates,
-      bakw: transformArr(forCentroidFt, tinForCentroid)
+      bakw: transformArr(forCentroidFt, tinForCentroid as any)
     };
     const forwBuf = createPoint(centroid.forw, centroid.bakw, "c");
     this.centroid = { forw: forwBuf, bakw: counterPoint(forwBuf) };
@@ -608,16 +611,16 @@ export default class Tin extends Transform {
         const forVertex = convexBuf[key].forw;
         const bakVertex = convexBuf[key].bakw;
         // Convexhullの各頂点に対し、重心からの差分を取る
-        const vertexDelta = {
+        const vertexDelta: VertexDelta = {
           forw: [
             forVertex[0] - centroid.forw[0],
             forVertex[1] - centroid.forw[1]
+          ],
+          bakw: [
+            bakVertex[0] - centroid.bakw[0],
+            bakVertex[1] - centroid.bakw[1]
           ]
         };
-        (vertexDelta as any).bakw = [
-          bakVertex[0] - centroid.bakw[0],
-          bakVertex[1] - centroid.bakw[1]
-        ];
         // X軸方向、Y軸方向それぞれに対し、地図外郭XY座標との重心との比を取る
         const xRate =
           vertexDelta.forw[0] == 0
@@ -637,12 +640,12 @@ export default class Tin extends Transform {
               vertexDelta.forw[1] * xRate + centroid.forw[1]
             ],
             bakw: [
-              (vertexDelta as any).bakw[0] * xRate + centroid.bakw[0],
-              (vertexDelta as any).bakw[1] * xRate + centroid.bakw[1]
+              vertexDelta.bakw![0] * xRate + centroid.bakw[0],
+              vertexDelta.bakw![1] * xRate + centroid.bakw[1]
             ]
           };
-          if (vertexDelta.forw[0] < 0) (prev[3] as any[]).push(point);
-          else (prev[1] as any[]).push(point);
+          if (vertexDelta.forw[0] < 0) prev[3].push(point);
+          else prev[1].push(point);
         }
         if (Math.abs(yRate) / Math.abs(xRate) < 1.1) {
           const point = {
@@ -651,16 +654,16 @@ export default class Tin extends Transform {
               vertexDelta.forw[1] * yRate + centroid.forw[1]
             ],
             bakw: [
-              (vertexDelta as any).bakw[0] * yRate + centroid.bakw[0],
-              (vertexDelta as any).bakw[1] * yRate + centroid.bakw[1]
+              vertexDelta.bakw![0] * yRate + centroid.bakw[0],
+              vertexDelta.bakw![1] * yRate + centroid.bakw[1]
             ]
           };
-          if (vertexDelta.forw[1] < 0) (prev[0] as any[]).push(point);
-          else (prev[2] as any[]).push(point);
+          if (vertexDelta.forw[1] < 0) prev[0].push(point);
+          else prev[2].push(point);
         }
         return prev;
       },
-      [[], [], [], []]
+      [[], [], [], []] as VertexPosition[][]
     );
     
     // Calcurating Average scaling factors and rotation factors per orthants
@@ -669,24 +672,24 @@ export default class Tin extends Transform {
         (prev, key, idx, array) => {
           const forVertex = convexBuf[key].forw;
           const bakVertex = convexBuf[key].bakw;
-          const vertexDelta = {
+          const vertexDelta: VertexDelta = {
             forw: [
               forVertex[0] - centroid.forw[0],
               forVertex[1] - centroid.forw[1]
+            ],
+            bakw: [
+              bakVertex[0] - centroid.bakw[0],
+              centroid.bakw[1] - bakVertex[1]
             ]
           };
-          (vertexDelta as any).bakw = [
-            bakVertex[0] - centroid.bakw[0],
-            centroid.bakw[1] - bakVertex[1]
-          ];
           if (vertexDelta.forw[0] == 0 || vertexDelta.forw[1] == 0)
             return prev;
           let index = 0;
           if (vertexDelta.forw[0] > 0) index += 1;
           if (vertexDelta.forw[1] > 0) index += 2;
-          (prev[index] as any[]).push([
+          prev[index].push([
             vertexDelta.forw,
-            (vertexDelta as any).bakw
+            vertexDelta.bakw!
           ]);
           if (idx == array.length - 1) {
             // If some orthants have no Convex full polygon's vertices, use same average factor to every orthants
@@ -694,11 +697,11 @@ export default class Tin extends Transform {
               prev.filter(val => val.length > 0).length &&
               this.vertexMode == Tin.VERTEX_BIRDEYE
               ? prev
-              : prev.reduce((pre, cur) => [pre[0].concat(cur)], [[]]);
+              : (prev.reduce((pre: [[number, number], [number, number]][][], cur: [[number, number], [number, number]][]) => [[...pre[0], ...cur]], [[]]) as [[number, number], [number, number]][][]);
           }
           return prev;
         },
-        [[], [], [], []]
+        [[], [], [], []] as [[number, number], [number, number]][][]
       )
       .map(item =>
         // Finalize calcuration of Average scaling factors and rotation factors
@@ -809,10 +812,10 @@ export default class Tin extends Transform {
       verticesList.forw.push(forVertexFt);
       verticesList.bakw.push(bakVertexFt);
     }
-    (this as any).pointsSet = pointsSet;
+    this.pointsSet = pointsSet;
     this.tins = {
       forw: rotateVerticesTriangle(
-        constrainedTin(pointsSet.forw, pointsSet.edges, "target")
+        constrainedTin(pointsSet.forw, pointsSet.edges, "target") as any
       )
     };
 
@@ -826,14 +829,14 @@ export default class Tin extends Transform {
         this.strict_status == Tin.STATUS_ERROR)
     ) {
       this.tins!.bakw = rotateVerticesTriangle(
-        constrainedTin(pointsSet.bakw, pointsSet.edges, "target")
+        constrainedTin(pointsSet.bakw, pointsSet.edges, "target") as any
       );
       delete this.kinks;
       this.strict_status = Tin.STATUS_LOOSE;
     }
     this.vertices_params = {
-      forw: vertexCalc(verticesList.forw, this.centroid!.forw) as any,
-      bakw: vertexCalc(verticesList.bakw, this.centroid!.bakw) as any
+      forw: vertexCalc(verticesList.forw, this.centroid!.forw!),
+      bakw: vertexCalc(verticesList.bakw, this.centroid!.bakw!)
     };
     this.addIndexedTin();
     this.calculatePointsWeight();
@@ -851,11 +854,11 @@ export default class Tin extends Transform {
   calculatePointsWeight() {
     const calcTargets: BiDirectionKey[] = ["forw"];
     if (this.strict_status == Tin.STATUS_LOOSE) calcTargets.push("bakw");
-    const weightBuffer: any = {}; // Type of this is not WeightBufferBD
+    const weightBuffer: WeightBuffer = {};
 
     calcTargets.forEach(target => {
       weightBuffer[target] = {};
-      const alreadyChecked: any = {};
+      const alreadyChecked: Record<string, number> = {};
       const tin = this.tins![target];
       tin!.features.map((tri: Tri) => {
         const vtxes = ["a", "b", "c"] as PropertyTriKey[];
@@ -900,7 +903,7 @@ export default class Tin extends Transform {
       Object.keys(weightBuffer[target]).map(vtx => {
         pointsWeightBuffer[target]![vtx] = Object.keys(
           weightBuffer[target][vtx]
-        ).reduce((prev, key, idx, arr) => {
+        ).reduce((prev: number, key: string, idx: number, arr: string[]) => {
           prev = prev + weightBuffer[target][vtx][key];
           return idx == arr.length - 1 ? prev / arr.length : prev;
         }, 0);
@@ -924,11 +927,4 @@ export default class Tin extends Transform {
   }
 }
 
-// @ts-ignore
-if (typeof window !== 'undefined') {
-  // ブラウザ環境
-  (window as any).Tin = Tin;
-} else if (typeof global !== 'undefined') {
-  // Node環境
-  (global as any).Tin = Tin;
-}
+export { Tin };

@@ -1,5 +1,6 @@
-import { Position } from "geojson";
+import { Position, Feature, Point } from "geojson";
 import { point } from "@turf/helpers";
+import type { IntersectionPoint } from "./types/kinks.js";
 
 /**
  * 線分の交差点を検出するメインの関数
@@ -11,14 +12,15 @@ export default function findIntersections(coords: Position[][]) {
   const arcs = new ArcCollection(coords);
   const xy = arcs.findSegmentIntersections();
   return dedupIntersections(xy).reduce(
-    (prev: any, apoint: any, index: any, array: any) => {
+    (prev: Record<string, IntersectionPoint> | Feature<Point>[], apoint: IntersectionPoint, index: number, array: IntersectionPoint[]) => {
+      if (Array.isArray(prev)) return prev;
       if (!prev) prev = {};
       prev[`${apoint.x}:${apoint.y}`] = apoint;
       if (index != array.length - 1) return prev;
       return Object.keys(prev).map(key => point([prev[key].x, prev[key].y]));
     },
-    []
-  );
+    {} as Record<string, IntersectionPoint>
+  ) as Feature<Point>[];
 }
 
 /**

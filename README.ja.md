@@ -29,14 +29,32 @@ npm install @maplat/tin
 npm install delaunator
 ```
 
+### Deno
+
+```typescript
+// npm または JSR から直接インポート
+import Tin from "npm:@maplat/tin@0.11.0";
+// または
+import Tin from "https://esm.sh/@maplat/tin@0.11.0";
+
+// ライブラリを使用
+const tin = new Tin({
+    wh: [500, 500],
+    yaxisMode: Tin.YAXIS_FOLLOW
+});
+```
+
 ### ブラウザ
 
 ```html
-<!-- 必要な依存パッケージ -->
-<script src="https://unpkg.com/delaunator/delaunator.min.js"></script>
-
-<!-- Maplat Tin -->
-<script src="https://unpkg.com/@maplat/tin/dist/maplat_tin.umd.js"></script>
+<!-- Maplat Tin (ESモジュール) -->
+<script type="module">
+import Tin from "https://unpkg.com/@maplat/tin/dist/index.js";
+// ライブラリを使用
+const tin = new Tin({
+    wh: [500, 500]
+});
+</script>
 ```
 
 ## 基本的な使用方法
