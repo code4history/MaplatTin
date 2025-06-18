@@ -38,7 +38,7 @@ jobs:
         with:
           deno-version: v1.x
       - name: Check formatting
-        run: deno fmt --check
+        run: deno fmt --check src/ tests/
       - name: Run linter
         run: deno lint
       - name: Type check

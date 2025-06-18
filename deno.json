@@ -2,7 +2,6 @@
   "name": "@maplat/tin",
   "version": "0.11.1",
   "exports": "./src/index.ts",
-  "nodeModulesDir": "auto",
   "imports": {
     "@turf/boolean-point-in-polygon": "npm:@turf/boolean-point-in-polygon@^7.2.0",
     "@turf/centroid": "npm:@turf/centroid@^7.2.0",
@@ -33,7 +32,19 @@
     "lineWidth": 80,
     "indentWidth": 2,
     "semiColons": true,
-    "singleQuote": false
+    "singleQuote": false,
+    "exclude": [
+      "node_modules",
+      "dist",
+      "coverage",
+      "*.config.ts",
+      "*.config.js",
+      "vitest.config.ts",
+      "vite.config.ts",
+      "scripts/**",
+      "tests/compiled/**",
+      "tests/cases/**"
+    ]
   },
   "lint": {
     "rules": {
