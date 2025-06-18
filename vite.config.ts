@@ -73,7 +73,7 @@ export default defineConfig({
       exclude: ['tests'],
       rollupTypes: true,
       skipDiagnostics: true,
-      tsconfigPath: './tsconfig.build.json',
+      tsconfigPath: './tsconfig.json',
       logLevel: 'silent'
     })
   ],

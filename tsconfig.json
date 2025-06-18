@@ -25,7 +25,9 @@
     "typeRoots": [
       "./node_modules/@types",
       "./types"
-    ]
+    ],
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
   "include": ["src/**/*", "tests/**/*", "types/**/*"],
   "exclude": ["node_modules", "dist", "npm"]
