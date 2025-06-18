@@ -1,4 +1,4 @@
-import type { Feature, Point, Position, FeatureCollection, Polygon } from "geojson";
+import type { Point, Position, FeatureCollection, Polygon } from "geojson";
 
 export interface PointsSetBD {
   forw: FeatureCollection<Point>;

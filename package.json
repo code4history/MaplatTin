@@ -81,7 +81,7 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
-    "@maplat/edgeruler": "^0.2.1",
+    "@maplat/edgebound": "^0.2.1",
     "@maplat/transform": "^0.2.1",
     "delaunator": "^5.0.0",
     "@turf/boolean-point-in-polygon": "^7.2.0",
@@ -89,9 +89,5 @@
     "@turf/convex": "^7.2.0",
     "@turf/helpers": "^7.2.0",
     "@turf/line-intersect": "^7.2.0"
-  },
-  "overrides": {
-    "@maplat/edgeruler": "file:../MaplatEdgeRuler",
-    "@maplat/transform": "file:../MaplatTransform"
   }
 }

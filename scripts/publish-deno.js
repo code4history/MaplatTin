@@ -29,8 +29,8 @@ try {
     if (denoJson.imports['@maplat/transform']) {
       denoJson.imports['@maplat/transform'] = 'jsr:@maplat/transform@^0.2.1';
     }
-    if (denoJson.imports['@maplat/edgeruler']) {
-      denoJson.imports['@maplat/edgeruler'] = 'jsr:@maplat/edgeruler@^0.2.1';
+    if (denoJson.imports['@maplat/edgebound']) {
+      denoJson.imports['@maplat/edgebound'] = 'jsr:@maplat/edgebound@^0.2.1';
     }
     
     fs.writeFileSync(denoJsonPath, JSON.stringify(denoJson, null, 2));

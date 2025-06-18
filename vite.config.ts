@@ -49,7 +49,7 @@ export default defineConfig({
         '@turf/convex',
         '@turf/helpers',
         '@turf/line-intersect',
-        '@maplat/edgeruler',
+        '@maplat/edgebound',
         '@maplat/transform',
         'delaunator'
       ]
