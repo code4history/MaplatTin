@@ -14,6 +14,18 @@ const denoJson = JSON.parse(fs.readFileSync(denoJsonPath, 'utf8'));
 
 // Backup original deno.json
 const backupPath = denoJsonPath + '.backup';
+
+// Check if backup already exists (from a previous failed run)
+if (fs.existsSync(backupPath)) {
+  console.warn('⚠️  Found existing backup file from a previous run.');
+  console.warn('   This might contain the original local dependencies.');
+  console.warn('   Restoring from backup before proceeding...');
+  fs.copyFileSync(backupPath, denoJsonPath);
+  // Re-read the restored deno.json
+  const restoredDenoJson = JSON.parse(fs.readFileSync(denoJsonPath, 'utf8'));
+  Object.assign(denoJson, restoredDenoJson);
+}
+
 fs.writeFileSync(backupPath, JSON.stringify(denoJson, null, 2));
 
 try {
