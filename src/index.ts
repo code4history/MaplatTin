@@ -37,16 +37,5 @@ export type {
   YaxisMode
 } from '@maplat/transform';
 
-// Re-export format_version with fallback
+// Re-export format_version
 export { format_version } from '@maplat/transform';
-
-// Also export a safe version getter function
-export function getFormatVersion(): number {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { format_version } = require('@maplat/transform');
-    return format_version;
-  } catch {
-    return 2.00703; // fallback version
-  }
-}
