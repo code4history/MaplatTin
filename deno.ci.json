@@ -11,7 +11,9 @@
     "@maplat/transform": "npm:@maplat/transform@^0.2.2",
     "@maplat/edgebound": "npm:@maplat/edgebound@^0.2.2",
     "delaunator": "npm:delaunator@^5.0.0",
-    "geojson": "npm:@types/geojson@^7946.0.15"
+    "geojson": "npm:@types/geojson@^7946.0.15",
+    "jest-matcher-deep-close-to": "npm:jest-matcher-deep-close-to@^3.0.2",
+    "vitest": "npm:vitest@^1.6.0"
   },
   "tasks": {
     "build": "deno task build:npm",
