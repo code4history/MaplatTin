@@ -74,7 +74,17 @@ export default defineConfig({
       rollupTypes: true,
       skipDiagnostics: true,
       tsconfigPath: './tsconfig.json',
-      logLevel: 'silent'
+      logLevel: 'silent',
+      beforeWriteFile: (filePath, content) => {
+        // Fix import paths for local dependencies
+        const fixedContent = content
+          .replace(/from ['"]\.\.\/MaplatTransform['"]/g, 'from "@maplat/transform"')
+          .replace(/from ['"]\.\.\/MaplatEdgeBound['"]/g, 'from "@maplat/edgebound"');
+        return {
+          filePath,
+          content: fixedContent
+        };
+      }
     })
   ],
   test: {
