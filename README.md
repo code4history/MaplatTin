@@ -58,6 +58,49 @@ const tin = new Tin({
 });
 ```
 
+## Development Setup
+
+This project supports using local dependencies for development. We recommend using `yalc` for managing local package dependencies.
+
+### Using yalc for Local Development
+
+1. **Install yalc globally:**
+   ```sh
+   npm install -g yalc
+   ```
+
+2. **Publish local dependencies:**
+   ```sh
+   # In the MaplatTransform directory
+   cd ../MaplatTransform
+   yalc publish
+   
+   # In the MaplatEdgeBound directory
+   cd ../MaplatEdgeBound
+   yalc publish
+   ```
+
+3. **Link local dependencies in this project:**
+   ```sh
+   # In the MaplatTin directory
+   yalc add @maplat/transform @maplat/edgebound
+   ```
+
+4. **Update local dependencies when changed:**
+   ```sh
+   # In the dependency directory (e.g., MaplatTransform)
+   yalc publish --push
+   ```
+
+5. **Remove local dependencies (to use npm packages):**
+   ```sh
+   # In the MaplatTin directory
+   yalc remove @maplat/transform @maplat/edgebound
+   npm install
+   ```
+
+**Note:** The `.yalc` directory and `yalc.lock` file are ignored by git and will not be committed.
+
 ### Browser
 
 When using in the browser, you need to include the peer dependencies:

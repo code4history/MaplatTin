@@ -100,12 +100,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
-      // デフォルトは npm パッケージを使用、USE_LOCAL_DEPS環境変数が設定されている時のみローカルファイルを使用
-      ...(process.env.USE_LOCAL_DEPS ? {
-        '@maplat/transform': resolve(__dirname, '../MaplatTransform/src/index.ts'),
-        '@maplat/edgebound': resolve(__dirname, '../MaplatEdgeBound/src/index.ts')
-      } : {})
+      '@': resolve(__dirname, './src')
     }
   },
   define: {

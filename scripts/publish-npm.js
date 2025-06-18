@@ -21,27 +21,43 @@ try {
   console.log('Syncing version across all files...');
   execSync('node scripts/sync-version.js', { stdio: 'inherit', cwd: rootDir });
   
-  // Read versions from local packages
-  const edgeboundPath = path.join(rootDir, '..', 'MaplatEdgeBound', 'package.json');
-  const transformPath = path.join(rootDir, '..', 'MaplatTransform', 'package.json');
-  
+  // Read versions from dependencies
   let edgeboundVersion = '^0.2.2'; // fallback version
   let transformVersion = '^0.2.2'; // fallback version
   
+  // First, try to get versions from installed packages
   try {
-    const edgeboundPkg = JSON.parse(fs.readFileSync(edgeboundPath, 'utf8'));
+    const edgeboundPkgPath = require.resolve('@maplat/edgebound/package.json', { paths: [rootDir] });
+    const edgeboundPkg = JSON.parse(fs.readFileSync(edgeboundPkgPath, 'utf8'));
     edgeboundVersion = `^${edgeboundPkg.version}`;
-    console.log(`Found @maplat/edgebound version: ${edgeboundPkg.version}`);
+    console.log(`Found @maplat/edgebound version from installed package: ${edgeboundPkg.version}`);
   } catch (e) {
-    console.warn('Could not read MaplatEdgeBound version, using fallback');
+    // If not found in node_modules, try local directory
+    try {
+      const edgeboundPath = path.join(rootDir, '..', 'MaplatEdgeBound', 'package.json');
+      const edgeboundPkg = JSON.parse(fs.readFileSync(edgeboundPath, 'utf8'));
+      edgeboundVersion = `^${edgeboundPkg.version}`;
+      console.log(`Found @maplat/edgebound version from local directory: ${edgeboundPkg.version}`);
+    } catch (e2) {
+      console.warn('Could not read @maplat/edgebound version, using fallback');
+    }
   }
   
   try {
-    const transformPkg = JSON.parse(fs.readFileSync(transformPath, 'utf8'));
+    const transformPkgPath = require.resolve('@maplat/transform/package.json', { paths: [rootDir] });
+    const transformPkg = JSON.parse(fs.readFileSync(transformPkgPath, 'utf8'));
     transformVersion = `^${transformPkg.version}`;
-    console.log(`Found @maplat/transform version: ${transformPkg.version}`);
+    console.log(`Found @maplat/transform version from installed package: ${transformPkg.version}`);
   } catch (e) {
-    console.warn('Could not read MaplatTransform version, using fallback');
+    // If not found in node_modules, try local directory
+    try {
+      const transformPath = path.join(rootDir, '..', 'MaplatTransform', 'package.json');
+      const transformPkg = JSON.parse(fs.readFileSync(transformPath, 'utf8'));
+      transformVersion = `^${transformPkg.version}`;
+      console.log(`Found @maplat/transform version from local directory: ${transformPkg.version}`);
+    } catch (e2) {
+      console.warn('Could not read @maplat/transform version, using fallback');
+    }
   }
   
   // Replace file: protocol with actual versions in dependencies

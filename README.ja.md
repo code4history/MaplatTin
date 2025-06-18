@@ -58,6 +58,49 @@ const tin = new Tin({
 });
 ```
 
+## 開発環境のセットアップ
+
+このプロジェクトは開発時にローカルの依存関係を使用することをサポートしています。ローカルパッケージの依存関係管理には`yalc`の使用を推奨します。
+
+### yalcを使用したローカル開発
+
+1. **yalcをグローバルにインストール:**
+   ```sh
+   npm install -g yalc
+   ```
+
+2. **ローカル依存関係を公開:**
+   ```sh
+   # MaplatTransformディレクトリで
+   cd ../MaplatTransform
+   yalc publish
+   
+   # MaplatEdgeBoundディレクトリで
+   cd ../MaplatEdgeBound
+   yalc publish
+   ```
+
+3. **このプロジェクトでローカル依存関係をリンク:**
+   ```sh
+   # MaplatTinディレクトリで
+   yalc add @maplat/transform @maplat/edgebound
+   ```
+
+4. **変更時にローカル依存関係を更新:**
+   ```sh
+   # 依存関係のディレクトリで（例：MaplatTransform）
+   yalc publish --push
+   ```
+
+5. **ローカル依存関係を削除（npmパッケージを使用する場合）:**
+   ```sh
+   # MaplatTinディレクトリで
+   yalc remove @maplat/transform @maplat/edgebound
+   npm install
+   ```
+
+**注意:** `.yalc`ディレクトリと`yalc.lock`ファイルはgitに無視され、コミットされません。
+
 ### ブラウザ
 
 ブラウザで使用する場合、ピア依存関係を含める必要があります：

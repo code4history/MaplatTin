@@ -67,3 +67,7 @@ typings/
 # Deno build output
 npm/
 deno.lock
+
+# yalc
+.yalc
+yalc.lock

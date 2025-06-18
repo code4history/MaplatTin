@@ -17,6 +17,10 @@ import {
   transformArr,
   rotateVerticesTriangle
 } from "@maplat/transform";
+
+// Ensure format_version is available
+const FALLBACK_FORMAT_VERSION = 2.00703;
+const safeFormatVersion = typeof format_version !== 'undefined' ? format_version : FALLBACK_FORMAT_VERSION;
 import type {
   Compiled,
   Edge,
@@ -96,7 +100,7 @@ export class Tin extends Transform {
    * フォーマットバージョンを取得します
    */
   getFormatVersion(): number {
-    return format_version;
+    return safeFormatVersion;
   }
 
   /**
@@ -159,7 +163,7 @@ export class Tin extends Transform {
    */
   getCompiled(): Compiled {
     const compiled: any = {};
-    compiled.version = format_version;
+    compiled.version = safeFormatVersion;
     compiled.points = this.points;
     compiled.weight_buffer = this.pointsWeightBuffer;
     compiled.centroid_point = [
