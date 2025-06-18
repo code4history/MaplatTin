@@ -1,8 +1,18 @@
 {
   "name": "@maplat/tin",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "exports": "./src/index.ts",
-  "importMap": "./import_map.json",
+  "imports": {
+    "@turf/boolean-point-in-polygon": "npm:@turf/boolean-point-in-polygon@^7.2.0",
+    "@turf/centroid": "npm:@turf/centroid@^7.2.0",
+    "@turf/convex": "npm:@turf/convex@^7.2.0",
+    "@turf/helpers": "npm:@turf/helpers@7.2.0",
+    "@turf/line-intersect": "npm:@turf/line-intersect@^7.2.0",
+    "@maplat/transform": "../MaplatTransform/mod.ts",
+    "@maplat/edgeruler": "../MaplatEdgeRuler/mod.ts",
+    "delaunator": "npm:delaunator@^5.0.0",
+    "geojson": "npm:@types/geojson@^7946.0.15"
+  },
   "tasks": {
     "build": "deno task build:npm",
     "build:npm": "deno run --allow-all scripts/build_npm.ts",
@@ -12,19 +22,26 @@
     "check": "deno check src/**/*.ts"
   },
   "compilerOptions": {
-    "lib": ["ES2022", "DOM"],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "strict": true
   },
   "fmt": {
-    "lineWidth": 100,
+    "lineWidth": 80,
     "indentWidth": 2,
     "semiColons": true,
     "singleQuote": false
   },
   "lint": {
     "rules": {
-      "tags": ["recommended"],
-      "exclude": ["no-explicit-any"]
+      "tags": [
+        "recommended"
+      ],
+      "exclude": [
+        "no-explicit-any"
+      ]
     }
   }
 }

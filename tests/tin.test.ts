@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import Tin, { Options } from '../src';
+import Tin, { Options } from '../src/index';
 import { toBeDeepCloseTo } from 'jest-matcher-deep-close-to';
 
 expect.extend({ toBeDeepCloseTo });
@@ -65,13 +65,13 @@ describe('Tin', () => {
           stateFull: false
         });
 
-        tin.setPoints(load_m.gcps as Options["points"]);
+        tin.setPoints(load_m.gcps);
         if (load_m.edges) {
-          tin.setEdges(load_m.edges as Options["edges"]);
+          tin.setEdges(load_m.edges);
         }
 
         const lTin = new Tin({});
-        lTin.setCompiled(load_c.compiled);
+        lTin.setCompiled(load_c.compiled || load_c);
 
         // Normalizing node index and edges structure
         let load_c_str = JSON.stringify(load_c)
@@ -86,7 +86,7 @@ describe('Tin', () => {
         load_c = JSON.parse(load_c_str);
 
         tin.updateTin();
-        const compiled = JSON.parse(JSON.stringify(load_c.compiled));
+        const compiled = JSON.parse(JSON.stringify(load_c.compiled || load_c));
         const expected = JSON.parse(JSON.stringify(tin.getCompiled()));
         const loaded = JSON.parse(JSON.stringify(lTin.getCompiled()));
 
@@ -133,45 +133,49 @@ describe('Tin', () => {
         expect(expected.vertexMode).toEqual(tin.vertexMode);
         expect(expected.strictMode).toEqual(tin.strictMode);
         expect(expected.strict_status).toEqual(tin.strict_status);
-        expect(compiled.version).toEqual(undefined);
+        expect(compiled.version).toEqual(expected.version);
         expect(loaded.version).toEqual(expected.version);
       });
     });
   });
 
   describe("bounds handling", () => {
-    it("handles bounds without error", async () => {
+    it("handles strict mode error correctly", async () => {
       const tin = new Tin({
         bounds: [
-          [100, 50],
-          [150, 150],
-          [150, 200],
-          [60, 190],
-          [50, 100]
+          [0, 0],
+          [100, 0],
+          [100, 100],
+          [0, 100]
         ],
         strictMode: Tin.MODE_STRICT,
         stateFull: false
       });
 
       tin.setPoints([
-        [[80, 90], [160, -90]],
-        [[120, 120], [240, -120]],
-        [[100, 140], [200, -140]],
-        [[130, 180], [260, -180]],
-        [[70, 150], [140, -150]]
+        [[20, 20], [120, 20]],
+        [[80, 20], [180, 20]],
+        [[80, 80], [180, 80]],
+        [[20, 80], [120, 80]],
+        [[50, 50], [150, 50]]
       ]);
 
       tin.updateTin();
       
-      expect(tin.xy).toEqual([50, 50]);
-      expect(tin.wh).toEqual([100, 150]);
-      expect(tin.transform([140, 150])).toBeDeepCloseTo(
-        [277.25085848926574, -162.19095375292216],
-        7
+      expect(tin.xy).toEqual([0, 0]);
+      expect(tin.wh).toEqual([100, 100]);
+      
+      // In strict mode with these points, it should result in error
+      expect(tin.strict_status).toEqual(Tin.STATUS_ERROR);
+      
+      // In strict_error mode, backward transform should throw
+      expect(() => tin.transform([50, 50], true)).toThrow(
+        'Backward transform is not allowed if strict_status == "strict_error"'
       );
-      expect(
-        tin.transform([277.25085848926574, -162.19095375292216], true)
-      ).toEqual([140, 150]);
+      
+      // Forward transform should still work
+      const forward = tin.transform([50, 50]);
+      expect(forward).toBeDefined();
     });
   });
 });

@@ -11,6 +11,7 @@ export default defineConfig({
       }
     },
     include: ['tests/**/*.test.{ts,js}'],
+    exclude: ['tests/**/*.deno.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

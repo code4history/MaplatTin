@@ -4,33 +4,43 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/tin.cjs",
+  "module": "./dist/tin.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": "./dist/tin.js",
+      "require": "./dist/tin.cjs"
     }
   },
   "files": [
     "dist",
     "src",
     "README.md",
+    "README.ja.md",
     "LICENSE"
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "npm run typecheck && cross-env BUILD_MODE=package vite build",
+    "typecheck": "tsc --noEmit --allowImportingTsExtensions",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "lint": "eslint src tests",
-    "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "version:bump": "node scripts/bump-version.js",
+    "version:sync": "node scripts/sync-version.js",
+    "publish:npm": "node scripts/publish-npm.js",
+    "publish:npm:dry": "node scripts/publish-npm.js --dry-run",
+    "publish:deno": "node scripts/publish-deno.js",
+    "publish:deno:dry": "node scripts/publish-deno.js --dry-run",
+    "publish:all": "node scripts/publish-all.js",
+    "publish:all:dry": "node scripts/publish-all.js --dry-run"
   },
   "repository": {
     "type": "git",
@@ -59,6 +69,7 @@
     "@typescript-eslint/eslint-plugin": "^8.18.2",
     "@typescript-eslint/parser": "^8.18.2",
     "@vitest/coverage-v8": "^1.6.0",
+    "cross-env": "^7.0.3",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "jest-matcher-deep-close-to": "^3.0.2",
@@ -70,13 +81,17 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
-    "@maplat/edgeruler": "^0.1.1",
-    "@maplat/transform": "^0.1.5",
+    "@maplat/edgeruler": "^0.2.1",
+    "@maplat/transform": "^0.2.1",
     "delaunator": "^5.0.0",
     "@turf/boolean-point-in-polygon": "^7.2.0",
     "@turf/centroid": "^7.2.0",
     "@turf/convex": "^7.2.0",
     "@turf/helpers": "^7.2.0",
     "@turf/line-intersect": "^7.2.0"
+  },
+  "overrides": {
+    "@maplat/edgeruler": "file:../MaplatEdgeRuler",
+    "@maplat/transform": "file:../MaplatTransform"
   }
 }

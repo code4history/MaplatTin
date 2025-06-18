@@ -1,6 +1,7 @@
 import { point } from "@turf/helpers";
 import { featureCollection, polygon } from "@turf/helpers";
-import type { Feature, Point, Position, FeatureCollection, Polygon } from "geojson";
+import type { Feature, Point, Position } from "geojson";
+import type { Tins } from "@maplat/transform";
 
 /**
  * 座標と属性から点オブジェクトを生成する
@@ -33,7 +34,7 @@ function counterPoint(apoint: Feature<Point>): Feature<Point> {
  * @param centroid 重心点
  * @returns [角度リスト, 三角形リスト]
  */
-function vertexCalc(list: Feature<Point>[], centroid: Feature<Point>): [number[], FeatureCollection<Polygon>[]] {
+function vertexCalc(list: Feature<Point>[], centroid: Feature<Point>): [number[], Tins[]?] {
   const centCoord = centroid.geometry!.coordinates;
   return [0, 1, 2, 3]
     .map(i => {
@@ -62,8 +63,8 @@ function vertexCalc(list: Feature<Point>[], centroid: Feature<Point>): [number[]
           index: itemj.properties!.target.index
         }
       };
-      const tin = featureCollection([polygon([coordinates], properties)]);
-      return [radian, tin] as [number, FeatureCollection<Polygon>];
+      const tin = featureCollection([polygon([coordinates], properties)]) as Tins;
+      return [radian, tin] as [number, Tins];
     })
     .reduce(
       (prev, curr) => {
@@ -71,7 +72,7 @@ function vertexCalc(list: Feature<Point>[], centroid: Feature<Point>): [number[]
         prev[1].push(curr[1]);
         return prev;
       },
-      [[] as number[], [] as FeatureCollection<Polygon>[]]
+      [[] as number[], [] as Tins[]]
     );
 }
 

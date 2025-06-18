@@ -1,10 +1,44 @@
-.eslintrc.json
-.gitignore
+# Source and configuration files
+src/
+tests/
+spec/
+public/
+scripts/
+examples/
+docs/
+
+# Config files
 .prettierrc
-babel.config.js
-jest.config.js
-webpack_config
+eslint.config.mjs
+vitest.config.ts
+vite.config.ts
 tsconfig.json
-package-lock.json
-spec
-src
+tsconfig.build.json
+deno.json
+jsr.json
+import_map.json
+modernization-proposal.md
+MaplatTin_shouldChange.md
+
+# Deno files
+
+# Development files
+*.log
+*.map
+.DS_Store
+.env
+.env.local
+.env.*.local
+
+# Editor directories
+.idea
+.vscode
+*.swp
+*.swo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Build artifacts
+*.tsbuildinfo

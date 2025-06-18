@@ -29,13 +29,27 @@ npm install @maplat/tin
 npm install delaunator
 ```
 
+### JSR (JavaScript Registry)
+
+```sh
+# Deno向け
+deno add @maplat/tin
+
+# npm/Node.js向け
+npx jsr add @maplat/tin
+```
+
 ### Deno
 
 ```typescript
-// npm または JSR から直接インポート
-import Tin from "npm:@maplat/tin@0.11.0";
-// または
-import Tin from "https://esm.sh/@maplat/tin@0.11.0";
+// JSR経由（推奨）
+import Tin from "jsr:@maplat/tin";
+
+// deno.jsonのimport mapを使用
+import Tin from "@maplat/tin";
+
+// またはnpmから直接
+import Tin from "npm:@maplat/tin@0.11.1";
 
 // ライブラリを使用
 const tin = new Tin({
