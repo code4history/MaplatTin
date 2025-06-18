@@ -44,8 +44,7 @@
       "vitest.config.ts",
       "vite.config.ts",
       "scripts/**",
-      "tests/compiled/**",
-      "tests/cases/**"
+      "tests/**"
     ]
   },
   "lint": {
