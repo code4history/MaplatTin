@@ -3,7 +3,7 @@ import type { FeatureCollection, Point, Polygon } from "geojson";
 import Delaunator from "delaunator";
 import { Constrain as EdgeBound } from "@maplat/edgebound";
 import type { Edge } from "@maplat/transform";
-import type { TriangleProperties } from "./types/tin.ts";
+import type { TriangleProperties } from "./types/tin.d.ts";
 
 /**
  * 制約付きTIN（Triangulated Irregular Network）を生成します

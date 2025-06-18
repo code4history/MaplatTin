@@ -17,8 +17,8 @@ export { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 
 // Type exports
 export type { SearchIndex } from "./searchutils.ts";
-export type { IntersectionPoint } from "./types/kinks.ts";
-export type { TriangleProperties } from "./types/tin.ts";
+export type { IntersectionPoint } from "./types/kinks.d.ts";
+export type { TriangleProperties } from "./types/tin.d.ts";
 
 // Re-export types from @maplat/transform
 export type {

@@ -1,6 +1,6 @@
 import type { Feature, Point, Position } from "geojson";
 import { point } from "@turf/helpers";
-import type { IntersectionPoint } from "./types/kinks.ts";
+import type { IntersectionPoint } from "./types/kinks.d.ts";
 
 /**
  * 線分の交差点を検出するメインの関数

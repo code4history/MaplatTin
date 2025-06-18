@@ -43,7 +43,7 @@ import findIntersections from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import type { SearchIndex } from "./searchutils.ts";
-import type { PointsSetBD } from "./types/tin.ts";
+import type { PointsSetBD } from "./types/tin.d.ts";
 
 /**
  * Tinクラスの初期化オプション
