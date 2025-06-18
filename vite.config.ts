@@ -49,10 +49,18 @@ export default defineConfig({
         '@turf/convex',
         '@turf/helpers',
         '@turf/line-intersect',
-        '@maplat/edgebound',
-        '@maplat/transform',
         'delaunator'
-      ]
+      ],
+      output: {
+        globals: {
+          '@turf/boolean-point-in-polygon': 'turf.booleanPointInPolygon',
+          '@turf/centroid': 'turf.centroid',
+          '@turf/convex': 'turf.convex',
+          '@turf/helpers': 'turf.helpers',
+          '@turf/line-intersect': 'turf.lineIntersect',
+          'delaunator': 'Delaunator'
+        }
+      }
     }
   } : {
     outDir: 'dist',

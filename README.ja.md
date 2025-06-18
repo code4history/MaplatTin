@@ -60,6 +60,29 @@ const tin = new Tin({
 
 ### ブラウザ
 
+ブラウザで使用する場合、ピア依存関係を含める必要があります：
+
+```html
+<!-- 必要な依存関係 -->
+<script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
+<script src="https://unpkg.com/@turf/helpers@7.2.0/dist/turf-helpers.min.js"></script>
+<script src="https://unpkg.com/@turf/boolean-point-in-polygon@7.2.0/dist/turf-boolean-point-in-polygon.min.js"></script>
+<script src="https://unpkg.com/@turf/centroid@7.2.0/dist/turf-centroid.min.js"></script>
+<script src="https://unpkg.com/@turf/convex@7.2.0/dist/turf-convex.min.js"></script>
+<script src="https://unpkg.com/@turf/line-intersect@7.2.0/dist/turf-line-intersect.min.js"></script>
+
+<!-- Maplat Tin (UMD) -->
+<script src="https://unpkg.com/@maplat/tin/dist/tin.umd.js"></script>
+<script>
+// ライブラリを使用
+const tin = new tin.default({
+    wh: [500, 500]
+});
+</script>
+```
+
+またはESモジュールとして使用する場合：
+
 ```html
 <!-- Maplat Tin (ESモジュール) -->
 <script type="module">

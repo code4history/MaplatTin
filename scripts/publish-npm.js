@@ -21,12 +21,53 @@ try {
   console.log('Syncing version across all files...');
   execSync('node scripts/sync-version.js', { stdio: 'inherit', cwd: rootDir });
   
-  // Remove overrides for publishing
+  // Read versions from local packages
+  const edgeboundPath = path.join(rootDir, '..', 'MaplatEdgeBound', 'package.json');
+  const transformPath = path.join(rootDir, '..', 'MaplatTransform', 'package.json');
+  
+  let edgeboundVersion = '^0.2.2'; // fallback version
+  let transformVersion = '^0.2.2'; // fallback version
+  
+  try {
+    const edgeboundPkg = JSON.parse(fs.readFileSync(edgeboundPath, 'utf8'));
+    edgeboundVersion = `^${edgeboundPkg.version}`;
+    console.log(`Found @maplat/edgebound version: ${edgeboundPkg.version}`);
+  } catch (e) {
+    console.warn('Could not read MaplatEdgeBound version, using fallback');
+  }
+  
+  try {
+    const transformPkg = JSON.parse(fs.readFileSync(transformPath, 'utf8'));
+    transformVersion = `^${transformPkg.version}`;
+    console.log(`Found @maplat/transform version: ${transformPkg.version}`);
+  } catch (e) {
+    console.warn('Could not read MaplatTransform version, using fallback');
+  }
+  
+  // Replace file: protocol with actual versions in dependencies
+  if (!packageJson.dependencies) {
+    packageJson.dependencies = {};
+  }
+  
+  // Update local file dependencies to version references
+  if (packageJson.dependencies['@maplat/edgebound']?.startsWith('file:')) {
+    packageJson.dependencies['@maplat/edgebound'] = edgeboundVersion;
+    console.log(`Replaced @maplat/edgebound file: with ${edgeboundVersion}`);
+  }
+  
+  if (packageJson.dependencies['@maplat/transform']?.startsWith('file:')) {
+    packageJson.dependencies['@maplat/transform'] = transformVersion;
+    console.log(`Replaced @maplat/transform file: with ${transformVersion}`);
+  }
+  
+  // Remove overrides if they exist
   if (packageJson.overrides) {
     delete packageJson.overrides;
-    fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
     console.log('Removed overrides from package.json');
   }
+  
+  fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+  console.log('Updated package.json for publishing');
 
   // Get command line arguments
   const args = process.argv.slice(2);

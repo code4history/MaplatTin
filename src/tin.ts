@@ -626,7 +626,11 @@ export default class Tin extends Transform {
           forw: [vec.forw[0] * xRate + centCalc.forw[0], vec.forw[1] * xRate + centCalc.forw[1]] as Position,
           bakw: [vec.bakw[0] * xRate + centCalc.bakw[0], vec.bakw[1] * xRate + centCalc.bakw[1]] as Position
         };
-        vec.forw[0] < 0 ? prev[3].push(node) : prev[1].push(node);
+        if (vec.forw[0] < 0) {
+          prev[3].push(node);
+        } else {
+          prev[1].push(node);
+        }
       }
       
       if (Math.abs(yRate) / Math.abs(xRate) < 1.1) {
@@ -634,7 +638,11 @@ export default class Tin extends Transform {
           forw: [vec.forw[0] * yRate + centCalc.forw[0], vec.forw[1] * yRate + centCalc.forw[1]] as Position,
           bakw: [vec.bakw[0] * yRate + centCalc.bakw[0], vec.bakw[1] * yRate + centCalc.bakw[1]] as Position
         };
-        vec.forw[1] < 0 ? prev[0].push(node) : prev[2].push(node);
+        if (vec.forw[1] < 0) {
+          prev[0].push(node);
+        } else {
+          prev[2].push(node);
+        }
       }
       
       return prev;
@@ -689,7 +697,7 @@ export default class Tin extends Transform {
     }
     
     // Calculate vertices
-    let vertices = vertexRatio.map((ratio: any, index: number) => {
+    const vertices = vertexRatio.map((ratio: any, index: number) => {
       const forVertex = bbox[index];
       const forDelta = [forVertex[0] - centCalc.forw[0], forVertex[1] - centCalc.forw[1]];
       const forDistance = Math.sqrt(Math.pow(forDelta[0], 2) + Math.pow(forDelta[1], 2));

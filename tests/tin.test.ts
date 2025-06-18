@@ -74,7 +74,7 @@ describe('Tin', () => {
         lTin.setCompiled(load_c.compiled || load_c);
 
         // Normalizing node index and edges structure
-        let load_c_str = JSON.stringify(load_c)
+        const load_c_str = JSON.stringify(load_c)
           .replace(/"edgeNode(\d+)"/g, '"e$1"')
           .replace(/"cent"/g, '"c"')
           .replace(/"bbox(\d+)"/g, '"b$1"')

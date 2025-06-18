@@ -21,16 +21,39 @@ try {
   console.log('Syncing version across all files...');
   execSync('node scripts/sync-version.js', { stdio: 'inherit', cwd: rootDir });
   
+  // Read versions from local packages
+  const edgeboundPath = path.join(rootDir, '..', 'MaplatEdgeBound', 'package.json');
+  const transformPath = path.join(rootDir, '..', 'MaplatTransform', 'package.json');
+  
+  let edgeboundVersion = '0.2.2'; // fallback version
+  let transformVersion = '0.2.2'; // fallback version
+  
+  try {
+    const edgeboundPkg = JSON.parse(fs.readFileSync(edgeboundPath, 'utf8'));
+    edgeboundVersion = edgeboundPkg.version;
+    console.log(`Found @maplat/edgebound version: ${edgeboundVersion}`);
+  } catch (e) {
+    console.warn('Could not read MaplatEdgeBound version, using fallback');
+  }
+  
+  try {
+    const transformPkg = JSON.parse(fs.readFileSync(transformPath, 'utf8'));
+    transformVersion = transformPkg.version;
+    console.log(`Found @maplat/transform version: ${transformVersion}`);
+  } catch (e) {
+    console.warn('Could not read MaplatTransform version, using fallback');
+  }
+  
   // Update imports for production
   if (denoJson.imports) {
     const originalImports = { ...denoJson.imports };
     
-    // Replace local paths with JSR/npm versions
+    // Replace local paths with JSR/npm versions using dynamic versions
     if (denoJson.imports['@maplat/transform']) {
-      denoJson.imports['@maplat/transform'] = 'jsr:@maplat/transform@^0.2.1';
+      denoJson.imports['@maplat/transform'] = `jsr:@maplat/transform@^${transformVersion}`;
     }
     if (denoJson.imports['@maplat/edgebound']) {
-      denoJson.imports['@maplat/edgebound'] = 'jsr:@maplat/edgebound@^0.2.1';
+      denoJson.imports['@maplat/edgebound'] = `jsr:@maplat/edgebound@^${edgeboundVersion}`;
     }
     
     fs.writeFileSync(denoJsonPath, JSON.stringify(denoJson, null, 2));

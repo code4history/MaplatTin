@@ -9,7 +9,7 @@
     "@turf/helpers": "npm:@turf/helpers@7.2.0",
     "@turf/line-intersect": "npm:@turf/line-intersect@^7.2.0",
     "@maplat/transform": "../MaplatTransform/src/index.ts",
-    "@maplat/edgebound": "../MaplatEdgeRuler/src/index.ts",
+    "@maplat/edgebound": "../MaplatEdgeBound/src/index.ts",
     "delaunator": "npm:delaunator@^5.0.0",
     "geojson": "npm:@types/geojson@^7946.0.15"
   },
