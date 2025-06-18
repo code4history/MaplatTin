@@ -70,16 +70,22 @@ export default defineConfig({
     removeTsExtensions(),
     dts({
       outDir: 'dist',
-      exclude: ['tests'],
-      rollupTypes: true,
+      exclude: ['tests', 'node_modules', '../MaplatTransform', '../MaplatEdgeBound'],
+      rollupTypes: false,
       skipDiagnostics: true,
       tsconfigPath: './tsconfig.json',
       logLevel: 'silent',
+      insertTypesEntry: true,
+      staticImport: true,
       beforeWriteFile: (filePath, content) => {
-        // Fix import paths for local dependencies
+        // Fix import paths for local dependencies and remove .ts extensions
         const fixedContent = content
           .replace(/from ['"]\.\.\/MaplatTransform['"]/g, 'from "@maplat/transform"')
-          .replace(/from ['"]\.\.\/MaplatEdgeBound['"]/g, 'from "@maplat/edgebound"');
+          .replace(/from ['"]\.\.\/MaplatEdgeBound['"]/g, 'from "@maplat/edgebound"')
+          .replace(/import\("\.\.\/MaplatTransform"\)/g, 'import("@maplat/transform")')
+          .replace(/import\("\.\.\/MaplatEdgeBound"\)/g, 'import("@maplat/edgebound")')
+          .replace(/from ['"](\.[^'"]+)\.ts['"]/g, 'from "$1"')
+          .replace(/import\(["'](\.[^'"]+)\.ts["']\)/g, 'import("$1")');
         return {
           filePath,
           content: fixedContent
