@@ -7,14 +7,15 @@
   "version": "0.11.1",
   "description": "JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.",
   "type": "module",
-  "main": "./dist/tin.cjs",
-  "module": "./dist/tin.js",
+  "main": "./dist/maplat_edgebound.cjs",
+  "module": "./dist/maplat_tin.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/tin.js",
-      "require": "./dist/tin.cjs"
+      "browser": "./dist/maplat_tin.umd.js",
+      "import": "./dist/maplat_tin.js",
+      "require": "./dist/maplat_tin.cjs"
     }
   },
   "files": [
@@ -60,6 +61,16 @@
     "MaplatTin",
     "deno"
   ],
+  "dependencies": {
+    "@maplat/edgebound": "^0.2.2",
+    "@maplat/transform": "^0.2.2",
+    "delaunator": "^5.0.0",
+    "@turf/boolean-point-in-polygon": "^7.2.0",
+    "@turf/centroid": "^7.2.0",
+    "@turf/convex": "^7.2.0",
+    "@turf/helpers": "^7.2.0",
+    "@turf/line-intersect": "^7.2.0"
+  },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@testing-library/jest-dom": "^6.6.3",
@@ -79,16 +90,6 @@
     "vite": "^5.4.11",
     "vite-plugin-dts": "^4.4.0",
     "vitest": "^1.6.0"
-  },
-  "dependencies": {
-    "@maplat/edgeruler": "^0.2.1",
-    "@maplat/transform": "^0.2.1",
-    "delaunator": "^5.0.0",
-    "@turf/boolean-point-in-polygon": "^7.2.0",
-    "@turf/centroid": "^7.2.0",
-    "@turf/convex": "^7.2.0",
-    "@turf/helpers": "^7.2.0",
-    "@turf/line-intersect": "^7.2.0"
   },
   "overrides": {
     "@maplat/edgeruler": "file:../MaplatEdgeRuler",
