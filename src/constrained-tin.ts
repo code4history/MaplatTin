@@ -1,9 +1,9 @@
 import { polygon, featureCollection } from "@turf/helpers";
 import type { FeatureCollection, Point, Polygon } from "geojson";
 import Delaunator from "delaunator";
-import EdgeBound from "@maplat/edgebound"
+import { Constrain as EdgeBound } from "@maplat/edgebound"
 import type { Edge } from "@maplat/transform";
-import type { TriangleProperties } from "./types/tin";
+import type { TriangleProperties } from "./types/tin.ts";
 
 /**
  * 制約付きTIN（Triangulated Irregular Network）を生成します

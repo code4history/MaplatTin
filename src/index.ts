@@ -6,20 +6,19 @@
  */
 
 // Main class exports
-export { default } from './tin';
-export { default as Tin } from './tin';
-export type { Options } from './tin';
+export { Tin } from './tin.ts';
+export type { Options } from './tin.ts';
 
 // Utility function exports
-export { default as constrainedTin } from './constrained-tin';
-export { default as findIntersections } from './kinks';
-export { insertSearchIndex } from './searchutils';
-export { createPoint, counterPoint, vertexCalc } from './vertexutils';
+export { default as constrainedTin } from './constrained-tin.ts';
+export { default as findIntersections } from './kinks.ts';
+export { insertSearchIndex } from './searchutils.ts';
+export { createPoint, counterPoint, vertexCalc } from './vertexutils.ts';
 
 // Type exports
-export type { SearchIndex } from './searchutils';
-export type { IntersectionPoint } from './types/kinks';
-export type { TriangleProperties } from './types/tin';
+export type { SearchIndex } from './searchutils.ts';
+export type { IntersectionPoint } from './types/kinks.ts';
+export type { TriangleProperties } from './types/tin.ts';
 
 // Re-export types from @maplat/transform
 export type {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import Tin, { Options } from '../src/index';
+import { Tin, Options } from '../src/index';
 import { toBeDeepCloseTo } from 'jest-matcher-deep-close-to';
 
 expect.extend({ toBeDeepCloseTo });

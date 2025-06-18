@@ -32,12 +32,12 @@ import type {
   TinsBD,
   PropertyTriKey
 } from "@maplat/transform";
-import constrainedTin from "./constrained-tin";
-import findIntersections from "./kinks";
-import { insertSearchIndex } from "./searchutils";
-import { createPoint, counterPoint, vertexCalc } from "./vertexutils";
-import type { SearchIndex } from "./searchutils";
-import type { PointsSetBD } from "./types/tin";
+import constrainedTin from "./constrained-tin.ts";
+import findIntersections from "./kinks.ts";
+import { insertSearchIndex } from "./searchutils.ts";
+import { createPoint, counterPoint, vertexCalc } from "./vertexutils.ts";
+import type { SearchIndex } from "./searchutils.ts";
+import type { PointsSetBD } from "./types/tin.ts";
 
 /**
  * Tinクラスの初期化オプション
@@ -59,7 +59,7 @@ export interface Options {
  * Tin (Triangulated Irregular Network) クラス
  * Transformクラスを拡張し、TINネットワークの生成機能を追加
  */
-export default class Tin extends Transform {
+export class Tin extends Transform {
   importance: number;
   priority: number;
   pointsSet: PointsSetBD | undefined;
