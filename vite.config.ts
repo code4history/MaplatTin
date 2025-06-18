@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -73,7 +73,6 @@ export default defineConfig({
       outDir: 'dist',
       exclude: ['tests', 'node_modules', '../MaplatTransform', '../MaplatEdgeBound'],
       rollupTypes: false,
-      skipDiagnostics: true,
       tsconfigPath: './tsconfig.json',
       logLevel: 'silent',
       insertTypesEntry: true,
