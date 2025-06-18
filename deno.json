@@ -2,6 +2,7 @@
   "name": "@maplat/tin",
   "version": "0.11.1",
   "exports": "./src/index.ts",
+  "nodeModulesDir": "auto",
   "imports": {
     "@turf/boolean-point-in-polygon": "npm:@turf/boolean-point-in-polygon@^7.2.0",
     "@turf/centroid": "npm:@turf/centroid@^7.2.0",
