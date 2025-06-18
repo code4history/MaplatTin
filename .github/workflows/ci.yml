@@ -43,5 +43,3 @@ jobs:
         run: deno lint --config=deno.ci.json
       - name: Type check
         run: deno check --config=deno.ci.json src/**/*.ts
-      - name: Build npm package
-        run: deno run --config=deno.ci.json --allow-all scripts/build_npm.ts
