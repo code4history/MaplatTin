@@ -66,3 +66,4 @@ typings/
 
 # Deno build output
 npm/
+deno.lock
