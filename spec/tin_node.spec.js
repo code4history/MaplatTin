@@ -231,7 +231,7 @@ const testSet = () => {
         tin = new Tin({
           stateFull
         });
-      } catch (e) {
+      } catch (_e) {
         err = "err";
       }
 

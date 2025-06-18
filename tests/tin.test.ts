@@ -136,7 +136,7 @@ describe("Tin", () => {
   });
 
   describe("bounds handling", () => {
-    it("handles strict mode error correctly", async () => {
+    it("handles strict mode error correctly", () => {
       const tin = new Tin({
         bounds: [
           [0, 0],

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import process from 'node:process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, '..');
@@ -31,14 +32,14 @@ try {
     const edgeboundPkg = JSON.parse(fs.readFileSync(edgeboundPkgPath, 'utf8'));
     edgeboundVersion = `^${edgeboundPkg.version}`;
     console.log(`Found @maplat/edgebound version from installed package: ${edgeboundPkg.version}`);
-  } catch (e) {
+  } catch (_e) {
     // If not found in node_modules, try local directory
     try {
       const edgeboundPath = path.join(rootDir, '..', 'MaplatEdgeBound', 'package.json');
       const edgeboundPkg = JSON.parse(fs.readFileSync(edgeboundPath, 'utf8'));
       edgeboundVersion = `^${edgeboundPkg.version}`;
       console.log(`Found @maplat/edgebound version from local directory: ${edgeboundPkg.version}`);
-    } catch (e2) {
+    } catch (_e2) {
       console.warn('Could not read @maplat/edgebound version, using fallback');
     }
   }
@@ -48,14 +49,14 @@ try {
     const transformPkg = JSON.parse(fs.readFileSync(transformPkgPath, 'utf8'));
     transformVersion = `^${transformPkg.version}`;
     console.log(`Found @maplat/transform version from installed package: ${transformPkg.version}`);
-  } catch (e) {
+  } catch (_e) {
     // If not found in node_modules, try local directory
     try {
       const transformPath = path.join(rootDir, '..', 'MaplatTransform', 'package.json');
       const transformPkg = JSON.parse(fs.readFileSync(transformPath, 'utf8'));
       transformVersion = `^${transformPkg.version}`;
       console.log(`Found @maplat/transform version from local directory: ${transformPkg.version}`);
-    } catch (e2) {
+    } catch (_e2) {
       console.warn('Could not read @maplat/transform version, using fallback');
     }
   }

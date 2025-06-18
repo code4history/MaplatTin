@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
+import process from 'node:process';
 
 const packageJson = JSON.parse(readFileSync('./package.json', 'utf-8'));
 const isPackageBuild = process.env.BUILD_MODE === 'package';
