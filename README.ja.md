@@ -49,7 +49,7 @@ import Tin from "jsr:@maplat/tin";
 import Tin from "@maplat/tin";
 
 // またはnpmから直接
-import Tin from "npm:@maplat/tin@0.11.1";
+import Tin from "npm:@maplat/tin@0.11.2";
 
 // ライブラリを使用
 const tin = new Tin({
