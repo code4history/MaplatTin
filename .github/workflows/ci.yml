@@ -38,12 +38,12 @@ jobs:
         with:
           deno-version: v1.x
       - name: Check formatting
-        run: deno fmt --check src/ tests/
+        run: deno fmt --check --config=deno.ci.json src/ tests/
       - name: Run linter
-        run: deno lint
+        run: deno lint --config=deno.ci.json
       - name: Type check
-        run: deno check src/**/*.ts
+        run: deno check --config=deno.ci.json src/**/*.ts
       - name: Run tests
-        run: deno task test
+        run: deno test --config=deno.ci.json --allow-read tests/
       - name: Build npm package
-        run: deno task build:npm
+        run: deno run --config=deno.ci.json --allow-all scripts/build_npm.ts
