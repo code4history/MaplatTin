@@ -10,7 +10,11 @@ import type { Tins } from "@maplat/transform";
  * @param index インデックス
  * @returns 生成された点オブジェクト
  */
-function createPoint(xy: Position, geom: Position, index: string | number): Feature<Point> {
+function createPoint(
+  xy: Position,
+  geom: Position,
+  index: string | number,
+): Feature<Point> {
   return point(xy, { target: { geom, index } });
 }
 
@@ -23,8 +27,8 @@ function counterPoint(apoint: Feature<Point>): Feature<Point> {
   return point(apoint.properties!.target.geom, {
     target: {
       geom: apoint.geometry!.coordinates,
-      index: apoint.properties!.target.index
-    }
+      index: apoint.properties!.target.index,
+    },
   });
 }
 
@@ -34,36 +38,41 @@ function counterPoint(apoint: Feature<Point>): Feature<Point> {
  * @param centroid 重心点
  * @returns [角度リスト, 三角形リスト]
  */
-function vertexCalc(list: Feature<Point>[], centroid: Feature<Point>): [number[], Tins[]?] {
+function vertexCalc(
+  list: Feature<Point>[],
+  centroid: Feature<Point>,
+): [number[], Tins[]?] {
   const centCoord = centroid.geometry!.coordinates;
   return [0, 1, 2, 3]
-    .map(i => {
+    .map((i) => {
       const j = (i + 1) % 4;
       const itemi = list[i];
       const itemj = list[j];
       const coord = itemi.geometry!.coordinates;
       const radian = Math.atan2(
         coord[0] - centCoord[0],
-        coord[1] - centCoord[1]
+        coord[1] - centCoord[1],
       );
       const coordinates = [centroid, itemi, itemj, centroid].map(
-        point => point.geometry!.coordinates
+        (point) => point.geometry!.coordinates,
       );
       const properties = {
         a: {
           geom: centroid.properties!.target.geom,
-          index: centroid.properties!.target.index
+          index: centroid.properties!.target.index,
         },
         b: {
           geom: itemi.properties!.target.geom,
-          index: itemi.properties!.target.index
+          index: itemi.properties!.target.index,
         },
         c: {
           geom: itemj.properties!.target.geom,
-          index: itemj.properties!.target.index
-        }
+          index: itemj.properties!.target.index,
+        },
       };
-      const tin = featureCollection([polygon([coordinates], properties)]) as Tins;
+      const tin = featureCollection([
+        polygon([coordinates], properties),
+      ]) as Tins;
       return [radian, tin] as [number, Tins];
     })
     .reduce(
@@ -72,12 +81,8 @@ function vertexCalc(list: Feature<Point>[], centroid: Feature<Point>): [number[]
         prev[1].push(curr[1]);
         return prev;
       },
-      [[] as number[], [] as Tins[]]
+      [[] as number[], [] as Tins[]],
     );
 }
 
-export {
-  createPoint,
-  counterPoint,
-  vertexCalc
-};
+export { counterPoint, createPoint, vertexCalc };

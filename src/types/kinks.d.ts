@@ -3,9 +3,18 @@ export interface IntersectionPoint {
   y: number;
 }
 
-
-export type ArcCallback = (i: number, j: number, xx: Float64Array, yy: Float64Array) => void;
-export type ForEachSegmentCallback = (v1: number, v2: number, xx: Float64Array, yy: Float64Array) => void;
+export type ArcCallback = (
+  i: number,
+  j: number,
+  xx: Float64Array,
+  yy: Float64Array,
+) => void;
+export type ForEachSegmentCallback = (
+  v1: number,
+  v2: number,
+  xx: Float64Array,
+  yy: Float64Array,
+) => void;
 
 export interface Arc {
   i: number;
@@ -24,8 +33,12 @@ export class ArcIter {
   x: number;
   y: number;
   z: number;
-  
-  constructor(xx: Float64Array | null, yy: Float64Array | null, zz?: Float64Array | null);
+
+  constructor(
+    xx: Float64Array | null,
+    yy: Float64Array | null,
+    zz?: Float64Array | null,
+  );
   init(i: number, len: number, fw: boolean, zlim?: number): ArcIter;
   hasNext(): boolean;
   next(): void;

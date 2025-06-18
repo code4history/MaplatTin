@@ -1,10 +1,10 @@
-import type { Position, Feature, Point } from "geojson";
+import type { Feature, Point, Position } from "geojson";
 import { point } from "@turf/helpers";
 import type { IntersectionPoint } from "./types/kinks.ts";
 
 /**
  * 線分の交差点を検出するメインの関数
- * 
+ *
  * @param coords - 線分群の座標配列。各線分は始点と終点の座標で表現
  * @returns 検出された交差点のFeature配列
  */
@@ -12,14 +12,19 @@ export default function findIntersections(coords: Position[][]) {
   const arcs = new ArcCollection(coords);
   const xy = arcs.findSegmentIntersections();
   return dedupIntersections(xy).reduce(
-    (prev: Record<string, IntersectionPoint> | Feature<Point>[], apoint: IntersectionPoint, index: number, array: IntersectionPoint[]) => {
+    (
+      prev: Record<string, IntersectionPoint> | Feature<Point>[],
+      apoint: IntersectionPoint,
+      index: number,
+      array: IntersectionPoint[],
+    ) => {
       if (Array.isArray(prev)) return prev;
       if (!prev) prev = {};
       prev[`${apoint.x}:${apoint.y}`] = apoint;
       if (index != array.length - 1) return prev;
-      return Object.keys(prev).map(key => point([prev[key].x, prev[key].y]));
+      return Object.keys(prev).map((key) => point([prev[key].x, prev[key].y]));
     },
-    {} as Record<string, IntersectionPoint>
+    {} as Record<string, IntersectionPoint>,
   ) as Feature<Point>[];
 }
 
@@ -57,7 +62,7 @@ class ArcCollection {
   initArcs(arcs: Position[][]) {
     const xx: number[] = [],
       yy: number[] = [];
-    const nn = arcs.map(points => {
+    const nn = arcs.map((points) => {
       const n = points ? points.length : 0;
       for (let i = 0; i < n; i++) {
         xx.push(points[i][0]);
@@ -127,7 +132,7 @@ class ArcCollection {
     }
     return {
       bb,
-      bounds
+      bounds,
     };
   }
 
@@ -182,7 +187,7 @@ class ArcCollection {
       zz: this._zz,
       bb: this._bb,
       nn: this._nn,
-      ii: this._ii
+      ii: this._ii,
     };
   }
 
@@ -202,7 +207,7 @@ class ArcCollection {
       (i: number, j: number, xx: number[], yy: number[]) => {
         dx += Math.abs(xx[i] - xx[j]);
         dy += Math.abs(yy[i] - yy[j]);
-      }
+      },
     );
     return [dx / count || 0, dy / count || 0];
   }
@@ -224,7 +229,7 @@ class ArcCollection {
   /**
    * 線分の交差を検出
    * ストライプ分割による効率的な判定を実装
-   * 
+   *
    * @returns 検出された交差点の配列
    */
   findSegmentIntersections() {
@@ -233,10 +238,9 @@ class ArcCollection {
       yrange = bounds.ymax - ymin,
       stripeCount = this.calcSegmentIntersectionStripeCount(),
       stripeSizes = new Uint32Array(stripeCount),
-      stripeId =
-        stripeCount > 1
-          ? (y: number) => Math.floor(((stripeCount - 1) * (y - ymin)) / yrange)
-          : () => 0;
+      stripeId = stripeCount > 1
+        ? (y: number) => Math.floor(((stripeCount - 1) * (y - ymin)) / yrange)
+        : () => 0;
     let i, j;
 
     // Count segments in each stripe
@@ -249,7 +253,7 @@ class ArcCollection {
           if (s1 == s2) break;
           s1 += s2 > s1 ? 1 : -1;
         }
-      }
+      },
     );
 
     // Allocate arrays for segments in each stripe
@@ -278,7 +282,7 @@ class ArcCollection {
           if (s1 == s2) break;
           s1 += s2 > s1 ? 1 : -1;
         }
-      }
+      },
     );
 
     // Detect intersections among segments in each stripe.
@@ -434,7 +438,7 @@ function intersectSegments(ids: any, xx: any, yy: any) {
         s2p1x,
         s2p1y,
         s2p2x,
-        s2p2y
+        s2p2y,
       );
       if (hit) {
         seg1 = [s1p1, s1p2];
@@ -443,7 +447,7 @@ function intersectSegments(ids: any, xx: any, yy: any) {
         if (hit.length == 4) {
           // two collinear segments may have two endpoint intersections
           intersections.push(
-            formatIntersection(hit.slice(2), seg1, seg2, xx, yy)
+            formatIntersection(hit.slice(2), seg1, seg2, xx, yy),
           );
         }
       }
@@ -455,17 +459,17 @@ function intersectSegments(ids: any, xx: any, yy: any) {
 
 /**
  * 2つの2D線分間の交差を判定し、交差点を計算します
- * 
+ *
  * @param ax, ay - 第1線分の始点座標
  * @param bx, by - 第1線分の終点座標
  * @param cx, cy - 第2線分の始点座標
  * @param dx, dy - 第2線分の終点座標
- * 
+ *
  * @returns 以下のいずれか：
  * - null: 交差なし
  * - [x, y]: 1点での交差
  * - [x1, y1, x2, y2]: 線分が重なる場合の2点での交差
- * 
+ *
  * 特殊ケースの扱い：
  * 1. 両線分の端点で接触する場合 → 交差としない
  * 2. T字型に接触する場合 → 交差として扱う
@@ -481,7 +485,7 @@ function segmentIntersection(
   cx: any,
   cy: any,
   dx: any,
-  dy: any
+  dy: any,
 ) {
   const hit = segmentHit(ax, ay, bx, by, cx, cy, dx, dy);
   let p = null;
@@ -507,7 +511,7 @@ function segmentHit(
   cx: any,
   cy: any,
   dx: any,
-  dy: any
+  dy: any,
 ) {
   return (
     orient2D(ax, ay, bx, by, cx, cy) * orient2D(ax, ay, bx, by, dx, dy) <= 0 &&
@@ -525,7 +529,7 @@ function orient2D(ax: any, ay: any, bx: any, by: any, cx: any, cy: any) {
 
 /**
  * 2次元の行列式を計算
- * 
+ *
  * @param a, b - 行列の第1行
  * @param c, d - 行列の第2行
  * @returns 行列式の値
@@ -544,7 +548,7 @@ function crossIntersection(
   cx: any,
   cy: any,
   dx: any,
-  dy: any
+  dy: any,
 ) {
   let p = lineIntersection(ax, ay, bx, by, cx, cy, dx, dy);
   let nearest;
@@ -574,7 +578,7 @@ function lineIntersection(
   cx: any,
   cy: any,
   dx: any,
-  dy: any
+  dy: any,
 ) {
   const den = determinant2D(bx - ax, by - ay, dx - cx, dy - cy);
   const eps = 1e-18;
@@ -602,7 +606,7 @@ function findEndpointInRange(
   cx: any,
   cy: any,
   dx: any,
-  dy: any
+  dy: any,
 ) {
   let p = null;
   if (!outsideRange(ax, cx, dx) && !outsideRange(ay, cy, dy)) {
@@ -619,7 +623,7 @@ function findEndpointInRange(
 
 /**
  * 点が線分の範囲外にあるかを判定
- * 
+ *
  * @param a - 判定する点の座標
  * @param b - 線分の一方の端点
  * @param c - 線分のもう一方の端点
@@ -666,7 +670,7 @@ function clampIntersectionPoint(
   cx: any,
   cy: any,
   dx: any,
-  dy: any
+  dy: any,
 ) {
   // Handle intersection points that fall outside the x-y range of either
   // segment by snapping to nearest endpoint coordinate. Out-of-range
@@ -705,7 +709,7 @@ function collinearIntersection(
   cx: any,
   cy: any,
   dx: any,
-  dy: any
+  dy: any,
 ) {
   const minX = Math.min(ax, bx, cx, dx),
     maxX = Math.max(ax, bx, cx, dx),
@@ -748,7 +752,7 @@ function endpointHit(
   cx: any,
   cy: any,
   dx: any,
-  dy: any
+  dy: any,
 ) {
   return (
     (ax == cx && ay == cy) ||
@@ -848,7 +852,7 @@ function formatIntersectingSegment(
   id1: any,
   id2: any,
   xx: any,
-  yy: any
+  yy: any,
 ) {
   let i = id1 < id2 ? id1 : id2,
     j = i === id1 ? id2 : id1;
@@ -862,7 +866,7 @@ function formatIntersectingSegment(
 
 /**
  * 交差判定結果から重複を除去
- * 
+ *
  * @param arr - 交差点情報の配列
  * @returns 重複を除去した交差点情報の配列
  */
@@ -906,7 +910,7 @@ function calcArcBounds(
   xx: Float64Array,
   yy: Float64Array,
   start: number,
-  len: number
+  len: number,
 ) {
   let i = start | 0;
   const n = isNaN(len) ? xx.length - i : len + i;
