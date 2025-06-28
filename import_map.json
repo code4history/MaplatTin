@@ -6,8 +6,8 @@
     "@turf/convex": "https://esm.sh/@turf/convex@7",
     "@turf/helpers": "https://esm.sh/@turf/helpers@7",
     "@turf/line-intersect": "https://esm.sh/@turf/line-intersect@7",
-    "@maplat/transform": "../MaplatTransform/src/index.ts",
-    "@maplat/edgebound": "../MaplatEdgeRuler/src/index.ts",
+    "@maplat/transform": "https://esm.sh/@maplat/transform@0.2.3",
+    "@maplat/edgebound": "https://esm.sh/@maplat/edgebound@0.2.3",
     "delaunator": "https://esm.sh/delaunator@5"
   }
 }

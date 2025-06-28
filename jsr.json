@@ -1,6 +1,6 @@
 {
   "name": "@maplat/tin",
-  "version": "0.11.2",
+  "version": "0.11.4",
   "exports": "./src/index.ts",
   "description": "JavaScript library for homeomorphic coordinate transformation between two plane coordinate systems",
   "license": "Maplat Limited License 1.1",

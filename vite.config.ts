@@ -33,13 +33,13 @@ export default defineConfig({
       fileName: (format) => {
         switch(format) {
           case 'es':
-            return 'tin.js';
+            return 'maplat_tin.js';
           case 'cjs':
-            return 'tin.cjs';
+            return 'maplat_tin.cjs';
           case 'umd':
-            return 'tin.umd.js';
+            return 'maplat_tin.umd.js';
           default:
-            return 'tin.js';
+            return 'maplat_tin.js';
         }
       }
     },
@@ -71,19 +71,15 @@ export default defineConfig({
     removeTsExtensions(),
     dts({
       outDir: 'dist',
-      exclude: ['tests', 'node_modules', '../MaplatTransform', '../MaplatEdgeBound'],
+      exclude: ['tests', 'node_modules'],
       rollupTypes: false,
       tsconfigPath: './tsconfig.json',
       logLevel: 'silent',
       insertTypesEntry: true,
       staticImport: true,
       beforeWriteFile: (filePath, content) => {
-        // Fix import paths for local dependencies and remove .ts extensions
+        // Remove .ts extensions
         const fixedContent = content
-          .replace(/from ['"]\.\.\/MaplatTransform['"]/g, 'from "@maplat/transform"')
-          .replace(/from ['"]\.\.\/MaplatEdgeBound['"]/g, 'from "@maplat/edgebound"')
-          .replace(/import\("\.\.\/MaplatTransform"\)/g, 'import("@maplat/transform")')
-          .replace(/import\("\.\.\/MaplatEdgeBound"\)/g, 'import("@maplat/edgebound")')
           .replace(/from ['"](\.[^'"]+)\.ts['"]/g, 'from "$1"')
           .replace(/import\(["'](\.[^'"]+)\.ts["']\)/g, 'import("$1")');
         return {
