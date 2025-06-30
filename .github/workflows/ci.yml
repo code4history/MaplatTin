@@ -40,18 +40,3 @@ jobs:
         
       - name: Build
         run: pnpm run build
-
-  test-deno:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Deno
-        uses: denoland/setup-deno@v1
-        with:
-          deno-version: v1.x
-      - name: Check formatting
-        run: deno fmt --check --config=deno.ci.json src/
-      - name: Run linter
-        run: deno lint --config=deno.ci.json
-      - name: Type check
-        run: deno check --config=deno.ci.json src/**/*.ts

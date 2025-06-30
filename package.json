@@ -37,11 +37,7 @@
     "version:bump": "node scripts/bump-version.js",
     "version:sync": "node scripts/sync-version.js",
     "publish:npm": "node scripts/publish-npm.js",
-    "publish:npm:dry": "node scripts/publish-npm.js --dry-run",
-    "publish:deno": "node scripts/publish-deno.js",
-    "publish:deno:dry": "node scripts/publish-deno.js --dry-run",
-    "publish:all": "node scripts/publish-all.js",
-    "publish:all:dry": "node scripts/publish-all.js --dry-run"
+    "publish:npm:dry": "node scripts/publish-npm.js --dry-run"
   },
   "repository": {
     "type": "git",

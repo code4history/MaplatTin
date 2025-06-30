@@ -29,34 +29,6 @@ npm install @maplat/tin
 npm install delaunator
 ```
 
-### JSR (JavaScript Registry)
-
-```sh
-# For Deno
-deno add @maplat/tin
-
-# For npm/Node.js
-npx jsr add @maplat/tin
-```
-
-### Deno
-
-```typescript
-// Using JSR (recommended)
-import Tin from "jsr:@maplat/tin";
-
-// Using deno.json import map
-import Tin from "@maplat/tin";
-
-// Or directly from npm
-import Tin from "npm:@maplat/tin@0.11.4";
-
-// Use the library
-const tin = new Tin({
-    wh: [500, 500],
-    yaxisMode: Tin.YAXIS_FOLLOW
-});
-```
 
 ## Development Setup
 
