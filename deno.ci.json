@@ -1,6 +1,6 @@
 {
   "name": "@maplat/tin",
-  "version": "0.11.2",
+  "version": "0.11.4",
   "exports": "./src/index.ts",
   "imports": {
     "@turf/boolean-point-in-polygon": "npm:@turf/boolean-point-in-polygon@^7.2.0",
@@ -8,8 +8,8 @@
     "@turf/convex": "npm:@turf/convex@^7.2.0",
     "@turf/helpers": "npm:@turf/helpers@7.2.0",
     "@turf/line-intersect": "npm:@turf/line-intersect@^7.2.0",
-    "@maplat/transform": "npm:@maplat/transform@^0.2.2",
-    "@maplat/edgebound": "npm:@maplat/edgebound@^0.2.2",
+    "@maplat/transform": "npm:@maplat/transform@^0.2.3",
+    "@maplat/edgebound": "npm:@maplat/edgebound@^0.2.3",
     "delaunator": "npm:delaunator@^5.0.0",
     "geojson": "npm:@types/geojson@^7946.0.15",
     "jest-matcher-deep-close-to": "npm:jest-matcher-deep-close-to@^3.0.2",
