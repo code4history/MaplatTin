@@ -69,6 +69,33 @@ npm install delaunator
 
 **注意:** `.yalc`ディレクトリと`yalc.lock`ファイルはgitに無視され、コミットされません。
 
+### テスト
+
+プロジェクトには、TIN変換ロジックと内部EdgeBound制約エンジンの両方に対する包括的なユニットテストが含まれています。
+
+**すべてのテストを実行:**
+```sh
+pnpm test
+```
+
+**特定のテストスイートを実行:**
+```sh
+# EdgeBound制約エンジンのテスト
+pnpm test tests/edgebound
+
+# TIN変換のテスト
+pnpm test tests/tin
+```
+
+**テストカバレッジ:**
+- `tests/edgebound/` - 内部EdgeBound制約エンジンのテスト（455テスト）
+  - `constrain.test.ts` - 制約操作の統合テスト
+  - `constrain.unit.test.ts` - 制約メソッドのユニットテスト
+  - `intersect.test.ts` - 線分交差検出テスト
+  - `validators.ts` - 三角形分割の整合性検証用テストユーティリティ
+- `tests/tin.test.ts` - 実際の地図データを使用したTIN変換テスト
+- `tests/transform.test.ts` - 座標変換テスト
+
 ### ブラウザ
 
 ブラウザで使用する場合、ピア依存関係を含める必要があります：

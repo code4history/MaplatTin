@@ -69,6 +69,33 @@ This project supports using local dependencies for development. We recommend usi
 
 **Note:** The `.yalc` directory and `yalc.lock` file are ignored by git and will not be committed.
 
+### Testing
+
+The project includes comprehensive unit tests for both the TIN transformation logic and the internal EdgeBound constraint engine.
+
+**Run all tests:**
+```sh
+pnpm test
+```
+
+**Run specific test suite:**
+```sh
+# EdgeBound constraint engine tests
+pnpm test tests/edgebound
+
+# TIN transformation tests
+pnpm test tests/tin
+```
+
+**Test coverage:**
+- `tests/edgebound/` - Internal EdgeBound constraint engine tests (455 tests)
+  - `constrain.test.ts` - Integration tests for constraint operations
+  - `constrain.unit.test.ts` - Unit tests for constraint methods
+  - `intersect.test.ts` - Segment intersection detection tests
+  - `validators.ts` - Test utilities for validating triangulation integrity
+- `tests/tin.test.ts` - TIN transformation tests with real map data
+- `tests/transform.test.ts` - Coordinate transformation tests
+
 ### Browser
 
 When using in the browser, you need to include the peer dependencies:

@@ -84,6 +84,9 @@ importers:
       prettier:
         specifier: ^3.4.2
         version: 3.6.2
+      robust-segment-intersect:
+        specifier: ^1.0.1
+        version: 1.0.1
       typescript:
         specifier: ^5.7.2
         version: 5.8.3
@@ -1545,11 +1548,26 @@ packages:
     resolution: {integrity: sha512-g6QUff04oZpHs0eG5p83rFLhHeV00ug/Yf9nZM6fLeUrPguBTkTQOdpAWWspMh55TZfVQDPaN3NQJfbVRAxdIw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
 
+  robust-orientation@1.2.1:
+    resolution: {integrity: sha512-FuTptgKwY6iNuU15nrIJDLjXzCChWB+T4AvksRtwPS/WZ3HuP1CElCm1t+OBfgQKfWbtZIawip+61k7+buRKAg==}
+
   robust-predicates@2.0.4:
     resolution: {integrity: sha512-l4NwboJM74Ilm4VKfbAtFeGq7aEjWL+5kVFcmgFA2MrdnQWx9iE/tUGvxY5HyMI7o/WpSIUFLbC5fbeaHgSCYg==}
 
   robust-predicates@3.0.2:
     resolution: {integrity: sha512-IXgzBWvWQwE6PrDI05OvmXUIruQTcoMDzRsOd5CDvHCVLcLHMTSYvOK5Cm46kWqlV3yAbuSpBZdJ5oP5OUoStg==}
+
+  robust-scale@1.0.2:
+    resolution: {integrity: sha512-jBR91a/vomMAzazwpsPTPeuTPPmWBacwA+WYGNKcRGSh6xweuQ2ZbjRZ4v792/bZOhRKXRiQH0F48AvuajY0tQ==}
+
+  robust-segment-intersect@1.0.1:
+    resolution: {integrity: sha512-QWngxcL7rCRLK7nTMcTNBPi/q+fecrOo6aOtTPnXjT/Dve5AK20DzUSq2fznUS+rCAxyir6OdPgDCzcUxFtJoQ==}
+
+  robust-subtract@1.0.0:
+    resolution: {integrity: sha512-xhKUno+Rl+trmxAIVwjQMiVdpF5llxytozXJOdoT4eTIqmqsndQqFb1A0oiW3sZGlhMRhOi6pAD4MF1YYW6o/A==}
+
+  robust-sum@1.0.0:
+    resolution: {integrity: sha512-AvLExwpaqUqD1uwLU6MwzzfRdaI6VEZsyvQ3IAQ0ZJ08v1H+DTyqskrf2ZJyh0BDduFVLN7H04Zmc+qTiahhAw==}
 
   rollup@4.44.1:
     resolution: {integrity: sha512-x8H8aPvD+xbl0Do8oez5f5o8eMS3trfCghc4HhLAnCkj7Vl0d1JWGs0UF/D886zLW2rOj2QymV/JcSSsw+XDNg==}
@@ -1719,6 +1737,12 @@ packages:
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
+
+  two-product@1.0.2:
+    resolution: {integrity: sha512-vOyrqmeYvzjToVM08iU52OFocWT6eB/I5LUWYnxeAPGXAhAxXYU/Yr/R2uY5/5n4bvJQL9AQulIuxpIsMoT8XQ==}
+
+  two-sum@1.0.0:
+    resolution: {integrity: sha512-phP48e8AawgsNUjEY2WvoIWqdie8PoiDZGxTDv70LDr01uX5wLEQbOgSP7Z/B6+SW5oLtbe8qaYX2fKJs3CGTw==}
 
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
@@ -3378,9 +3402,29 @@ snapshots:
 
   reusify@1.1.0: {}
 
+  robust-orientation@1.2.1:
+    dependencies:
+      robust-scale: 1.0.2
+      robust-subtract: 1.0.0
+      robust-sum: 1.0.0
+      two-product: 1.0.2
+
   robust-predicates@2.0.4: {}
 
   robust-predicates@3.0.2: {}
+
+  robust-scale@1.0.2:
+    dependencies:
+      two-product: 1.0.2
+      two-sum: 1.0.0
+
+  robust-segment-intersect@1.0.1:
+    dependencies:
+      robust-orientation: 1.2.1
+
+  robust-subtract@1.0.0: {}
+
+  robust-sum@1.0.0: {}
 
   rollup@4.44.1:
     dependencies:
@@ -3542,6 +3586,10 @@ snapshots:
       typescript: 5.8.3
 
   tslib@2.8.1: {}
+
+  two-product@1.0.2: {}
+
+  two-sum@1.0.0: {}
 
   type-check@0.4.0:
     dependencies:
