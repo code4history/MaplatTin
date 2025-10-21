@@ -46,16 +46,12 @@ This project supports using local dependencies for development. We recommend usi
    # In the MaplatTransform directory
    cd ../MaplatTransform
    yalc publish
-   
-   # In the MaplatEdgeBound directory
-   cd ../MaplatEdgeBound
-   yalc publish
    ```
 
 3. **Link local dependencies in this project:**
    ```sh
    # In the MaplatTin directory
-   yalc add @maplat/transform @maplat/edgebound
+   yalc add @maplat/transform
    ```
 
 4. **Update local dependencies when changed:**
@@ -67,7 +63,7 @@ This project supports using local dependencies for development. We recommend usi
 5. **Remove local dependencies (to use npm packages):**
    ```sh
    # In the MaplatTin directory
-   yalc remove @maplat/transform @maplat/edgebound
+   yalc remove @maplat/transform
    npm install
    ```
 

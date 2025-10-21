@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@maplat/edgebound':
-        specifier: ^0.2.3
-        version: 0.2.3(delaunator@5.0.1)
       '@maplat/transform':
         specifier: ^0.2.3
         version: 0.2.3
@@ -32,6 +29,9 @@ importers:
       delaunator:
         specifier: ^5.0.0
         version: 5.0.1
+      robust-predicates:
+        specifier: ^3.0.2
+        version: 3.0.2
     devDependencies:
       '@eslint/js':
         specifier: ^9.17.0
@@ -393,11 +393,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.27':
     resolution: {integrity: sha512-VO95AxtSFMelbg3ouljAYnfvTEwSWVt/2YLf+U5Ejd8iT5mXE2Sa/1LGyvySMne2CGsepGLI7KpF3EzE3Aq9Mg==}
-
-  '@maplat/edgebound@0.2.3':
-    resolution: {integrity: sha512-L0FwGLJeClk+ecFIJTrjmuQfDpEI/zUac7gJx8i8xcqXtbKJkJMuqJfFehERvVAjTULnxwPHTgnkjzu3YRiOHQ==}
-    peerDependencies:
-      delaunator: ^5.0.0
 
   '@maplat/transform@0.2.3':
     resolution: {integrity: sha512-Ic3V4rYud0+ksLUkhqdr8gkOwYCq6DC93zC2oA6K/uth7HsihMLqdp+J4O7b8eNmsu48ioW9xUHlKkjErMdT0Q==}
@@ -2124,11 +2119,6 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.2
-
-  '@maplat/edgebound@0.2.3(delaunator@5.0.1)':
-    dependencies:
-      delaunator: 5.0.1
-      robust-predicates: 3.0.2
 
   '@maplat/transform@0.2.3':
     dependencies:

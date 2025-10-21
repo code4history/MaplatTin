@@ -1,7 +1,7 @@
 import { featureCollection, polygon } from "@turf/helpers";
 import type { FeatureCollection, Point, Polygon } from "geojson";
 import Delaunator from "delaunator";
-import { Constrain as EdgeBound } from "@maplat/edgebound";
+import { Constrain as EdgeBound } from "./edgebound/index.ts";
 import type { Edge } from "@maplat/transform";
 import type { TriangleProperties } from "./types/tin.d.ts";
 

@@ -23,26 +23,7 @@ try {
   execSync('node scripts/sync-version.js', { stdio: 'inherit', cwd: rootDir });
   
   // Read versions from dependencies
-  let edgeboundVersion = '^0.2.2'; // fallback version
   let transformVersion = '^0.2.2'; // fallback version
-  
-  // First, try to get versions from installed packages
-  try {
-    const edgeboundPkgPath = require.resolve('@maplat/edgebound/package.json', { paths: [rootDir] });
-    const edgeboundPkg = JSON.parse(fs.readFileSync(edgeboundPkgPath, 'utf8'));
-    edgeboundVersion = `^${edgeboundPkg.version}`;
-    console.log(`Found @maplat/edgebound version from installed package: ${edgeboundPkg.version}`);
-  } catch (_e) {
-    // If not found in node_modules, try local directory
-    try {
-      const edgeboundPath = path.join(rootDir, '..', 'MaplatEdgeBound', 'package.json');
-      const edgeboundPkg = JSON.parse(fs.readFileSync(edgeboundPath, 'utf8'));
-      edgeboundVersion = `^${edgeboundPkg.version}`;
-      console.log(`Found @maplat/edgebound version from local directory: ${edgeboundPkg.version}`);
-    } catch (_e2) {
-      console.warn('Could not read @maplat/edgebound version, using fallback');
-    }
-  }
   
   try {
     const transformPkgPath = require.resolve('@maplat/transform/package.json', { paths: [rootDir] });
@@ -67,11 +48,6 @@ try {
   }
   
   // Update local file dependencies to version references
-  if (packageJson.dependencies['@maplat/edgebound']?.startsWith('file:')) {
-    packageJson.dependencies['@maplat/edgebound'] = edgeboundVersion;
-    console.log(`Replaced @maplat/edgebound file: with ${edgeboundVersion}`);
-  }
-  
   if (packageJson.dependencies['@maplat/transform']?.startsWith('file:')) {
     packageJson.dependencies['@maplat/transform'] = transformVersion;
     console.log(`Replaced @maplat/transform file: with ${transformVersion}`);

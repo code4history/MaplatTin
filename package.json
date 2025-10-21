@@ -58,8 +58,8 @@
     "deno"
   ],
   "dependencies": {
-    "@maplat/edgebound": "^0.2.3",
-    "@maplat/transform": "^0.2.3"
+    "@maplat/transform": "^0.2.3",
+    "robust-predicates": "^3.0.2"
   },
   "peerDependencies": {
     "@turf/boolean-point-in-polygon": "^7.2.0",

@@ -46,16 +46,12 @@ npm install delaunator
    # MaplatTransformディレクトリで
    cd ../MaplatTransform
    yalc publish
-   
-   # MaplatEdgeBoundディレクトリで
-   cd ../MaplatEdgeBound
-   yalc publish
    ```
 
 3. **このプロジェクトでローカル依存関係をリンク:**
    ```sh
    # MaplatTinディレクトリで
-   yalc add @maplat/transform @maplat/edgebound
+   yalc add @maplat/transform
    ```
 
 4. **変更時にローカル依存関係を更新:**
@@ -67,7 +63,7 @@ npm install delaunator
 5. **ローカル依存関係を削除（npmパッケージを使用する場合）:**
    ```sh
    # MaplatTinディレクトリで
-   yalc remove @maplat/transform @maplat/edgebound
+   yalc remove @maplat/transform
    npm install
    ```
 
