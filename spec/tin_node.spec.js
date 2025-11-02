@@ -252,9 +252,11 @@ const testSet = () => {
         ]
       ]);
       err = "";
-      await tin.updateTinAsync().catch(e => {
+      try {
+        await tin.updateTinAsync();
+      } catch (e) {
         err = e;
-      });
+      }
       expect(err).toEqual("TOO LINEAR1");
     });
   });

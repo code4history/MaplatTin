@@ -26,17 +26,24 @@
             [[70, 150], [140, -150]]
         ]);
 
-        tin.updateTinAsync().then(() => {
-            const output = document.getElementById('output');
-            const result1 = tin.transform([140, 150]);
-            const result2 = tin.transform(result1, true);
-            
-            output.innerHTML = `
-                <h2>Test Results:</h2>
-                <p>Forward transform [140, 150] => [${result1.join(', ')}]</p>
-                <p>Backward transform [${result1.join(', ')}] => [${result2.join(', ')}]</p>
-            `;
-        });
+        const run = async () => {
+            try {
+                await tin.updateTinAsync();
+                const output = document.getElementById('output');
+                const result1 = tin.transform([140, 150]);
+                const result2 = tin.transform(result1, true);
+
+                output.innerHTML = `
+                    <h2>Test Results:</h2>
+                    <p>Forward transform [140, 150] => [${result1.join(', ')}]</p>
+                    <p>Backward transform [${result1.join(', ')}] => [${result2.join(', ')}]</p>
+                `;
+            } catch (error) {
+                console.error("Failed to update TIN", error);
+            }
+        };
+
+        run();
     </script>
 </body>
 </html>

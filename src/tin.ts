@@ -6,8 +6,7 @@
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import turfCentroid from "@turf/centroid";
 import convex from "@turf/convex";
-import { featureCollection, lineString, point, polygon } from "@turf/helpers";
-import lineIntersect from "@turf/line-intersect";
+import { featureCollection, point, polygon } from "@turf/helpers";
 import type { Feature, Point, Position } from "geojson";
 import {
   counterTri,
@@ -35,13 +34,17 @@ import type {
   TinsBD,
   Tri,
   VertexMode,
-  WeightBufferBD,
   YaxisMode,
 } from "@maplat/transform";
 import constrainedTin from "./constrained-tin.ts";
+import {
+  calculateBirdeyeVertices,
+  calculatePlainVertices,
+} from "./boundary-vertices.ts";
 import findIntersections from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
+import { buildPointsWeightBuffer } from "./weight-buffer.ts";
 import type { SearchIndex } from "./searchutils.ts";
 import type { PointsSetBD } from "./types/tin.d.ts";
 
@@ -106,7 +109,8 @@ export class Tin extends Transform {
   }
 
   /**
-   * 制御点（GCP: Ground Control Points）を設定します
+   * 制御点（GCP: Ground Control Points）を設定します。
+   * 指定した点群に合わせて内部のTINキャッシュをリセットします。
    */
   setPoints(points: PointSet[]): void {
     if (this.yaxisMode === Tin.YAXIS_FOLLOW) {
@@ -121,7 +125,8 @@ export class Tin extends Transform {
   }
 
   /**
-   * エッジ（制約線）を設定します
+   * エッジ（制約線）を設定します。
+   * 制約線を正規化した上で、依存するキャッシュをリセットします。
    */
   setEdges(edges: EdgeSet[] | EdgeSetLegacy[] = []): void {
     this.edges = normalizeEdges(edges);
@@ -301,7 +306,8 @@ export class Tin extends Transform {
   }
 
   /**
-   * 点群セットを生成します
+   * 点群セットを生成します。
+  * GCP と中間エッジノードを GeoJSON Point に変換し、後続の三角分割に備えます。
    */
   generatePointsSet(): {
     forw: Feature<Point>[];
@@ -502,7 +508,9 @@ export class Tin extends Transform {
   }
 
   /**
-   * TINネットワークを更新し、座標変換の準備を行います
+   * TINネットワークを同期的に更新し、座標変換の準備を行います。
+   * 重めの計算を伴うため、呼び出し側が非同期制御を行いたい場合は
+   * {@link updateTinAsync} を利用してください。
    */
   updateTin(): void {
     let strict = this.strictMode;
@@ -585,25 +593,18 @@ export class Tin extends Transform {
     };
 
     // Calculate vertices
+    const boundaryParams = {
+      convexBuf,
+      centroid: centCalc,
+      bbox,
+      minx,
+      maxx,
+      miny,
+      maxy,
+    };
     const verticesSet = this.vertexMode === Tin.VERTEX_BIRDEYE
-      ? this.calculateBirdeyeVertices(
-        convexBuf,
-        centCalc,
-        bbox,
-        minx,
-        maxx,
-        miny,
-        maxy,
-      )
-      : this.calculatePlainVertices(
-        convexBuf,
-        centCalc,
-        bbox,
-        minx,
-        maxx,
-        miny,
-        maxy,
-      );
+      ? calculateBirdeyeVertices(boundaryParams)
+      : calculatePlainVertices(boundaryParams);
 
     // Add vertices to points set
     const verticesList = {
@@ -666,362 +667,25 @@ export class Tin extends Transform {
     };
 
     this.addIndexedTin();
-    this.calculatePointsWeight();
-  }
 
-  /**
-   * 通常の頂点を計算
-   */
-  private calculatePlainVertices(
-    convexBuf: Record<string, { forw: Position; bakw: Position }>,
-    centCalc: { forw: Position; bakw: Position },
-    bbox: Position[],
-    minx: number,
-    maxx: number,
-    miny: number,
-    maxy: number,
-  ): Array<{ forw: Position; bakw: Position }> {
-    // Calculate edge vertices
-    const edgeNodes = Object.keys(convexBuf).reduce((prev, key) => {
-      const item = convexBuf[key];
-      const forw = item.forw;
-      const bakw = item.bakw;
-
-      const vec = {
-        forw: [forw[0] - centCalc.forw[0], forw[1] - centCalc.forw[1]],
-        bakw: [bakw[0] - centCalc.bakw[0], bakw[1] - centCalc.bakw[1]],
-      };
-
-      const xRate = vec.forw[0] === 0
-        ? Infinity
-        : ((vec.forw[0] < 0 ? minx : maxx) - centCalc.forw[0]) / vec.forw[0];
-      const yRate = vec.forw[1] === 0
-        ? Infinity
-        : ((vec.forw[1] < 0 ? miny : maxy) - centCalc.forw[1]) / vec.forw[1];
-
-      if (Math.abs(xRate) / Math.abs(yRate) < 1.1) {
-        const node = {
-          forw: [
-            vec.forw[0] * xRate + centCalc.forw[0],
-            vec.forw[1] * xRate + centCalc.forw[1],
-          ] as Position,
-          bakw: [
-            vec.bakw[0] * xRate + centCalc.bakw[0],
-            vec.bakw[1] * xRate + centCalc.bakw[1],
-          ] as Position,
-        };
-        if (vec.forw[0] < 0) {
-          prev[3].push(node);
-        } else {
-          prev[1].push(node);
-        }
-      }
-
-      if (Math.abs(yRate) / Math.abs(xRate) < 1.1) {
-        const node = {
-          forw: [
-            vec.forw[0] * yRate + centCalc.forw[0],
-            vec.forw[1] * yRate + centCalc.forw[1],
-          ] as Position,
-          bakw: [
-            vec.bakw[0] * yRate + centCalc.bakw[0],
-            vec.bakw[1] * yRate + centCalc.bakw[1],
-          ] as Position,
-        };
-        if (vec.forw[1] < 0) {
-          prev[0].push(node);
-        } else {
-          prev[2].push(node);
-        }
-      }
-
-      return prev;
-    }, [[], [], [], []] as Array<Array<{ forw: Position; bakw: Position }>>);
-
-    // Calculate vertex angles
-    const vertexCalc = Object.keys(convexBuf).reduce(
-      (prev, key, index, arr) => {
-        const item = convexBuf[key];
-        const forw = item.forw;
-        const bakw = item.bakw;
-
-        const vec = {
-          forw: [forw[0] - centCalc.forw[0], forw[1] - centCalc.forw[1]],
-          bakw: [bakw[0] - centCalc.bakw[0], centCalc.bakw[1] - bakw[1]],
-        };
-
-        if (vec.forw[0] === 0 || vec.forw[1] === 0) return prev;
-
-        let quad = 0;
-        if (vec.forw[0] > 0) quad += 1;
-        if (vec.forw[1] > 0) quad += 2;
-
-        prev[quad].push([vec.forw, vec.bakw]);
-
-        if (index === arr.length - 1) {
-          return prev.map((quadArr) => {
-            return quadArr.reduce(
-              (
-                qprev: number[] | undefined,
-                curr: number[][],
-                qindex: number,
-                qarr: number[][][],
-              ) => {
-                if (!qprev) qprev = [Infinity, 0, 0];
-
-                let ratio =
-                  Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) /
-                  Math.sqrt(Math.pow(curr[1][0], 2) + Math.pow(curr[1][1], 2));
-                ratio = ratio < qprev[0] ? ratio : qprev[0];
-
-                const theta = Math.atan2(curr[0][0], curr[0][1]) -
-                  Math.atan2(curr[1][0], curr[1][1]);
-                const sumcos = qprev[1] + Math.cos(theta);
-                const sumsin = qprev[2] + Math.sin(theta);
-
-                if (qindex === qarr.length - 1) {
-                  return [ratio, Math.atan2(sumsin, sumcos)];
-                }
-                return [ratio, sumcos, sumsin];
-              },
-              null as any,
-            );
-          });
-        }
-
-        return prev;
-      },
-      [[], [], [], []] as any[],
-    );
-
-    let vertexRatio: any[] = vertexCalc;
-    if (vertexRatio.length === 1) {
-      vertexRatio = [
-        vertexRatio[0],
-        vertexRatio[0],
-        vertexRatio[0],
-        vertexRatio[0],
-      ];
-    }
-
-    // Calculate vertices
-    const vertices = vertexRatio.map((ratio: any, index: number) => {
-      const forVertex = bbox[index];
-      const forDelta = [
-        forVertex[0] - centCalc.forw[0],
-        forVertex[1] - centCalc.forw[1],
-      ];
-      const forDistance = Math.sqrt(
-        Math.pow(forDelta[0], 2) + Math.pow(forDelta[1], 2),
-      );
-      const bakDistance = forDistance / ratio[0];
-      const bakTheta = Math.atan2(forDelta[0], forDelta[1]) - ratio[1];
-      const bakw: Position = [
-        centCalc.bakw[0] + bakDistance * Math.sin(bakTheta),
-        centCalc.bakw[1] - bakDistance * Math.cos(bakTheta),
-      ];
-
-      return { forw: forVertex, bakw };
-    });
-
-    // Swap vertices 2 and 3 for correct ordering
-    const swap = vertices[2];
-    vertices[2] = vertices[3];
-    vertices[3] = swap;
-
-    // Check edge intersections
-    this.checkAndAdjustVertices(vertices, edgeNodes, centCalc);
-
-    return vertices;
-  }
-
-  /**
-   * 鳥瞰図モードの頂点を計算
-   */
-  private calculateBirdeyeVertices(
-    convexBuf: Record<string, { forw: Position; bakw: Position }>,
-    centCalc: { forw: Position; bakw: Position },
-    bbox: Position[],
-    minx: number,
-    maxx: number,
-    miny: number,
-    maxy: number,
-  ): Array<{ forw: Position; bakw: Position }> {
-    // For birdeye mode, implement special vertex calculation
-    // This is a simplified version, actual implementation might be more complex
-    return this.calculatePlainVertices(
-      convexBuf,
-      centCalc,
-      bbox,
-      minx,
-      maxx,
-      miny,
-      maxy,
-    );
-  }
-
-  /**
-   * 頂点の位置を調整
-   */
-  private checkAndAdjustVertices(
-    vertices: Array<{ forw: Position; bakw: Position }>,
-    edgeNodes: Array<Array<{ forw: Position; bakw: Position }>>,
-    centCalc: { forw: Position; bakw: Position },
-  ): void {
-    const expandRatio = [1, 1, 1, 1];
-
-    for (let i = 0; i < 4; i++) {
-      const j = (i + 1) % 4;
-      const side = lineString([vertices[i].bakw, vertices[j].bakw]);
-
-      edgeNodes[i].map((node) => {
-        const line = lineString([centCalc.bakw, node.bakw]);
-        const intersect = lineIntersect(side, line);
-
-        if (intersect.features.length > 0 && intersect.features[0].geometry) {
-          const intersectPt = intersect.features[0];
-          const distance = Math.sqrt(
-            Math.pow(node.bakw[0] - centCalc.bakw[0], 2) +
-              Math.pow(node.bakw[1] - centCalc.bakw[1], 2),
-          );
-          const intDistance = Math.sqrt(
-            Math.pow(
-              intersectPt.geometry.coordinates[0] - centCalc.bakw[0],
-              2,
-            ) +
-              Math.pow(
-                intersectPt.geometry.coordinates[1] - centCalc.bakw[1],
-                2,
-              ),
-          );
-          const ratio = distance / intDistance;
-
-          if (ratio > expandRatio[i]) expandRatio[i] = ratio;
-          if (ratio > expandRatio[j]) expandRatio[j] = ratio;
-        }
-      });
-    }
-
-    vertices.forEach((vertex, i) => {
-      const ratio = expandRatio[i];
-      const bakw: Position = [
-        (vertex.bakw[0] - centCalc.bakw[0]) * ratio + centCalc.bakw[0],
-        (vertex.bakw[1] - centCalc.bakw[1]) * ratio + centCalc.bakw[1],
-      ];
-      vertex.bakw = bakw;
-    });
-  }
-
-  /**
-   * 点の重み付けを計算します
-   */
-  calculatePointsWeight(): void {
-    const calcTargets = ["forw"];
+    const targets: Array<keyof TinsBD> = ["forw"];
     if (this.strict_status === Tin.STATUS_LOOSE) {
-      calcTargets.push("bakw");
+      targets.push("bakw");
     }
 
-    const weightBuffer: WeightBufferBD = {};
-
-    calcTargets.forEach((target) => {
-      weightBuffer[target as keyof WeightBufferBD] = {};
-      const tin_points: Record<string, number> = {};
-
-      this.tins![target as keyof TinsBD]!.features.map((tri: Tri) => {
-        const props = ["a", "b", "c"] as PropertyTriKey[];
-        for (let i = 0; i < 3; i++) {
-          const j = (i + 1) % 3;
-          const prop_i = props[i];
-          const prop_j = props[j];
-          const index_i = tri.properties![prop_i].index;
-          const index_j = tri.properties![prop_j].index;
-          const key = [index_i, index_j].sort().join("-");
-
-          if (!tin_points[key]) {
-            const i_xy = tri.geometry!.coordinates[0][i];
-            const j_xy = tri.geometry!.coordinates[0][j];
-            const i_merc = tri.properties![prop_i].geom;
-            const j_merc = tri.properties![prop_j].geom;
-
-            tin_points[key] = 1;
-            const ratio = Math.sqrt(
-              Math.pow(i_merc[0] - j_merc[0], 2) +
-                Math.pow(i_merc[1] - j_merc[1], 2),
-            ) / Math.sqrt(
-              Math.pow(i_xy[0] - j_xy[0], 2) + Math.pow(i_xy[1] - j_xy[1], 2),
-            );
-
-            if (!weightBuffer[target as keyof WeightBufferBD]) {
-              weightBuffer[target as keyof WeightBufferBD] = {};
-            }
-
-            const targetBuffer = weightBuffer[target as keyof WeightBufferBD]!;
-            targetBuffer[`${index_i}:${key}`] = ratio;
-            targetBuffer[`${index_j}:${key}`] = ratio;
-          }
-        }
-      });
+    const includeReciprocals = this.strict_status === Tin.STATUS_STRICT;
+    this.pointsWeightBuffer = buildPointsWeightBuffer({
+      tins: this.tins!,
+      targets,
+      includeReciprocals,
     });
+  }
 
-    // Calculate average weights
-    const pointsWeightBuffer: WeightBufferBD = {};
-
-    calcTargets.map((target) => {
-      pointsWeightBuffer[target as keyof WeightBufferBD] = {};
-
-      if (this.strict_status === Tin.STATUS_STRICT) {
-        pointsWeightBuffer.bakw = {};
-      }
-
-      const targetBuffer = weightBuffer[target as keyof WeightBufferBD]!;
-      const pointWeights: { [pointId: string]: number[] } = {};
-
-      // Group weights by point ID
-      Object.keys(targetBuffer).forEach((key) => {
-        const [pointId] = key.split(":");
-        if (!pointWeights[pointId]) {
-          pointWeights[pointId] = [];
-        }
-        pointWeights[pointId].push(targetBuffer[key]);
-      });
-
-      // Calculate average weight for each point
-      Object.keys(pointWeights).forEach((pointId) => {
-        const weights = pointWeights[pointId];
-        const avgWeight = weights.reduce((sum, w) => sum + w, 0) /
-          weights.length;
-
-        if (!pointsWeightBuffer[target as keyof WeightBufferBD]) {
-          pointsWeightBuffer[target as keyof WeightBufferBD] = {};
-        }
-        pointsWeightBuffer[target as keyof WeightBufferBD]![pointId] =
-          avgWeight;
-
-        if (this.strict_status === Tin.STATUS_STRICT) {
-          if (!pointsWeightBuffer.bakw) {
-            pointsWeightBuffer.bakw = {};
-          }
-          pointsWeightBuffer.bakw[pointId] = 1 / avgWeight;
-        }
-      });
-
-      // Calculate centroid weight
-      let centroidSum = 0;
-      for (let i = 0; i < 4; i++) {
-        const key = `b${i}`;
-        const weight =
-          pointsWeightBuffer[target as keyof WeightBufferBD]![key] || 0;
-        centroidSum += weight;
-      }
-      pointsWeightBuffer[target as keyof WeightBufferBD]!["c"] = centroidSum /
-        4;
-
-      if (this.strict_status === Tin.STATUS_STRICT && pointsWeightBuffer.bakw) {
-        pointsWeightBuffer.bakw["c"] = 1 /
-          pointsWeightBuffer[target as keyof WeightBufferBD]!["c"];
-      }
-    });
-
-    this.pointsWeightBuffer = pointsWeightBuffer;
+  /**
+   * 非同期ラッパーを提供します。
+   * 互換性のために Promise ベースの API を維持しますが、内部処理は同期的です。
+   */
+  async updateTinAsync(): Promise<void> {
+    this.updateTin();
   }
 }

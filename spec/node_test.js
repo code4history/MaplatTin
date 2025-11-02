@@ -33,7 +33,13 @@ tin.setPoints([
     [140, -150]
   ]
 ]);
-tin.updateTinAsync().then(() => {
+async function main() {
+  await tin.updateTinAsync();
   console.log(tin.transform([140, 150])); // 277.25085848926574, -162.19095375292216
   console.log(tin.transform([277.25085848926574, -162.19095375292216], true)); // 140, 150
+}
+
+main().catch((error) => {
+  // eslint-disable-next-line no-console
+  console.error(error);
 });
