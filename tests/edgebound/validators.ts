@@ -1,7 +1,7 @@
 import { Constrain } from '@/edgebound';
 import { DelaunatorLike } from '@/edgebound/base';
 import { incircle, orient2d } from 'robust-predicates';
-// @ts-ignore - robust-segment-intersect doesn't have types
+// @ts-expect-error robust-segment-intersect doesn't ship type definitions
 import robustIntersect from 'robust-segment-intersect';
 
 type P2 = [number, number];
