@@ -1,18 +1,18 @@
-import { defineConfig } from 'vitest/config';
-import dts from 'vite-plugin-dts';
-import { resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
-import process from 'node:process';
+import { defineConfig } from "vitest/config";
+import dts from "vite-plugin-dts";
+import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import process from "node:process";
 
-const packageJson = JSON.parse(readFileSync('./package.json', 'utf-8'));
-const isPackageBuild = process.env.BUILD_MODE === 'package';
+const packageJson = JSON.parse(readFileSync("./package.json", "utf-8"));
+const isPackageBuild = process.env.BUILD_MODE === "package";
 
 // Plugin to remove .ts extensions from imports
 const removeTsExtensions = () => {
   return {
-    name: 'remove-ts-extensions',
+    name: "remove-ts-extensions",
     transform(code, id) {
-      if (id.endsWith('.ts') || id.endsWith('.tsx')) {
+      if (id.endsWith(".ts") || id.endsWith(".tsx")) {
         // Replace imports with .ts extensions
         return code.replace(
           /from\s+['"](\.\.\/[^'"]+)\.ts['"]/g,
@@ -24,38 +24,70 @@ const removeTsExtensions = () => {
   };
 };
 
+const cjsCompatWrapper = () => ({
+  name: "cjs-compat-wrapper",
+  generateBundle() {
+    this.emitFile({
+      type: "asset",
+      fileName: "index.cjs",
+      source: [
+        '"use strict";',
+        'const pkg = require("./maplat_tin.cjs");',
+        "const Tin = pkg && pkg.default ? pkg.default : pkg;",
+        "module.exports = Tin;",
+        "Object.assign(module.exports, pkg);",
+        "module.exports.default = Tin;"
+      ].join("\n")
+    });
+  }
+});
+
+const shouldExternalize = (id: string) => {
+  if (id.startsWith("node:")) return true;
+  if (id === "fs" || id === "path" || id === "process") return true;
+  return false;
+};
+
 export default defineConfig({
-  build: isPackageBuild ? {
-    lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
-      formats: ['es', 'cjs', 'umd'],
-      name: 'tin',
-      fileName: (format) => {
-        switch(format) {
-          case 'es':
-            return 'maplat_tin.js';
-          case 'cjs':
-            return 'maplat_tin.cjs';
-          case 'umd':
-            return 'maplat_tin.umd.js';
-          default:
-            return 'maplat_tin.js';
+  build: isPackageBuild
+    ? {
+        lib: {
+          entry: resolve(__dirname, "src/index.ts"),
+          formats: ["es", "cjs", "umd"],
+          name: "tin",
+          fileName: (format) => {
+            switch (format) {
+              case "es":
+                return "maplat_tin.js";
+              case "cjs":
+                return "maplat_tin.cjs";
+              case "umd":
+                return "maplat_tin.umd.js";
+              default:
+                return "maplat_tin.js";
+            }
+          }
+        },
+        rollupOptions: {
+          external: shouldExternalize,
+          output: {
+            exports: "named"
+          }
         }
       }
-    },
-    rollupOptions: {}
-  } : {
-    outDir: 'dist',
-    emptyOutDir: true
-  },
+    : {
+        outDir: "dist",
+        emptyOutDir: true
+      },
   plugins: [
     removeTsExtensions(),
+    isPackageBuild ? cjsCompatWrapper() : null,
     dts({
-      outDir: 'dist',
-      exclude: ['tests', 'node_modules'],
+      outDir: "dist",
+      exclude: ["tests", "node_modules"],
       rollupTypes: false,
-      tsconfigPath: './tsconfig.json',
-      logLevel: 'silent',
+      tsconfigPath: "./tsconfig.json",
+      logLevel: "silent",
       insertTypesEntry: true,
       staticImport: true,
       beforeWriteFile: (filePath, content) => {
@@ -68,19 +100,33 @@ export default defineConfig({
           content: fixedContent
         };
       }
-    })
-  ],
+    }),
+    {
+      name: "bundle-inspect",
+      generateBundle(_, bundle) {
+        for (const file of Object.values(bundle)) {
+          if (file.type === "chunk") {
+            const exported =
+              "exports" in file && file.exports !== undefined
+                ? file.exports
+                : (file as any).exportNames;
+            console.log("[bundle]", file.fileName, exported);
+          }
+        }
+      }
+    }
+  ].filter(Boolean),
   test: {
-    environment: 'jsdom',
+    environment: "jsdom",
     globals: true,
-    setupFiles: ['./test/setup.ts']
+    setupFiles: ["./test/setup.ts"]
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src')
+      "@": resolve(__dirname, "./src")
     }
   },
   define: {
-    'import.meta.env.APP_VERSION': JSON.stringify(packageJson.version)
+    "import.meta.env.APP_VERSION": JSON.stringify(packageJson.version)
   }
 });
