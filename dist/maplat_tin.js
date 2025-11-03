@@ -3359,6 +3359,7 @@ export {
   he as constrainedTin,
   ge as counterPoint,
   me as createPoint,
+  ft as default,
   li as findIntersections,
   Ye as format_version,
   Dn as insertSearchIndex,

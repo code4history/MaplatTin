@@ -8,6 +8,7 @@
 // Main class exports
 export { Tin } from "./tin.ts";
 export type { Options } from "./tin.ts";
+export { Tin as default } from "./tin.ts";
 
 // Utility function exports
 export { default as constrainedTin } from "./constrained-tin.ts";

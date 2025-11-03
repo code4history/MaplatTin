@@ -6,6 +6,7 @@
  */
 export { Tin } from "./tin";
 export type { Options } from "./tin";
+export { Tin as default } from "./tin";
 export { default as constrainedTin } from "./constrained-tin";
 export { default as findIntersections } from "./kinks";
 export { insertSearchIndex } from "./searchutils";
