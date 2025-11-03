@@ -8,24 +8,21 @@ import type { IntersectionPoint } from "./types/kinks.d.ts";
  * @param coords - 線分群の座標配列。各線分は始点と終点の座標で表現
  * @returns 検出された交差点のFeature配列
  */
-export default function findIntersections(coords: Position[][]) {
+export default function findIntersections(
+  coords: Position[][],
+): Feature<Point>[] {
   const arcs = new ArcCollection(coords);
   const xy = arcs.findSegmentIntersections();
-  return dedupIntersections(xy).reduce(
-    (
-      prev: Record<string, IntersectionPoint> | Feature<Point>[],
-      apoint: IntersectionPoint,
-      index: number,
-      array: IntersectionPoint[],
-    ) => {
-      if (Array.isArray(prev)) return prev;
-      if (!prev) prev = {};
-      prev[`${apoint.x}:${apoint.y}`] = apoint;
-      if (index != array.length - 1) return prev;
-      return Object.keys(prev).map((key) => point([prev[key].x, prev[key].y]));
-    },
-    {} as Record<string, IntersectionPoint>,
-  ) as Feature<Point>[];
+  const deduped: IntersectionPoint[] = dedupIntersections(xy);
+  const unique = new Map<string, IntersectionPoint>();
+
+  deduped.forEach((apoint: IntersectionPoint) => {
+    unique.set(`${apoint.x}:${apoint.y}`, apoint);
+  });
+
+  return Array.from(unique.values()).map((apoint) =>
+    point([apoint.x, apoint.y])
+  );
 }
 
 /**
