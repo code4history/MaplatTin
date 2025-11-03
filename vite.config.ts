@@ -49,8 +49,7 @@ export default defineConfig({
         '@turf/centroid',
         '@turf/convex',
         '@turf/helpers',
-        '@turf/line-intersect',
-        'delaunator'
+        '@turf/line-intersect'
       ],
       output: {
         globals: {
@@ -58,8 +57,7 @@ export default defineConfig({
           '@turf/centroid': 'turf.centroid',
           '@turf/convex': 'turf.convex',
           '@turf/helpers': 'turf.helpers',
-          '@turf/line-intersect': 'turf.lineIntersect',
-          'delaunator': 'Delaunator'
+          '@turf/line-intersect': 'turf.lineIntersect'
         }
       }
     }
