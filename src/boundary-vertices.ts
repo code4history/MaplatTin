@@ -160,16 +160,9 @@ function buildVertexRatio(
   const { perQuad, aggregate } = collectSamples(convexBuf, centroid);
   const hasAllQuadrants = perQuad.every((samples) => samples.length > 0);
 
-  let groups: SamplePair[][];
-  if (mode === "birdeye" && hasAllQuadrants) {
-    groups = perQuad;
-  } else if (mode === "birdeye") {
-    groups = [aggregate];
-  } else if (hasAllQuadrants) {
-    groups = perQuad;
-  } else {
-    groups = [aggregate];
-  }
+  const groups: SamplePair[][] = mode === "birdeye"
+    ? (hasAllQuadrants ? perQuad : [aggregate])
+    : [aggregate];
 
   const vertexRatio = groups.map((samples) => reduceSamples(samples));
 
