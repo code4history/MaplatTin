@@ -3,7 +3,7 @@ import type { PropertyTriKey } from "@maplat/transform";
 
 type BiDirectionKey = "forw" | "bakw";
 type TinsBD = { [key in BiDirectionKey]?: Tins };
-type SearchTris = { [key in BiDirectionKey]: Tri };
+export type SearchTris = { [key in BiDirectionKey]: Tri };
 export type SearchIndex = { [key: string]: SearchTris[] };
 
 /**
@@ -65,4 +65,38 @@ function insertSearchIndex(
   }
 }
 
-export { insertSearchIndex };
+function removeSearchIndex(
+  searchIndex: SearchIndex,
+  tris: SearchTris,
+  tins?: TinsBD,
+) {
+  const keys = calcSearchKeys(tris.forw);
+  const bakKeys = calcSearchKeys(tris.bakw);
+  if (JSON.stringify(keys) != JSON.stringify(bakKeys)) {
+    throw `${JSON.stringify(tris, null, 2)}\n${JSON.stringify(keys)}\n${
+      JSON.stringify(bakKeys)
+    }`;
+  }
+
+  keys.forEach((key) => {
+    const current = searchIndex[key];
+    if (!current) return;
+    const filtered = current.filter((item) => item !== tris);
+    if (filtered.length === 0) {
+      delete searchIndex[key];
+    } else {
+      searchIndex[key] = filtered;
+    }
+  });
+
+  if (tins) {
+    const removeFeature = (collection?: Tins, target?: Tri) => {
+      if (!collection || !target) return;
+      collection.features = collection.features.filter((tri) => tri !== target);
+    };
+    removeFeature(tins.forw, tris.forw);
+    removeFeature(tins.bakw, tris.bakw);
+  }
+}
+
+export { calcSearchKeys, insertSearchIndex, removeSearchIndex };

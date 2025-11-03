@@ -45,6 +45,7 @@ import findIntersections from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import { buildPointsWeightBuffer } from "./weight-buffer.ts";
+import { resolveOverlaps } from "./strict-overlap.ts";
 import type { SearchIndex } from "./searchutils.ts";
 import type { PointsSetBD } from "./types/tin.d.ts";
 
@@ -282,6 +283,12 @@ export class Tin extends Transform {
       const bakTri = this.tins!.bakw!.features[index];
       insertSearchIndex(searchIndex, { forw: forTri, bakw: bakTri });
     });
+
+    resolveOverlaps(
+      this.tins!,
+      searchIndex,
+      this.pointsSet?.edges || [],
+    );
 
     const kinks = ["forw", "bakw"].map((direction) => {
       const tins = this.tins![direction as keyof TinsBD]!.features.map(
@@ -625,7 +632,7 @@ export class Tin extends Transform {
     this.pointsSet = {
       forw: featureCollection(rawPointsSet.forw),
       bakw: featureCollection(rawPointsSet.bakw),
-      edges: [],
+      edges: rawPointsSet.edges,
     };
 
     // Generate forward TIN

@@ -19,6 +19,10 @@ interface BoundaryVerticesParams {
 }
 
 type EdgeRayBuckets = Array<Array<ConvexEntry>>;
+type SamplePair = {
+  forw: [number, number];
+  bakw: [number, number];
+};
 
 function buildEdgeBuckets(
   convexBuf: Record<string, ConvexEntry>,
@@ -85,73 +89,92 @@ function buildEdgeBuckets(
   }, [[], [], [], []] as EdgeRayBuckets);
 }
 
+function collectSamples(
+  convexBuf: Record<string, ConvexEntry>,
+  centroid: { forw: Position; bakw: Position },
+): { perQuad: SamplePair[][]; aggregate: SamplePair[] } {
+  const perQuad: SamplePair[][] = [[], [], [], []];
+  const aggregate: SamplePair[] = [];
+
+  Object.keys(convexBuf).forEach((key) => {
+    const item = convexBuf[key];
+    const forw = item.forw;
+    const bakw = item.bakw;
+
+    const forwDelta: [number, number] = [
+      forw[0] - centroid.forw[0],
+      forw[1] - centroid.forw[1],
+    ];
+    const bakwDelta: [number, number] = [
+      bakw[0] - centroid.bakw[0],
+      centroid.bakw[1] - bakw[1],
+    ];
+
+    const sample: SamplePair = { forw: forwDelta, bakw: bakwDelta };
+    aggregate.push(sample);
+
+    if (forwDelta[0] === 0 || forwDelta[1] === 0) {
+      return;
+    }
+
+    let quad = 0;
+    if (forwDelta[0] > 0) quad += 1;
+    if (forwDelta[1] > 0) quad += 2;
+    perQuad[quad].push(sample);
+  });
+
+  return { perQuad, aggregate };
+}
+
+function reduceSamples(samples: SamplePair[]): [number, number] {
+  let minRatio = Infinity;
+  let sumCos = 0;
+  let sumSin = 0;
+
+  samples.forEach((sample) => {
+    const { forw, bakw } = sample;
+    const forwNorm = Math.hypot(forw[0], forw[1]);
+    const bakwNorm = Math.hypot(bakw[0], bakw[1]);
+    if (bakwNorm === 0) return;
+
+    const ratio = forwNorm / bakwNorm;
+    const theta = Math.atan2(forw[0], forw[1]) - Math.atan2(bakw[0], bakw[1]);
+
+    minRatio = Math.min(minRatio, ratio);
+    sumCos += Math.cos(theta);
+    sumSin += Math.sin(theta);
+  });
+
+  if (!isFinite(minRatio)) {
+    return [1, 0];
+  }
+
+  return [minRatio, Math.atan2(sumSin, sumCos)];
+}
+
 function buildVertexRatio(
   convexBuf: Record<string, ConvexEntry>,
   centroid: { forw: Position; bakw: Position },
+  mode: "plain" | "birdeye",
 ): Array<[number, number]> {
-  const vertexCalc = Object.keys(convexBuf).reduce(
-    (prev, key, index, arr) => {
-      const item = convexBuf[key];
-      const forw = item.forw;
-      const bakw = item.bakw;
+  const { perQuad, aggregate } = collectSamples(convexBuf, centroid);
+  const hasAllQuadrants = perQuad.every((samples) => samples.length > 0);
 
-      const vec = {
-        forw: [forw[0] - centroid.forw[0], forw[1] - centroid.forw[1]],
-        bakw: [bakw[0] - centroid.bakw[0], centroid.bakw[1] - bakw[1]],
-      };
+  let groups: SamplePair[][];
+  if (mode === "birdeye" && hasAllQuadrants) {
+    groups = perQuad;
+  } else if (mode === "birdeye") {
+    groups = [aggregate];
+  } else if (hasAllQuadrants) {
+    groups = perQuad;
+  } else {
+    groups = [aggregate];
+  }
 
-      if (vec.forw[0] === 0 || vec.forw[1] === 0) return prev;
+  const vertexRatio = groups.map((samples) => reduceSamples(samples));
 
-      let quad = 0;
-      if (vec.forw[0] > 0) quad += 1;
-      if (vec.forw[1] > 0) quad += 2;
-
-      prev[quad].push([vec.forw, vec.bakw]);
-
-      if (index === arr.length - 1) {
-        return prev.map((quadArr) => {
-          return quadArr.reduce(
-            (
-              qprev: number[] | undefined,
-              curr: number[][],
-              qindex: number,
-              qarr: number[][][],
-            ) => {
-              if (!qprev) qprev = [Infinity, 0, 0];
-
-              let ratio =
-                Math.sqrt(Math.pow(curr[0][0], 2) + Math.pow(curr[0][1], 2)) /
-                Math.sqrt(Math.pow(curr[1][0], 2) + Math.pow(curr[1][1], 2));
-              ratio = ratio < qprev[0] ? ratio : qprev[0];
-
-              const theta = Math.atan2(curr[0][0], curr[0][1]) -
-                Math.atan2(curr[1][0], curr[1][1]);
-              const sumcos = qprev[1] + Math.cos(theta);
-              const sumsin = qprev[2] + Math.sin(theta);
-
-              if (qindex === qarr.length - 1) {
-                return [ratio, Math.atan2(sumsin, sumcos)];
-              }
-              return [ratio, sumcos, sumsin];
-            },
-            null as any,
-          );
-        });
-      }
-
-      return prev;
-    },
-    [[], [], [], []] as any[],
-  );
-
-  let vertexRatio: any[] = vertexCalc;
   if (vertexRatio.length === 1) {
-    vertexRatio = [
-      vertexRatio[0],
-      vertexRatio[0],
-      vertexRatio[0],
-      vertexRatio[0],
-    ];
+    return [vertexRatio[0], vertexRatio[0], vertexRatio[0], vertexRatio[0]];
   }
 
   return vertexRatio;
@@ -249,17 +272,20 @@ export function calculatePlainVertices(
   const { convexBuf, centroid, bbox, minx, maxx, miny, maxy } = params;
 
   const edgeNodes = buildEdgeBuckets(convexBuf, centroid, minx, maxx, miny, maxy);
-  const vertexRatio = buildVertexRatio(convexBuf, centroid);
+  const vertexRatio = buildVertexRatio(convexBuf, centroid, "plain");
 
   return finalizeVertices(vertexRatio, bbox, centroid, edgeNodes);
 }
 
 /**
- * Calculate boundary vertices for bird's-eye mode.
- * Currently mirrors the plain calculation for compatibility.
+ * Calculate boundary vertices for bird's-eye mode using quadrant-aware ratios.
  */
 export function calculateBirdeyeVertices(
   params: BoundaryVerticesParams,
 ): VertexPosition[] {
-  return calculatePlainVertices(params);
+  const { convexBuf, centroid, bbox, minx, maxx, miny, maxy } = params;
+  const edgeNodes = buildEdgeBuckets(convexBuf, centroid, minx, maxx, miny, maxy);
+  const vertexRatio = buildVertexRatio(convexBuf, centroid, "birdeye");
+
+  return finalizeVertices(vertexRatio, bbox, centroid, edgeNodes);
 }

@@ -20,6 +20,8 @@ The `Tin` needs four extra control points (`b0`–`b3`) so the forward and backw
 4. **Place provisional vertices.** Each box corner (`bbox[i]`) is transformed: distance from centroid in forward space is scaled by the quadrant’s ratio to obtain the backward distance, while the angle is rotated by `theta`. Vertices 2 and 3 are swapped to maintain consistent winding (`src/tin.ts:807`–`823`).
 5. **Expand to avoid edge collisions.** `checkAndAdjustVertices()` inspects rays from the centroid through every edge node generated earlier. If any ray would intersect the provisional backward boundary segments, the affected vertices are uniformly scaled outward so the ray meets the boundary first (`src/tin.ts:866`–`904`). This prevents constraint edges from leaking outside the transformed extent.
 
+*Birdseye mode:* When `vertexMode` is `Tin.VERTEX_BIRDEYE` and convex hull samples exist in all four quadrants, the algorithm keeps those per-quadrant scale/rotation pairs. If any quadrant lacks data, it gracefully falls back to the shared-factor approach so warped projections remain stable (`src/boundary-vertices.ts:129`–`171`).
+
 The outcome is a set of four synthetic points that safely enclose all transformed geometry while roughly preserving local rotation and aspect.
 
 ## Weight Buffer Averaging (`calculatePointsWeight`)
@@ -36,6 +38,7 @@ Because every edge contributes once, the averaging reflects how much each point 
 ## Related Observations
 
 - Strict mode (`MODE_STRICT`) attempts to reuse the forward triangulation for the inverse transform. When edge intersections are detected, the status downgrades to `STATUS_ERROR`, the backward mesh is recomputed, and weight buffers are produced for both directions.
+- Before declaring `strict_error`, strict mode now rebuilds shared-edge triangles by reusing the legacy overlap-repair workflow (search index mutation, triangle replacement, and revalidation) so healable overlaps stay in `STATUS_STRICT` (`src/strict-overlap.ts`, `src/tin.ts:272`–`312`).
 - The asynchronous wrapper `updateTinAsync()` used by the tests simply delegates to `updateTin()` in a `Promise`. There are no real async dependencies in the pipeline, which is why the next iteration intends to simplify it.
 
 These notes should help guide the upcoming cleanup: we can confidently document or refactor the bounding vertices, the weight scaling, and the redundant async surface without changing behavior.
