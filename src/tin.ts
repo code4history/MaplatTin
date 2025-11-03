@@ -302,10 +302,13 @@ export class Tin extends Transform {
       delete this.kinks;
     } else {
       this.strict_status = Tin.STATUS_ERROR;
-      this.kinks = {
-        forw: featureCollection(kinks[0]),
-        bakw: featureCollection(kinks[1]),
-      };
+      this.kinks = {};
+      if (kinks[0].length > 0) {
+        this.kinks.forw = featureCollection(kinks[0]);
+      }
+      if (kinks[1].length > 0) {
+        this.kinks.bakw = featureCollection(kinks[1]);
+      }
     }
   }
 
