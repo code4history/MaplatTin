@@ -43,24 +43,7 @@ export default defineConfig({
         }
       }
     },
-    rollupOptions: {
-      external: [
-        '@turf/boolean-point-in-polygon',
-        '@turf/centroid',
-        '@turf/convex',
-        '@turf/helpers',
-        '@turf/line-intersect'
-      ],
-      output: {
-        globals: {
-          '@turf/boolean-point-in-polygon': 'turf.booleanPointInPolygon',
-          '@turf/centroid': 'turf.centroid',
-          '@turf/convex': 'turf.convex',
-          '@turf/helpers': 'turf.helpers',
-          '@turf/line-intersect': 'turf.lineIntersect'
-        }
-      }
-    }
+    rollupOptions: {}
   } : {
     outDir: 'dist',
     emptyOutDir: true
