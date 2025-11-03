@@ -29,6 +29,7 @@
     "dev": "vite",
     "build": "npm run typecheck && cross-env BUILD_MODE=package vite build",
     "typecheck": "tsc --noEmit --allowImportingTsExtensions",
+    "prepare": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",

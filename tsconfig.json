@@ -26,10 +26,10 @@
       "./node_modules/@types",
       "./types"
     ],
-    "types": [],
+    "types": ["node"],
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
   "include": ["src/**/*", "tests/**/*", "types/**/*"],
-  "exclude": ["node_modules", "dist", "npm"]
+  "exclude": ["node_modules", "dist", "npm", "src/old_0.9.4/**/*"]
 }

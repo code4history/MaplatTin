@@ -30,45 +30,45 @@ describe('Constrain', () => {
     });
 
     it('should throw on inconsistent Delaunation (triangles)', () => {
-      // @ts-expect-error Testing constructor with inconsistent triangles
       expect(() =>
         new Constrain({
           triangles: [1],
           halfedges: [1],
-          coords: [1, 2]
+          coords: [1, 2],
+          hull: []
         })
       ).toThrow(/Delaunator output appears inconsistent/);
     });
 
     it('should throw on inconsistent Delaunation (halfedges)', () => {
-      // @ts-expect-error Testing constructor with inconsistent halfedges
       expect(() =>
         new Constrain({
           triangles: [1, 2, 3],
           halfedges: [1],
-          coords: [1, 2]
+          coords: [1, 2],
+          hull: []
         })
       ).toThrow(/Delaunator output appears inconsistent/);
     });
 
     it('should throw on inconsistent Delaunation (coords)', () => {
-      // @ts-expect-error Testing constructor with inconsistent coords
       expect(() =>
         new Constrain({
           triangles: [1, 2, 3],
           halfedges: [0, 1, 2],
-          coords: [1]
+          coords: [1],
+          hull: []
         })
       ).toThrow(/Delaunator output appears inconsistent/);
     });
 
     it('should throw on empty Delaunation', () => {
-      // @ts-expect-error Testing constructor with empty Delaunation
       expect(() =>
         new Constrain({
           triangles: [],
           halfedges: [],
-          coords: [1, 2]
+          coords: [1, 2],
+          hull: []
         })
       ).toThrow(/No edges in triangulation/);
     });
