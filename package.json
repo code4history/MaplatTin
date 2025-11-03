@@ -13,9 +13,12 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "browser": "./dist/maplat_tin.umd.js",
+      "browser": "./dist/maplat_tin.js",
       "import": "./dist/maplat_tin.js",
       "require": "./dist/index.cjs"
+    },
+    "./umd": {
+      "default": "./dist/maplat_tin.umd.js"
     }
   },
   "files": [
