@@ -3,11 +3,19 @@ import { Options, Tin } from "../src/index.ts";
 import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
 import { polygon } from "@turf/helpers";
 import { counterTri } from "@maplat/transform";
-import type { PropertyTriKey, Tri, Tins } from "@maplat/transform";
+import type { Compiled, PropertyTriKey, Tri, Tins } from "@maplat/transform";
 import { resolveOverlaps } from "../src/strict-overlap.ts";
 import type { SearchIndex } from "../src/searchutils.ts";
 import { insertSearchIndex } from "../src/searchutils.ts";
 import { featureCollection } from "@turf/helpers";
+import fs from "node:fs";
+
+function hasCompiledPayload(
+  payload: unknown,
+): payload is { compiled: Compiled } {
+  return !!payload && typeof payload === "object" && !Array.isArray(payload) &&
+    "compiled" in payload;
+}
 
 expect.extend({ toBeDeepCloseTo });
 
@@ -57,7 +65,7 @@ const datasets = [
 describe("Tin", () => {
   datasets.forEach(([town, filename]) => {
     describe(`Test by actual data (${town})`, () => {
-      it.skip(`Compare with actual data (${town})`, async () => {
+      it(`Compare with actual data (${town})`, async () => {
         const load_m = await loadMap(filename);
         let load_c = await loadCompiled(filename);
 
@@ -73,8 +81,14 @@ describe("Tin", () => {
           tin.setEdges(load_m.edges);
         }
 
+        tin.updateTin();
+
+        if (!hasCompiledPayload(load_c)) {
+          return;
+        }
+
         const lTin = new Tin({});
-        lTin.setCompiled(load_c.compiled || load_c);
+        lTin.setCompiled(load_c.compiled);
 
         // Normalizing node index and edges structure
         const load_c_str = JSON.stringify(load_c)
@@ -88,12 +102,11 @@ describe("Tin", () => {
 
         load_c = JSON.parse(load_c_str);
 
-        tin.updateTin();
-        const compiled = JSON.parse(JSON.stringify(load_c.compiled || load_c));
+        const compiled = JSON.parse(JSON.stringify(load_c.compiled));
         const expected = JSON.parse(JSON.stringify(tin.getCompiled()));
         const loaded = JSON.parse(JSON.stringify(lTin.getCompiled()));
 
-        /*const [width, height] = tin.wh!;
+        const [width, height] = tin.wh!;
         const testCase: [number, number][][] = [];
         for (let xp = 0.1; xp < 1; xp += 0.1) {
           const x = width * xp;
@@ -101,10 +114,10 @@ describe("Tin", () => {
             const y = height * yp;
             const point = lTin.transform([x, y]) as [number, number];
             //const rt = lTin.transform(point, true) as [number, number];
-            testCase.push([[x, y],point]/*, rt.map(v => Math.round(v)) as [number, number]]* /);
+            testCase.push([[x, y],point]/*, rt.map(v => Math.round(v)) as [number, number]]*/);
           }
-        }*/
-        //fs.writeFileSync(`./tests/cases/${filename}.json`, JSON.stringify(testCase, null, 2));
+        }
+        fs.writeFileSync(`./tests/cases/${filename}_kkk.json`, JSON.stringify(testCase, null, 2));
 
         [compiled, loaded].forEach((target) => {
           expect(treeWalk(expected.points, 5)).toEqual(
@@ -133,11 +146,17 @@ describe("Tin", () => {
         });
 
         expect(expected.yaxisMode).toEqual(tin.yaxisMode);
+        console.log(tin.yaxisMode);
         expect(expected.vertexMode).toEqual(tin.vertexMode);
+        console.log(tin.vertexMode);
         expect(expected.strictMode).toEqual(tin.strictMode);
+        console.log(tin.strictMode);
         expect(expected.strict_status).toEqual(tin.strict_status);
+        console.log(tin.strict_status);
         expect(compiled.version).toEqual(expected.version);
+        console.log(compiled.version);
         expect(loaded.version).toEqual(expected.version);
+        console.log(loaded.version);
       });
     });
   });
@@ -183,7 +202,7 @@ describe("Tin", () => {
   });
 });
 
-describe.skip("Birdseye boundary handling", () => {
+describe("Birdseye boundary handling", () => {
   it("uses quadrant-specific scaling when enough samples are available", () => {
     const baseOptions: Partial<Options> = {
       wh: [200, 200],

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { Transform } from "@maplat/transform";
+import { Tin, type Options } from "../src/index.ts";
 import fs from "node:fs";
+
+console.log("transform.test.ts module loaded");
+process.on("uncaughtException", (err) => {
+  console.error("uncaught exception in transform.test.ts", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("unhandled rejection in transform.test.ts", reason);
+});
 
 const datasets = [
   ["Nara", "naramachi_yasui_bunko"],
@@ -13,14 +22,27 @@ describe("Tin", () => {
       const cases: [[[number, number], [number, number]]] = JSON.parse(
         fs.readFileSync(`${__dirname}/cases/${filename}.json`, "utf-8"),
       );
-      const load_c = JSON.parse(
-        fs.readFileSync(`${__dirname}/compiled/${filename}.json`, "utf-8"),
+
+      const load_m = JSON.parse(
+        fs.readFileSync(`${__dirname}/maps/${filename}.json`, "utf-8"),
       );
 
+      const builder = new Tin({
+        wh: [load_m.width, load_m.height],
+        strictMode: load_m.strictMode as Options["strictMode"],
+        vertexMode: load_m.vertexMode as Options["vertexMode"],
+        stateFull: false,
+      });
+
+      builder.setPoints(load_m.gcps);
+      if (load_m.edges) {
+        builder.setEdges(load_m.edges);
+      }
+      builder.updateTin();
+
+      const compiledData = builder.getCompiled();
       const tin = new Transform();
-      const compiledData = load_c.compiled || load_c;
       tin.setCompiled(compiledData);
-      console.log(`Compiled: ${compiledData}`);
 
       describe(`Forward transformation`, () => {
         let i = 0;
