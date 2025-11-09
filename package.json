@@ -62,7 +62,7 @@
     "deno"
   ],
   "dependencies": {
-    "@maplat/transform": "^0.2.3",
+    "@maplat/transform": "^0.3.0",
     "robust-predicates": "^3.0.2"
   },
   "peerDependencies": {

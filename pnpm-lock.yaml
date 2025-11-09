@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@maplat/transform':
-        specifier: ^0.2.3
-        version: 0.2.3
+        specifier: ^0.3.0
+        version: 0.3.0
       '@turf/boolean-point-in-polygon':
         specifier: ^7.2.0
         version: 7.2.0
@@ -412,8 +412,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@maplat/transform@0.2.3':
-    resolution: {integrity: sha512-Ic3V4rYud0+ksLUkhqdr8gkOwYCq6DC93zC2oA6K/uth7HsihMLqdp+J4O7b8eNmsu48ioW9xUHlKkjErMdT0Q==}
+  '@maplat/transform@0.3.0':
+    resolution: {integrity: sha512-S3jP2/SlLDHeYA6aLMQCPbNXlKAQv0CXO6ytobyPE5bXlZChvuFgWPNaqzZEARHOnXkblFaQ3sS6GP6v3DbT8g==}
 
   '@microsoft/api-extractor-model@7.30.6':
     resolution: {integrity: sha512-znmFn69wf/AIrwHya3fxX6uB5etSIn6vg4Q4RB/tb5VDDs1rqREc+AvMC/p19MUN13CZ7+V/8pkYPTj7q8tftg==}
@@ -2015,7 +2015,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@maplat/transform@0.2.3':
+  '@maplat/transform@0.3.0':
     dependencies:
       '@turf/boolean-point-in-polygon': 7.2.0
       '@turf/helpers': 7.2.0
