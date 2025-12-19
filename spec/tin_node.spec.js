@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { Tin } from "../src/index.ts";
 import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
 import { expect, describe, it } from "vitest";

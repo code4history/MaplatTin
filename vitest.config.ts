@@ -7,7 +7,7 @@ const packageJson = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 export default defineConfig({
   test: {
-    environment: "jsdom",
+    environment: "node",
     globals: true,
     setupFiles: ["./tests/setup.ts"]
   },
