@@ -38,7 +38,6 @@ import type {
   TinsBD,
   Tri,
   VertexMode,
-  WeightBufferBD,
   YaxisMode,
 } from "@maplat/transform";
 import constrainedTin from "./constrained-tin.ts";
@@ -53,6 +52,9 @@ import { buildPointsWeightBuffer } from "./weight-buffer.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
 import type { SearchIndex } from "./searchutils.ts";
 import type { PointsSetBD } from "./types/tin.d.ts";
+
+type EdgeSegmentItem = [Position, number, number, number, string?];
+type EdgeNodeItem = [Position, Position, number];
 
 /**
  * Tinクラスの初期化オプション
@@ -178,7 +180,7 @@ export class Tin extends Transform {
     const compiled: Compiled = {} as Compiled;
     compiled.version = safeFormatVersion;
     compiled.points = this.points;
-    compiled.weight_buffer = this.pointsWeightBuffer;
+    compiled.weight_buffer = this.pointsWeightBuffer ?? {};
     compiled.centroid_point = [
       this.centroid!.forw!.geometry!.coordinates,
       this.centroid!.forw!.properties!.target.geom,
@@ -238,8 +240,9 @@ export class Tin extends Transform {
       compiled.wh = this.wh;
     }
 
-    compiled.edges = this.edges;
-    compiled.edgeNodes = this.edgeNodes;
+    compiled.edges = this.edges ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    compiled.edgeNodes = (this.edgeNodes ?? []) as any;
 
     return compiled;
   }
@@ -361,8 +364,8 @@ export class Tin extends Transform {
       mercNodes.push(this.points[edge[1]][1]);
 
       // Calculate edge segments
-      const segments = [illstNodes, mercNodes].map((nodes) => {
-        const lengths = nodes.map((node, index, arr) => {
+      const segments = [illstNodes, mercNodes].map((nodes: Position[]): EdgeSegmentItem[] => {
+        const lengths = nodes.map((node: Position, index: number, arr: Position[]) => {
           if (index === 0) return 0;
           const prev = arr[index - 1];
           return Math.sqrt(
@@ -370,13 +373,13 @@ export class Tin extends Transform {
           );
         });
 
-        const accumLengths = lengths.reduce((acc, len, idx) => {
+        const accumLengths = lengths.reduce((acc: number[], len: number, idx: number) => {
           if (idx === 0) return [0];
           acc.push(acc[idx - 1] + len);
           return acc;
         }, [] as number[]);
 
-        return accumLengths.map((accum, idx, arr) => {
+        return accumLengths.map((accum: number, idx: number, arr: number[]): EdgeSegmentItem => {
           const ratio = accum / arr[arr.length - 1];
           return [nodes[idx], lengths[idx], accumLengths[idx], ratio];
         });
@@ -384,43 +387,43 @@ export class Tin extends Transform {
 
       // Generate edge nodes
       segments
-        .map((segment, idx) => {
+        .map((segment: EdgeSegmentItem[], idx: number) => {
           const otherSegment = segments[idx ? 0 : 1];
           return segment
-            .filter((item, index) => {
+            .filter((item: EdgeSegmentItem, index: number) => {
               return !(
                 index === 0 ||
                 index === segment.length - 1 ||
-                (item as Array<unknown>)[4] === "handled"
+                item[4] === "handled"
               );
             })
-            .map((item) => {
-              const node = item[0] as unknown as Position;
-              const ratio = item[3] as number;
+            .flatMap((item: EdgeSegmentItem): EdgeNodeItem[] => {
+              const node = item[0];
+              const ratio = item[3];
 
               const counterpart = otherSegment.reduce(
-                (prev, curr, currIdx, arr) => {
+                (prev: EdgeSegmentItem[] | undefined, curr: EdgeSegmentItem, currIdx: number, arr: EdgeSegmentItem[]) => {
                   if (prev) return prev;
                   const nextItem = arr[currIdx + 1];
-                  if ((curr[3] as number) === ratio) {
-                    (curr as Array<unknown>)[4] = "handled";
+                  if (curr[3] === ratio) {
+                    curr[4] = "handled";
                     return [curr];
                   }
                   if (
-                    (curr[3] as number) < ratio && nextItem &&
-                    (nextItem[3] as number) > ratio
+                    curr[3] < ratio && nextItem &&
+                    nextItem[3] > ratio
                   ) {
                     return [curr, nextItem];
                   }
                   return undefined;
                 },
-                undefined as unknown[] | undefined,
+                undefined as EdgeSegmentItem[] | undefined,
               );
 
               if (counterpart && counterpart.length === 1) {
                 return idx === 0
-                  ? [node, counterpart[0][0], ratio]
-                  : [counterpart[0][0], node, ratio];
+                  ? [[node, counterpart[0][0], ratio]]
+                  : [[counterpart[0][0], node, ratio]];
               }
 
               if (counterpart && counterpart.length === 2) {
@@ -429,29 +432,29 @@ export class Tin extends Transform {
                 const ratioInSegment = (ratio - (curr[3] as number)) /
                   ((next[3] as number) - (curr[3] as number));
                 const interpNode: Position = [
-                  ((next[0] as Position)[0] - (curr[0] as Position)[0]) *
-                  ratioInSegment + (curr[0] as Position)[0],
-                  ((next[0] as Position)[1] - (curr[0] as Position)[1]) *
-                  ratioInSegment + (curr[0] as Position)[1],
+                  (next[0][0] - curr[0][0]) *
+                  ratioInSegment + curr[0][0],
+                  (next[0][1] - curr[0][1]) *
+                  ratioInSegment + curr[0][1],
                 ];
                 return idx === 0
-                  ? [node, interpNode, ratio]
-                  : [interpNode, node, ratio];
+                  ? [[node, interpNode, ratio]]
+                  : [[interpNode, node, ratio]];
               }
 
               return [];
             });
         })
-        .reduce((prev, curr) => prev.concat(curr), [])
-        .sort((a, b) => (a[2] as number) < (b[2] as number) ? -1 : 1)
-        .map((item, index, arr) => {
+        .reduce((prev: EdgeNodeItem[], curr: EdgeNodeItem[]) => prev.concat(curr), [])
+        .sort((a: EdgeNodeItem, b: EdgeNodeItem) => a[2] < b[2] ? -1 : 1)
+        .map((item: EdgeNodeItem, index: number, arr: EdgeNodeItem[]) => {
           this.edgeNodes![edgeNodeIndex] = [
-            item[0] as Position,
-            item[1] as Position,
+            item[0],
+            item[1],
           ];
           const forPoint = createPoint(
-            item[0] as Position,
-            item[1] as Position,
+            item[0],
+            item[1],
             `e${edgeNodeIndex}`,
           );
           edgeNodeIndex++;
@@ -489,7 +492,7 @@ export class Tin extends Transform {
     const miny = this.xy![1] - 0.05 * this.wh![1];
     const maxy = this.xy![1] + 1.05 * this.wh![1];
 
-    const allPointsInside = this.points.reduce((prev, point) => {
+    const allPointsInside = this.points.reduce((prev: boolean, point: PointSet) => {
       return prev &&
         (this.bounds
           ? booleanPointInPolygon(point[0] as Position, this.boundsPolygon!)
@@ -563,7 +566,7 @@ export class Tin extends Transform {
     try {
       convexCalc = forwCoords.map((coord: Position) => ({
         forw: coord,
-        bakw: transformArr(point(coord), tinForw) as Position,
+        bakw: transformArr(point(coord), tinForw as Tins) as Position,
       }));
       convexCalc.forEach((item: { forw: Position; bakw: Position }) => {
         convexBuf[`${item.forw[0]}:${item.forw[1]}`] = item;
@@ -580,7 +583,7 @@ export class Tin extends Transform {
     try {
       convexCalc = bakwCoords.map((coord: Position) => ({
         bakw: coord,
-        forw: transformArr(point(coord), tinBakw) as Position,
+        forw: transformArr(point(coord), tinBakw as Tins) as Position,
       }));
       convexCalc.forEach((item: { forw: Position; bakw: Position }) => {
         convexBuf[`${item.forw[0]}:${item.forw[1]}`] = item;
@@ -592,7 +595,7 @@ export class Tin extends Transform {
     // Set centroids
     const centCalc = {
       forw: forCentroid.geometry!.coordinates,
-      bakw: transformArr(forCentroid, tinForw) as Position,
+      bakw: transformArr(forCentroid, tinForw as Tins) as Position,
     };
 
     const centroidPoint = createPoint(centCalc.forw, centCalc.bakw, "c");
