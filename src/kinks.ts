@@ -303,31 +303,31 @@ class ArcCollection {
   }
 }
 
-function error(...args: any[]) {
+function error(...args: unknown[]) {
   const msg = args.join(" ");
   throw new Error(msg);
 }
 
-function isArrayLike(obj: any) {
+function isArrayLike(obj: unknown): obj is ArrayLike<unknown> {
   if (!obj) return false;
   if (isArray(obj)) return true;
   if (isString(obj)) return false;
-  if (obj.length === 0) return true;
-  return obj.length > 0;
+  if ((obj as any).length === 0) return true;
+  return (obj as any).length > 0;
 }
 
-function isString(obj: any) {
+function isString(obj: unknown): obj is string {
   return obj != null && obj.toString === String.prototype.toString;
 }
 
-function isArray(obj: any) {
+function isArray(obj: unknown): obj is unknown[] {
   return Array.isArray(obj);
 }
 
 // Calc sum, skip falsy and NaN values
 // Assumes: no other non-numeric objects in array
 //
-function utilsSum(arr: Uint32Array, info?: any) {
+function utilsSum(arr: Uint32Array, info?: { nan: number }) {
   if (!isArrayLike(arr)) error("utils.sum() expects an array, received:", arr);
   let tot = 0,
     nan = 0,
@@ -347,7 +347,12 @@ function utilsSum(arr: Uint32Array, info?: any) {
 }
 
 // Support for iterating over array-like objects, like typed arrays
-function utilsForEach(arr: any, func: any, ctx?: any) {
+// Support for iterating over array-like objects, like typed arrays
+function utilsForEach<T>(
+  arr: ArrayLike<T>,
+  func: (val: T, i: number) => void,
+  ctx?: unknown,
+) {
   if (!isArrayLike(arr)) {
     throw new Error(`#forEach() takes an array-like argument. ${arr}`);
   }
@@ -356,7 +361,10 @@ function utilsForEach(arr: any, func: any, ctx?: any) {
   }
 }
 
-function initializeArray(arr: any, init: any) {
+function initializeArray(
+  arr: number[] | Uint32Array | Float64Array,
+  init: number,
+) {
   for (let i = 0, len = arr.length; i < len; i++) {
     arr[i] = init;
   }
@@ -973,10 +981,10 @@ class Bounds {
     if (arguments.length == 1) {
       // assume first arg is a Bounds or array
       if (isArrayLike(a)) {
-        b = a[1];
-        c = a[2];
-        d = a[3];
-        a = a[0];
+        b = (a as any)[1];
+        c = (a as any)[2];
+        d = (a as any)[3];
+        a = (a as any)[0];
       } else {
         b = a.ymin;
         c = a.xmax;
