@@ -134,7 +134,7 @@ class ArcCollection {
   }
 
   getBounds() {
-    return this._allBounds.clone();
+    return this._allBounds ? this._allBounds.clone() : new Bounds();
   }
 
   // @cb function(i, j, xx, yy)
@@ -206,7 +206,7 @@ class ArcCollection {
     let dx = 0,
       dy = 0;
     const count = this.forEachSegment(
-      (i: number, j: number, xx: number[], yy: number[]) => {
+      (i: number, j: number, xx: Float64Array, yy: Float64Array) => {
         dx += Math.abs(xx[i] - xx[j]);
         dy += Math.abs(yy[i] - yy[j]);
       },
@@ -236,8 +236,8 @@ class ArcCollection {
    */
   findSegmentIntersections() {
     const bounds = this.getBounds(),
-      ymin = bounds.ymin,
-      yrange = bounds.ymax - ymin,
+      ymin = bounds.ymin || 0,
+      yrange = (bounds.ymax || 0) - ymin,
       stripeCount = this.calcSegmentIntersectionStripeCount(),
       stripeSizes = new Uint32Array(stripeCount),
       stripeId = stripeCount > 1
@@ -247,7 +247,7 @@ class ArcCollection {
 
     // Count segments in each stripe
     this.forEachSegment(
-      (id1: number, id2: number, _xx: number[], yy: number[]) => {
+      (id1: number, id2: number, _xx: Float64Array, yy: Float64Array) => {
         let s1 = stripeId(yy[id1]);
         const s2 = stripeId(yy[id2]);
         while (true) {
@@ -271,7 +271,7 @@ class ArcCollection {
     initializeArray(stripeSizes, 0);
 
     this.forEachSegment(
-      (id1: number, id2: number, _xx: number[], yy: number[]) => {
+      (id1: number, id2: number, _xx: Float64Array, yy: Float64Array) => {
         let s1 = stripeId(yy[id1]);
         const s2 = stripeId(yy[id2]);
         let count, stripe;
@@ -292,9 +292,11 @@ class ArcCollection {
       intersections = [];
     let arr;
     for (i = 0; i < stripeCount; i++) {
-      arr = intersectSegments(stripes[i], raw.xx, raw.yy);
-      for (j = 0; j < arr.length; j++) {
-        intersections.push(arr[j]);
+      if (raw.xx && raw.yy) {
+        arr = intersectSegments(stripes[i], raw.xx, raw.yy);
+        for (j = 0; j < arr.length; j++) {
+          intersections.push(arr[j]);
+        }
       }
     }
     return dedupIntersections(intersections);
