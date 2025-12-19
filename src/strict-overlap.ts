@@ -1,4 +1,4 @@
-import { polygon } from "@turf/helpers";
+import { polygon } from "@turf/turf";
 import type { PropertyTriKey, TinsBD, Tri } from "@maplat/transform";
 import type { Position } from "geojson";
 import { counterTri } from "@maplat/transform";
@@ -58,11 +58,11 @@ export function resolveOverlaps(
 
     const sharedBakw = sharedKeys.map((vertexKey) =>
       tri0Bakw.find((info) => `${info.prop.index}` === vertexKey) ||
-        tri1Bakw.find((info) => `${info.prop.index}` === vertexKey),
+      tri1Bakw.find((info) => `${info.prop.index}` === vertexKey),
     );
     const sharedForw = sharedKeys.map((vertexKey) =>
       tri0Forw.find((info) => `${info.prop.index}` === vertexKey) ||
-        tri1Forw.find((info) => `${info.prop.index}` === vertexKey),
+      tri1Forw.find((info) => `${info.prop.index}` === vertexKey),
     );
 
     if (sharedBakw.some((vertex) => !vertex) || sharedForw.some((vertex) => !vertex)) {

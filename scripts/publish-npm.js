@@ -67,7 +67,7 @@ try {
   const isDryRun = args.includes('--dry-run');
   
   // Run npm publish with all passed arguments
-  const publishCommand = `npm publish ${args.join(' ')}`;
+  const publishCommand = `pnpm publish ${args.join(' ')}`;
   console.log(`Running: ${publishCommand}`);
   
   execSync(publishCommand, { stdio: 'inherit' });

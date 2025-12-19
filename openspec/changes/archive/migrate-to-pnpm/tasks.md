@@ -1,0 +1,7 @@
+- [x] Configure `package.json` with `packageManager` field
+- [x] Update `scripts` in `package.json` to use `pnpm`
+- [x] Remove `package-lock.json`
+- [x] Generate `pnpm-lock.yaml` via `pnpm install`
+- [x] Update GitHub Actions workflows to use `pnpm`
+- [x] Verify local build and test with `pnpm`
+- [x] Verify `node_modules` structure for dependencies like `@maplat/transform`

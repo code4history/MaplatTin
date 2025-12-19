@@ -52,34 +52,34 @@ const shouldExternalize = (id: string) => {
 export default defineConfig({
   build: isPackageBuild
     ? {
-        lib: {
-          entry: resolve(__dirname, "src/index.ts"),
-          formats: ["es", "cjs", "umd"],
-          name: "tin",
-          fileName: (format) => {
-            switch (format) {
-              case "es":
-                return "maplat_tin.js";
-              case "cjs":
-                return "maplat_tin.cjs";
-              case "umd":
-                return "maplat_tin.umd.js";
-              default:
-                return "maplat_tin.js";
-            }
-          }
-        },
-        rollupOptions: {
-          external: shouldExternalize,
-          output: {
-            exports: "named"
+      lib: {
+        entry: resolve(__dirname, "src/index.ts"),
+        formats: ["es", "cjs", "umd"],
+        name: "tin",
+        fileName: (format) => {
+          switch (format) {
+            case "es":
+              return "maplat_tin.js";
+            case "cjs":
+              return "maplat_tin.cjs";
+            case "umd":
+              return "maplat_tin.umd.js";
+            default:
+              return "maplat_tin.js";
           }
         }
-      }
-    : {
-        outDir: "dist",
-        emptyOutDir: true
       },
+      rollupOptions: {
+        external: shouldExternalize,
+        output: {
+          exports: "named"
+        }
+      }
+    }
+    : {
+      outDir: "dist",
+      emptyOutDir: true
+    },
   plugins: [
     removeTsExtensions(),
     isPackageBuild ? cjsCompatWrapper() : null,
@@ -116,18 +116,6 @@ export default defineConfig({
         }
       }
     }
-  ].filter(Boolean),
-  test: {
-    environment: "jsdom",
-    globals: true,
-    setupFiles: ["./test/setup.ts"]
-  },
-  resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src")
-    }
-  },
-  define: {
-    "import.meta.env.APP_VERSION": JSON.stringify(packageJson.version)
-  }
+  ]
 });
+

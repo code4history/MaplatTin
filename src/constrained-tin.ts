@@ -1,4 +1,4 @@
-import { featureCollection, polygon } from "@turf/helpers";
+import { featureCollection, polygon } from "@turf/turf";
 import type { FeatureCollection, Point, Polygon } from "geojson";
 import Delaunator from "delaunator";
 import { Constrain as EdgeBound } from "./edgebound/index.ts";

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Options, Tin } from "../src/index.ts";
 import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
-import { polygon } from "@turf/helpers";
+import { polygon, featureCollection } from "@turf/turf";
 import { counterTri } from "@maplat/transform";
 import type { Compiled, PropertyTriKey, Tri, Tins } from "@maplat/transform";
 import { resolveOverlaps } from "../src/strict-overlap.ts";
 import type { SearchIndex } from "../src/searchutils.ts";
 import { insertSearchIndex } from "../src/searchutils.ts";
-import { featureCollection } from "@turf/helpers";
+
 import fs from "node:fs";
 
 function hasCompiledPayload(
@@ -50,8 +50,8 @@ function sortKinksPoint(kinks_points: number[][]) {
     a[0] === b[0]
       ? a[1] === b[1] ? 0 : a[1] > b[1] ? 1 : -1
       : a[0] > b[0]
-      ? 1
-      : -1
+        ? 1
+        : -1
   );
 }
 
@@ -114,7 +114,7 @@ describe("Tin", () => {
             const y = height * yp;
             const point = lTin.transform([x, y]) as [number, number];
             //const rt = lTin.transform(point, true) as [number, number];
-            testCase.push([[x, y],point]/*, rt.map(v => Math.round(v)) as [number, number]]*/);
+            testCase.push([[x, y], point]/*, rt.map(v => Math.round(v)) as [number, number]]*/);
           }
         }
         fs.writeFileSync(`./tests/cases/${filename}_kkk.json`, JSON.stringify(testCase, null, 2));

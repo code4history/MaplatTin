@@ -1,7 +1,14 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-/* eslint-disable @typescript-eslint/no-var-requires */
-const Tin = require("../es5").default;
-const { toBeDeepCloseTo } = require("jest-matcher-deep-close-to");
+import Tin from "../src/index.ts";
+import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
+import { expect, describe, it } from "vitest";
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 expect.extend({ toBeDeepCloseTo });
 
 let stateFull = false;
@@ -14,10 +21,12 @@ const testSet = () => {
   ].map(dataset => {
     const town = dataset[0];
     const filename = dataset[1];
+
+
     describe(`Test by actual data (${town})`, () => {
       it(`Compare with actual data (${town})`, async () => {
-        const load_m = await import(`./maps/${filename}.json`);
-        let load_c = await import(`./compiled/${filename}.json`);
+        const load_m = JSON.parse(fs.readFileSync(path.join(__dirname, `../tests/maps/${filename}.json`), 'utf-8'));
+        let load_c = JSON.parse(fs.readFileSync(path.join(__dirname, `../tests/compiled/${filename}.json`), 'utf-8'));
 
         const tin = new Tin({
           wh: [load_m.width, load_m.height],
@@ -292,10 +301,10 @@ function sortKinksPoint(kinks_points) {
       ? a[1] === b[1]
         ? 0
         : a[1] > b[1]
+          ? 1
+          : -1
+      : a[0] > b[0]
         ? 1
         : -1
-      : a[0] > b[0]
-      ? 1
-      : -1
   );
 }

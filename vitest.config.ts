@@ -1,35 +1,22 @@
-import { defineConfig } from 'vitest/config';
-import { resolve } from 'node:path';
+import { defineConfig } from "vitest/config";
+import { resolve } from "node:path";
+import process from "node:process";
+import { readFileSync } from "node:fs";
+
+const packageJson = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 export default defineConfig({
   test: {
+    environment: "jsdom",
     globals: true,
-    environment: 'jsdom',
-    environmentOptions: {
-      jsdom: {
-        url: 'http://localhost'
-      }
-    },
-    include: ['tests/**/*.test.{ts,js}'],
-    exclude: ['tests/**/*.deno.test.ts'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/**',
-        'dist/**',
-        '**/*.d.ts',
-        'tests/**',
-        'vite.config.ts',
-        'vitest.config.ts'
-      ]
-    },
-    setupFiles: ['./tests/setup.ts'],
-    silent: false
+    setupFiles: ["./tests/setup.ts"]
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src')
+      "@": resolve(__dirname, "./src")
     }
+  },
+  define: {
+    "import.meta.env.APP_VERSION": JSON.stringify(packageJson.version)
   }
 });

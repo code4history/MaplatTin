@@ -1,5 +1,4 @@
-import { lineString } from "@turf/helpers";
-import lineIntersect from "@turf/line-intersect";
+import { lineString, lineIntersect } from "@turf/turf";
 import type { Position } from "geojson";
 import type { VertexPosition } from "./types/tin.d.ts";
 
@@ -192,17 +191,17 @@ function checkAndAdjustVertices(
         const intersectPt = intersect.features[0];
         const distance = Math.sqrt(
           Math.pow(node.bakw[0] - centroid.bakw[0], 2) +
-            Math.pow(node.bakw[1] - centroid.bakw[1], 2),
+          Math.pow(node.bakw[1] - centroid.bakw[1], 2),
         );
         const intDistance = Math.sqrt(
           Math.pow(
             intersectPt.geometry.coordinates[0] - centroid.bakw[0],
             2,
           ) +
-            Math.pow(
-              intersectPt.geometry.coordinates[1] - centroid.bakw[1],
-              2,
-            ),
+          Math.pow(
+            intersectPt.geometry.coordinates[1] - centroid.bakw[1],
+            2,
+          ),
         );
         const ratio = distance / intDistance;
 

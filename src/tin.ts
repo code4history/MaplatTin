@@ -3,10 +3,14 @@
  * 2つの平面座標系間の同相変換を実現します。
  */
 
-import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
-import turfCentroid from "@turf/centroid";
-import convex from "@turf/convex";
-import { featureCollection, point, polygon } from "@turf/helpers";
+import {
+  booleanPointInPolygon,
+  centroid as turfCentroid,
+  convex,
+  featureCollection,
+  point,
+  polygon,
+} from "@turf/turf";
 import type { Feature, Point, Position } from "geojson";
 import {
   counterTri,
@@ -425,9 +429,9 @@ export class Tin extends Transform {
                   ((next[3] as number) - (curr[3] as number));
                 const interpNode: Position = [
                   ((next[0] as Position)[0] - (curr[0] as Position)[0]) *
-                    ratioInSegment + (curr[0] as Position)[0],
+                  ratioInSegment + (curr[0] as Position)[0],
                   ((next[0] as Position)[1] - (curr[0] as Position)[1]) *
-                    ratioInSegment + (curr[0] as Position)[1],
+                  ratioInSegment + (curr[0] as Position)[1],
                 ];
                 return idx === 0
                   ? [node, interpNode, ratio]
@@ -489,7 +493,7 @@ export class Tin extends Transform {
         (this.bounds
           ? booleanPointInPolygon(point[0] as any, this.boundsPolygon!)
           : point[0][0] >= minx && point[0][0] <= maxx &&
-            point[0][1] >= miny && point[0][1] <= maxy);
+          point[0][1] >= miny && point[0][1] <= maxy);
     }, true);
 
     if (!allPointsInside) {

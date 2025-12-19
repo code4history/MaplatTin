@@ -30,19 +30,20 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "npm run typecheck && cross-env BUILD_MODE=package vite build",
+    "build": "pnpm run typecheck && cross-env BUILD_MODE=package vite build",
     "typecheck": "tsc --noEmit --allowImportingTsExtensions",
-    "prepare": "npm run build",
+    "prepare": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "lint": "eslint src tests",
-    "prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "prepublishOnly": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "version:bump": "node scripts/bump-version.js",
     "version:sync": "node scripts/sync-version.js",
     "publish:npm": "node scripts/publish-npm.js",
     "publish:npm:dry": "node scripts/publish-npm.js --dry-run"
   },
+  "packageManager": "pnpm@10.20.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/code4history/MaplatTin.git"
@@ -62,16 +63,10 @@
     "deno"
   ],
   "dependencies": {
-    "@maplat/transform": "^0.3.0",
+    "@maplat/transform": "github:code4history/MaplatTransform#01800d232587af0c9934e18d2a9d3fc1fe66edfa",
+    "@turf/turf": "^7.2.0",
+    "delaunator": "^5.0.0",
     "robust-predicates": "^3.0.2"
-  },
-  "peerDependencies": {
-    "@turf/boolean-point-in-polygon": "^7.2.0",
-    "@turf/centroid": "^7.2.0",
-    "@turf/convex": "^7.2.0",
-    "@turf/helpers": "^7.2.0",
-    "@turf/line-intersect": "^7.2.0",
-    "delaunator": "^5.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -88,14 +83,15 @@
     "dotenv-cli": "^11.0.0",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.5.0",
     "jest-matcher-deep-close-to": "^3.0.2",
     "jsdom": "^27.1.0",
     "prettier": "^3.4.2",
     "robust-segment-intersect": "^1.0.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.3",
-    "vite": "^7.2.2",
+    "vite": "^6.0.0",
     "vite-plugin-dts": "^4.4.0",
-    "vitest": "^4.0.8"
+    "vitest": "^3.0.0"
   }
 }

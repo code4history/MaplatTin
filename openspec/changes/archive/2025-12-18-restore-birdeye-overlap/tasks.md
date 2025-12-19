@@ -7,4 +7,4 @@
 - [x] I2. Port the strict overlap remediation workflow into `Tin.calcurateStrictTin()` (or supporting helpers), including search-index mutation, triangle reconstruction, and revalidation.
 - [x] I3. Update or add tests to cover the restored behaviours (bird's-eye output and strict overlap healing), ensuring fixtures reflect legacy expectations.
 - [x] I4. Refresh documentation (`docs/tin-internals*.md`) to describe the reintroduced algorithms and any new helper functions.
-- [ ] I5. Run the full Vitest suite and lint/typecheck commands to confirm the restored logic integrates cleanly.
+- [x] I5. Run the full Vitest suite and lint/typecheck commands to confirm the restored logic integrates cleanly.
