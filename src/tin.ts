@@ -38,6 +38,7 @@ import type {
   TinsBD,
   Tri,
   VertexMode,
+  WeightBufferBD,
   YaxisMode,
 } from "@maplat/transform";
 import constrainedTin from "./constrained-tin.ts";
@@ -174,7 +175,7 @@ export class Tin extends Transform {
    * 現在の設定を永続化可能な形式にコンパイルします
    */
   getCompiled(): Compiled {
-    const compiled: any = {};
+    const compiled: Compiled = {} as Compiled;
     compiled.version = safeFormatVersion;
     compiled.points = this.points;
     compiled.weight_buffer = this.pointsWeightBuffer;
@@ -390,7 +391,7 @@ export class Tin extends Transform {
               return !(
                 index === 0 ||
                 index === segment.length - 1 ||
-                (item as any)[4] === "handled"
+                (item as Array<unknown>)[4] === "handled"
               );
             })
             .map((item) => {
@@ -402,7 +403,7 @@ export class Tin extends Transform {
                   if (prev) return prev;
                   const nextItem = arr[currIdx + 1];
                   if ((curr[3] as number) === ratio) {
-                    (curr as any)[4] = "handled";
+                    (curr as Array<unknown>)[4] = "handled";
                     return [curr];
                   }
                   if (
@@ -413,7 +414,7 @@ export class Tin extends Transform {
                   }
                   return undefined;
                 },
-                undefined as any,
+                undefined as unknown[] | undefined,
               );
 
               if (counterpart && counterpart.length === 1) {
@@ -491,7 +492,7 @@ export class Tin extends Transform {
     const allPointsInside = this.points.reduce((prev, point) => {
       return prev &&
         (this.bounds
-          ? booleanPointInPolygon(point[0] as any, this.boundsPolygon!)
+          ? booleanPointInPolygon(point[0] as Position, this.boundsPolygon!)
           : point[0][0] >= minx && point[0][0] <= maxx &&
           point[0][1] >= miny && point[0][1] <= maxy);
     }, true);
@@ -562,9 +563,9 @@ export class Tin extends Transform {
     try {
       convexCalc = forwCoords.map((coord: Position) => ({
         forw: coord,
-        bakw: transformArr(point(coord), tinForw as any) as Position,
+        bakw: transformArr(point(coord), tinForw) as Position,
       }));
-      convexCalc.forEach((item: any) => {
+      convexCalc.forEach((item: { forw: Position; bakw: Position }) => {
         convexBuf[`${item.forw[0]}:${item.forw[1]}`] = item;
       });
     } catch {
@@ -579,9 +580,9 @@ export class Tin extends Transform {
     try {
       convexCalc = bakwCoords.map((coord: Position) => ({
         bakw: coord,
-        forw: transformArr(point(coord), tinBakw as any) as Position,
+        forw: transformArr(point(coord), tinBakw) as Position,
       }));
-      convexCalc.forEach((item: any) => {
+      convexCalc.forEach((item: { forw: Position; bakw: Position }) => {
         convexBuf[`${item.forw[0]}:${item.forw[1]}`] = item;
       });
     } catch {
@@ -591,7 +592,7 @@ export class Tin extends Transform {
     // Set centroids
     const centCalc = {
       forw: forCentroid.geometry!.coordinates,
-      bakw: transformArr(forCentroid, tinForw as any) as Position,
+      bakw: transformArr(forCentroid, tinForw) as Position,
     };
 
     const centroidPoint = createPoint(centCalc.forw, centCalc.bakw, "c");

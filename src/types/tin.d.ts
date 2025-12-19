@@ -22,9 +22,9 @@ export interface WeightBuffer {
 export type LengthItem = [Position, number, number, number, string?];
 
 export interface EdgeProperties {
-  a?: any;
-  b?: any;
-  c?: any;
+  a?: unknown;
+  b?: unknown;
+  c?: unknown;
   index?: string | number;
   geom?: Position;
   target?: {
@@ -36,9 +36,9 @@ export interface EdgeProperties {
 export type VertexParams = [number[], FeatureCollection<Polygon>[]];
 
 export interface TriangleProperties {
-  a?: any; // This should match the z parameter type from @maplat/transform
-  b?: any;
-  c?: any;
+  a?: unknown; // This should match the z parameter type from @maplat/transform
+  b?: unknown;
+  c?: unknown;
 }
 
 export interface VertexPosition {

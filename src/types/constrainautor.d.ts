@@ -1,6 +1,6 @@
 declare module "@kninnug/constrainautor" {
   export default class Constrainautor {
-    constructor(delaunay: any);
+    constructor(delaunay: unknown);
     constrainAll(edges: [number, number][]): void;
   }
 }
