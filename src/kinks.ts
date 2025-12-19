@@ -312,8 +312,8 @@ function isArrayLike(obj: unknown): obj is ArrayLike<unknown> {
   if (!obj) return false;
   if (isArray(obj)) return true;
   if (isString(obj)) return false;
-  if ((obj as any).length === 0) return true;
-  return (obj as any).length > 0;
+  if ((obj as { length: number }).length === 0) return true;
+  return (obj as { length: number }).length > 0;
 }
 
 function isString(obj: unknown): obj is string {
@@ -378,7 +378,11 @@ function initializeArray(
 // @ids: Array of indexes: [s0p0, s0p1, s1p0, s1p1, ...] where xx[sip0] <= xx[sip1]
 // @xx, @yy: Arrays of x- and y-coordinates
 //
-function intersectSegments(ids: any, xx: any, yy: any) {
+function intersectSegments(
+  ids: Uint32Array,
+  xx: Float64Array,
+  yy: Float64Array,
+) {
   const lim = ids.length - 2,
     intersections = [];
   let s1p1,
@@ -490,14 +494,14 @@ function intersectSegments(ids: any, xx: any, yy: any) {
  *    - [x1, y1, x2, y2] の形式で返される
  */
 function segmentIntersection(
-  ax: any,
-  ay: any,
-  bx: any,
-  by: any,
-  cx: any,
-  cy: any,
-  dx: any,
-  dy: any,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
 ) {
   const hit = segmentHit(ax, ay, bx, by, cx, cy, dx, dy);
   let p = null;
