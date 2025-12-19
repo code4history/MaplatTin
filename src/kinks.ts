@@ -520,14 +520,14 @@ function segmentIntersection(
 // Source: Sedgewick, _Algorithms in C_
 // (Tried various other functions that failed owing to floating point errors)
 function segmentHit(
-  ax: any,
-  ay: any,
-  bx: any,
-  by: any,
-  cx: any,
-  cy: any,
-  dx: any,
-  dy: any,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
 ) {
   return (
     orient2D(ax, ay, bx, by, cx, cy) * orient2D(ax, ay, bx, by, dx, dy) <= 0 &&
@@ -539,7 +539,14 @@ function segmentHit(
 // counterclockwise order, a negative value if the points are in clockwise
 // order, and zero if the points are collinear.
 // Source: Jonathan Shewchuk http://www.cs.berkeley.edu/~jrs/meshpapers/robnotes.pdf
-function orient2D(ax: any, ay: any, bx: any, by: any, cx: any, cy: any) {
+function orient2D(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+) {
   return determinant2D(ax - cx, ay - cy, bx - cx, by - cy);
 }
 
@@ -550,21 +557,21 @@ function orient2D(ax: any, ay: any, bx: any, by: any, cx: any, cy: any) {
  * @param c, d - 行列の第2行
  * @returns 行列式の値
  */
-function determinant2D(a: any, b: any, c: any, d: any) {
+function determinant2D(a: number, b: number, c: number, d: number) {
   return a * d - b * c;
 }
 
 // Get intersection point if segments are non-collinear, else return null
 // Assumes that segments have been intersect
 function crossIntersection(
-  ax: any,
-  ay: any,
-  bx: any,
-  by: any,
-  cx: any,
-  cy: any,
-  dx: any,
-  dy: any,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
 ) {
   let p = lineIntersection(ax, ay, bx, by, cx, cy, dx, dy);
   let nearest;
@@ -587,14 +594,14 @@ function crossIntersection(
 }
 
 function lineIntersection(
-  ax: any,
-  ay: any,
-  bx: any,
-  by: any,
-  cx: any,
-  cy: any,
-  dx: any,
-  dy: any,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
 ) {
   const den = determinant2D(bx - ax, by - ay, dx - cx, dy - cy);
   const eps = 1e-18;
@@ -615,14 +622,14 @@ function lineIntersection(
 }
 
 function findEndpointInRange(
-  ax: any,
-  ay: any,
-  bx: any,
-  by: any,
-  cx: any,
-  cy: any,
-  dx: any,
-  dy: any,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
 ) {
   let p = null;
   if (!outsideRange(ax, cx, dx) && !outsideRange(ay, cy, dy)) {
@@ -644,7 +651,7 @@ function findEndpointInRange(
  * @param b - 線分の一方の端点
  * @param c - 線分のもう一方の端点
  */
-function outsideRange(a: any, b: any, c: any) {
+function outsideRange(a: number, b: number, c: number) {
   let out;
   if (b < c) {
     out = a < b || a > c;
@@ -657,7 +664,7 @@ function outsideRange(a: any, b: any, c: any) {
 }
 
 // Return id of nearest point to x, y, among x0, y0, x1, y1, ...
-function nearestPoint(x: any, y: any, ...args: any[]) {
+function nearestPoint(x: number, y: number, ...args: number[]) {
   let minIdx = -1,
     minDist = Infinity,
     dist;
@@ -671,22 +678,22 @@ function nearestPoint(x: any, y: any, ...args: any[]) {
   return minIdx;
 }
 
-function distanceSq(ax: any, ay: any, bx: any, by: any) {
+function distanceSq(ax: number, ay: number, bx: number, by: number) {
   const dx = ax - bx,
     dy = ay - by;
   return dx * dx + dy * dy;
 }
 
 function clampIntersectionPoint(
-  p: any,
-  ax: any,
-  ay: any,
-  bx: any,
-  by: any,
-  cx: any,
-  cy: any,
-  dx: any,
-  dy: any,
+  p: number[],
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
 ) {
   // Handle intersection points that fall outside the x-y range of either
   // segment by snapping to nearest endpoint coordinate. Out-of-range
@@ -704,7 +711,7 @@ function clampIntersectionPoint(
   p[1] = y;
 }
 
-function clampToCloseRange(a: any, b: any, c: any) {
+function clampToCloseRange(a: number, b: number, c: number) {
   let lim;
   if (outsideRange(a, b, c)) {
     lim = Math.abs(a - b) < Math.abs(a - c) ? b : c;
@@ -718,21 +725,21 @@ function clampToCloseRange(a: any, b: any, c: any) {
 
 // Assume segments s1 and s2 are collinear and overlap; find one or two internal endpoints
 function collinearIntersection(
-  ax: any,
-  ay: any,
-  bx: any,
-  by: any,
-  cx: any,
-  cy: any,
-  dx: any,
-  dy: any,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
 ) {
   const minX = Math.min(ax, bx, cx, dx),
     maxX = Math.max(ax, bx, cx, dx),
     minY = Math.min(ay, by, cy, dy),
-    maxY = Math.max(ay, by, cy, dy),
-    useY = maxY - minY > maxX - minX;
-  let coords: any = [];
+    maxY = Math.max(ay, by, cy, dy);
+  const useY = maxY - minY > maxX - minX;
+  let coords: number[] | null = [];
 
   if (useY ? inside(ay, minY, maxY) : inside(ax, minX, maxX)) {
     coords.push(ax, ay);
@@ -761,14 +768,14 @@ function collinearIntersection(
 }
 
 function endpointHit(
-  ax: any,
-  ay: any,
-  bx: any,
-  by: any,
-  cx: any,
-  cy: any,
-  dx: any,
-  dy: any,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
 ) {
   return (
     (ax == cx && ay == cy) ||
@@ -778,19 +785,19 @@ function endpointHit(
   );
 }
 
-function inside(x: any, minX: any, maxX: any) {
+function inside(x: number, minX: number, maxX: number) {
   return x > minX && x < maxX;
 }
 
 // @xx array of x coords
 // @ids an array of segment endpoint ids [a0, b0, a1, b1, ...]
 // Sort @ids in place so that xx[a(n)] <= xx[b(n)] and xx[a(n)] <= xx[a(n+1)]
-function sortSegmentIds(xx: any, ids: any) {
+function sortSegmentIds(xx: Float64Array, ids: Uint32Array) {
   orderSegmentIds(xx, ids);
   quicksortSegmentIds(xx, ids, 0, ids.length - 2);
 }
 
-function orderSegmentIds(xx: any, ids: any) {
+function orderSegmentIds(xx: Float64Array, ids: Uint32Array) {
   for (let i = 0, n = ids.length; i < n; i += 2) {
     if (xx[ids[i]] > xx[ids[i + 1]]) {
       swap(ids, i, i + 1);
@@ -798,13 +805,18 @@ function orderSegmentIds(xx: any, ids: any) {
   }
 }
 
-function swap(ids: any, i: number, j: number) {
+function swap(ids: Uint32Array, i: number, j: number) {
   const tmp = ids[i];
   ids[i] = ids[j];
   ids[j] = tmp;
 }
 
-function quicksortSegmentIds(a: any, ids: any, lo: any, hi: any) {
+function quicksortSegmentIds(
+  a: Float64Array,
+  ids: Uint32Array,
+  lo: number,
+  hi: number,
+) {
   let i = lo,
     j = hi,
     pivot,
@@ -837,7 +849,12 @@ function quicksortSegmentIds(a: any, ids: any, lo: any, hi: any) {
   }
 }
 
-function insertionSortSegmentIds(arr: any, ids: any, start: any, end: any) {
+function insertionSortSegmentIds(
+  arr: Float64Array,
+  ids: Uint32Array,
+  start: number,
+  end: number,
+) {
   let id, id2;
   for (let j = start + 2; j <= end; j += 2) {
     id = ids[j];
@@ -852,7 +869,13 @@ function insertionSortSegmentIds(arr: any, ids: any, start: any, end: any) {
   }
 }
 
-function formatIntersection(xy: any, s1: any, s2: any, xx: any, yy: any) {
+function formatIntersection(
+  xy: number[],
+  s1: number[],
+  s2: number[],
+  xx: Float64Array,
+  yy: Float64Array,
+) {
   const x = xy[0],
     y = xy[1];
   s1 = formatIntersectingSegment(x, y, s1[0], s1[1], xx, yy);
@@ -863,12 +886,12 @@ function formatIntersection(xy: any, s1: any, s2: any, xx: any, yy: any) {
 }
 
 function formatIntersectingSegment(
-  x: any,
-  y: any,
-  id1: any,
-  id2: any,
-  xx: any,
-  yy: any,
+  x: number,
+  y: number,
+  id1: number,
+  id2: number,
+  xx: Float64Array,
+  yy: Float64Array,
 ) {
   let i = id1 < id2 ? id1 : id2,
     j = i === id1 ? id2 : id1;
@@ -886,9 +909,9 @@ function formatIntersectingSegment(
  * @param arr - 交差点情報の配列
  * @returns 重複を除去した交差点情報の配列
  */
-function dedupIntersections(arr: any) {
-  const index: any = {};
-  return arr.filter((o: any) => {
+function dedupIntersections(arr: IntersectionPoint[]) {
+  const index: Record<string, boolean> = {};
+  return arr.filter((o: IntersectionPoint) => {
     const key = getIntersectionKey(o);
     if (key in index) {
       return false;
@@ -900,7 +923,7 @@ function dedupIntersections(arr: any) {
 
 // Get an indexable key from an intersection object
 // Assumes that vertex ids of o.a and o.b are sorted
-function getIntersectionKey(o: any) {
+function getIntersectionKey(o: IntersectionPoint) {
   return `${o.a.join(",")};${o.b.join(",")}`;
 }
 
@@ -957,9 +980,9 @@ class Bounds {
   xmax?: number;
   ymax?: number;
 
-  constructor(...args: any[]) {
+  constructor(...args: number[] | [Bounds] | []) {
     if (args.length > 0) {
-      this.setBounds(args);
+      this.setBounds(args as number[]);
     }
   }
 
@@ -970,7 +993,12 @@ class Bounds {
 
   clone() {
     // alias so child classes can override clone()
-    return new Bounds(this.xmin, this.ymin, this.xmax, this.ymax);
+    return new Bounds(
+      this.xmin!,
+      this.ymin!,
+      this.xmax!,
+      this.ymax!,
+    );
   }
 
   width() {
@@ -981,27 +1009,36 @@ class Bounds {
     return this.ymax! - this.ymin! || 0;
   }
 
-  setBounds(a: any, b?: number, c?: number, d?: number) {
+  setBounds(a: number | number[] | Bounds, b?: number, c?: number, d?: number) {
+    let xmin: number, ymin: number, xmax: number, ymax: number;
+
     if (arguments.length == 1) {
       // assume first arg is a Bounds or array
       if (isArrayLike(a)) {
-        b = (a as any)[1];
-        c = (a as any)[2];
-        d = (a as any)[3];
-        a = (a as any)[0];
+        const arr = a as number[];
+        xmin = arr[0];
+        ymin = arr[1];
+        xmax = arr[2];
+        ymax = arr[3];
       } else {
-        b = a.ymin;
-        c = a.xmax;
-        d = a.ymax;
-        a = a.xmin;
+        const bounds = a as Bounds;
+        xmin = bounds.xmin!;
+        ymin = bounds.ymin!;
+        xmax = bounds.xmax!;
+        ymax = bounds.ymax!;
       }
+    } else {
+      xmin = a as number;
+      ymin = b!;
+      xmax = c!;
+      ymax = d!;
     }
 
-    this.xmin = a;
-    this.ymin = b;
-    this.xmax = c;
-    this.ymax = d;
-    if (a > c! || b! > d!) this.update();
+    this.xmin = xmin;
+    this.ymin = ymin;
+    this.xmax = xmax;
+    this.ymax = ymax;
+    if (xmin > xmax || ymin > ymax) this.update();
     // error("Bounds#setBounds() min/max reversed:", a, b, c, d);
     return this;
   }

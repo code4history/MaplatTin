@@ -1,6 +1,8 @@
 export interface IntersectionPoint {
   x: number;
   y: number;
+  a: number[];
+  b: number[];
 }
 
 export type ArcCallback = (
