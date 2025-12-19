@@ -63,7 +63,7 @@
     "deno"
   ],
   "dependencies": {
-    "@maplat/transform": "github:code4history/MaplatTransform#01800d232587af0c9934e18d2a9d3fc1fe66edfa",
+    "@maplat/transform": "github:code4history/MaplatTransform#de59708092845ba424bec22040df045933a0f617",
     "@turf/turf": "^7.2.0",
     "delaunator": "^5.0.0",
     "robust-predicates": "^3.0.2"

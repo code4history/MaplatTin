@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@maplat/transform':
-        specifier: github:code4history/MaplatTransform#01800d232587af0c9934e18d2a9d3fc1fe66edfa
-        version: https://codeload.github.com/code4history/MaplatTransform/tar.gz/01800d232587af0c9934e18d2a9d3fc1fe66edfa
+        specifier: github:code4history/MaplatTransform#de59708092845ba424bec22040df045933a0f617
+        version: https://codeload.github.com/code4history/MaplatTransform/tar.gz/de59708092845ba424bec22040df045933a0f617
       '@turf/turf':
         specifier: ^7.2.0
         version: 7.3.1
@@ -403,8 +403,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@maplat/transform@https://codeload.github.com/code4history/MaplatTransform/tar.gz/01800d232587af0c9934e18d2a9d3fc1fe66edfa':
-    resolution: {tarball: https://codeload.github.com/code4history/MaplatTransform/tar.gz/01800d232587af0c9934e18d2a9d3fc1fe66edfa}
+  '@maplat/transform@https://codeload.github.com/code4history/MaplatTransform/tar.gz/de59708092845ba424bec22040df045933a0f617':
+    resolution: {tarball: https://codeload.github.com/code4history/MaplatTransform/tar.gz/de59708092845ba424bec22040df045933a0f617}
     version: 0.3.0
 
   '@microsoft/api-extractor-model@7.30.6':
@@ -628,9 +628,6 @@ packages:
   '@turf/boolean-parallel@7.3.1':
     resolution: {integrity: sha512-SXPyYiuaRB1ES/LtcUP11HWyloMJGzN1nYaCLG7H+6l2OKjVJl025qR6uxVElWCzAdElek9nGNeNya1hd9ZHaw==}
 
-  '@turf/boolean-point-in-polygon@7.2.0':
-    resolution: {integrity: sha512-lvEOjxeXIp+wPXgl9kJA97dqzMfNexjqHou+XHVcfxQgolctoJiRYmcVCWGpiZ9CBf/CJha1KmD1qQoRIsjLaA==}
-
   '@turf/boolean-point-in-polygon@7.3.1':
     resolution: {integrity: sha512-BUPW63vE43LctwkgannjmEFTX1KFR/18SS7WzFahJWK1ZoP0s1jrfxGX+pi0BH/3Dd9mA71hkGKDDnj1Ndcz0g==}
 
@@ -730,9 +727,6 @@ packages:
   '@turf/great-circle@7.3.1':
     resolution: {integrity: sha512-pfs7PzBRgYEEyecM0ni6iEF19grn9FmbHyaLz7voYInmc2ZHfWQaxuY4dcf9cziWDaiPlbuyr/RyE6envg1xpw==}
 
-  '@turf/helpers@7.2.0':
-    resolution: {integrity: sha512-cXo7bKNZoa7aC7ydLmUR02oB3IgDe7MxiPuRz3cCtYQHn+BJ6h1tihmamYDWWUlPHgSNF0i3ATc4WmDECZafKw==}
-
   '@turf/helpers@7.3.1':
     resolution: {integrity: sha512-zkL34JVhi5XhsuMEO0MUTIIFEJ8yiW1InMu4hu/oRqamlY4mMoZql0viEmH6Dafh/p+zOl8OYvMJ3Vm3rFshgg==}
 
@@ -744,9 +738,6 @@ packages:
 
   '@turf/intersect@7.3.1':
     resolution: {integrity: sha512-676688YnF9wpprMioQWvxPlUMhtTvYITzw4XoG3lQmLjd/yt2cByanQHWpzWauLfYUlfuL13AeRGdqXRhSkhTQ==}
-
-  '@turf/invariant@7.2.0':
-    resolution: {integrity: sha512-kV4u8e7Gkpq+kPbAKNC21CmyrXzlbBgFjO1PhrHPgEdNqXqDawoZ3i6ivE3ULJj2rSesCjduUaC/wyvH/sNr2Q==}
 
   '@turf/invariant@7.3.1':
     resolution: {integrity: sha512-IdZJfDjIDCLH+Gu2yLFoSM7H23sdetIo5t4ET1/25X8gi3GE2XSqbZwaGjuZgNh02nisBewLqNiJs2bo+hrqZA==}
@@ -2434,11 +2425,9 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@maplat/transform@https://codeload.github.com/code4history/MaplatTransform/tar.gz/01800d232587af0c9934e18d2a9d3fc1fe66edfa':
+  '@maplat/transform@https://codeload.github.com/code4history/MaplatTransform/tar.gz/de59708092845ba424bec22040df045933a0f617':
     dependencies:
-      '@turf/boolean-point-in-polygon': 7.2.0
-      '@turf/helpers': 7.2.0
-      '@turf/invariant': 7.2.0
+      '@turf/turf': 7.3.1
 
   '@microsoft/api-extractor-model@7.30.6(@types/node@24.10.0)':
     dependencies:
@@ -2745,14 +2734,6 @@ snapshots:
       '@types/geojson': 7946.0.16
       tslib: 2.8.1
 
-  '@turf/boolean-point-in-polygon@7.2.0':
-    dependencies:
-      '@turf/helpers': 7.2.0
-      '@turf/invariant': 7.2.0
-      '@types/geojson': 7946.0.16
-      point-in-polygon-hao: 1.2.4
-      tslib: 2.8.1
-
   '@turf/boolean-point-in-polygon@7.3.1':
     dependencies:
       '@turf/helpers': 7.3.1
@@ -3035,11 +3016,6 @@ snapshots:
       '@turf/invariant': 7.3.1
       '@types/geojson': 7946.0.16
 
-  '@turf/helpers@7.2.0':
-    dependencies:
-      '@types/geojson': 7946.0.16
-      tslib: 2.8.1
-
   '@turf/helpers@7.3.1':
     dependencies:
       '@types/geojson': 7946.0.16
@@ -3075,12 +3051,6 @@ snapshots:
       '@turf/meta': 7.3.1
       '@types/geojson': 7946.0.16
       polyclip-ts: 0.16.8
-      tslib: 2.8.1
-
-  '@turf/invariant@7.2.0':
-    dependencies:
-      '@turf/helpers': 7.2.0
-      '@types/geojson': 7946.0.16
       tslib: 2.8.1
 
   '@turf/invariant@7.3.1':
