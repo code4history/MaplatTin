@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@maplat/transform':
-        specifier: github:code4history/MaplatTransform#de59708092845ba424bec22040df045933a0f617
-        version: https://codeload.github.com/code4history/MaplatTransform/tar.gz/de59708092845ba424bec22040df045933a0f617
+        specifier: github:code4history/MaplatTransform#8e98b7ea5378302150ebbcf4d22a2c01f8f68e66
+        version: https://codeload.github.com/code4history/MaplatTransform/tar.gz/8e98b7ea5378302150ebbcf4d22a2c01f8f68e66
       '@turf/turf':
         specifier: ^7.2.0
         version: 7.3.1
@@ -403,8 +403,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@maplat/transform@https://codeload.github.com/code4history/MaplatTransform/tar.gz/de59708092845ba424bec22040df045933a0f617':
-    resolution: {tarball: https://codeload.github.com/code4history/MaplatTransform/tar.gz/de59708092845ba424bec22040df045933a0f617}
+  '@maplat/transform@https://codeload.github.com/code4history/MaplatTransform/tar.gz/8e98b7ea5378302150ebbcf4d22a2c01f8f68e66':
+    resolution: {tarball: https://codeload.github.com/code4history/MaplatTransform/tar.gz/8e98b7ea5378302150ebbcf4d22a2c01f8f68e66}
     version: 0.3.0
 
   '@microsoft/api-extractor-model@7.30.6':
@@ -2425,7 +2425,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@maplat/transform@https://codeload.github.com/code4history/MaplatTransform/tar.gz/de59708092845ba424bec22040df045933a0f617':
+  '@maplat/transform@https://codeload.github.com/code4history/MaplatTransform/tar.gz/8e98b7ea5378302150ebbcf4d22a2c01f8f68e66':
     dependencies:
       '@turf/turf': 7.3.1
 
