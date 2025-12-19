@@ -40,12 +40,12 @@ class ArcCollection {
   _yy?: Float64Array; // coordinates data
   _ii?: Uint32Array;
   _nn?: Uint32Array; // indexes, sizes
-  _zz: any;
+  _zz: Float64Array | null = null;
   _zlimit = 0; // simplification
-  _bb: any;
-  _allBounds: any; // bounding boxes
-  _arcIter: any;
-  _filteredArcIter: any; // path iterators
+  _bb: Float64Array | null = null;
+  _allBounds: Bounds | null = null; // bounding boxes
+  _arcIter: ArcIter | null = null;
+  _filteredArcIter: ArcIter | null = null; // path iterators
   buf?: ArrayBuffer;
 
   /**
@@ -138,7 +138,9 @@ class ArcCollection {
   }
 
   // @cb function(i, j, xx, yy)
-  forEachSegment(cb: any) {
+  forEachSegment(
+    cb: (i: number, j: number, xx: Float64Array, yy: Float64Array) => void,
+  ) {
     let count = 0;
     for (let i = 0, n = this.size(); i < n; i++) {
       count += this.forEachArcSegment(i, cb);
@@ -151,7 +153,10 @@ class ArcCollection {
   }
 
   // @cb function(i, j, xx, yy)
-  forEachArcSegment(arcId: any, cb: any): any {
+  forEachArcSegment(
+    arcId: number,
+    cb: (i: number, j: number, xx: Float64Array, yy: Float64Array) => void,
+  ): number {
     const fw = arcId >= 0,
       absId = fw ? arcId : ~arcId,
       zlim = this.getRetainedInterval(),
@@ -256,7 +261,7 @@ class ArcCollection {
     // Allocate arrays for segments in each stripe
     const stripeData = this.getUint32Array(utilsSum(stripeSizes));
     let offs = 0;
-    const stripes: any[] = [];
+    const stripes: Uint32Array[] = [];
     utilsForEach(stripeSizes, (stripeSize: number) => {
       const start = offs;
       offs += stripeSize;
