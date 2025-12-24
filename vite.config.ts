@@ -52,6 +52,8 @@ const shouldExternalize = (id: string) => {
 export default defineConfig({
   build: isPackageBuild
     ? {
+      outDir: "dist",
+      copyPublicDir: false,
       lib: {
         entry: resolve(__dirname, "src/index.ts"),
         formats: ["es", "cjs", "umd"],
@@ -77,9 +79,12 @@ export default defineConfig({
       }
     }
     : {
-      outDir: "dist",
+      outDir: "dist-demo",
       emptyOutDir: true
     },
+  server: {
+    open: "/"
+  },
   plugins: [
     removeTsExtensions(),
     isPackageBuild ? cjsCompatWrapper() : null,

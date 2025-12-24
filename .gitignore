@@ -70,3 +70,10 @@ deno.lock
 # yalc
 .yalc
 yalc.lock
+
+# Demo build output
+dist-demo/
+
+# Alternative package manager lockfiles
+package-lock.json
+yarn.lock

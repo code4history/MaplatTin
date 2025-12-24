@@ -1163,7 +1163,7 @@ function jr() {
   return An || (An = 1, (function(s, e) {
     (function(t, r) {
       r(e);
-    })(qr, function(t) {
+    })(qr, (function(t) {
       var r = Object.defineProperty, i = (k, P, C) => P in k ? r(k, P, { enumerable: !0, configurable: !0, writable: !0, value: C }) : k[P] = C, n = (k, P, C) => i(k, typeof P != "symbol" ? P + "" : P, C);
       function o(k, P, C = {}) {
         const $ = { type: "Feature" };
@@ -1504,7 +1504,7 @@ function jr() {
       n(qt, "VERTEX_PLAIN", "plain"), n(qt, "VERTEX_BIRDEYE", "birdeye"), n(qt, "MODE_STRICT", "strict"), n(qt, "MODE_AUTO", "auto"), n(qt, "MODE_LOOSE", "loose"), n(qt, "STATUS_STRICT", "strict"), n(qt, "STATUS_ERROR", "strict_error"), n(qt, "STATUS_LOOSE", "loose"), n(qt, "YAXIS_FOLLOW", "follow"), n(qt, "YAXIS_INVERT", "invert");
       let Pe = qt;
       t.Transform = Pe, t.counterTri = Q, t.format_version = Ge, t.normalizeEdges = U, t.rotateVerticesTriangle = z, t.transformArr = w, Object.defineProperty(t, Symbol.toStringTag, { value: "Module" });
-    });
+    }));
   })(ke, ke.exports)), ke.exports;
 }
 var zt = jr();

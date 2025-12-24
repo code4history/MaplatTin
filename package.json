@@ -29,7 +29,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "pnpm run typecheck && cross-env BUILD_MODE=package vite build",
     "typecheck": "tsc --noEmit --allowImportingTsExtensions",
     "prepare": "pnpm run build",
@@ -44,6 +44,10 @@
     "publish:npm:dry": "node scripts/publish-npm.js --dry-run"
   },
   "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/code4history/MaplatTin.git"
@@ -63,35 +67,35 @@
     "deno"
   ],
   "dependencies": {
-    "@maplat/transform": "github:code4history/MaplatTransform#8e98b7ea5378302150ebbcf4d22a2c01f8f68e66",
-    "@turf/turf": "^7.2.0",
-    "delaunator": "^5.0.0",
+    "@maplat/transform": "github:code4history/MaplatTransform#80fc607",
+    "@turf/turf": "^7.3.1",
+    "delaunator": "^5.0.1",
     "robust-predicates": "^3.0.2"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
+    "@eslint/js": "^9.39.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@types/delaunator": "^5.0.3",
     "@types/estree": "^1.0.8",
-    "@types/geojson": "^7946.0.15",
-    "@types/node": "^24.10.0",
-    "@typescript-eslint/eslint-plugin": "^8.46.3",
-    "@typescript-eslint/parser": "^8.46.3",
-    "@vitest/coverage-v8": "^4.0.8",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^24.10.4",
+    "@typescript-eslint/eslint-plugin": "^8.50.1",
+    "@typescript-eslint/parser": "^8.50.1",
+    "@vitest/coverage-v8": "^3.2.4",
     "cross-env": "^10.1.0",
     "dotenv": "^17.2.3",
     "dotenv-cli": "^11.0.0",
-    "eslint": "^9.39.1",
+    "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.5.0",
     "jest-matcher-deep-close-to": "^3.0.2",
-    "jsdom": "^27.1.0",
-    "prettier": "^3.4.2",
+    "jsdom": "^27.3.0",
+    "prettier": "^3.7.4",
     "robust-segment-intersect": "^1.0.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.3",
-    "vite": "^6.0.0",
-    "vite-plugin-dts": "^4.4.0",
-    "vitest": "^3.0.0"
+    "typescript-eslint": "^8.50.1",
+    "vite": "^6.4.1",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^3.2.4"
   }
 }
