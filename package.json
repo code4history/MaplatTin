@@ -44,7 +44,6 @@
     "publish:npm": "node scripts/publish-npm.js",
     "publish:npm:dry": "node scripts/publish-npm.js --dry-run"
   },
-  "packageManager": "pnpm@10.20.0",
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
