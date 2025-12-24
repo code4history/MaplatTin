@@ -50,6 +50,7 @@ const shouldExternalize = (id: string) => {
 };
 
 export default defineConfig({
+  base: isPackageBuild ? "/" : "/MaplatTin/",
   build: isPackageBuild
     ? {
       outDir: "dist",
