@@ -50,7 +50,7 @@ const shouldExternalize = (id: string) => {
 };
 
 export default defineConfig({
-  base: process.env.GITHUB_PAGES === "true" ? "/MaplatTin/" : "/",
+  base: isPackageBuild ? "/" : "./",
   build: isPackageBuild
     ? {
       outDir: "dist",
