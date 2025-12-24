@@ -57,14 +57,10 @@ export default defineConfig({
       copyPublicDir: false,
       lib: {
         entry: resolve(__dirname, "src/index.ts"),
-        formats: ["es", "cjs", "umd"],
+        formats: ["es", "umd"],
         name: "tin",
         fileName: (format) => {
           switch (format) {
-            case "es":
-              return "maplat_tin.js";
-            case "cjs":
-              return "maplat_tin.cjs";
             case "umd":
               return "maplat_tin.umd.js";
             default:
@@ -88,7 +84,6 @@ export default defineConfig({
   },
   plugins: [
     removeTsExtensions(),
-    isPackageBuild ? cjsCompatWrapper() : null,
     dts({
       outDir: "dist",
       exclude: ["tests", "node_modules"],
