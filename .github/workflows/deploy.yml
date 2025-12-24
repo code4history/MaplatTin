@@ -27,6 +27,8 @@ jobs:
         
       - name: Build demo
         run: pnpm run build:demo
+        env:
+          GITHUB_PAGES: "true"
         
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
