@@ -101,14 +101,16 @@ describe('Constrain Unit Tests', () => {
 
   describe('internal geometry operations', () => {
     it('should correctly detect segment intersections', () => {
-      // Test intersectSegments
-      const intersects = (con as any).intersectSegments(0, 2, 1, 3);
+      // Test intersectSegments (internal method)
+      // @ts-expect-error - Accessing internal method for testing
+      const intersects = con.intersectSegments(0, 2, 1, 3);
       expect(typeof intersects).toBe('boolean');
     });
 
     it('should correctly identify collinear points', () => {
-      // Test isCollinear
-      const collinear = (con as any).isCollinear(0, 1, 2);
+      // Test isCollinear (internal method)
+      // @ts-expect-error - Accessing internal method for testing
+      const collinear = con.isCollinear(0, 1, 2);
       expect(typeof collinear).toBe('boolean');
     });
   });

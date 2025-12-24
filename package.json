@@ -31,6 +31,7 @@
   "scripts": {
     "dev": "vite --host",
     "build": "pnpm run typecheck && cross-env BUILD_MODE=package vite build",
+    "build:demo": "vite build --outDir dist-demo",
     "typecheck": "tsc --noEmit --allowImportingTsExtensions",
     "prepare": "pnpm run build",
     "test": "vitest run",

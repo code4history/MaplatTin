@@ -25,16 +25,17 @@ const loadMap = async (filename: string) =>
 const loadCompiled = async (filename: string) =>
   (await import(`./compiled/${filename}.json`)).default;
 
-function treeWalk(obj: any, depth: number) {
-  if (typeof obj === "object") {
-    Object.keys(obj).forEach((key) => (obj[key] = treeWalk(obj[key], depth)));
+function treeWalk(obj: unknown, depth: number): unknown {
+  if (typeof obj === "object" && obj !== null) {
+     
+    Object.keys(obj).forEach((key) => ((obj as Record<string, unknown>)[key] = treeWalk((obj as Record<string, unknown>)[key], depth)));
   } else if (typeof obj === "number" && !`${obj}`.match(/^\d+$/)) {
     obj = Math.round(obj * Math.pow(10, depth)) / Math.pow(10, depth);
   }
   return obj;
 }
 
-function sortTinsPoint(tins_points: any[][]) {
+function sortTinsPoint(tins_points: number[][]) {
   return tins_points
     .map((points) =>
       points
@@ -128,7 +129,7 @@ describe("Tin", () => {
             treeWalk(target.edges, 5),
           );
 
-          expected.tins_points.forEach((expected_tins: any, index: number) => {
+          expected.tins_points.forEach((expected_tins: number[][], index: number) => {
             expect(sortTinsPoint(expected_tins)).toEqual(
               sortTinsPoint(target.tins_points[index]),
             );

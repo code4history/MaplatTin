@@ -27,7 +27,7 @@ jobs:
         run: pnpm install
         
       - name: Build demo
-        run: pnpm run dev -- build --outDir dist-demo
+        run: pnpm run build:demo
         
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
