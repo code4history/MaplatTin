@@ -65,7 +65,7 @@
     "deno"
   ],
   "dependencies": {
-    "@maplat/transform": "github:code4history/MaplatTransform#80fc607",
+    "@maplat/transform": "0.4.0",
     "@turf/turf": "^7.3.1",
     "delaunator": "^5.0.1",
     "robust-predicates": "^3.0.2"
@@ -87,7 +87,7 @@
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.5.0",
     "jest-matcher-deep-close-to": "^3.0.2",
-    "jsdom": "^27.3.0",
+    "jsdom": "^27.4.0",
     "prettier": "^3.7.4",
     "robust-segment-intersect": "^1.0.1",
     "typescript": "^5.9.3",
