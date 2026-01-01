@@ -1,5 +1,7 @@
 # Maplat Tin
 
+[![CI](https://github.com/code4history/MaplatTin/actions/workflows/ci.yml/badge.svg)](https://github.com/code4history/MaplatTin/actions/workflows/ci.yml)
+
 A JavaScript library that defines and executes homeomorphic conversion between two plane coordinate systems based on control points.  
 This is part of the [Maplat](https://github.com/code4history/Maplat/) project.
 
@@ -17,57 +19,27 @@ This is part of the [Maplat](https://github.com/code4history/Maplat/) project.
 - **Edge Constraints:** Ability to specify constrained edges for more accurate transformation
 - **State Management:** Save and restore transformation definitions
 
+## Requirements
+
+- **Node.js**: 20.0.0 or higher
+- **Package Manager**: pnpm 9.0.0 or higher (recommended) or npm
+
 ## Installation
+
+### pnpm (Recommended)
+
+```sh
+pnpm add @maplat/tin
+```
 
 ### npm
 
 ```sh
-# Install the main package
 npm install @maplat/tin
-
-# Install required dependency
-npm install delaunator
 ```
 
 
 ## Development Setup
-
-This project supports using local dependencies for development. We recommend using `yalc` for managing local package dependencies.
-
-### Using yalc for Local Development
-
-1. **Install yalc globally:**
-   ```sh
-   npm install -g yalc
-   ```
-
-2. **Publish local dependencies:**
-   ```sh
-   # In the MaplatTransform directory
-   cd ../MaplatTransform
-   yalc publish
-   ```
-
-3. **Link local dependencies in this project:**
-   ```sh
-   # In the MaplatTin directory
-   yalc add @maplat/transform
-   ```
-
-4. **Update local dependencies when changed:**
-   ```sh
-   # In the dependency directory (e.g., MaplatTransform)
-   yalc publish --push
-   ```
-
-5. **Remove local dependencies (to use npm packages):**
-   ```sh
-   # In the MaplatTin directory
-   yalc remove @maplat/transform
-   npm install
-   ```
-
-**Note:** The `.yalc` directory and `yalc.lock` file are ignored by git and will not be committed.
 
 ### Testing
 
@@ -96,19 +68,23 @@ pnpm test tests/tin
 - `tests/tin.test.ts` - TIN transformation tests with real map data
 - `tests/transform.test.ts` - Coordinate transformation tests
 
+### Building
+
+Build the library:
+```sh
+pnpm run build
+```
+
+Build the demo site:
+```sh
+pnpm run build:demo
+```
+
 ### Browser
 
-When using in the browser, you need to include the peer dependencies:
+When using in the browser:
 
 ```html
-<!-- Required dependencies -->
-<script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
-<script src="https://unpkg.com/@turf/helpers@7.2.0/dist/turf-helpers.min.js"></script>
-<script src="https://unpkg.com/@turf/boolean-point-in-polygon@7.2.0/dist/turf-boolean-point-in-polygon.min.js"></script>
-<script src="https://unpkg.com/@turf/centroid@7.2.0/dist/turf-centroid.min.js"></script>
-<script src="https://unpkg.com/@turf/convex@7.2.0/dist/turf-convex.min.js"></script>
-<script src="https://unpkg.com/@turf/line-intersect@7.2.0/dist/turf-line-intersect.min.js"></script>
-
 <!-- Maplat Tin (UMD) -->
 <script src="https://unpkg.com/@maplat/tin/dist/tin.umd.js"></script>
 <script>
@@ -170,28 +146,58 @@ const restored = tin.transform(transformed, true);
 
 ### Constructor Options
 
-| **Option** | **Type**                      | **Description**                   | **Default** |
-| ------------- | --------------------------- | ------------------------- | ------------- |
-| `bounds`      | `Position[]`                | **Boundary polygon vertices**        | `-`           |
-| `wh`          | `number[]`                  | **Width and height [w, h]**        | `-`           |
-| `vertexMode`  | `"plain"｜"birdeye"`        | **Vertex handling mode**          | `"plain"`     |
-| `strictMode`  | `"strict"｜"auto"｜"loose"` | **Topology check mode** | `"auto"`      |
-| `yaxisMode`   | `"follow"｜"invert"`        | **Y-axis direction**              | `"invert"`    |
-| `importance`  | `number`                    | **Map importance**           | `0`           |
-| `priority`    | `number`                    | **Map priority**           | `0`           |
+| **Option**   | **Type**                    | **Description**               | **Default** |
+| ------------ | --------------------------- | ----------------------------- | ----------- |
+| `bounds`     | `Position[]`                | **Boundary polygon vertices** | `-`         |
+| `wh`         | `number[]`                  | **Width and height [w, h]**   | `-`         |
+| `vertexMode` | `"plain"｜"birdeye"`        | **Vertex handling mode**      | `"plain"`   |
+| `strictMode` | `"strict"｜"auto"｜"loose"` | **Topology check mode**       | `"auto"`    |
+| `yaxisMode`  | `"follow"｜"invert"`        | **Y-axis direction**          | `"invert"`  |
+| `importance` | `number`                    | **Map importance**            | `0`         |
+| `priority`   | `number`                    | **Map priority**              | `0`         |
 
 Either `bounds` or `wh` must be specified.
 
 ### Methods
 
-| **Method**                  | **Description**                          |
-| ---------------------------- | --------------------------------- |
-| `setPoints(points)`          | **Set control points**                   |
-| `setEdges(edges)`            | **Set constrained edges**            |
-| `updateTin()`                | **Initialize/update TIN network**    |
-| `transform(coords, inverse)` | **Execute coordinate transformation**                 |
-| `getCompiled()`              | **Get serializable state**     |
-| `setCompiled(state)`         | **Restore from serialized state** |
+| **Method**                   | **Description**                       |
+| ---------------------------- | ------------------------------------- |
+| `setPoints(points)`          | **Set control points**                |
+| `setEdges(edges)`            | **Set constrained edges**             |
+| `updateTin()`                | **Initialize/update TIN network**     |
+| `transform(coords, inverse)` | **Execute coordinate transformation** |
+| `getCompiled()`              | **Get serializable state**            |
+| `setCompiled(state)`         | **Restore from serialized state**     |
+| `getFormatVersion()`         | **Get format version number**         |
+
+### Constants
+
+**Y-axis Mode:**
+- `Tin.YAXIS_FOLLOW` - Y-axis follows the coordinate system
+- `Tin.YAXIS_INVERT` - Y-axis is inverted
+
+**Status Values:**
+- `Tin.STATUS_STRICT` - Strict topology (roundtrip transform guaranteed)
+- `Tin.STATUS_LOOSE` - Loose topology (roundtrip transform not guaranteed)
+
+**Format Version:**
+- `format_version` - Current TIN format version
+
+### Utility Functions
+
+| **Function**                                                          | **Description**                                 |
+| --------------------------------------------------------------------- | ----------------------------------------------- |
+| `constrainedTin(points, edges, z)`                                    | **Generate constrained Delaunay triangulation** |
+| `findIntersections(features)`                                         | **Find intersection points in features**        |
+| `insertSearchIndex(tins, centroid, strict)`                           | **Insert search index for TIN**                 |
+| `counterPoint(point)`                                                 | **Calculate counter point**                     |
+| `createPoint(xy, mercator, forw)`                                     | **Create point feature**                        |
+| `vertexCalc(points, edgeNodes, centroid, originPoly, xy, vertexMode)` | **Calculate vertex coordinates**                |
+
+## Documentation
+
+For detailed information about TIN internals:
+- [TIN Internals](docs/tin-internals.md)
 
 ### Error Handling
 
@@ -205,7 +211,7 @@ The library may throw errors in the following cases:
 
 Maplat Limited License 1.1
 
-Copyright (c) 2024 Code for History
+Copyright (c) 2024-2026 Code for History
 
 ## Developers
 

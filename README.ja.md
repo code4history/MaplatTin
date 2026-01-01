@@ -1,5 +1,7 @@
 # Maplat Tin
 
+[![CI](https://github.com/code4history/MaplatTin/actions/workflows/ci.yml/badge.svg)](https://github.com/code4history/MaplatTin/actions/workflows/ci.yml)
+
 2つの平面座標系間で制御点に基づく同相変換を定義・実行するJavaScriptライブラリです。  
 [Maplat](https://github.com/code4history/Maplat/)プロジェクトの一部として開発されています。
 
@@ -17,57 +19,27 @@ English README is [here](./README.md).
 - **エッジ制約:** より正確な変換のための制約付きエッジの指定が可能
 - **状態管理:** 変換定義の保存と復元をサポート
 
+## 動作要件
+
+- **Node.js**: 20.0.0 以上
+- **パッケージマネージャー**: pnpm 9.0.0 以上（推奨）または npm
+
 ## インストール方法
+
+### pnpm（推奨）
+
+```sh
+pnpm add @maplat/tin
+```
 
 ### npm
 
 ```sh
-# メインパッケージのインストール
 npm install @maplat/tin
-
-# 必要な依存パッケージのインストール
-npm install delaunator
 ```
 
 
 ## 開発環境のセットアップ
-
-このプロジェクトは開発時にローカルの依存関係を使用することをサポートしています。ローカルパッケージの依存関係管理には`yalc`の使用を推奨します。
-
-### yalcを使用したローカル開発
-
-1. **yalcをグローバルにインストール:**
-   ```sh
-   npm install -g yalc
-   ```
-
-2. **ローカル依存関係を公開:**
-   ```sh
-   # MaplatTransformディレクトリで
-   cd ../MaplatTransform
-   yalc publish
-   ```
-
-3. **このプロジェクトでローカル依存関係をリンク:**
-   ```sh
-   # MaplatTinディレクトリで
-   yalc add @maplat/transform
-   ```
-
-4. **変更時にローカル依存関係を更新:**
-   ```sh
-   # 依存関係のディレクトリで（例：MaplatTransform）
-   yalc publish --push
-   ```
-
-5. **ローカル依存関係を削除（npmパッケージを使用する場合）:**
-   ```sh
-   # MaplatTinディレクトリで
-   yalc remove @maplat/transform
-   npm install
-   ```
-
-**注意:** `.yalc`ディレクトリと`yalc.lock`ファイルはgitに無視され、コミットされません。
 
 ### テスト
 
@@ -96,19 +68,23 @@ pnpm test tests/tin
 - `tests/tin.test.ts` - 実際の地図データを使用したTIN変換テスト
 - `tests/transform.test.ts` - 座標変換テスト
 
+### ビルド
+
+ライブラリのビルド:
+```sh
+pnpm run build
+```
+
+デモサイトのビルド:
+```sh
+pnpm run build:demo
+```
+
 ### ブラウザ
 
-ブラウザで使用する場合、ピア依存関係を含める必要があります：
+ブラウザで使用する場合：
 
 ```html
-<!-- 必要な依存関係 -->
-<script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
-<script src="https://unpkg.com/@turf/helpers@7.2.0/dist/turf-helpers.min.js"></script>
-<script src="https://unpkg.com/@turf/boolean-point-in-polygon@7.2.0/dist/turf-boolean-point-in-polygon.min.js"></script>
-<script src="https://unpkg.com/@turf/centroid@7.2.0/dist/turf-centroid.min.js"></script>
-<script src="https://unpkg.com/@turf/convex@7.2.0/dist/turf-convex.min.js"></script>
-<script src="https://unpkg.com/@turf/line-intersect@7.2.0/dist/turf-line-intersect.min.js"></script>
-
 <!-- Maplat Tin (UMD) -->
 <script src="https://unpkg.com/@maplat/tin/dist/tin.umd.js"></script>
 <script>
@@ -169,28 +145,58 @@ const restored = tin.transform(transformed, true);
 ## 設定オプション
 
 ### コンストラクタオプション
-| **オプション** | **型**                      | **説明**                   | **デフォルト** |
-| ------------- | --------------------------- | ------------------------- | ------------- |
-| `bounds`      | `Position[]`                | **境界多角形の頂点**        | `-`           |
-| `wh`          | `number[]`                  | **幅と高さ [w, h]**        | `-`           |
-| `vertexMode`  | `"plain"｜"birdeye"`        | **頂点処理モード**          | `"plain"`     |
-| `strictMode`  | `"strict"｜"auto"｜"loose"` | **トポロジーチェックモード** | `"auto"`      |
-| `yaxisMode`   | `"follow"｜"invert"`        | **Y軸の向き**              | `"invert"`    |
-| `importance`  | `number`                    | **地図の重要度**           | `0`           |
-| `priority`    | `number`                    | **地図の優先度**           | `0`           |
+| **オプション** | **型**                      | **説明**                     | **デフォルト** |
+| -------------- | --------------------------- | ---------------------------- | -------------- |
+| `bounds`       | `Position[]`                | **境界多角形の頂点**         | `-`            |
+| `wh`           | `number[]`                  | **幅と高さ [w, h]**          | `-`            |
+| `vertexMode`   | `"plain"｜"birdeye"`        | **頂点処理モード**           | `"plain"`      |
+| `strictMode`   | `"strict"｜"auto"｜"loose"` | **トポロジーチェックモード** | `"auto"`       |
+| `yaxisMode`    | `"follow"｜"invert"`        | **Y軸の向き**                | `"invert"`     |
+| `importance`   | `number`                    | **地図の重要度**             | `0`            |
+| `priority`     | `number`                    | **地図の優先度**             | `0`            |
 
 `bounds`または`wh`のいずれかを指定する必要があります。
 
 ### メソッド
 
-| **メソッド**                  | **説明**                          |
-| ---------------------------- | --------------------------------- |
-| `setPoints(points)`          | **制御点の設定**                   |
-| `setEdges(edges)`            | **制約付きエッジの設定**            |
-| `updateTin()`                | **TINネットワークの初期化/更新**    |
-| `transform(coords, inverse)` | **座標変換の実行**                 |
+| **メソッド**                 | **説明**                             |
+| ---------------------------- | ------------------------------------ |
+| `setPoints(points)`          | **制御点の設定**                     |
+| `setEdges(edges)`            | **制約付きエッジの設定**             |
+| `updateTin()`                | **TINネットワークの初期化/更新**     |
+| `transform(coords, inverse)` | **座標変換の実行**                   |
 | `getCompiled()`              | **シリアライズ可能な状態の取得**     |
 | `setCompiled(state)`         | **シリアライズされた状態からの復元** |
+| `getFormatVersion()`         | **フォーマットバージョン番号の取得** |
+
+### 定数
+
+**Y軸モード:**
+- `Tin.YAXIS_FOLLOW` - Y軸が座標系に従う
+- `Tin.YAXIS_INVERT` - Y軸が反転する
+
+**ステータス値:**
+- `Tin.STATUS_STRICT` - 厳密なトポロジー（往復変換が保証される）
+- `Tin.STATUS_LOOSE` - 緩和されたトポロジー（往復変換が保証されない）
+
+**フォーマットバージョン:**
+- `format_version` - 現在のTINフォーマットバージョン
+
+### ユーティリティ関数
+
+| **関数**                                                              | **説明**                           |
+| --------------------------------------------------------------------- | ---------------------------------- |
+| `constrainedTin(points, edges, z)`                                    | **制約付きドロネー三角分割の生成** |
+| `findIntersections(features)`                                         | **フィーチャ内の交点を検出**       |
+| `insertSearchIndex(tins, centroid, strict)`                           | **TINの検索インデックスを挿入**    |
+| `counterPoint(point)`                                                 | **対向点の計算**                   |
+| `createPoint(xy, mercator, forw)`                                     | **ポイントフィーチャの作成**       |
+| `vertexCalc(points, edgeNodes, centroid, originPoly, xy, vertexMode)` | **頂点座標の計算**                 |
+
+## ドキュメント
+
+TIN内部構造の詳細情報:
+- [TIN 内部構造](docs/tin-internals.ja.md)
 
 ### エラーハンドリング
 
@@ -204,7 +210,7 @@ const restored = tin.transform(transformed, true);
 
 Maplat Limited License 1.1
 
-Copyright (c) 2024 Code for History
+Copyright (c) 2024-2026 Code for History
 
 ## 開発者
 
