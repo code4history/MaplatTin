@@ -10,10 +10,8 @@ import fs from "node:fs";
 type Dataset = [string, string, "v2" | "v3"];
 
 const datasets: Dataset[] = [
-  // NOTE: naramachi_yasui_bunko は strict_error 未修復問題により一時停止中。
-  // 詳細: openspec/known-issues/naramachi-strict-error.md
-  // ["Nara v2",    "naramachi_yasui_bunko", "v2"],
-  // ["Nara v3",    "naramachi_yasui_bunko", "v3"],
+  ["Nara v2",    "naramachi_yasui_bunko", "v2"],
+  ["Nara v3",    "naramachi_yasui_bunko", "v3"],
   ["Fushimi v2", "fushimijo_maplat",      "v2"],
   ["Fushimi v3", "fushimijo_maplat",      "v3"],
   ["Miesan v2",  "miesan_ginza_map",      "v2"],

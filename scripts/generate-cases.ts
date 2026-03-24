@@ -21,11 +21,9 @@ import type { Compiled } from "../src/index.ts";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 
-// NOTE: naramachi_yasui_bunko は strict_error 未修復問題により一時停止中。
-// 詳細: openspec/known-issues/naramachi-strict-error.md
 const MAPS = [
   "fushimijo_maplat",
-  // "naramachi_yasui_bunko",
+  "naramachi_yasui_bunko",
   "miesan_ginza_map",
   "tatebayashi_castle_akimoto",
   "tatebayashi_kaei_jokamachi",

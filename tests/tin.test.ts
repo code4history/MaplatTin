@@ -151,10 +151,8 @@ function buildFromDataset(dataset: BuildDataset): Compiled {
 }
 
 const BUILD_DATASETS: BuildDataset[] = [
-  // NOTE: naramachi_yasui_bunko は strict_error 未修復問題により一時停止中。
-  // 詳細: openspec/known-issues/naramachi-strict-error.md
-  // { label: "Nara v2",    key: "naramachi_yasui_bunko", ver: "v2", useV2: true  },
-  // { label: "Nara v3",    key: "naramachi_yasui_bunko", ver: "v3", useV2: false },
+  { label: "Nara v2",    key: "naramachi_yasui_bunko", ver: "v2", useV2: true  },
+  { label: "Nara v3",    key: "naramachi_yasui_bunko", ver: "v3", useV2: false },
   { label: "Fushimi v2", key: "fushimijo_maplat",      ver: "v2", useV2: true  },
   { label: "Fushimi v3", key: "fushimijo_maplat",      ver: "v3", useV2: false },
   { label: "Miesan v2",       key: "miesan_ginza_map",           ver: "v2", useV2: true,  gcpSource: "compiled_points" },
@@ -179,7 +177,8 @@ describe("Tin — build accuracy (GCP maps)", () => {
 // ─── v2 と v3 で頂点数・version が異なることを確認 ───────────────────────────
 
 describe("Tin — v2 vs v3 format differences", () => {
-  // NOTE: naramachi_yasui_bunko は一時停止中（openspec/known-issues/naramachi-strict-error.md 参照）
+  // NOTE: naramachi_yasui_bunko は birdeye モードのため v2/v3 で頂点数は同じ（4頂点）。
+  // このテストは plain モードのマップのみ対象。
   (["fushimijo_maplat", "miesan_ginza_map", "tatebayashi_castle_akimoto", "tatebayashi_kaei_jokamachi"] as const).forEach((key) => {
     const label = key === "fushimijo_maplat" ? "Fushimi" : key === "miesan_ginza_map" ? "Miesan" : key === "tatebayashi_castle_akimoto" ? "Tatebayashi Castle" : "Tatebayashi Jokamachi";
     it(`${label}: v3 has more boundary vertices than v2 (plain mode)`, () => {
