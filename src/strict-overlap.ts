@@ -90,7 +90,76 @@ export function resolveOverlaps(
       .slice(0, 3)
       .map((coord) => toXY(coord as Position)) as [number, number][];
 
+    // 縮退三角形（面積ゼロ）の検出: pointInTriangle は denom=0 のとき false を返すため
+    // 別途面積チェックを行い、縮退三角形もフリップ候補に含める。
+    // ただしフリップが有効か事前に隣接チェックを行う（後述）。
+    const degenIdx0 = isDegenerate(triangle0Bakw); // T0 が縮退
+    const degenIdx1 = isDegenerate(triangle1Bakw); // T1 が縮退
+
+    // 縮退三角形のフリップ事前チェック:
+    // 縮退 T_deg=(A,B,C) の C は辺 A-B 上にある。
+    // フリップ後 T0_new=(A,C,D), T1_new=(B,C,D) が、
+    // 隣接三角形 T2=(A,C,E), T3=(B,C,F) と重ならないことを確認する。
+    // D と E が辺 AC の同じ側 → 重なり発生 → フリップ不可。同様に D と F で辺 BC を確認。
+    let degenerateFlipValid = false;
+    if (degenIdx0 || degenIdx1) {
+      const degIdx = degenIdx0 ? 0 : 1;           // 縮退している三角形のインデックス
+      const otherIdx = 1 - degIdx;
+      const degNonShared = nonSharedBakw[degIdx];  // C（辺 AB 上の縮退頂点）
+      const otherNonShared = nonSharedBakw[otherIdx]; // D（正常三角形の非共有頂点）
+
+      if (degNonShared && otherNonShared) {
+        const D = toXY(otherNonShared.geom as Position);
+        degenerateFlipValid = true; // フリップ有効と仮定し、違反が見つかれば false に
+
+        // 共有頂点 A, B それぞれについて隣接三角形を確認
+        for (let shIdx = 0; shIdx <= 1; shIdx++) {
+          const sh = sharedBakw[shIdx];
+          if (!sh) continue;
+
+          // 辺 (A, C) または (B, C) の searchIndex キーを構築
+          // calcSearchKeys と同じ文字列ソートを使うこと（prop.index は number | string 混在）
+          const edgeKey = [String(sh.prop.index), String(degNonShared.prop.index)]
+            .sort()
+            .join("-");
+          const neighborTris = searchIndex[edgeKey];
+          if (!neighborTris || neighborTris.length < 2) continue;
+
+          // 縮退三角形自身を除いた隣接三角形
+          const neighbor = neighborTris.find(
+            (t) => t.bakw !== trises[degIdx].bakw,
+          );
+          if (!neighbor) continue;
+
+          const neighborVerts = extractVertices(neighbor.bakw);
+          const neighborNonShared = neighborVerts.find(
+            (v) =>
+              String(v.prop.index) !== String(sh.prop.index) &&
+              String(v.prop.index) !== String(degNonShared.prop.index),
+          );
+          if (!neighborNonShared) continue;
+
+          const E = toXY(neighborNonShared.geom as Position);
+          const A_pos = toXY(sh.geom as Position);
+          const C_pos = toXY(degNonShared.geom as Position);
+
+          // D と E が辺 A-C の同じ側かを符号付き外積で判定
+          // cross(A→C, A→D) と cross(A→C, A→E) の符号が同じ → 同じ側 → フリップ不可
+          const acx = C_pos[0] - A_pos[0], acy = C_pos[1] - A_pos[1];
+          const crossD = acx * (D[1] - A_pos[1]) - acy * (D[0] - A_pos[0]);
+          const crossE = acx * (E[1] - A_pos[1]) - acy * (E[0] - A_pos[0]);
+
+          if (crossD * crossE > 0) {
+            // 同じ側 → フリップ後に T0_new/T1_new が隣接三角形と重なる
+            degenerateFlipValid = false;
+            break;
+          }
+        }
+      }
+    }
+
     const overlaps =
+      (degenerateFlipValid) ||
       pointInTriangle(
         toXY(nonSharedBakw[0]!.geom as Position),
         triangle1Bakw,
@@ -278,4 +347,21 @@ function triangleArea(
 
 function almostEqual(a: number, b: number, epsilon = 1e-9): boolean {
   return Math.abs(a - b) <= epsilon;
+}
+
+/**
+ * bakw 三角形が縮退（面積ゼロ）かどうかを判定する。
+ * pointInTriangle は denom=0 のとき false を返すため、縮退三角形を
+ * 別途検出してフリップ対象に含める必要がある。
+ *
+ * 判定は 2×面積 = |cross product| < epsilon で行う。
+ * web mercator 座標系（値域 ~1e7）での実用的な最小三角形面積は数 m² 以上であり、
+ * epsilon=1e-6 は「実質ゼロ面積」のみを確実に捉える。
+ */
+function isDegenerate(triangle: [number, number][], epsilon = 1e-6): boolean {
+  const [ax, ay] = triangle[0];
+  const [bx, by] = triangle[1];
+  const [cx, cy] = triangle[2];
+  const doubleArea = Math.abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay));
+  return doubleArea < epsilon;
 }
