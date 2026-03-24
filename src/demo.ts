@@ -33,6 +33,7 @@ interface LoadedState {
 
 const MAPS: MapConfig[] = [
   { label: "伏見城 (plain)",           key: "fushimijo_maplat" },
+  { label: "奈良町安井文庫 (birdeye)", key: "naramachi_yasui_bunko" },
   { label: "銀座 (pre-compiled)",      key: "miesan_ginza_map",
     note: "compiled データから GCP を復元して v2/v3 それぞれで再コンパイル済み" },
   { label: "館林城 (pre-compiled)",    key: "tatebayashi_castle_akimoto",
