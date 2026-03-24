@@ -77,3 +77,12 @@ dist-demo/
 # Alternative package manager lockfiles
 package-lock.json
 yarn.lock
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Serena MCP cache
+.serena/
+
+# Playwright MCP screenshots
+.playwright-mcp/

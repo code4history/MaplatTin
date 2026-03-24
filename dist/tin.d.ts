@@ -1,5 +1,5 @@
 import { Feature, Point, Position } from 'geojson';
-import { Transform, Compiled, Edge, EdgeSet, EdgeSetLegacy, PointSet, StrictMode, VertexMode, YaxisMode } from '@maplat/transform';
+import { Transform, Compiled, CompiledLegacy, Edge, EdgeSet, EdgeSetLegacy, PointSet, StrictMode, VertexMode, YaxisMode } from '@maplat/transform';
 import { PointsSetBD } from "./types/tin.d";
 /**
  * Tinクラスの初期化オプション
@@ -15,6 +15,8 @@ export interface Options {
     stateFull?: boolean;
     points?: PointSet[];
     edges?: EdgeSet[];
+    /** true にすると v2 アルゴリズム（wh bbox・turf 重心・4 境界頂点）で build する */
+    useV2Algorithm?: boolean;
 }
 /**
  * Tin (Triangulated Irregular Network) クラス
@@ -24,6 +26,7 @@ export declare class Tin extends Transform {
     importance: number;
     priority: number;
     pointsSet: PointsSetBD | undefined;
+    useV2Algorithm: boolean;
     /**
      * Tinクラスのインスタンスを生成します
      * @param options - 初期化オプション
@@ -51,6 +54,13 @@ export declare class Tin extends Transform {
      * 現在の設定を永続化可能な形式にコンパイルします
      */
     getCompiled(): Compiled;
+    /**
+     * コンパイルされた設定を適用します（v3+フォーマット対応）
+     *
+     * バージョン3以上のコンパイル済みデータが渡された場合は restoreV3State() を
+     * 使用してN頂点対応の復元を行います。それ以外は基底クラスの実装に委譲します。
+     */
+    setCompiled(compiled: Compiled | CompiledLegacy): void;
     /**
      * 幅と高さを設定します
      */

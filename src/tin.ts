@@ -11,23 +11,20 @@ import {
   point,
   polygon,
 } from "@turf/turf";
-import type { Feature, Point, Position } from "geojson";
+import type { Feature, Point, Polygon, Position } from "geojson";
 import {
   counterTri,
-  format_version,
+  format_version as FORMAT_VERSION_V2,
   normalizeEdges,
   rotateVerticesTriangle,
   Transform,
   transformArr,
 } from "@maplat/transform";
 
-// Ensure format_version is available
-const FALLBACK_FORMAT_VERSION = 2.00703;
-const safeFormatVersion = typeof format_version !== "undefined"
-  ? format_version
-  : FALLBACK_FORMAT_VERSION;
+const FORMAT_VERSION_V3 = 3.00000;
 import type {
   Compiled,
+  CompiledLegacy,
   Edge,
   EdgeSet,
   EdgeSetLegacy,
@@ -44,14 +41,16 @@ import constrainedTin from "./constrained-tin.ts";
 import {
   calculateBirdeyeVertices,
   calculatePlainVertices,
+  calculatePlainVerticesV3,
 } from "./boundary-vertices.ts";
+import { restoreV3State } from "./transform-v3.ts";
 import findIntersections from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import { buildPointsWeightBuffer } from "./weight-buffer.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
 import type { SearchIndex } from "./searchutils.ts";
-import type { PointsSetBD } from "./types/tin.d.ts";
+import type { PointsSetBD, VertexPosition } from "./types/tin.d.ts";
 
 type EdgeSegmentItem = [Position, number, number, number, string?];
 type EdgeNodeItem = [Position, Position, number];
@@ -70,6 +69,8 @@ export interface Options {
   stateFull?: boolean;
   points?: PointSet[];
   edges?: EdgeSet[];
+  /** true にすると v2 アルゴリズム（wh bbox・turf 重心・4 境界頂点）で build する */
+  useV2Algorithm?: boolean;
 }
 
 /**
@@ -80,6 +81,7 @@ export class Tin extends Transform {
   importance: number;
   priority: number;
   pointsSet: PointsSetBD | undefined;
+  useV2Algorithm: boolean;
 
   /**
    * Tinクラスのインスタンスを生成します
@@ -100,6 +102,7 @@ export class Tin extends Transform {
     this.importance = options.importance || 0;
     this.priority = options.priority || 0;
     this.stateFull = options.stateFull || false;
+    this.useV2Algorithm = options.useV2Algorithm ?? false;
 
     if (options.points) {
       this.setPoints(options.points);
@@ -113,7 +116,7 @@ export class Tin extends Transform {
    * フォーマットバージョンを取得します
    */
   getFormatVersion(): number {
-    return safeFormatVersion;
+    return this.useV2Algorithm ? FORMAT_VERSION_V2 : FORMAT_VERSION_V3;
   }
 
   /**
@@ -178,7 +181,7 @@ export class Tin extends Transform {
    */
   getCompiled(): Compiled {
     const compiled: Compiled = {} as Compiled;
-    compiled.version = safeFormatVersion;
+    compiled.version = this.useV2Algorithm ? FORMAT_VERSION_V2 : FORMAT_VERSION_V3;
     compiled.points = this.points;
     compiled.weight_buffer = this.pointsWeightBuffer ?? {};
     compiled.centroid_point = [
@@ -193,12 +196,12 @@ export class Tin extends Transform {
 
     const vertices = this.vertices_params!.forw![1];
     if (vertices) {
-      [0, 1, 2, 3].map((i) => {
+      for (let i = 0; i < vertices.length; i++) {
         const vertex = vertices[i].features[0];
         const forw = vertex.geometry!.coordinates[0][1];
         const bakw = vertex.properties!.b.geom;
         compiled.vertices_points[i] = [forw, bakw];
-      });
+      }
     }
 
     compiled.strict_status = this.strict_status;
@@ -245,6 +248,45 @@ export class Tin extends Transform {
     compiled.edgeNodes = (this.edgeNodes ?? []) as any;
 
     return compiled;
+  }
+
+  /**
+   * コンパイルされた設定を適用します（v3+フォーマット対応）
+   *
+   * バージョン3以上のコンパイル済みデータが渡された場合は restoreV3State() を
+   * 使用してN頂点対応の復元を行います。それ以外は基底クラスの実装に委譲します。
+   */
+  override setCompiled(compiled: Compiled | CompiledLegacy): void {
+    const version = (compiled as Compiled).version;
+    if (typeof version === "number" && version >= 3) {
+      const state = restoreV3State(compiled as Compiled);
+      this.points = state.points;
+      this.pointsWeightBuffer = state.pointsWeightBuffer;
+      this.strict_status = state.strictStatus;
+      this.vertices_params = state.verticesParams;
+      this.centroid = state.centroid;
+      this.edges = state.edges;
+      this.edgeNodes = state.edgeNodes || [];
+      this.tins = state.tins;
+      this.addIndexedTin();
+      this.kinks = state.kinks;
+      this.yaxisMode = state.yaxisMode ?? Tin.YAXIS_INVERT;
+      this.vertexMode = state.vertexMode ?? Tin.VERTEX_PLAIN;
+      this.strictMode = state.strictMode ?? Tin.MODE_AUTO;
+      if (state.bounds) {
+        this.bounds = state.bounds;
+        this.boundsPolygon = state.boundsPolygon;
+        this.xy = state.xy;
+        this.wh = state.wh;
+      } else {
+        this.bounds = undefined;
+        this.boundsPolygon = undefined;
+        this.xy = state.xy ?? [0, 0];
+        if (state.wh) this.wh = state.wh;
+      }
+      return;
+    }
+    super.setCompiled(compiled);
   }
 
   /**
@@ -530,8 +572,40 @@ export class Tin extends Transform {
       strict = Tin.MODE_AUTO;
     }
 
-    const { pointsSet: rawPointsSet, bbox, minx, maxx, miny, maxy } = this
-      .validateAndPrepareInputs();
+    // v3 plain mode: no explicit bounds and not birdeye — derive bbox from GCPs.
+    const isV3Plain = !this.useV2Algorithm && !this.bounds && this.vertexMode !== Tin.VERTEX_BIRDEYE;
+    let rawPointsSet: { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
+    let bbox: Position[];
+    let minx: number, maxx: number, miny: number, maxy: number;
+
+    if (isV3Plain) {
+      rawPointsSet = this.generatePointsSet();
+      // Compute GCP min/max and add 5% margin on each side.
+      let gcpMinx = Infinity, gcpMaxx = -Infinity;
+      let gcpMiny = Infinity, gcpMaxy = -Infinity;
+      for (const p of this.points) {
+        const x = p[0][0], y = p[0][1];
+        if (x < gcpMinx) gcpMinx = x;
+        if (x > gcpMaxx) gcpMaxx = x;
+        if (y < gcpMiny) gcpMiny = y;
+        if (y > gcpMaxy) gcpMaxy = y;
+      }
+      const gcpW = gcpMaxx - gcpMinx;
+      const gcpH = gcpMaxy - gcpMiny;
+      minx = gcpMinx - 0.05 * gcpW;
+      maxx = gcpMaxx + 0.05 * gcpW;
+      miny = gcpMiny - 0.05 * gcpH;
+      maxy = gcpMaxy + 0.05 * gcpH;
+      bbox = [[minx, miny], [maxx, miny], [minx, maxy], [maxx, maxy]];
+    } else {
+      const validated = this.validateAndPrepareInputs();
+      rawPointsSet = validated.pointsSet;
+      bbox = validated.bbox;
+      minx = validated.minx;
+      maxx = validated.maxx;
+      miny = validated.miny;
+      maxy = validated.maxy;
+    }
 
     // Create FeatureCollections for use in calculations
     const pointsSetFC = {
@@ -593,10 +667,45 @@ export class Tin extends Transform {
     }
 
     // Set centroids
-    const centCalc = {
-      forw: forCentroid.geometry!.coordinates,
-      bakw: transformArr(forCentroid, tinForw as Tins) as Position,
-    };
+    let centCalc: { forw: Position; bakw: Position };
+    if (isV3Plain) {
+      // v3: find the TIN triangle containing turf's centroid and use its
+      // geometric centre (mean of 3 vertices) as the new centroid.
+      const forCentCoord = forCentroid.geometry!.coordinates;
+      const containingTri = (tinForw as Tins).features.find((tri: Tri) =>
+        booleanPointInPolygon(
+          point(forCentCoord),
+          tri as unknown as Feature<Polygon>,
+        )
+      );
+      if (containingTri) {
+        const coords = containingTri.geometry!.coordinates[0];
+        const aGeom = containingTri.properties!.a.geom as Position;
+        const bGeom = containingTri.properties!.b.geom as Position;
+        const cGeom = containingTri.properties!.c.geom as Position;
+        centCalc = {
+          forw: [
+            (coords[0][0] + coords[1][0] + coords[2][0]) / 3,
+            (coords[0][1] + coords[1][1] + coords[2][1]) / 3,
+          ],
+          bakw: [
+            (aGeom[0] + bGeom[0] + cGeom[0]) / 3,
+            (aGeom[1] + bGeom[1] + cGeom[1]) / 3,
+          ],
+        };
+      } else {
+        // Fallback: use turf centroid directly.
+        centCalc = {
+          forw: forCentCoord,
+          bakw: transformArr(forCentroid, tinForw as Tins) as Position,
+        };
+      }
+    } else {
+      centCalc = {
+        forw: forCentroid.geometry!.coordinates,
+        bakw: transformArr(forCentroid, tinForw as Tins) as Position,
+      };
+    }
 
     const centroidPoint = createPoint(centCalc.forw, centCalc.bakw, "c");
     this.centroid = {
@@ -605,18 +714,32 @@ export class Tin extends Transform {
     };
 
     // Calculate vertices
-    const boundaryParams = {
-      convexBuf,
-      centroid: centCalc,
-      bbox,
-      minx,
-      maxx,
-      miny,
-      maxy,
-    };
-    const verticesSet = this.vertexMode === Tin.VERTEX_BIRDEYE
-      ? calculateBirdeyeVertices(boundaryParams)
-      : calculatePlainVertices(boundaryParams);
+    let verticesSet: VertexPosition[];
+    if (isV3Plain) {
+      const allGcps = this.points.map((p) => ({ forw: p[0] as Position, bakw: p[1] as Position }));
+      verticesSet = calculatePlainVerticesV3({
+        convexBuf,
+        centroid: centCalc,
+        allGcps,
+        minx,
+        maxx,
+        miny,
+        maxy,
+      });
+    } else {
+      const boundaryParams = {
+        convexBuf,
+        centroid: centCalc,
+        bbox,
+        minx,
+        maxx,
+        miny,
+        maxy,
+      };
+      verticesSet = this.vertexMode === Tin.VERTEX_BIRDEYE
+        ? calculateBirdeyeVertices(boundaryParams)
+        : calculatePlainVertices(boundaryParams);
+    }
 
     // Add vertices to points set
     const verticesList = {
@@ -690,6 +813,7 @@ export class Tin extends Transform {
       tins: this.tins!,
       targets,
       includeReciprocals,
+      numBoundaryVertices: verticesSet.length,
     });
   }
 

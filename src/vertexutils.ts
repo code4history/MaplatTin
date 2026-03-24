@@ -33,18 +33,23 @@ function counterPoint(apoint: Feature<Point>): Feature<Point> {
 
 /**
  * 頂点リストから頂点パラメータを計算する
- * @param list 頂点リスト
+ *
+ * N 個の境界頂点（v2 では常に 4 個、v3 では任意）に対応した汎用版。
+ * 各頂点について (重心, b_i, b_{(i+1)%N}) の扇形三角形と角度を計算する。
+ *
+ * @param list 境界頂点リスト（N 個）
  * @param centroid 重心点
- * @returns [角度リスト, 三角形リスト]
+ * @returns [角度リスト（N 個）, 三角形リスト（N 個）]
  */
 function vertexCalc(
   list: Feature<Point>[],
   centroid: Feature<Point>,
 ): [number[], Tins[]?] {
+  const N = list.length;
   const centCoord = centroid.geometry!.coordinates;
-  return [0, 1, 2, 3]
+  return Array.from({ length: N }, (_, i) => i)
     .map((i) => {
-      const j = (i + 1) % 4;
+      const j = (i + 1) % N;
       const itemi = list[i];
       const itemj = list[j];
       const coord = itemi.geometry!.coordinates;

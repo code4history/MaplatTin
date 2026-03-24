@@ -16,9 +16,13 @@ declare function createPoint(xy: Position, geom: Position, index: string | numbe
 declare function counterPoint(apoint: Feature<Point>): Feature<Point>;
 /**
  * 頂点リストから頂点パラメータを計算する
- * @param list 頂点リスト
+ *
+ * N 個の境界頂点（v2 では常に 4 個、v3 では任意）に対応した汎用版。
+ * 各頂点について (重心, b_i, b_{(i+1)%N}) の扇形三角形と角度を計算する。
+ *
+ * @param list 境界頂点リスト（N 個）
  * @param centroid 重心点
- * @returns [角度リスト, 三角形リスト]
+ * @returns [角度リスト（N 個）, 三角形リスト（N 個）]
  */
 declare function vertexCalc(list: Feature<Point>[], centroid: Feature<Point>): [number[], Tins[]?];
 export { counterPoint, createPoint, vertexCalc };

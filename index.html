@@ -1,46 +1,129 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>MaplatTin Test</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MaplatTin v3 Visualization</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background: #eef0f4; color: #222; }
+
+    header {
+      background: #1a2744;
+      color: #fff;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    header h1 { font-size: 15px; white-space: nowrap; }
+
+    .ctrl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; }
+
+    label { font-size: 13px; }
+    select {
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: none;
+      font-size: 13px;
+      min-width: 200px;
+    }
+
+    .btn-group { display: flex; gap: 3px; }
+    .ver-btn, .viz-tab {
+      padding: 5px 13px;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      border-radius: 4px;
+      background: transparent;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .ver-btn:hover, .viz-tab:hover { background: rgba(255,255,255,0.12); }
+    .ver-btn.active { background: #c0392b; border-color: #c0392b; }
+    .viz-tab.active { background: #3a7bd5; border-color: #3a7bd5; }
+
+    .divider {
+      width: 1px; height: 22px;
+      background: rgba(255,255,255,0.2);
+      align-self: center;
+    }
+
+    #status {
+      font-size: 12px;
+      color: #aac;
+      white-space: nowrap;
+      margin-left: auto;
+    }
+
+    #map-note {
+      font-size: 11px;
+      color: #f39c12;
+      padding: 2px 20px;
+      background: rgba(243,156,18,0.1);
+      min-height: 20px;
+    }
+
+    .panels {
+      display: flex;
+      gap: 12px;
+      padding: 10px 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .panel {
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      overflow: hidden;
+    }
+    canvas { display: block; }
+
+    #legend {
+      background: #fff;
+      margin: 0 16px 12px;
+      padding: 8px 14px;
+      border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      font-size: 12px;
+      line-height: 1.8;
+    }
+  </style>
 </head>
 <body>
-    <h1>MaplatTin Test</h1>
-    <div id="output"></div>
-    <script type="module">
-        import Tin from './src/index.ts';
-        
-        const tin = new Tin({
-            bounds: [[100, 50], [150, 150], [150, 200], [60, 190], [50, 100]],
-            strictMode: Tin.MODE_STRICT
-        });
+  <header>
+    <h1>MaplatTin v3 Visualization</h1>
+    <div class="ctrl-row">
+      <label>
+        テストケース:
+        <select id="map-select"></select>
+      </label>
+      <div class="divider"></div>
+      <div class="btn-group">
+        <button class="ver-btn" data-ver="v2">v2</button>
+        <button class="ver-btn active" data-ver="v3">v3</button>
+      </div>
+      <div class="divider"></div>
+      <div class="btn-group">
+        <button class="viz-tab active" data-viz="rays">無限遠半直線</button>
+        <button class="viz-tab" data-viz="grid">グリッド変換</button>
+        <button class="viz-tab" data-viz="roundtrip">ラウンドトリップ誤差</button>
+      </div>
+    </div>
+    <span id="status">初期化中…</span>
+  </header>
 
-        tin.setPoints([
-            [[80, 90], [160, -90]],
-            [[120, 120], [240, -120]],
-            [[100, 140], [200, -140]],
-            [[130, 180], [260, -180]],
-            [[70, 150], [140, -150]]
-        ]);
+  <div id="map-note"></div>
 
-        const run = async () => {
-            try {
-                await tin.updateTinAsync();
-                const output = document.getElementById('output');
-                const result1 = tin.transform([140, 150]);
-                const result2 = tin.transform(result1, true);
+  <div class="panels">
+    <div class="panel"><canvas id="canvas-forw"></canvas></div>
+    <div class="panel"><canvas id="canvas-bakw"></canvas></div>
+  </div>
 
-                output.innerHTML = `
-                    <h2>Test Results:</h2>
-                    <p>Forward transform [140, 150] => [${result1.join(', ')}]</p>
-                    <p>Backward transform [${result1.join(', ')}] => [${result2.join(', ')}]</p>
-                `;
-            } catch (error) {
-                console.error("Failed to update TIN", error);
-            }
-        };
+  <div id="legend">凡例を読み込み中...</div>
 
-        run();
-    </script>
+  <script type="module" src="./src/demo.ts"></script>
 </body>
 </html>
