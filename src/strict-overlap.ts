@@ -30,6 +30,10 @@ function extractVertices(tri: Tri) {
   }));
 }
 
+// フリップ後に新規作成された三角形が forw 縮退になる場合があるため、
+// 新規キーも処理できるよう反復ループを使用する（上限 MAX_FLIP_ITERATIONS 回）。
+const MAX_FLIP_ITERATIONS = 10;
+
 export function resolveOverlaps(
   tins: TinsBD,
   searchIndex: SearchIndex,
@@ -38,13 +42,15 @@ export function resolveOverlaps(
   const processedKeys = new Set<string>();
   let repaired = false;
 
-  const initialKeys = Object.keys(searchIndex);
-  for (const key of initialKeys) {
-    if (processedKeys.has(key)) continue;
-    processedKeys.add(key);
+  for (let iter = 0; iter < MAX_FLIP_ITERATIONS; iter++) {
+    let anyFlippedThisIter = false;
 
-    const trises = searchIndex[key];
-    if (!trises || trises.length < 2) continue;
+    for (const key of Object.keys(searchIndex)) {
+      if (processedKeys.has(key)) continue;
+      processedKeys.add(key);
+
+      const trises = searchIndex[key];
+      if (!trises || trises.length < 2) continue;
 
     const sharedKeys = key.split("-");
     if (sharedKeys.length !== 2) continue;
@@ -90,11 +96,22 @@ export function resolveOverlaps(
       .slice(0, 3)
       .map((coord) => toXY(coord as Position)) as [number, number][];
 
+    const triangle0Forw = trises[0].forw.geometry!.coordinates[0]
+      .slice(0, 3)
+      .map((coord) => toXY(coord as Position)) as [number, number][];
+    const triangle1Forw = trises[1].forw.geometry!.coordinates[0]
+      .slice(0, 3)
+      .map((coord) => toXY(coord as Position)) as [number, number][];
+
     // 縮退三角形（面積ゼロ）の検出: pointInTriangle は denom=0 のとき false を返すため
     // 別途面積チェックを行い、縮退三角形もフリップ候補に含める。
     // ただしフリップが有効か事前に隣接チェックを行う（後述）。
-    const degenIdx0 = isDegenerate(triangle0Bakw); // T0 が縮退
-    const degenIdx1 = isDegenerate(triangle1Bakw); // T1 が縮退
+    const degenIdx0 = isDegenerate(triangle0Bakw); // T0 が縮退（bakw）
+    const degenIdx1 = isDegenerate(triangle1Bakw); // T1 が縮退（bakw）
+
+    // forw 側の縮退検出（forw kink の原因）
+    const forwDegen0 = isDegenerate(triangle0Forw); // T0 が縮退（forw）
+    const forwDegen1 = isDegenerate(triangle1Forw); // T1 が縮退（forw）
 
     // 縮退三角形のフリップ事前チェック:
     // 縮退 T_deg=(A,B,C) の C は辺 A-B 上にある。
@@ -110,7 +127,10 @@ export function resolveOverlaps(
 
       if (degNonShared && otherNonShared) {
         const D = toXY(otherNonShared.geom as Position);
-        degenerateFlipValid = true; // フリップ有効と仮定し、違反が見つかれば false に
+        // 隣接三角形が少なくとも1つ見つかり、かつ全て干渉なし → フリップ有効
+        // 隣接三角形がない場合はフリップ不要（干渉なし）と判断して false のまま
+        let anyNeighborFound = false;
+        let flipBlockedByNeighbor = false;
 
         // 共有頂点 A, B それぞれについて隣接三角形を確認
         for (let shIdx = 0; shIdx <= 1; shIdx++) {
@@ -139,6 +159,8 @@ export function resolveOverlaps(
           );
           if (!neighborNonShared) continue;
 
+          anyNeighborFound = true;
+
           const E = toXY(neighborNonShared.geom as Position);
           const A_pos = toXY(sh.geom as Position);
           const C_pos = toXY(degNonShared.geom as Position);
@@ -151,15 +173,38 @@ export function resolveOverlaps(
 
           if (crossD * crossE > 0) {
             // 同じ側 → フリップ後に T0_new/T1_new が隣接三角形と重なる
-            degenerateFlipValid = false;
+            flipBlockedByNeighbor = true;
             break;
           }
         }
+
+        degenerateFlipValid = anyNeighborFound && !flipBlockedByNeighbor;
+      }
+    }
+
+    // forw 縮退三角形のフリップ事前チェック:
+    // forw 縮退の場合、bakw 空間の非共有2頂点が共有辺の両側にあるか確認し、
+    // フリップ後に bakw TIN が壊れないことを保証する。
+    // 面積比較は bakw 座標値（~1e7）で精度劣化するため、符号付き外積で凸性を直接判定する。
+    let forwDegenerateFlipValid = false;
+    if (forwDegen0 || forwDegen1) {
+      if (nonSharedBakw[0] && nonSharedBakw[1] && sharedBakw[0] && sharedBakw[1]) {
+        const sBakw = sharedBakw.map((item) => toXY(item!.geom as Position)) as [number, number][];
+        const nsBakw = nonSharedBakw.map((item) => toXY(item!.geom as Position)) as [number, number][];
+        // 共有辺方向ベクトル
+        const dx = sBakw[1][0] - sBakw[0][0];
+        const dy = sBakw[1][1] - sBakw[0][1];
+        // 各非共有頂点の共有辺に対する外積（符号 = どちら側にあるか）
+        const cross0 = dx * (nsBakw[0][1] - sBakw[0][1]) - dy * (nsBakw[0][0] - sBakw[0][0]);
+        const cross1 = dx * (nsBakw[1][1] - sBakw[0][1]) - dy * (nsBakw[1][0] - sBakw[0][0]);
+        // 符号が異なる（逆側にある）→ 凸四角形 → フリップ安全
+        forwDegenerateFlipValid = cross0 * cross1 < 0;
       }
     }
 
     const overlaps =
       (degenerateFlipValid) ||
+      (forwDegenerateFlipValid) ||
       pointInTriangle(
         toXY(nonSharedBakw[0]!.geom as Position),
         triangle1Bakw,
@@ -224,7 +269,11 @@ export function resolveOverlaps(
       }, tins);
     });
 
-    repaired = true;
+      anyFlippedThisIter = true;
+      repaired = true;
+    }
+
+    if (!anyFlippedThisIter) break;
   }
 
   return repaired;
