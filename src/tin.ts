@@ -40,8 +40,10 @@ import type {
 import constrainedTin from "./constrained-tin.ts";
 import {
   calculateBirdeyeVertices,
+  calculateBirdeyeVerticesV3,
   calculatePlainVertices,
   calculatePlainVerticesV3,
+  type BoundaryVerticesParams,
 } from "./boundary-vertices.ts";
 import { restoreV3State } from "./transform-v3.ts";
 import findIntersections from "./kinks.ts";
@@ -574,8 +576,9 @@ export class Tin extends Transform {
 
     // v3 plain mode: no explicit bounds and not birdeye — derive bbox from GCPs.
     const isV3Plain = !this.useV2Algorithm && !this.bounds && this.vertexMode !== Tin.VERTEX_BIRDEYE;
+    // v3 birdeye mode: no v2 algorithm and birdeye — use image bounds + per-quadrant ratios.
+    const isV3Birdeye = !this.useV2Algorithm && this.vertexMode === Tin.VERTEX_BIRDEYE;
     let rawPointsSet: { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
-    let bbox: Position[];
     let minx: number, maxx: number, miny: number, maxy: number;
 
     if (isV3Plain) {
@@ -596,11 +599,9 @@ export class Tin extends Transform {
       maxx = gcpMaxx + 0.05 * gcpW;
       miny = gcpMiny - 0.05 * gcpH;
       maxy = gcpMaxy + 0.05 * gcpH;
-      bbox = [[minx, miny], [maxx, miny], [minx, maxy], [maxx, maxy]];
     } else {
       const validated = this.validateAndPrepareInputs();
       rawPointsSet = validated.pointsSet;
-      bbox = validated.bbox;
       minx = validated.minx;
       maxx = validated.maxx;
       miny = validated.miny;
@@ -714,28 +715,29 @@ export class Tin extends Transform {
     };
 
     // Calculate vertices
+    // allGcps includes both GCPs and edge intermediate nodes so that
+    // checkAndAdjustVerticesN can guarantee all constrained-edge bakw positions
+    // are enclosed within the boundary polygon.
+    const allGcps: BoundaryVerticesParams["allGcps"] = [
+      ...this.points.map((p) => ({ forw: p[0] as Position, bakw: p[1] as Position })),
+      ...(this.edgeNodes ?? []).map((n) => ({ forw: n[0] as Position, bakw: n[1] as Position })),
+    ];
+    const boundaryParams: BoundaryVerticesParams = {
+      convexBuf,
+      centroid: centCalc,
+      allGcps,
+      minx,
+      maxx,
+      miny,
+      maxy,
+    };
+
     let verticesSet: VertexPosition[];
     if (isV3Plain) {
-      const allGcps = this.points.map((p) => ({ forw: p[0] as Position, bakw: p[1] as Position }));
-      verticesSet = calculatePlainVerticesV3({
-        convexBuf,
-        centroid: centCalc,
-        allGcps,
-        minx,
-        maxx,
-        miny,
-        maxy,
-      });
+      verticesSet = calculatePlainVerticesV3(boundaryParams);
+    } else if (isV3Birdeye) {
+      verticesSet = calculateBirdeyeVerticesV3(boundaryParams);
     } else {
-      const boundaryParams = {
-        convexBuf,
-        centroid: centCalc,
-        bbox,
-        minx,
-        maxx,
-        miny,
-        maxy,
-      };
       verticesSet = this.vertexMode === Tin.VERTEX_BIRDEYE
         ? calculateBirdeyeVertices(boundaryParams)
         : calculatePlainVertices(boundaryParams);

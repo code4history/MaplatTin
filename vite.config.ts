@@ -77,16 +77,19 @@ export default defineConfig({
     }
     : {
       outDir: "dist-demo",
-      emptyOutDir: true
+      emptyOutDir: true,
+      rollupOptions: {
+        input: resolve(__dirname, "demo/index.html"),
+      },
     },
   server: {
-    open: "/"
+    open: "/demo/",
   },
   plugins: [
     removeTsExtensions(),
     dts({
       outDir: "dist",
-      exclude: ["tests", "node_modules"],
+      exclude: ["tests", "demo", "node_modules"],
       rollupTypes: false,
       tsconfigPath: "./tsconfig.json",
       logLevel: "silent",

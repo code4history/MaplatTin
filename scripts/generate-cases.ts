@@ -24,6 +24,7 @@ const root = path.resolve(__dirname, "..");
 const MAPS = [
   "fushimijo_maplat",
   "naramachi_yasui_bunko",
+  "naramachi_yasui_revised",
   "miesan_ginza_map",
   "tatebayashi_castle_akimoto",
   "tatebayashi_kaei_jokamachi",

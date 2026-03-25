@@ -177,14 +177,13 @@ describe("Tin — build accuracy (GCP maps)", () => {
 // ─── v2 と v3 で頂点数・version が異なることを確認 ───────────────────────────
 
 describe("Tin — v2 vs v3 format differences", () => {
-  // NOTE: naramachi_yasui_bunko は birdeye モードのため v2/v3 で頂点数は同じ（4頂点）。
-  // このテストは plain モードのマップのみ対象。
+  // NOTE: V3 は plain/birdeye を問わず up to 36 頂点（withEdgeVertices=true）。
+  // V2 は常に 4 頂点。
   (["fushimijo_maplat", "miesan_ginza_map", "tatebayashi_castle_akimoto", "tatebayashi_kaei_jokamachi"] as const).forEach((key) => {
     const label = key === "fushimijo_maplat" ? "Fushimi" : key === "miesan_ginza_map" ? "Miesan" : key === "tatebayashi_castle_akimoto" ? "Tatebayashi Castle" : "Tatebayashi Jokamachi";
-    it(`${label}: v3 has more boundary vertices than v2 (plain mode)`, () => {
+    it(`${label}: v3 has more boundary vertices than v2`, () => {
       const v2 = loadCompiled(`${key}_v2`);
       const v3 = loadCompiled(`${key}_v3`);
-      if (v2.vertexMode === "birdeye") return; // birdeye は v2/v3 同一
       expect(v2.version).toEqual(2.00703);
       expect(v3.version).toEqual(3);
       expect(v3.vertices_points.length).toBeGreaterThan(v2.vertices_points.length);

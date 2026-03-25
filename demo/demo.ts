@@ -7,8 +7,8 @@
  * compiled ファイルから直接読み込む（高速・再 build 不要）
  */
 
-import { Tin } from "./index.ts";
-import type { Compiled, PointSet } from "./index.ts";
+import { Tin } from "../src/index.ts";
+import type { Compiled, PointSet } from "../src/index.ts";
 
 // ─── 型 ──────────────────────────────────────────────────────────────────────
 
@@ -33,7 +33,8 @@ interface LoadedState {
 
 const MAPS: MapConfig[] = [
   { label: "伏見城 (plain)",           key: "fushimijo_maplat" },
-  { label: "奈良町安井文庫 (birdeye)", key: "naramachi_yasui_bunko" },
+  { label: "奈良町安井文庫 (birdeye)", key: "naramachi_yasui_revised",
+    note: "kinks 除去のため問題GCPを削除したリビジョンデータ" },
   { label: "銀座 (pre-compiled)",      key: "miesan_ginza_map",
     note: "compiled データから GCP を復元して v2/v3 それぞれで再コンパイル済み" },
   { label: "館林城 (pre-compiled)",    key: "tatebayashi_castle_akimoto",
@@ -108,12 +109,33 @@ function getEnvelopeCorners(compiled: Compiled, tin: Tin, dir: "forw" | "bakw"):
     .filter((r): r is Pos => r !== false && r !== null);
 }
 
-/** envelope ([0,0,w,h]) 内に n+1 本のグリッド線座標を生成 */
-function gridPoints(compiled: Compiled, n: number): { xs: number[]; ys: number[] } {
+/**
+ * envelope [0,0,w,h] と boundary quadrilateral (vertices_points) の
+ * 合算 bbox を 10% 外側に膨らませたグリッド定義域を返す。
+ * TIN は無限遠まで保証しているため envelope 外もデモ対象にする。
+ */
+function extendedGridRange(compiled: Compiled): { x0: number; x1: number; y0: number; y1: number } {
   const [w, h] = compiled.wh!;
+  const pts: Pos[] = [
+    [0, 0], [w, 0], [w, h], [0, h],
+    ...compiled.vertices_points.map(v => v[0] as Pos),
+  ];
+  let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+  for (const [x, y] of pts) {
+    mnx = Math.min(mnx, x); mny = Math.min(mny, y);
+    mxx = Math.max(mxx, x); mxy = Math.max(mxy, y);
+  }
+  const dx = (mxx - mnx) * 0.1;
+  const dy = (mxy - mny) * 0.1;
+  return { x0: mnx - dx, x1: mxx + dx, y0: mny - dy, y1: mxy + dy };
+}
+
+/** グリッド線座標を生成（envelope+四辺形の bbox 外側 10% 拡張域） */
+function gridPoints(compiled: Compiled, n: number): { xs: number[]; ys: number[] } {
+  const { x0, x1, y0, y1 } = extendedGridRange(compiled);
   return {
-    xs: Array.from({ length: n + 1 }, (_, i) => (i / n) * w),
-    ys: Array.from({ length: n + 1 }, (_, j) => (j / n) * h),
+    xs: Array.from({ length: n + 1 }, (_, i) => x0 + (i / n) * (x1 - x0)),
+    ys: Array.from({ length: n + 1 }, (_, j) => y0 + (j / n) * (y1 - y0)),
   };
 }
 
@@ -126,12 +148,18 @@ function clearCanvas(ctx: CanvasRenderingContext2D) {
 }
 
 function buildViewport(compiled: Compiled, dir: "forw" | "bakw"): Viewport {
+  return buildViewportWithExtra(compiled, dir, []);
+}
+
+/** extra: ビューポートに強制包含させる追加点（拡張グリッド範囲の隅など） */
+function buildViewportWithExtra(compiled: Compiled, dir: "forw" | "bakw", extra: Pos[]): Viewport {
   const idx = dir === "forw" ? 0 : 1;
   const [w, h] = compiled.wh!;
   const pts: Pos[] = [
     ...compiled.points.map(p => p[idx] as Pos),
     ...compiled.vertices_points.map(v => v[idx] as Pos),
     ...(compiled.centroid_point?.[idx] ? [compiled.centroid_point[idx] as Pos] : []),
+    ...extra,
   ];
   // forw: envelope [0,0,w,h] の4隅を必ず含める（v2/v3 間で表示範囲を統一）
   if (dir === "forw") {
@@ -363,7 +391,9 @@ function vizRays(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D,
 
 function vizGrid(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D, state: LoadedState, legendEl: HTMLElement) {
   const { tin, compiled } = state;
-  const vpF = buildViewport(compiled, "forw");
+  // ビューポートに拡張グリッド範囲の四隅を追加して確実に収める
+  const { x0: gx0, x1: gx1, y0: gy0, y1: gy1 } = extendedGridRange(compiled);
+  const vpF = buildViewportWithExtra(compiled, "forw",  [[gx0, gy0], [gx1, gy1]]);
   const vpB = buildViewport(compiled, "bakw");
 
   // グリッドの定義域は envelope = マップ画像領域 [0,0,w,h]
@@ -434,7 +464,7 @@ function vizGrid(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D,
   drawLabel(ctxB, "Target (Bakw) — deformed grid");
 
   legendEl.innerHTML = `
-    <span style="color:rgba(40,120,40,0.9)">━━</span> グリッド (${GRID_N}×${GRID_N}、envelope 全域) &nbsp;|&nbsp;
+    <span style="color:rgba(40,120,40,0.9)">━━</span> グリッド (${GRID_N}×${GRID_N}、envelope+四辺形 bbox 外側10%拡張) &nbsp;|&nbsp;
     <span style="color:#27ae60">━━</span> envelope（マップ画像領域 [0,0,w,h]）&nbsp;|&nbsp;
     白抜け = transform() が false（変換不可）
   `;
@@ -444,8 +474,6 @@ function vizGrid(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D,
 
 function vizRoundtrip(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D, state: LoadedState, legendEl: HTMLElement) {
   const { tin, compiled } = state;
-  const vpF = buildViewport(compiled, "forw");
-  const vpB = buildViewport(compiled, "bakw");
 
   if (compiled.strict_status === "strict_error") {
     for (const ctx of [ctxF, ctxB]) {
@@ -460,8 +488,11 @@ function vizRoundtrip(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingConte
     return;
   }
 
-  // ヒートマップの定義域は envelope = マップ画像領域 [0,0,w,h]
+  // ヒートマップの定義域: envelope + 四辺形の bbox 外側 10% 拡張
   const { xs, ys } = gridPoints(compiled, RT_GRID_N);
+  const { x0: gx0, x1: gx1, y0: gy0, y1: gy1 } = extendedGridRange(compiled);
+  const vpF = buildViewportWithExtra(compiled, "forw",  [[gx0, gy0], [gx1, gy1]]);
+  const vpB = buildViewport(compiled, "bakw");
   const envF = getEnvelopeCorners(compiled, tin, "forw");
   const envB = getEnvelopeCorners(compiled, tin, "bakw");
 
@@ -559,7 +590,7 @@ function vizRoundtrip(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingConte
 // ─── マップ読み込み ───────────────────────────────────────────────────────────
 
 async function loadState(mapConfig: MapConfig, ver: FormatVer): Promise<LoadedState> {
-  const filePath = `./tests/compiled/${mapConfig.key}_${ver}.json`;
+  const filePath = `../tests/compiled/${mapConfig.key}_${ver}.json`;
   const compiled: Compiled = await fetch(filePath).then(r => {
     if (!r.ok) throw new Error(`${r.status} ${r.url}`);
     return r.json();

@@ -35,6 +35,7 @@ interface MapDef {
 const MAPS: MapDef[] = [
   { key: "fushimijo_maplat",       mapFile: "tests/maps/fushimijo_maplat.json" },
   { key: "naramachi_yasui_bunko",  mapFile: "tests/maps/naramachi_yasui_bunko.json" },
+  { key: "naramachi_yasui_revised", mapFile: "tests/maps/naramachi_yasui_revised.json" },
   { key: "miesan_ginza_map",            mapFile: "tests/maps/miesan_ginza_map.json" },
   { key: "tatebayashi_castle_akimoto",  mapFile: "tests/maps/tatebayashi_castle_akimoto.json" },
   { key: "tatebayashi_kaei_jokamachi",  mapFile: "tests/maps/tatebayashi_kaei_jokamachi.json" },

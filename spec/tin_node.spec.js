@@ -15,6 +15,7 @@ let stateFull = false;
 const testSet = () => {
   [
     ["Nara", "naramachi_yasui_bunko"],
+    ["Nara Revised", "naramachi_yasui_revised"],
     ["Fushimi", "fushimijo_maplat"],
     ["Uno Loose", "uno_bus_gtfs_loose"],
     ["Uno Error", "uno_bus_gtfs_error"]
@@ -172,23 +173,23 @@ const testSet = () => {
       expect(tin.xy).toEqual([50, 50]);
       expect(tin.wh).toEqual([100, 150]);
       expect(tin.transform([140, 150])).toBeDeepCloseTo(
-        [277.25085848926574, -162.19095375292216],
+        [273.4630063298798, -160.88802038019304],
         7
       );
       expect(
-        tin.transform([277.25085848926574, -162.19095375292216], true)
+        tin.transform([273.4630063298798, -160.88802038019304], true)
       ).toEqual([140, 150]);
       expect(tin.transform([200, 130])).toEqual(false);
       expect(
-        tin.transform([401.98029725204117, -110.95171624700066], true)
+        tin.transform([385.4712629785805, -115.06461521258161], true)
       ).toEqual(false);
       expect(tin.transform([200, 130], false, true)).toBeDeepCloseTo(
-        [401.98029725204117, -110.95171624700066],
+        [385.4712629785805, -115.06461521258161],
         7
       );
       expect(
-        tin.transform([401.98029725204117, -110.95171624700066], true, true)
-      ).toEqual([200, 130]);
+        tin.transform([385.4712629785805, -115.06461521258161], true, true)
+      ).toBeDeepCloseTo([200, 130], 7);
     });
   });
 

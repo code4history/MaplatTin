@@ -7,86 +7,36 @@ interface ConvexEntry {
   bakw: Position;
 }
 
-interface BoundaryVerticesParams {
+/**
+ * Unified parameters for all boundary vertex computations (V2 and V3).
+ *
+ * `allGcps` must include **all** interior points: GCPs from `this.points` **and**
+ * edge intermediate nodes from `this.edgeNodes`.  This is necessary so that
+ * `checkAndAdjustVerticesN` can guarantee that every constrained-edge vertex in
+ * bakw space lies inside the boundary polygon.
+ */
+export interface BoundaryVerticesParams {
   convexBuf: Record<string, ConvexEntry>;
   centroid: { forw: Position; bakw: Position };
-  bbox: Position[];
+  /** GCPs + edge intermediate nodes */
+  allGcps: Array<{ forw: Position; bakw: Position }>;
   minx: number;
   maxx: number;
   miny: number;
   maxy: number;
 }
 
-type EdgeRayBuckets = Array<Array<ConvexEntry>>;
+/** Alias kept for backward-compatibility with callers that import this name. */
+export type BoundaryVerticesV3Params = BoundaryVerticesParams;
+
+// ─── Internal types ──────────────────────────────────────────────────────────
+
 type SamplePair = {
   forw: [number, number];
   bakw: [number, number];
 };
 
-function buildEdgeBuckets(
-  convexBuf: Record<string, ConvexEntry>,
-  centroid: { forw: Position; bakw: Position },
-  minx: number,
-  maxx: number,
-  miny: number,
-  maxy: number,
-): EdgeRayBuckets {
-  return Object.keys(convexBuf).reduce((prev, key) => {
-    const item = convexBuf[key];
-    const forw = item.forw;
-    const bakw = item.bakw;
-
-    const vec = {
-      forw: [forw[0] - centroid.forw[0], forw[1] - centroid.forw[1]],
-      bakw: [bakw[0] - centroid.bakw[0], bakw[1] - centroid.bakw[1]],
-    };
-
-    const xRate = vec.forw[0] === 0
-      ? Infinity
-      : ((vec.forw[0] < 0 ? minx : maxx) - centroid.forw[0]) / vec.forw[0];
-    const yRate = vec.forw[1] === 0
-      ? Infinity
-      : ((vec.forw[1] < 0 ? miny : maxy) - centroid.forw[1]) / vec.forw[1];
-
-    if (Math.abs(xRate) / Math.abs(yRate) < 1.1) {
-      const node = {
-        forw: [
-          vec.forw[0] * xRate + centroid.forw[0],
-          vec.forw[1] * xRate + centroid.forw[1],
-        ] as Position,
-        bakw: [
-          vec.bakw[0] * xRate + centroid.bakw[0],
-          vec.bakw[1] * xRate + centroid.bakw[1],
-        ] as Position,
-      };
-      if (vec.forw[0] < 0) {
-        prev[3].push(node);
-      } else {
-        prev[1].push(node);
-      }
-    }
-
-    if (Math.abs(yRate) / Math.abs(xRate) < 1.1) {
-      const node = {
-        forw: [
-          vec.forw[0] * yRate + centroid.forw[0],
-          vec.forw[1] * yRate + centroid.forw[1],
-        ] as Position,
-        bakw: [
-          vec.bakw[0] * yRate + centroid.bakw[0],
-          vec.bakw[1] * yRate + centroid.bakw[1],
-        ] as Position,
-      };
-      if (vec.forw[1] < 0) {
-        prev[0].push(node);
-      } else {
-        prev[2].push(node);
-      }
-    }
-
-    return prev;
-  }, [[], [], [], []] as EdgeRayBuckets);
-}
+// ─── Ratio helpers ───────────────────────────────────────────────────────────
 
 function collectSamples(
   convexBuf: Record<string, ConvexEntry>,
@@ -172,136 +122,112 @@ function buildVertexRatio(
   return vertexRatio;
 }
 
-function checkAndAdjustVertices(
-  vertices: VertexPosition[],
-  edgeNodes: EdgeRayBuckets,
-  centroid: { forw: Position; bakw: Position },
-): void {
-  const expandRatio = [1, 1, 1, 1];
+// ─── Geometry helpers ────────────────────────────────────────────────────────
 
-  for (let i = 0; i < 4; i++) {
-    const j = (i + 1) % 4;
-    const side = lineString([vertices[i].bakw, vertices[j].bakw]);
-
-    edgeNodes[i].map((node) => {
-      const line = lineString([centroid.bakw, node.bakw]);
-      const intersect = lineIntersect(side, line);
-
-      if (intersect.features.length > 0 && intersect.features[0].geometry) {
-        const intersectPt = intersect.features[0];
-        const distance = Math.sqrt(
-          Math.pow(node.bakw[0] - centroid.bakw[0], 2) +
-          Math.pow(node.bakw[1] - centroid.bakw[1], 2),
-        );
-        const intDistance = Math.sqrt(
-          Math.pow(
-            intersectPt.geometry.coordinates[0] - centroid.bakw[0],
-            2,
-          ) +
-          Math.pow(
-            intersectPt.geometry.coordinates[1] - centroid.bakw[1],
-            2,
-          ),
-        );
-        const ratio = distance / intDistance;
-
-        if (ratio > expandRatio[i]) expandRatio[i] = ratio;
-        if (ratio > expandRatio[j]) expandRatio[j] = ratio;
-      }
-    });
-  }
-
-  vertices.forEach((vertex, i) => {
-    const ratio = expandRatio[i];
-    const bakw: Position = [
-      (vertex.bakw[0] - centroid.bakw[0]) * ratio + centroid.bakw[0],
-      (vertex.bakw[1] - centroid.bakw[1]) * ratio + centroid.bakw[1],
-    ];
-    vertex.bakw = bakw;
-  });
+/**
+ * Return quadrant index (0–3) of `forw` relative to `centroidForw`.
+ *
+ * Quadrant encoding:
+ *   q0: Δx≤0, Δy≤0   q1: Δx>0, Δy≤0
+ *   q2: Δx≤0, Δy>0   q3: Δx>0, Δy>0
+ */
+function forwQuadrant(forw: Position, centroidForw: Position): number {
+  let q = 0;
+  if (forw[0] > centroidForw[0]) q += 1;
+  if (forw[1] > centroidForw[1]) q += 2;
+  return q;
 }
 
-function finalizeVertices(
-  vertexRatio: Array<[number, number]>,
-  bbox: Position[],
+/**
+ * Compute the bakw position for a given forw position using the centroid and
+ * an aggregate [scale, rotation] ratio.
+ */
+function computeVertexBakwFromRatio(
+  forwPos: Position,
   centroid: { forw: Position; bakw: Position },
-  edgeNodes: EdgeRayBuckets,
-): VertexPosition[] {
-  const vertices = vertexRatio.map((ratio, index) => {
-    const forVertex = bbox[index];
-    const forDelta = [
-      forVertex[0] - centroid.forw[0],
-      forVertex[1] - centroid.forw[1],
-    ];
-    const forDistance = Math.sqrt(
-      Math.pow(forDelta[0], 2) + Math.pow(forDelta[1], 2),
+  ratio: [number, number],
+): Position {
+  const forDelta = [
+    forwPos[0] - centroid.forw[0],
+    forwPos[1] - centroid.forw[1],
+  ];
+  const forDistance = Math.sqrt(forDelta[0] ** 2 + forDelta[1] ** 2);
+  const bakDistance = forDistance / ratio[0];
+  const bakTheta = Math.atan2(forDelta[0], forDelta[1]) - ratio[1];
+  return [
+    centroid.bakw[0] + bakDistance * Math.sin(bakTheta),
+    centroid.bakw[1] - bakDistance * Math.cos(bakTheta),
+  ];
+}
+
+/**
+ * Find the intersection of the ray from `centroid` through `rayDir` with the
+ * segment [segStart, segEnd].  Returns {t, point} where t > 0 is the parameter
+ * along the ray, or null if no valid intersection.
+ */
+function findRaySegmentIntersection(
+  centroid: Position,
+  rayDir: Position,
+  segStart: Position,
+  segEnd: Position,
+): { t: number; point: Position } | null {
+  const dx = rayDir[0] - centroid[0];
+  const dy = rayDir[1] - centroid[1];
+  if (Math.abs(dx) < 1e-12 && Math.abs(dy) < 1e-12) return null;
+
+  const ex = segEnd[0] - segStart[0];
+  const ey = segEnd[1] - segStart[1];
+  const fx = segStart[0] - centroid[0];
+  const fy = segStart[1] - centroid[1];
+
+  const denom = dx * ey - dy * ex;
+  if (Math.abs(denom) < 1e-12) return null;
+
+  const t = (fx * ey - fy * ex) / denom;
+  const s = (fx * dy - fy * dx) / denom;
+
+  if (t <= 1e-10) return null;
+  if (s < -1e-10 || s > 1 + 1e-10) return null;
+
+  return { t, point: [centroid[0] + t * dx, centroid[1] + t * dy] };
+}
+
+/**
+ * Find the exit intersection of the ray from `centroid` through `rayDir` with
+ * the convex polygon formed by `corners` (angularly-sorted VertexPosition[]).
+ */
+function findRayQuadIntersection(
+  centroid: Position,
+  rayDir: Position,
+  corners: VertexPosition[],
+): Position | null {
+  const N = corners.length;
+  let bestT = -Infinity;
+  let bestPoint: Position | null = null;
+
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    const result = findRaySegmentIntersection(
+      centroid, rayDir, corners[i].bakw, corners[j].bakw,
     );
-    const bakDistance = forDistance / ratio[0];
-    const bakTheta = Math.atan2(forDelta[0], forDelta[1]) - ratio[1];
-    const bakw: Position = [
-      centroid.bakw[0] + bakDistance * Math.sin(bakTheta),
-      centroid.bakw[1] - bakDistance * Math.cos(bakTheta),
-    ];
-
-    return { forw: forVertex, bakw };
-  });
-
-  const swap = vertices[2];
-  vertices[2] = vertices[3];
-  vertices[3] = swap;
-
-  checkAndAdjustVertices(vertices, edgeNodes, centroid);
-
-  return vertices;
+    if (result && result.t > bestT) {
+      bestT = result.t;
+      bestPoint = result.point;
+    }
+  }
+  return bestPoint;
 }
 
-/**
- * Calculate the standard four boundary vertices around the centroid.
- */
-export function calculatePlainVertices(
-  params: BoundaryVerticesParams,
-): VertexPosition[] {
-  const { convexBuf, centroid, bbox, minx, maxx, miny, maxy } = params;
-
-  const edgeNodes = buildEdgeBuckets(convexBuf, centroid, minx, maxx, miny, maxy);
-  const vertexRatio = buildVertexRatio(convexBuf, centroid, "plain");
-
-  return finalizeVertices(vertexRatio, bbox, centroid, edgeNodes);
+/** Convert a forw position to [0, 360) degrees using the atan2(Δx, Δy) convention. */
+function toAngleDeg360(pos: Position, centroid: Position): number {
+  const rawRad = Math.atan2(pos[0] - centroid[0], pos[1] - centroid[1]);
+  const deg = rawRad * (180 / Math.PI);
+  return deg < 0 ? deg + 360 : deg;
 }
-
-/**
- * Calculate boundary vertices for bird's-eye mode using quadrant-aware ratios.
- */
-export function calculateBirdeyeVertices(
-  params: BoundaryVerticesParams,
-): VertexPosition[] {
-  const { convexBuf, centroid, bbox, minx, maxx, miny, maxy } = params;
-  const edgeNodes = buildEdgeBuckets(convexBuf, centroid, minx, maxx, miny, maxy);
-  const vertexRatio = buildVertexRatio(convexBuf, centroid, "birdeye");
-
-  return finalizeVertices(vertexRatio, bbox, centroid, edgeNodes);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Format version 3 – plain-mode boundary vertices (N vertices)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface BoundaryVerticesV3Params {
-  convexBuf: Record<string, ConvexEntry>;
-  centroid: { forw: Position; bakw: Position };
-  /** All GCPs as { forw, bakw } pairs — used for bin-based selection. */
-  allGcps: Array<{ forw: Position; bakw: Position }>;
-  minx: number;
-  maxx: number;
-  miny: number;
-  maxy: number;
-}
-
 
 /**
  * Find the first intersection of the ray from `centroid` THROUGH `vertex` with
- * the axis-aligned bbox defined by [minx,maxx] × [miny,maxy].
- * Returns null if the ray does not intersect the bbox in the forward direction.
+ * the axis-aligned bbox [minx,maxx] × [miny,maxy].
  */
 function findRayBboxIntersection(
   centroid: Position,
@@ -343,116 +269,23 @@ function findRayBboxIntersection(
 }
 
 /**
- * Compute the bakw position for a given forw position using the centroid
- * and aggregate [scale, rotation] ratio.
- */
-function computeVertexBakwFromRatio(
-  forwPos: Position,
-  centroid: { forw: Position; bakw: Position },
-  ratio: [number, number],
-): Position {
-  const forDelta = [
-    forwPos[0] - centroid.forw[0],
-    forwPos[1] - centroid.forw[1],
-  ];
-  const forDistance = Math.sqrt(forDelta[0] ** 2 + forDelta[1] ** 2);
-  const bakDistance = forDistance / ratio[0];
-  const bakTheta = Math.atan2(forDelta[0], forDelta[1]) - ratio[1];
-  return [
-    centroid.bakw[0] + bakDistance * Math.sin(bakTheta),
-    centroid.bakw[1] - bakDistance * Math.cos(bakTheta),
-  ];
-}
-
-/** Convert a position to [0, 360) degrees using the atan2(Δx, Δy) convention. */
-function toAngleDeg360(pos: Position, centroid: Position): number {
-  const rawRad = Math.atan2(pos[0] - centroid[0], pos[1] - centroid[1]);
-  const deg = rawRad * (180 / Math.PI);
-  return deg < 0 ? deg + 360 : deg;
-}
-
-/**
- * Find the intersection of the ray from `centroid` through `rayDir` (and beyond)
- * with the segment [segStart, segEnd].
- * Returns { t, point } where t > 0 is the parameter along the ray, or null if no
- * valid intersection exists (wrong direction, parallel, or outside segment).
- */
-function findRaySegmentIntersection(
-  centroid: Position,
-  rayDir: Position,
-  segStart: Position,
-  segEnd: Position,
-): { t: number; point: Position } | null {
-  const dx = rayDir[0] - centroid[0];
-  const dy = rayDir[1] - centroid[1];
-  if (Math.abs(dx) < 1e-12 && Math.abs(dy) < 1e-12) return null;
-
-  const ex = segEnd[0] - segStart[0];
-  const ey = segEnd[1] - segStart[1];
-  const fx = segStart[0] - centroid[0];
-  const fy = segStart[1] - centroid[1];
-
-  const denom = dx * ey - dy * ex;
-  if (Math.abs(denom) < 1e-12) return null; // parallel
-
-  const t = (fx * ey - fy * ex) / denom;
-  const s = (fx * dy - fy * dx) / denom;
-
-  if (t <= 1e-10) return null; // behind or at centroid
-  if (s < -1e-10 || s > 1 + 1e-10) return null; // outside segment
-
-  return { t, point: [centroid[0] + t * dx, centroid[1] + t * dy] };
-}
-
-/**
- * Find the intersection of the ray from `centroid` through `rayDir` with the
- * bakw quadrilateral defined by `corners` (angularly sorted VertexPosition[]).
- * For a convex quad with centroid inside, returns the exit intersection (largest t).
- */
-function findRayQuadIntersection(
-  centroid: Position,
-  rayDir: Position,
-  corners: VertexPosition[],
-): Position | null {
-  const N = corners.length;
-  let bestT = -Infinity;
-  let bestPoint: Position | null = null;
-
-  for (let i = 0; i < N; i++) {
-    const j = (i + 1) % N;
-    const result = findRaySegmentIntersection(
-      centroid, rayDir, corners[i].bakw, corners[j].bakw,
-    );
-    if (result && result.t > bestT) {
-      bestT = result.t;
-      bestPoint = result.point;
-    }
-  }
-  return bestPoint;
-}
-
-/**
- * Generalised checkAndAdjustVertices for N boundary vertices.
+ * Expand N boundary vertices radially from `centroid.bakw` so that every point
+ * in `allPoints` has its bakw position enclosed inside the polygon formed by
+ * `vertices`.
  *
- * For each edge node, tests all N bakw quad sides to find the one the node
- * exits through (for convex quads, exactly one side is found if the node is
- * outside). Expands the two endpoints of that side so the bakw quad encloses
- * every edge node's bakw position.
- *
- * Testing all sides (instead of only the forw-angle-assigned side) ensures
- * correctness even when the forw→bakw transformation has significant rotation.
+ * For each point, tests all N bakw polygon sides to find where the ray
+ * [centroid.bakw → point.bakw] exits.  If the point is outside that side, both
+ * endpoints of the side are scaled outward until the point is enclosed.
  */
 function checkAndAdjustVerticesN(
   vertices: VertexPosition[],
-  allEdgeNodes: Array<{ forw: Position; bakw: Position }>,
+  allPoints: Array<{ forw: Position; bakw: Position }>,
   centroid: { forw: Position; bakw: Position },
 ): void {
   const N = vertices.length;
   const expandRatio = new Array<number>(N).fill(1);
 
-  for (const node of allEdgeNodes) {
-    // Try every bakw quad side — for a convex quad with centroid inside,
-    // the segment [centroid → node.bakw] crosses at most one side.
+  for (const node of allPoints) {
     for (let i = 0; i < N; i++) {
       const j = (i + 1) % N;
       const side = lineString([vertices[i].bakw, vertices[j].bakw]);
@@ -485,31 +318,54 @@ function checkAndAdjustVerticesN(
   });
 }
 
+// ─── Unified core ────────────────────────────────────────────────────────────
+
 /**
- * Calculate boundary vertices for Format Version 3 plain mode.
+ * Unified boundary vertex computation shared by V2 (4 corners) and V3 (4 corners
+ * + up to 32 edge vertices).
  *
- * Algorithm: "10°-Uniform Bins + Corner Priority"
- *  - 36 bins of 10° each uniformly partition the 360° around the centroid.
- *  - The 4 bbox corners each claim the bin they fall into (up to 4 corner bins).
- *  - Each remaining bin selects the most-exterior GCP (max forw distance from
- *    centroid) in that angular range.
- *  - forw edge point = centroid_forw → selected_GCP_forw ray ∩ forw bbox
- *  - bakw edge point = centroid_bakw → selected_GCP_bakw ray ∩ bakw quad
- *    (computed independently — NOT via transform()).
- *  - Allocation per side is automatically proportional to each side's arc span.
+ * ## Algorithm
  *
- * @returns Sorted list of up to 36 boundary vertices.
+ * ### Phase 1 – Ratios
+ * Compute per-quadrant (birdeye) or aggregate (plain) [minScale, avgRotation]
+ * ratios from the convex hull of all GCPs.
+ *
+ * ### Phase 2 – 4 bbox corners
+ * Each bbox corner's bakw position is extrapolated using the ratio for its
+ * quadrant.  `checkAndAdjustVerticesN` then expands corners radially so that
+ * **every point in `allGcps`** (GCPs + edge intermediate nodes) is enclosed.
+ *
+ * If `withEdgeVertices` is false the function returns here (V2 path).
+ *
+ * ### Phase 3 – 36 × 10° bins (V3 only)
+ * For each non-corner 10° bin the most-extreme interior point (GCP or edge
+ * node) in that angular range is used as a guide:
+ *
+ * - **bakw direction**: linearly interpolated rotation between the two
+ *   bracketing corner bakw rotations → smooth, no discontinuity.
+ * - **bakw distance**: the guide point's actual bakw distance from centroid,
+ *   scaled up by `forwEdge_dist / forwGuide_dist` (extrapolation to the bbox
+ *   boundary).  This gives non-collinear positions independent of the
+ *   corner-quad sides and avoids degenerate (zero-area) triangles.
+ *
+ * Bins with no interior points fall back to the interpolated corner scale.
+ *
+ * ### Phase 4 – Sort + final adjust
+ * All vertices are sorted by forw angle.  `checkAndAdjustVerticesN` is called
+ * again on the full set so that the final polygon correctly encloses every
+ * interior point.
  */
-export function calculatePlainVerticesV3(
-  params: BoundaryVerticesV3Params,
+function calculateVerticesCore(
+  params: BoundaryVerticesParams,
+  mode: "plain" | "birdeye",
+  withEdgeVertices: boolean,
 ): VertexPosition[] {
   const { convexBuf, centroid, allGcps, minx, maxx, miny, maxy } = params;
 
-  // ── Phase 1: aggregate [scale, rotation] ratio ───────────────────────────
-  const { aggregate } = collectSamples(convexBuf, centroid);
-  const ratio = reduceSamples(aggregate);
+  // ── Phase 1 ───────────────────────────────────────────────────────────────
+  const cornerRatios = buildVertexRatio(convexBuf, centroid, mode);
 
-  // ── Phase 2: 4 bbox corner vertices (forw + extrapolated bakw) ───────────
+  // ── Phase 2: 4 bbox corner vertices ───────────────────────────────────────
   const bboxCornerForws: Position[] = [
     [minx, miny],
     [maxx, miny],
@@ -518,59 +374,116 @@ export function calculatePlainVerticesV3(
   ];
   const cornerVertices: VertexPosition[] = bboxCornerForws.map((forw) => ({
     forw,
-    bakw: computeVertexBakwFromRatio(forw, centroid, ratio),
+    bakw: computeVertexBakwFromRatio(
+      forw,
+      centroid,
+      cornerRatios[forwQuadrant(forw, centroid.forw)],
+    ),
   }));
 
-  // Sort corners ascending by atan2(Δx, Δy)
+  // Sort corners CCW by forw angle (atan2(Δx, Δy) convention)
   cornerVertices.sort((a, b) =>
     Math.atan2(a.forw[0] - centroid.forw[0], a.forw[1] - centroid.forw[1]) -
     Math.atan2(b.forw[0] - centroid.forw[0], b.forw[1] - centroid.forw[1])
   );
 
-  // Expand bakw corners so all GCP bakw positions are enclosed.
-  // checkAndAdjustVerticesN uses forw angles to assign GCPs to bakw segments,
-  // then ensures the bakw quad side encompasses each GCP's bakw position.
+  // Expand corners to enclose all GCPs + edge nodes in bakw space
   checkAndAdjustVerticesN(cornerVertices, allGcps, centroid);
 
-  // ── Phase 3: 36-bin GCP selection ────────────────────────────────────────
-  // Determine which 10° bin each corner occupies
+  if (!withEdgeVertices) return cornerVertices;
+
+  // ── Phase 3 prep: interpolation data from adjusted corners ────────────────
+  //
+  // For each edge vertex we interpolate the forw→bakw rotation from the two
+  // bracketing corner bakw rotations.  At a corner's exact forw direction the
+  // interpolated rotation equals that corner's actual bakw rotation, so the
+  // boundary is continuous everywhere.
+  //
+  // The bakw distance is determined by projecting the interpolated direction
+  // onto the **corner polygon** sides.  This places every Phase 3 edge vertex
+  // exactly on the adjusted corner-polygon boundary, so the 36-vertex bakw
+  // polygon is a refinement of (not larger than) the 4-corner polygon.
+  const N = 4; // always 4 corners
+  const cornerForwAngles = cornerVertices.map((cv) =>
+    Math.atan2(cv.forw[0] - centroid.forw[0], cv.forw[1] - centroid.forw[1])
+  );
+  const cornerBakwThetas = cornerVertices.map((cv) =>
+    Math.atan2(
+      cv.bakw[0] - centroid.bakw[0],
+      -(cv.bakw[1] - centroid.bakw[1]),
+    )
+  );
+  /** Find the angular sector [corners[i], corners[j]) containing theta. */
+  function findSector(theta: number): { i: number; j: number; frac: number } {
+    for (let i = 0; i < N; i++) {
+      const j = (i + 1) % N;
+      const ai = cornerForwAngles[i];
+      const aj = i < N - 1 ? cornerForwAngles[j] : cornerForwAngles[j] + 2 * Math.PI;
+      let t = theta;
+      while (t < ai) t += 2 * Math.PI;
+      while (t >= ai + 2 * Math.PI) t -= 2 * Math.PI;
+      if (t >= ai && t < aj) {
+        return { i, j, frac: (t - ai) / (aj - ai) };
+      }
+    }
+    return { i: 0, j: 1, frac: 0 };
+  }
+
+  /**
+   * Interpolate the bakw angle directly between adjacent corner bakw angles.
+   * This avoids the large rotation-delta problem that occurs when the forw→bakw
+   * rotation difference between adjacent corners exceeds 180°.
+   */
+  function interpolateBakwAngle(theta: number): number {
+    const { i, j, frac } = findSector(theta);
+    const bi = cornerBakwThetas[i];
+    const bj = cornerBakwThetas[j];
+    let delta = bj - bi;
+    while (delta > Math.PI) delta -= 2 * Math.PI;
+    while (delta < -Math.PI) delta += 2 * Math.PI;
+    return bi + frac * delta;
+  }
+
+  // ── Phase 3: 36-bin edge vertices ─────────────────────────────────────────
   const cornerBins = new Set<number>(
-    cornerVertices.map((cv) => Math.floor(toAngleDeg360(cv.forw, centroid.forw) / 10) % 36),
+    cornerVertices.map(
+      (cv) => Math.floor(toAngleDeg360(cv.forw, centroid.forw) / 10) % 36,
+    ),
   );
 
-  // Build GCP info: angle in [0, 360), distance from centroid_forw
-  type GcpInfo = { forw: Position; bakw: Position; angleDeg: number; dist: number };
+  type GcpInfo = {
+    forw: Position;
+    bakw: Position;
+    angleDeg: number;
+    forwDist: number;
+  };
   const gcpInfos: GcpInfo[] = allGcps.map((gcp) => ({
     forw: gcp.forw,
     bakw: gcp.bakw,
     angleDeg: toAngleDeg360(gcp.forw, centroid.forw),
-    dist: Math.hypot(gcp.forw[0] - centroid.forw[0], gcp.forw[1] - centroid.forw[1]),
+    forwDist: Math.hypot(gcp.forw[0] - centroid.forw[0], gcp.forw[1] - centroid.forw[1]),
   }));
 
   const edgeVertices: VertexPosition[] = [];
 
   for (let bin = 0; bin < 36; bin++) {
-    if (cornerBins.has(bin)) continue; // corner occupies this bin
+    if (cornerBins.has(bin)) continue;
 
     const binStart = bin * 10;
-    const binEnd = binStart + 10;
-
-    // GCPs whose angle falls in [binStart, binEnd)
-    const inBin = gcpInfos.filter((g) => g.angleDeg >= binStart && g.angleDeg < binEnd);
+    const inBin = gcpInfos.filter(
+      (g) => g.angleDeg >= binStart && g.angleDeg < binStart + 10,
+    );
 
     let forwEdge: Position | null = null;
 
     if (inBin.length > 0) {
-      // Select the most exterior GCP (largest distance from centroid_forw)
-      const sel = inBin.reduce((best, g) => g.dist > best.dist ? g : best);
-      // forw edge point: centroid_forw → GCP_forw ray ∩ forw bbox
+      // Most extreme interior point in this angular bin
+      const sel = inBin.reduce((best, g) => g.forwDist > best.forwDist ? g : best);
       forwEdge = findRayBboxIntersection(centroid.forw, sel.forw, minx, maxx, miny, maxy);
     }
 
-    // Fallback: no GCP in bin → use bin-center direction
     if (!forwEdge) {
       const binCenterRad = ((binStart + 5) % 360) * (Math.PI / 180);
-      // atan2(Δx,Δy) convention: direction = (sin(angle), cos(angle))
       const fallbackDir: Position = [
         centroid.forw[0] + Math.sin(binCenterRad),
         centroid.forw[1] + Math.cos(binCenterRad),
@@ -580,12 +493,9 @@ export function calculatePlainVerticesV3(
 
     if (!forwEdge) continue;
 
-    // bakw edge point: transform the forw direction via aggregate ratio, then
-    // find its intersection with the bakw quad side.
-    // Using ratio-based direction (NOT GCP_bakw directly) avoids collinearity
-    // with constrained edges that could cause triangulation failures.
     const forDelta = [forwEdge[0] - centroid.forw[0], forwEdge[1] - centroid.forw[1]];
-    const bakwTheta = Math.atan2(forDelta[0], forDelta[1]) - ratio[1];
+    const forwAngle = Math.atan2(forDelta[0], forDelta[1]);
+    const bakwTheta = interpolateBakwAngle(forwAngle);
     const bakwDirPt: Position = [
       centroid.bakw[0] + Math.sin(bakwTheta),
       centroid.bakw[1] - Math.cos(bakwTheta),
@@ -597,12 +507,56 @@ export function calculatePlainVerticesV3(
     }
   }
 
-  // ── Phase 4: Combine corners + edge points, sort by angle ────────────────
+  // ── Phase 4: Combine, sort, final adjust ──────────────────────────────────
   const allVertices: VertexPosition[] = [...cornerVertices, ...edgeVertices];
   allVertices.sort((a, b) =>
     Math.atan2(a.forw[0] - centroid.forw[0], a.forw[1] - centroid.forw[1]) -
     Math.atan2(b.forw[0] - centroid.forw[0], b.forw[1] - centroid.forw[1])
   );
 
+  // Final expansion: ensure the full polygon encloses all GCPs + edge nodes
+  // (some edge vertices may have been placed conservatively via extrapolation;
+  // this step corrects any remaining gaps).
+  checkAndAdjustVerticesN(allVertices, allGcps, centroid);
+
   return allVertices;
+}
+
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+/**
+ * Calculate 4 boundary vertices (plain mode, V2 format).
+ * Uses a single aggregate [scale, rotation] ratio from all GCPs.
+ */
+export function calculatePlainVertices(params: BoundaryVerticesParams): VertexPosition[] {
+  return calculateVerticesCore(params, "plain", false);
+}
+
+/**
+ * Calculate 4 boundary vertices (bird's-eye mode, V2 format).
+ * Uses per-quadrant [scale, rotation] ratios to capture perspective distortion.
+ */
+export function calculateBirdeyeVertices(params: BoundaryVerticesParams): VertexPosition[] {
+  return calculateVerticesCore(params, "birdeye", false);
+}
+
+/**
+ * Calculate up to 36 boundary vertices (plain mode, V3 format).
+ * 4 bbox corners + up to 32 edge vertices selected from 10° angular bins.
+ */
+export function calculatePlainVerticesV3(params: BoundaryVerticesParams): VertexPosition[] {
+  return calculateVerticesCore(params, "plain", true);
+}
+
+/**
+ * Calculate up to 36 boundary vertices (bird's-eye mode, V3 format).
+ * 4 bbox corners (per-quadrant ratios) + up to 32 edge vertices from 10° angular bins.
+ *
+ * Like plain V3, birdeye V3 uses the full 36-bin edge vertex pass
+ * (withEdgeVertices=true). The difference from plain V3 is that the 4 corner
+ * positions are computed using per-quadrant scale/rotation ratios rather than a
+ * single aggregate ratio, capturing perspective distortion more faithfully.
+ */
+export function calculateBirdeyeVerticesV3(params: BoundaryVerticesParams): VertexPosition[] {
+  return calculateVerticesCore(params, "birdeye", true);
 }
