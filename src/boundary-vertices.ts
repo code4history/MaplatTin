@@ -26,8 +26,6 @@ export interface BoundaryVerticesParams {
   maxy: number;
 }
 
-/** Alias kept for backward-compatibility with callers that import this name. */
-
 // ─── Internal types ──────────────────────────────────────────────────────────
 
 type SamplePair = {

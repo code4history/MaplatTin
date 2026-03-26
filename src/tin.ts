@@ -282,8 +282,10 @@ export class Tin extends Transform {
       if (state.bounds) {
         this.bounds = state.bounds;
         this.boundsPolygon = state.boundsPolygon;
-        // V3 submap: xy/wh are not serialized; default gracefully.
-        // V2 submap: xy/wh are present in compiled data.
+        // V2 submap: xy/wh are serialized in compiled data (used for bbox).
+        // V3 submap: xy/wh are NOT serialized (GCP bbox is recomputed on load);
+        //   default to [0,0] so downstream code that reads xy safely gets a
+        //   no-op origin.  See getCompiled() for the corresponding omission.
         this.xy = state.xy ?? [0, 0];
         if (state.wh) this.wh = state.wh;
       } else {
@@ -542,10 +544,13 @@ export class Tin extends Transform {
     const miny = this.xy![1] - 0.05 * this.wh![1];
     const maxy = this.xy![1] + 1.05 * this.wh![1];
 
+    // Invariant: boundsPolygon is always set when bounds is set (see setBounds / setCompiled).
+    if (this.bounds && !this.boundsPolygon) throw new Error("Internal error: bounds is set but boundsPolygon is missing");
+    const bp = this.bounds ? this.boundsPolygon : undefined;
     const allPointsInside = this.points.reduce((prev: boolean, point: PointSet) => {
       return prev &&
-        (this.bounds
-          ? booleanPointInPolygon(point[0] as Position, this.boundsPolygon!)
+        (bp
+          ? booleanPointInPolygon(point[0] as Position, bp)
           : point[0][0] >= minx && point[0][0] <= maxx &&
           point[0][1] >= miny && point[0][1] <= maxy);
     }, true);
@@ -614,8 +619,11 @@ export class Tin extends Transform {
       // V3 (main map and submap): always derive bbox from GCPs.
       // When a bounds polygon (envelope) is provided, validate GCPs are inside it first.
       if (this.bounds) {
+        // Invariant: boundsPolygon is always set when bounds is set (see setBounds / setCompiled).
+        const bp = this.boundsPolygon;
+        if (!bp) throw new Error("Internal error: bounds is set but boundsPolygon is missing");
         const allInsideBounds = this.points.every(
-          (p: PointSet) => booleanPointInPolygon(p[0] as Position, this.boundsPolygon!),
+          (p: PointSet) => booleanPointInPolygon(p[0] as Position, bp),
         );
         if (!allInsideBounds) throw "SOME POINTS OUTSIDE";
       }
