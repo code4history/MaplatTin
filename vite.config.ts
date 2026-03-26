@@ -79,11 +79,11 @@ export default defineConfig({
       outDir: "dist-demo",
       emptyOutDir: true,
       rollupOptions: {
-        input: resolve(__dirname, "demo/index.html"),
+        input: resolve(__dirname, "index.html"),
       },
     },
   server: {
-    open: "/demo/",
+    open: "/",
   },
   plugins: [
     removeTsExtensions(),

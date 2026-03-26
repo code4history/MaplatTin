@@ -43,7 +43,6 @@ import {
   calculatePlainVertices,
   type BoundaryVerticesParams,
 } from "./boundary-vertices.ts";
-import { restoreV3State } from "./transform-v3.ts";
 import findIntersections from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
@@ -263,39 +262,6 @@ export class Tin extends Transform {
    * 使用してN頂点対応の復元を行います。それ以外は基底クラスの実装に委譲します。
    */
   override setCompiled(compiled: Compiled | CompiledLegacy): void {
-    const version = (compiled as Compiled).version;
-    if (typeof version === "number" && version >= 3) {
-      const state = restoreV3State(compiled as Compiled);
-      this.points = state.points;
-      this.pointsWeightBuffer = state.pointsWeightBuffer;
-      this.strict_status = state.strictStatus;
-      this.vertices_params = state.verticesParams;
-      this.centroid = state.centroid;
-      this.edges = state.edges;
-      this.edgeNodes = state.edgeNodes || [];
-      this.tins = state.tins;
-      this.addIndexedTin();
-      this.kinks = state.kinks;
-      this.yaxisMode = state.yaxisMode ?? Tin.YAXIS_INVERT;
-      this.vertexMode = state.vertexMode ?? Tin.VERTEX_PLAIN;
-      this.strictMode = state.strictMode ?? Tin.MODE_AUTO;
-      if (state.bounds) {
-        this.bounds = state.bounds;
-        this.boundsPolygon = state.boundsPolygon;
-        // V2 submap: xy/wh are serialized in compiled data (used for bbox).
-        // V3 submap: xy/wh are NOT serialized (GCP bbox is recomputed on load);
-        //   default to [0,0] so downstream code that reads xy safely gets a
-        //   no-op origin.  See getCompiled() for the corresponding omission.
-        this.xy = state.xy ?? [0, 0];
-        if (state.wh) this.wh = state.wh;
-      } else {
-        this.bounds = undefined;
-        this.boundsPolygon = undefined;
-        this.xy = state.xy ?? [0, 0];
-        if (state.wh) this.wh = state.wh;
-      }
-      return;
-    }
     super.setCompiled(compiled);
   }
 

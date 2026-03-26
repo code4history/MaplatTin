@@ -224,9 +224,9 @@ const testSet = () => {
       } catch (e) {
         err = e;
       }
-      expect(err).not.toEqual(
-        'Backward transform is not allowed if strict_status == "strict_error"'
-      );
+      expect(err).not.toMatchObject({
+        message: 'Backward transform is not allowed if strict_status == "strict_error"'
+      });
       tin.setStrictMode(Tin.MODE_STRICT);
       await tin.updateTinAsync();
       expect(tin.strict_status).toEqual(Tin.STATUS_ERROR);
@@ -236,9 +236,9 @@ const testSet = () => {
       } catch (e) {
         err = e;
       }
-      expect(err).toEqual(
-        'Backward transform is not allowed if strict_status == "strict_error"'
-      );
+      expect(err).toMatchObject({
+        message: 'Backward transform is not allowed if strict_status == "strict_error"'
+      });
     });
   });
 

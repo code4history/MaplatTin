@@ -65,7 +65,7 @@
     "deno"
   ],
   "dependencies": {
-    "@maplat/transform": "0.4.1",
+    "@maplat/transform": "0.5.0",
     "@turf/turf": "^7.3.1",
     "delaunator": "^5.0.1",
     "robust-predicates": "^3.0.2"
