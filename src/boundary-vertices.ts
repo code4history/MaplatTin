@@ -27,7 +27,6 @@ export interface BoundaryVerticesParams {
 }
 
 /** Alias kept for backward-compatibility with callers that import this name. */
-export type BoundaryVerticesV3Params = BoundaryVerticesParams;
 
 // ─── Internal types ──────────────────────────────────────────────────────────
 
@@ -525,38 +524,36 @@ function calculateVerticesCore(
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Calculate 4 boundary vertices (plain mode, V2 format).
- * Uses a single aggregate [scale, rotation] ratio from all GCPs.
- */
-export function calculatePlainVertices(params: BoundaryVerticesParams): VertexPosition[] {
-  return calculateVerticesCore(params, "plain", false);
-}
-
-/**
- * Calculate 4 boundary vertices (bird's-eye mode, V2 format).
- * Uses per-quadrant [scale, rotation] ratios to capture perspective distortion.
- */
-export function calculateBirdeyeVertices(params: BoundaryVerticesParams): VertexPosition[] {
-  return calculateVerticesCore(params, "birdeye", false);
-}
-
-/**
- * Calculate up to 36 boundary vertices (plain mode, V3 format).
- * 4 bbox corners + up to 32 edge vertices selected from 10° angular bins.
- */
-export function calculatePlainVerticesV3(params: BoundaryVerticesParams): VertexPosition[] {
-  return calculateVerticesCore(params, "plain", true);
-}
-
-/**
- * Calculate up to 36 boundary vertices (bird's-eye mode, V3 format).
- * 4 bbox corners (per-quadrant ratios) + up to 32 edge vertices from 10° angular bins.
+ * Calculate boundary vertices in plain mode.
  *
- * Like plain V3, birdeye V3 uses the full 36-bin edge vertex pass
- * (withEdgeVertices=true). The difference from plain V3 is that the 4 corner
- * positions are computed using per-quadrant scale/rotation ratios rather than a
- * single aggregate ratio, capturing perspective distortion more faithfully.
+ * @param params - Input parameters including GCPs, centroid, and bounding box.
+ * @param v3 - When true (V3 format), runs the full 36-bin edge vertex pass
+ *   (Phase 3) in addition to the 4 bbox corners, producing up to 36 vertices.
+ *   When false (V2 format), returns only the 4 bbox corners.
+ *
+ * Plain mode uses a single aggregate [scale, rotation] ratio from all GCPs.
  */
-export function calculateBirdeyeVerticesV3(params: BoundaryVerticesParams): VertexPosition[] {
-  return calculateVerticesCore(params, "birdeye", true);
+export function calculatePlainVertices(
+  params: BoundaryVerticesParams,
+  v3 = false,
+): VertexPosition[] {
+  return calculateVerticesCore(params, "plain", v3);
+}
+
+/**
+ * Calculate boundary vertices in bird's-eye mode.
+ *
+ * @param params - Input parameters including GCPs, centroid, and bounding box.
+ * @param v3 - When true (V3 format), runs the full 36-bin edge vertex pass
+ *   (Phase 3) in addition to the 4 bbox corners, producing up to 36 vertices.
+ *   When false (V2 format), returns only the 4 bbox corners.
+ *
+ * Birdeye mode uses per-quadrant [scale, rotation] ratios to capture
+ * perspective distortion in the 4 corner positions.
+ */
+export function calculateBirdeyeVertices(
+  params: BoundaryVerticesParams,
+  v3 = false,
+): VertexPosition[] {
+  return calculateVerticesCore(params, "birdeye", v3);
 }

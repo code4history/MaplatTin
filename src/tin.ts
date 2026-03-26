@@ -40,9 +40,7 @@ import type {
 import constrainedTin from "./constrained-tin.ts";
 import {
   calculateBirdeyeVertices,
-  calculateBirdeyeVerticesV3,
   calculatePlainVertices,
-  calculatePlainVerticesV3,
   type BoundaryVerticesParams,
 } from "./boundary-vertices.ts";
 import { restoreV3State } from "./transform-v3.ts";
@@ -239,9 +237,15 @@ export class Tin extends Transform {
     if (this.bounds) {
       compiled.bounds = this.bounds;
       compiled.boundsPolygon = this.boundsPolygon;
-      compiled.xy = this.xy;
-      compiled.wh = this.wh;
+      if (this.useV2Algorithm) {
+        // V2 submap: xy/wh define the bbox used for triangulation — must be preserved.
+        compiled.xy = this.xy;
+        compiled.wh = this.wh;
+      }
+      // V3 submap: bounds polygon is the envelope; xy/wh are not used for
+      // triangulation and are therefore not serialized.
     } else {
+      // Main map: wh stores image dimensions for display and V2 bbox calculation.
       compiled.wh = this.wh;
     }
 
@@ -278,8 +282,10 @@ export class Tin extends Transform {
       if (state.bounds) {
         this.bounds = state.bounds;
         this.boundsPolygon = state.boundsPolygon;
-        this.xy = state.xy;
-        this.wh = state.wh;
+        // V3 submap: xy/wh are not serialized; default gracefully.
+        // V2 submap: xy/wh are present in compiled data.
+        this.xy = state.xy ?? [0, 0];
+        if (state.wh) this.wh = state.wh;
       } else {
         this.bounds = undefined;
         this.boundsPolygon = undefined;
@@ -564,6 +570,32 @@ export class Tin extends Transform {
   }
 
   /**
+   * Compute a bounding box derived from GCP coordinates with a 5% margin.
+   * Used in V3 plain mode where no explicit image bounds are available.
+   */
+  private computeGcpBbox(): {
+    minx: number; maxx: number; miny: number; maxy: number;
+  } {
+    let gcpMinx = Infinity, gcpMaxx = -Infinity;
+    let gcpMiny = Infinity, gcpMaxy = -Infinity;
+    for (const p of this.points) {
+      const x = p[0][0] as number, y = p[0][1] as number;
+      if (x < gcpMinx) gcpMinx = x;
+      if (x > gcpMaxx) gcpMaxx = x;
+      if (y < gcpMiny) gcpMiny = y;
+      if (y > gcpMaxy) gcpMaxy = y;
+    }
+    const gcpW = gcpMaxx - gcpMinx;
+    const gcpH = gcpMaxy - gcpMiny;
+    return {
+      minx: gcpMinx - 0.05 * gcpW,
+      maxx: gcpMaxx + 0.05 * gcpW,
+      miny: gcpMiny - 0.05 * gcpH,
+      maxy: gcpMaxy + 0.05 * gcpH,
+    };
+  }
+
+  /**
    * TINネットワークを同期的に更新し、座標変換の準備を行います。
    * 重めの計算を伴うため、呼び出し側が非同期制御を行いたい場合は
    * {@link updateTinAsync} を利用してください。
@@ -574,32 +606,23 @@ export class Tin extends Transform {
       strict = Tin.MODE_AUTO;
     }
 
-    // v3 plain mode: no explicit bounds and not birdeye — derive bbox from GCPs.
-    const isV3Plain = !this.useV2Algorithm && !this.bounds && this.vertexMode !== Tin.VERTEX_BIRDEYE;
-    // v3 birdeye mode: no v2 algorithm and birdeye — use image bounds + per-quadrant ratios.
-    const isV3Birdeye = !this.useV2Algorithm && this.vertexMode === Tin.VERTEX_BIRDEYE;
+    const isV3 = !this.useV2Algorithm;
     let rawPointsSet: { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
     let minx: number, maxx: number, miny: number, maxy: number;
 
-    if (isV3Plain) {
-      rawPointsSet = this.generatePointsSet();
-      // Compute GCP min/max and add 5% margin on each side.
-      let gcpMinx = Infinity, gcpMaxx = -Infinity;
-      let gcpMiny = Infinity, gcpMaxy = -Infinity;
-      for (const p of this.points) {
-        const x = p[0][0], y = p[0][1];
-        if (x < gcpMinx) gcpMinx = x;
-        if (x > gcpMaxx) gcpMaxx = x;
-        if (y < gcpMiny) gcpMiny = y;
-        if (y > gcpMaxy) gcpMaxy = y;
+    if (isV3) {
+      // V3 (main map and submap): always derive bbox from GCPs.
+      // When a bounds polygon (envelope) is provided, validate GCPs are inside it first.
+      if (this.bounds) {
+        const allInsideBounds = this.points.every(
+          (p: PointSet) => booleanPointInPolygon(p[0] as Position, this.boundsPolygon!),
+        );
+        if (!allInsideBounds) throw "SOME POINTS OUTSIDE";
       }
-      const gcpW = gcpMaxx - gcpMinx;
-      const gcpH = gcpMaxy - gcpMiny;
-      minx = gcpMinx - 0.05 * gcpW;
-      maxx = gcpMaxx + 0.05 * gcpW;
-      miny = gcpMiny - 0.05 * gcpH;
-      maxy = gcpMaxy + 0.05 * gcpH;
+      rawPointsSet = this.generatePointsSet();
+      ({ minx, maxx, miny, maxy } = this.computeGcpBbox());
     } else {
+      // V2: use xy/wh bbox with full validation.
       const validated = this.validateAndPrepareInputs();
       rawPointsSet = validated.pointsSet;
       minx = validated.minx;
@@ -669,9 +692,9 @@ export class Tin extends Transform {
 
     // Set centroids
     let centCalc: { forw: Position; bakw: Position };
-    if (isV3Plain) {
-      // v3: find the TIN triangle containing turf's centroid and use its
-      // geometric centre (mean of 3 vertices) as the new centroid.
+    if (isV3) {
+      // V3 (main map and submap): find the TIN triangle containing turf's centroid
+      // and use its geometric centre (mean of 3 vertices) as the new centroid.
       const forCentCoord = forCentroid.geometry!.coordinates;
       const containingTri = (tinForw as Tins).features.find((tri: Tri) =>
         booleanPointInPolygon(
@@ -702,6 +725,7 @@ export class Tin extends Transform {
         };
       }
     } else {
+      // V2: transform turf centroid through TIN.
       centCalc = {
         forw: forCentroid.geometry!.coordinates,
         bakw: transformArr(forCentroid, tinForw as Tins) as Position,
@@ -732,16 +756,10 @@ export class Tin extends Transform {
       maxy,
     };
 
-    let verticesSet: VertexPosition[];
-    if (isV3Plain) {
-      verticesSet = calculatePlainVerticesV3(boundaryParams);
-    } else if (isV3Birdeye) {
-      verticesSet = calculateBirdeyeVerticesV3(boundaryParams);
-    } else {
-      verticesSet = this.vertexMode === Tin.VERTEX_BIRDEYE
-        ? calculateBirdeyeVertices(boundaryParams)
-        : calculatePlainVertices(boundaryParams);
-    }
+    // V3 enables the 36-bin edge vertex pass for both main maps and submaps.
+    const verticesSet: VertexPosition[] = this.vertexMode === Tin.VERTEX_BIRDEYE
+      ? calculateBirdeyeVertices(boundaryParams, isV3)
+      : calculatePlainVertices(boundaryParams, isV3);
 
     // Add vertices to points set
     const verticesList = {

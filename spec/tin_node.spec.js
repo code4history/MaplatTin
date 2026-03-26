@@ -133,6 +133,9 @@ const testSet = () => {
     });
   });
 
+  // This test uses the V2 algorithm deliberately: the GCP set was designed for V2
+  // bounds behaviour (xy/wh bbox).  V3 submap support uses GCP-derived bbox and
+  // 36-bin boundary vertices, which requires dedicated V3 test data.
   describe("Test case for bounds (w/o error)", () => {
     const tin = new Tin({
       bounds: [
@@ -143,6 +146,7 @@ const testSet = () => {
         [50, 100]
       ],
       strictMode: Tin.MODE_STRICT,
+      useV2Algorithm: true,
       stateFull
     });
     tin.setPoints([

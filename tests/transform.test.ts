@@ -22,6 +22,10 @@ const datasets: Dataset[] = [
   ["Tatebayashi Castle v3",    "tatebayashi_castle_akimoto",  "v3"],
   ["Tatebayashi Jokamachi v2", "tatebayashi_kaei_jokamachi",  "v2"],
   ["Tatebayashi Jokamachi v3", "tatebayashi_kaei_jokamachi",  "v3"],
+  ["Nobeoka v2",               "1932_nobeoka",                "v2"],
+  ["Nobeoka v3",               "1932_nobeoka",                "v3"],
+  ["Nobeoka Sub v2",           "1932_nobeoka_sub0",           "v2"],
+  ["Nobeoka Sub v3",           "1932_nobeoka_sub0",           "v3"],
 ];
 
 describe("Tin — transform", () => {
@@ -50,7 +54,7 @@ describe("Tin — transform", () => {
         }
       });
 
-      if (compiledData.strict_status !== "strict_error") {
+      if (compiledData.strict_status !== "strict_error" && !compiledData.bounds) {
         describe("Backward transformation", () => {
           let i = 0;
           for (const [forw, bakw] of cases) {

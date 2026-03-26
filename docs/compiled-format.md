@@ -281,7 +281,7 @@ Each element is `[[forwX, forwY], [bakwX, bakwY]]`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `yaxisMode` | `"invert" \| "follow"` | `"invert"`: flip Y axis upward (image coordinate system); `"follow"`: use Y as-is |
-| `vertexMode` | `"birdeye" \| "plain"` | `"birdeye"`: generate boundary vertices via angular bins (V3); `"plain"`: simple 4-corner rectangle (V2-compatible) |
+| `vertexMode` | `"birdeye" \| "plain"` | **Corner ratio computation method** for boundary vertices. Available in both V2 and V3. `"birdeye"`: per-quadrant ratios (suited for perspective/aerial maps); `"plain"`: aggregate ratio from all GCPs (suited for flat maps). In V3, both modes run the full 36-bin angular pass for up to 36 vertices |
 | `strictMode` | `"strict" \| "auto" \| "loose"` | `"strict"`: enforce strict topology; `"auto"`: auto-detect; `"loose"`: relaxed mode |
 
 ---

@@ -29,18 +29,33 @@ interface LoadedState {
   ver: FormatVer;
 }
 
+interface ZoomState {
+  scale: number;
+  tx: number;
+  ty: number;
+}
+
+interface MarkerState {
+  forwPt: Pos | null;
+  bakwPt: Pos | null;
+}
+
 // ─── マップ定義 ───────────────────────────────────────────────────────────────
 
 const MAPS: MapConfig[] = [
   { label: "伏見城 (plain)",           key: "fushimijo_maplat" },
   { label: "奈良町安井文庫 (birdeye)", key: "naramachi_yasui_revised",
-    note: "kinks 除去のため問題GCPを削除したリビジョンデータ" },
+    note: "v3 のみ kinks 解消（strict）、v2 は strict_error のままラウンドトリップ不可" },
   { label: "銀座 (pre-compiled)",      key: "miesan_ginza_map",
     note: "compiled データから GCP を復元して v2/v3 それぞれで再コンパイル済み" },
   { label: "館林城 (pre-compiled)",    key: "tatebayashi_castle_akimoto",
     note: "compiled データから GCP を復元して v2/v3 それぞれで再コンパイル済み" },
   { label: "館林城下町 (pre-compiled)", key: "tatebayashi_kaei_jokamachi",
     note: "compiled データから GCP を復元して v2/v3 それぞれで再コンパイル済み" },
+  { label: "延岡 メインマップ",        key: "1932_nobeoka",
+    note: "461 GCPs、plain モード、strict（V3: GCP bbox から 36 境界頂点）" },
+  { label: "延岡 サブマップ",          key: "1932_nobeoka_sub0",
+    note: "99 GCPs、bounds polygon あり、loose（V2: 4 頂点 / V3: 36 頂点、GCP bbox）" },
 ];
 
 // ─── 描画定数 ─────────────────────────────────────────────────────────────────
@@ -51,35 +66,57 @@ const GRID_N = 20;
 const RT_GRID_N = 30;
 const RT_ERROR_THRESHOLD = 0.1; // 0.1px 以下は視覚的に無意味（丸め誤差範囲）→ 青で表示
 
+// ─── ズーム/パン 状態 ─────────────────────────────────────────────────────────
+
+function initZoom(): ZoomState {
+  return { scale: 1, tx: 0, ty: 0 };
+}
+
+let zoomF: ZoomState = initZoom();
+let zoomB: ZoomState = initZoom();
+
+// ─── マーカー状態 ─────────────────────────────────────────────────────────────
+
+let marker: MarkerState = { forwPt: null, bakwPt: null };
+
+// ─── 最後に使ったビューポート（クリックハンドラ用） ─────────────────────────
+
+let lastVpF: Viewport | null = null;
+let lastVpB: Viewport | null = null;
+
 // ─── ビューポート ─────────────────────────────────────────────────────────────
 
 class Viewport {
-  private minX: number;
-  private maxX: number;
-  private minY: number;
-  private maxY: number;
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minY: number;
+  readonly maxY: number;
   readonly scale: number;
-  private offX: number;
-  private offY: number;
+  readonly offX: number;
+  readonly offY: number;
   readonly flipY: boolean;
 
   constructor(points: Pos[], flipY = false) {
     this.flipY = flipY;
     const xs = points.map(p => p[0]);
     const ys = points.map(p => p[1]);
-    this.minX = Math.min(...xs);
-    this.maxX = Math.max(...xs);
-    this.minY = Math.min(...ys);
-    this.maxY = Math.max(...ys);
-    const mx = (this.maxX - this.minX) * 0.06 || 1;
-    const my = (this.maxY - this.minY) * 0.06 || 1;
-    this.minX -= mx; this.maxX += mx;
-    this.minY -= my; this.maxY += my;
+    let minX = Math.min(...xs);
+    let maxX = Math.max(...xs);
+    let minY = Math.min(...ys);
+    let maxY = Math.max(...ys);
+    const mx = (maxX - minX) * 0.06 || 1;
+    const my = (maxY - minY) * 0.06 || 1;
+    minX -= mx; maxX += mx;
+    minY -= my; maxY += my;
     const avail = CANVAS_SIZE - PADDING * 2;
-    const scale = Math.min(avail / (this.maxX - this.minX), avail / (this.maxY - this.minY));
+    const scale = Math.min(avail / (maxX - minX), avail / (maxY - minY));
+    this.minX = minX;
+    this.maxX = maxX;
+    this.minY = minY;
+    this.maxY = maxY;
     this.scale = scale;
-    this.offX = PADDING + (avail - (this.maxX - this.minX) * scale) / 2;
-    this.offY = PADDING + (avail - (this.maxY - this.minY) * scale) / 2;
+    this.offX = PADDING + (avail - (maxX - minX) * scale) / 2;
+    this.offY = PADDING + (avail - (maxY - minY) * scale) / 2;
   }
 
   c(x: number, y: number): Pos {
@@ -90,34 +127,112 @@ class Viewport {
         : this.offY + (y - this.minY) * this.scale,
     ];
   }
+
+  /** canvas 座標 → データ座標の逆変換 */
+  inverse(cx: number, cy: number): Pos {
+    const x = (cx - this.offX) / this.scale + this.minX;
+    const y = this.flipY
+      ? this.maxY - (cy - this.offY) / this.scale
+      : (cy - this.offY) / this.scale + this.minY;
+    return [x, y];
+  }
+}
+
+// ─── ズーム/パン ヘルパー ─────────────────────────────────────────────────────
+
+function setupZoomPan(
+  canvasEl: HTMLCanvasElement,
+  getZoom: () => ZoomState,
+  setZoom: (z: ZoomState) => void,
+  onUpdate: () => void,
+) {
+  let dragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let dragStartTx = 0;
+  let dragStartTy = 0;
+
+  canvasEl.addEventListener("wheel", (e: WheelEvent) => {
+    e.preventDefault();
+    const z = getZoom();
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    const newScale = z.scale * factor;
+    // カーソル位置を中心に拡縮
+    const ox = e.offsetX;
+    const oy = e.offsetY;
+    const newTx = ox - (ox - z.tx) * factor;
+    const newTy = oy - (oy - z.ty) * factor;
+    setZoom({ scale: newScale, tx: newTx, ty: newTy });
+    onUpdate();
+  }, { passive: false });
+
+  canvasEl.addEventListener("mousedown", (e: MouseEvent) => {
+    dragging = true;
+    dragStartX = e.offsetX;
+    dragStartY = e.offsetY;
+    const z = getZoom();
+    dragStartTx = z.tx;
+    dragStartTy = z.ty;
+  });
+
+  canvasEl.addEventListener("mousemove", (e: MouseEvent) => {
+    if (!dragging) return;
+    const dx = e.offsetX - dragStartX;
+    const dy = e.offsetY - dragStartY;
+    const z = getZoom();
+    setZoom({ scale: z.scale, tx: dragStartTx + dx, ty: dragStartTy + dy });
+    onUpdate();
+  });
+
+  const stopDrag = () => { dragging = false; };
+  canvasEl.addEventListener("mouseup", stopDrag);
+  canvasEl.addEventListener("mouseleave", stopDrag);
+
+  canvasEl.addEventListener("dblclick", () => {
+    setZoom(initZoom());
+    onUpdate();
+  });
 }
 
 // ─── envelope ユーティリティ ──────────────────────────────────────────────────
 
 /**
- * envelope = メインマップの画像領域
- * Source 空間では wh から求まる矩形 [0,0,w,h] の4隅。
- * Target 空間ではその4隅を transform() した座標。
+ * Source 空間での envelope 輪郭点を返す。
+ * - bounds あり（サブマップ V3）: bounds ポリゴンの頂点
+ * - bounds なし + xy あり（サブマップ V2）: xy/wh から求まる矩形 4 隅
+ * - 通常マップ: wh から求まる矩形 [0,0,w,h] の 4 隅
+ */
+function getEnvelopeForw(compiled: Compiled): Pos[] {
+  if (compiled.bounds) {
+    return (compiled.bounds as Pos[]);
+  }
+  const [w, h] = compiled.wh!;
+  const [x0, y0] = (compiled.xy as Pos | undefined) ?? [0, 0];
+  return [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]];
+}
+
+/**
+ * envelope の Source / Target 側コーナー座標を返す。
+ * Source 空間では getEnvelopeForw() の結果。
+ * Target 空間ではその各点を transform() した座標。
  */
 function getEnvelopeCorners(compiled: Compiled, tin: Tin, dir: "forw" | "bakw"): Pos[] {
-  const [w, h] = compiled.wh!;
-  const forwCorners: Pos[] = [[0, 0], [w, 0], [w, h], [0, h]];
+  const forwCorners = getEnvelopeForw(compiled);
   if (dir === "forw") return forwCorners;
   // Target 側: 各隅を forward 変換して Target 座標を得る
   return forwCorners
-    .map(pt => tin.transform(pt) as Pos | false)
+    .map(pt => tin.transform(pt, false, true) as Pos | false)
     .filter((r): r is Pos => r !== false && r !== null);
 }
 
 /**
- * envelope [0,0,w,h] と boundary quadrilateral (vertices_points) の
+ * envelope と boundary quadrilateral (vertices_points) の
  * 合算 bbox を 10% 外側に膨らませたグリッド定義域を返す。
  * TIN は無限遠まで保証しているため envelope 外もデモ対象にする。
  */
 function extendedGridRange(compiled: Compiled): { x0: number; x1: number; y0: number; y1: number } {
-  const [w, h] = compiled.wh!;
   const pts: Pos[] = [
-    [0, 0], [w, 0], [w, h], [0, h],
+    ...getEnvelopeForw(compiled),
     ...compiled.vertices_points.map(v => v[0] as Pos),
   ];
   let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
@@ -154,16 +269,15 @@ function buildViewport(compiled: Compiled, dir: "forw" | "bakw"): Viewport {
 /** extra: ビューポートに強制包含させる追加点（拡張グリッド範囲の隅など） */
 function buildViewportWithExtra(compiled: Compiled, dir: "forw" | "bakw", extra: Pos[]): Viewport {
   const idx = dir === "forw" ? 0 : 1;
-  const [w, h] = compiled.wh!;
   const pts: Pos[] = [
     ...compiled.points.map(p => p[idx] as Pos),
     ...compiled.vertices_points.map(v => v[idx] as Pos),
     ...(compiled.centroid_point?.[idx] ? [compiled.centroid_point[idx] as Pos] : []),
     ...extra,
   ];
-  // forw: envelope [0,0,w,h] の4隅を必ず含める（v2/v3 間で表示範囲を統一）
+  // forw: envelope の隅を必ず含める（v2/v3 間で表示範囲を統一）
   if (dir === "forw") {
-    pts.push([0, 0], [w, 0], [w, h], [0, h]);
+    pts.push(...getEnvelopeForw(compiled));
   }
   return new Viewport(pts, dir === "bakw");
 }
@@ -301,6 +415,25 @@ function drawLabel(ctx: CanvasRenderingContext2D, text: string) {
   ctx.restore();
 }
 
+/** マーカー（赤十字 + 円）を描画する（zoom 変換済み canvas 座標で呼ぶこと） */
+function drawMarker(ctx: CanvasRenderingContext2D, pt: Pos, vp: Viewport) {
+  const [cx, cy] = vp.c(pt[0], pt[1]);
+  ctx.save();
+  ctx.strokeStyle = "red";
+  ctx.lineWidth = 1.5;
+  const r = 5;
+  // 十字
+  ctx.beginPath();
+  ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
+  ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
+  ctx.stroke();
+  // 円
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
 // ─── カラースケール ───────────────────────────────────────────────────────────
 
 function errorColor(t: number): string {
@@ -312,74 +445,94 @@ function errorColor(t: number): string {
 
 /**
  * err を 0–1 に正規化する（RT_ERROR_THRESHOLD 以下は 0 = 青）。
- * allBlue モードでは常に 0 を返す。
  */
-function normalizedError(err: number, maxErr: number, allBlue: boolean): number {
-  if (allBlue || err <= RT_ERROR_THRESHOLD) return 0;
+function normalizedError(err: number, maxErr: number): number {
+  if (err <= RT_ERROR_THRESHOLD) return 0;
   // threshold 超の範囲を 0–1 にリマップ
   return (err - RT_ERROR_THRESHOLD) / (maxErr - RT_ERROR_THRESHOLD);
 }
 
-function drawColorScale(ctx: CanvasRenderingContext2D, maxErr: number, allBlue: boolean) {
+/** 数値を科学的記数法を使わずにデシマル表記する */
+function fmtPx(v: number): string {
+  if (v >= 100) return v.toFixed(0);
+  if (v >= 10)  return v.toFixed(1);
+  if (v >= 1)   return v.toFixed(2);
+  return v.toFixed(3);
+}
+
+function drawColorScale(ctx: CanvasRenderingContext2D, maxErr: number) {
   const x0 = CANVAS_SIZE - PADDING - 110;
   const y0 = CANVAS_SIZE - PADDING - 20;
   const w = 100; const h = 10;
   ctx.save();
-  if (allBlue) {
-    ctx.fillStyle = "rgba(0,0,255,0.8)";
-    ctx.fillRect(x0, y0, w, h);
-    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5; ctx.strokeRect(x0, y0, w, h);
-    ctx.fillStyle = "#333"; ctx.font = "9px sans-serif";
-    ctx.fillText("全点 < 0.1px", x0, y0 - 2);
-  } else {
-    const grad = ctx.createLinearGradient(x0, 0, x0 + w, 0);
-    grad.addColorStop(0, "rgba(0,0,255,0.8)");
-    grad.addColorStop(0.5, "rgba(255,255,0,0.8)");
-    grad.addColorStop(1, "rgba(255,0,0,0.8)");
-    ctx.fillStyle = grad; ctx.fillRect(x0, y0, w, h);
-    ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5; ctx.strokeRect(x0, y0, w, h);
-    ctx.fillStyle = "#333"; ctx.font = "9px sans-serif";
-    ctx.fillText("≤0.1px", x0, y0 - 2);
-    ctx.fillText(maxErr.toExponential(1), x0 + w - 30, y0 - 2);
-  }
+  const grad = ctx.createLinearGradient(x0, 0, x0 + w, 0);
+  grad.addColorStop(0, "rgba(0,0,255,0.8)");
+  grad.addColorStop(0.5, "rgba(255,255,0,0.8)");
+  grad.addColorStop(1, "rgba(255,0,0,0.8)");
+  ctx.fillStyle = grad; ctx.fillRect(x0, y0, w, h);
+  ctx.strokeStyle = "#555"; ctx.lineWidth = 0.5; ctx.strokeRect(x0, y0, w, h);
+  ctx.fillStyle = "#333"; ctx.font = "9px sans-serif";
+  ctx.fillText("≤0.1px", x0, y0 - 2);
+  ctx.fillText(fmtPx(maxErr), x0 + w - 30, y0 - 2);
   ctx.restore();
 }
 
 // ─── 可視化: 無限遠半直線 ─────────────────────────────────────────────────────
 
-function vizRays(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D, state: LoadedState, legendEl: HTMLElement) {
+function vizRays(
+  ctxF: CanvasRenderingContext2D,
+  ctxB: CanvasRenderingContext2D,
+  state: LoadedState,
+  legendEl: HTMLElement,
+  zF: ZoomState,
+  zB: ZoomState,
+) {
   const { tin, compiled } = state;
   const vpF = buildViewport(compiled, "forw");
   const vpB = buildViewport(compiled, "bakw");
+  lastVpF = vpF; lastVpB = vpB;
   const centF = compiled.centroid_point[0] as number[];
   const centB = compiled.centroid_point[1] as number[];
 
   const envF = getEnvelopeCorners(compiled, tin, "forw");
   const envB = getEnvelopeCorners(compiled, tin, "bakw");
 
-  for (const [ctx, vp, dir, env] of [
-    [ctxF, vpF, "forw", envF] as const,
-    [ctxB, vpB, "bakw", envB] as const,
+  for (const [ctx, vp, dir, env, z] of [
+    [ctxF, vpF, "forw", envF, zF] as const,
+    [ctxB, vpB, "bakw", envB, zB] as const,
   ]) {
     clearCanvas(ctx);
+    ctx.save();
+    ctx.translate(z.tx, z.ty);
+    ctx.scale(z.scale, z.scale);
     drawTriangles(ctx, tin, vp, dir);
     drawGCPs(ctx, compiled.points, vp, dir);
     drawRays(ctx, dir === "forw" ? centF : centB, compiled.vertices_points, vp, dir);
     drawEnvelope(ctx, env, vp, dir === "forw" ? "envelope" : undefined);
     drawVertices(ctx, compiled.vertices_points, vp, dir);
     drawCentroid(ctx, dir === "forw" ? centF : centB, vp);
+    // マーカー描画
+    if (dir === "forw" && marker.forwPt) drawMarker(ctx, marker.forwPt, vp);
+    if (dir === "bakw" && marker.bakwPt) drawMarker(ctx, marker.bakwPt, vp);
+    ctx.restore();
+    // zoom 外
     drawLabel(ctx, dir === "forw" ? "Source (Forw)" : "Target (Bakw)");
   }
 
   const n = compiled.vertices_points.length;
   const ver = compiled.version ?? "<=2.007";
   const vmode = compiled.vertexMode ?? "plain";
+  const envLabel = compiled.bounds
+    ? "envelope（bounds ポリゴン）"
+    : compiled.xy
+      ? "envelope（xy/wh 矩形）"
+      : "envelope（マップ画像領域 [0,0,w,h]）";
   legendEl.innerHTML = `
     <b>境界頂点数:</b> ${n} 個 &nbsp;|&nbsp;
     <b>version:</b> ${ver} &nbsp;|&nbsp;
     <b>vertexMode:</b> ${vmode} &nbsp;|&nbsp;
     <b>strict_status:</b> ${compiled.strict_status ?? "-"}<br>
-    <span style="color:#27ae60">━━</span> envelope（マップ画像領域 [0,0,w,h]）&nbsp;
+    <span style="color:#27ae60">━━</span> ${envLabel} &nbsp;
     <span style="background:#f5c518;padding:0 5px;border-radius:3px">●</span> 重心 &nbsp;
     ▲ 境界頂点 &nbsp;
     <span style="color:#3a7bd5">●</span> GCP &nbsp;
@@ -389,12 +542,20 @@ function vizRays(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D,
 
 // ─── 可視化: グリッド変換 ─────────────────────────────────────────────────────
 
-function vizGrid(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D, state: LoadedState, legendEl: HTMLElement) {
+function vizGrid(
+  ctxF: CanvasRenderingContext2D,
+  ctxB: CanvasRenderingContext2D,
+  state: LoadedState,
+  legendEl: HTMLElement,
+  zF: ZoomState,
+  zB: ZoomState,
+) {
   const { tin, compiled } = state;
   // ビューポートに拡張グリッド範囲の四隅を追加して確実に収める
   const { x0: gx0, x1: gx1, y0: gy0, y1: gy1 } = extendedGridRange(compiled);
   const vpF = buildViewportWithExtra(compiled, "forw",  [[gx0, gy0], [gx1, gy1]]);
   const vpB = buildViewport(compiled, "bakw");
+  lastVpF = vpF; lastVpB = vpB;
 
   // グリッドの定義域は envelope = マップ画像領域 [0,0,w,h]
   const { xs, ys } = gridPoints(compiled, GRID_N);
@@ -402,7 +563,7 @@ function vizGrid(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D,
   const envB = getEnvelopeCorners(compiled, tin, "bakw");
 
   const gridB: (Pos | null)[][] = ys.map(y =>
-    xs.map(x => { const r = tin.transform([x, y]); return r ? r as Pos : null; })
+    xs.map(x => { const r = tin.transform([x, y], false, true); return r ? r as Pos : null; })
   );
 
   const stroke = (ctx: CanvasRenderingContext2D) => {
@@ -411,6 +572,9 @@ function vizGrid(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D,
 
   // ─ Forw ─
   clearCanvas(ctxF);
+  ctxF.save();
+  ctxF.translate(zF.tx, zF.ty);
+  ctxF.scale(zF.scale, zF.scale);
   drawTriangles(ctxF, tin, vpF, "forw");
   ctxF.save(); stroke(ctxF);
   for (let j = 0; j <= GRID_N; j++) {
@@ -432,10 +596,17 @@ function vizGrid(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D,
   ctxF.restore();
   drawEnvelope(ctxF, envF, vpF, "envelope");
   drawGCPs(ctxF, compiled.points, vpF, "forw");
+  // マーカー描画
+  if (marker.forwPt) drawMarker(ctxF, marker.forwPt, vpF);
+  ctxF.restore();
+  // zoom 外
   drawLabel(ctxF, "Source (Forw) — regular grid");
 
   // ─ Bakw ─
   clearCanvas(ctxB);
+  ctxB.save();
+  ctxB.translate(zB.tx, zB.ty);
+  ctxB.scale(zB.scale, zB.scale);
   drawTriangles(ctxB, tin, vpB, "bakw");
   ctxB.save(); stroke(ctxB);
   for (let j = 0; j <= GRID_N; j++) {
@@ -461,18 +632,34 @@ function vizGrid(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D,
   ctxB.restore();
   drawEnvelope(ctxB, envB, vpB);
   drawGCPs(ctxB, compiled.points, vpB, "bakw");
+  // マーカー描画
+  if (marker.bakwPt) drawMarker(ctxB, marker.bakwPt, vpB);
+  ctxB.restore();
+  // zoom 外
   drawLabel(ctxB, "Target (Bakw) — deformed grid");
 
+  const gridEnvLabel = compiled.bounds
+    ? "envelope（bounds ポリゴン）"
+    : compiled.xy
+      ? "envelope（xy/wh 矩形）"
+      : "envelope（マップ画像領域 [0,0,w,h]）";
   legendEl.innerHTML = `
     <span style="color:rgba(40,120,40,0.9)">━━</span> グリッド (${GRID_N}×${GRID_N}、envelope+四辺形 bbox 外側10%拡張) &nbsp;|&nbsp;
-    <span style="color:#27ae60">━━</span> envelope（マップ画像領域 [0,0,w,h]）&nbsp;|&nbsp;
-    白抜け = transform() が false（変換不可）
+    <span style="color:#27ae60">━━</span> ${gridEnvLabel} &nbsp;|&nbsp;
+    白抜け = transform() が false（TIN 三角形外）
   `;
 }
 
 // ─── 可視化: ラウンドトリップ誤差 ────────────────────────────────────────────
 
-function vizRoundtrip(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingContext2D, state: LoadedState, legendEl: HTMLElement) {
+function vizRoundtrip(
+  ctxF: CanvasRenderingContext2D,
+  ctxB: CanvasRenderingContext2D,
+  state: LoadedState,
+  legendEl: HTMLElement,
+  zF: ZoomState,
+  zB: ZoomState,
+) {
   const { tin, compiled } = state;
 
   if (compiled.strict_status === "strict_error") {
@@ -493,16 +680,17 @@ function vizRoundtrip(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingConte
   const { x0: gx0, x1: gx1, y0: gy0, y1: gy1 } = extendedGridRange(compiled);
   const vpF = buildViewportWithExtra(compiled, "forw",  [[gx0, gy0], [gx1, gy1]]);
   const vpB = buildViewport(compiled, "bakw");
+  lastVpF = vpF; lastVpB = vpB;
   const envF = getEnvelopeCorners(compiled, tin, "forw");
   const envB = getEnvelopeCorners(compiled, tin, "bakw");
 
   type Cell = { err: number; bakwPt: Pos | null };
   const cells: Cell[][] = ys.map(y =>
     xs.map(x => {
-      const p2 = tin.transform([x, y]);
+      const p2 = tin.transform([x, y], false, true);
       if (!p2) return { err: -1, bakwPt: null };
       let p3: number[] | false;
-      try { p3 = tin.transform(p2, true); } catch { p3 = false; }
+      try { p3 = tin.transform(p2, true, true); } catch { p3 = false; }
       if (!p3) return { err: -1, bakwPt: p2 as Pos };
       const dx = p3[0] - x; const dy = p3[1] - y;
       return { err: Math.sqrt(dx * dx + dy * dy), bakwPt: p2 as Pos };
@@ -512,11 +700,13 @@ function vizRoundtrip(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingConte
   const validErrs = cells.flat().map(c => c.err).filter(e => e >= 0);
   const maxErr = validErrs.length > 0 ? Math.max(...validErrs) : 1;
   const meanErr = validErrs.reduce((a, b) => a + b, 0) / (validErrs.length || 1);
-  // 全点が 0.1px 未満なら色スケール全体を青（視覚的ノイズを避ける）
-  const allBlue = maxErr < RT_ERROR_THRESHOLD;
+  const colorMax = Math.max(maxErr, 1);
 
   // ─ Forw ヒートマップ ─
   clearCanvas(ctxF);
+  ctxF.save();
+  ctxF.translate(zF.tx, zF.ty);
+  ctxF.scale(zF.scale, zF.scale);
   drawTriangles(ctxF, tin, vpF, "forw");
   for (let j = 0; j < RT_GRID_N; j++) {
     for (let i = 0; i < RT_GRID_N; i++) {
@@ -524,7 +714,7 @@ function vizRoundtrip(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingConte
       if (err < 0) continue;
       const [ax, ay] = vpF.c(xs[i], ys[j]);
       const [bx, by] = vpF.c(xs[i + 1], ys[j + 1]);
-      ctxF.fillStyle = errorColor(normalizedError(err, maxErr, allBlue));
+      ctxF.fillStyle = errorColor(normalizedError(err, colorMax));
       ctxF.fillRect(ax, ay, bx - ax, by - ay);
     }
   }
@@ -540,11 +730,18 @@ function vizRoundtrip(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingConte
   }
   ctxF.restore();
   drawEnvelope(ctxF, envF, vpF, "envelope");
+  // マーカー描画
+  if (marker.forwPt) drawMarker(ctxF, marker.forwPt, vpF);
+  ctxF.restore();
+  // zoom 外
   drawLabel(ctxF, "Forw → Bakw → Forw 誤差");
-  drawColorScale(ctxF, maxErr, allBlue);
+  drawColorScale(ctxF, colorMax);
 
   // ─ Bakw ─
   clearCanvas(ctxB);
+  ctxB.save();
+  ctxB.translate(zB.tx, zB.ty);
+  ctxB.scale(zB.scale, zB.scale);
   drawTriangles(ctxB, tin, vpB, "bakw");
   for (let j = 0; j < RT_GRID_N; j++) {
     for (let i = 0; i < RT_GRID_N; i++) {
@@ -555,7 +752,7 @@ function vizRoundtrip(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingConte
         cells[j + 1]?.[i + 1]?.bakwPt ?? null, cells[j + 1]?.[i]?.bakwPt ?? null,
       ];
       if (corners.some(c => !c)) continue;
-      ctxB.fillStyle = errorColor(normalizedError(err, maxErr, allBlue));
+      ctxB.fillStyle = errorColor(normalizedError(err, colorMax));
       ctxB.beginPath();
       const [x0, y0] = vpB.c(corners[0]![0], corners[0]![1]);
       ctxB.moveTo(x0, y0);
@@ -567,21 +764,20 @@ function vizRoundtrip(ctxF: CanvasRenderingContext2D, ctxB: CanvasRenderingConte
     }
   }
   drawEnvelope(ctxB, envB, vpB);
+  // マーカー描画
+  if (marker.bakwPt) drawMarker(ctxB, marker.bakwPt, vpB);
+  ctxB.restore();
+  // zoom 外
   drawLabel(ctxB, "対応する Bakw 空間でのセル");
-  drawColorScale(ctxB, maxErr, allBlue);
+  drawColorScale(ctxB, colorMax);
 
-  const thresholdNote = allBlue
-    ? `<span style="color:#2471a3">全点 &lt; 0.1px（丸め誤差範囲）</span> &nbsp;|&nbsp; `
-    : `<span style="color:#555">≤ 0.1px → 青</span> &nbsp;|&nbsp; `;
   legendEl.innerHTML = `
-    ${thresholdNote}
-    誤差範囲: <b>0 〜 ${maxErr.toExponential(3)}</b> px &nbsp;|&nbsp;
-    平均誤差: <b>${meanErr.toExponential(3)}</b> px &nbsp;|&nbsp;
+    <span style="color:#555">≤ 0.1px → 青</span> &nbsp;|&nbsp;
+    誤差範囲: <b>0 〜 ${fmtPx(maxErr)}</b> px &nbsp;|&nbsp;
+    平均誤差: <b>${fmtPx(meanErr)}</b> px &nbsp;|&nbsp;
     有効点数: <b>${validErrs.length}</b> / ${(RT_GRID_N + 1) ** 2}<br>
-    ${allBlue
-      ? `<span style="background:rgba(0,0,255,0.8);display:inline-block;width:120px;height:12px;vertical-align:middle;border-radius:3px"></span>`
-      : `<span style="background:linear-gradient(to right,#0000ff,#ffff00,#ff0000);display:inline-block;width:120px;height:12px;vertical-align:middle;border-radius:3px"></span>
-    &nbsp; ≤0.1px → 高誤差`}
+    <span style="background:linear-gradient(to right,#0000ff,#ffff00,#ff0000);display:inline-block;width:120px;height:12px;vertical-align:middle;border-radius:3px"></span>
+    &nbsp; ≤0.1px → 高誤差
     &nbsp;|&nbsp;
     <span style="color:#27ae60">━━</span> envelope
   `;
@@ -636,9 +832,9 @@ async function main() {
     if (!currentState) return;
     const ctxF = getCtx("canvas-forw");
     const ctxB = getCtx("canvas-bakw");
-    if (currentMode === "rays") vizRays(ctxF, ctxB, currentState, legendEl);
-    else if (currentMode === "grid") vizGrid(ctxF, ctxB, currentState, legendEl);
-    else vizRoundtrip(ctxF, ctxB, currentState, legendEl);
+    if (currentMode === "rays") vizRays(ctxF, ctxB, currentState, legendEl, zoomF, zoomB);
+    else if (currentMode === "grid") vizGrid(ctxF, ctxB, currentState, legendEl, zoomF, zoomB);
+    else vizRoundtrip(ctxF, ctxB, currentState, legendEl, zoomF, zoomB);
   }
 
   async function loadAndRender(mapIdx: number, ver: FormatVer) {
@@ -646,6 +842,10 @@ async function main() {
     statusEl.textContent = `読み込み中: ${mapConfig.label} ${ver} ...`;
     statusEl.style.color = "#e67e22";
     currentState = null;
+    // ズーム/パン・マーカーをリセット
+    zoomF = initZoom();
+    zoomB = initZoom();
+    marker = { forwPt: null, bakwPt: null };
 
     try {
       currentState = await loadState(mapConfig, ver);
@@ -665,6 +865,48 @@ async function main() {
 
     render();
   }
+
+  // ズーム/パン イベント登録（一度だけ）
+  const canvasForwEl = document.getElementById("canvas-forw") as HTMLCanvasElement;
+  const canvasBakwEl = document.getElementById("canvas-bakw") as HTMLCanvasElement;
+
+  setupZoomPan(
+    canvasForwEl,
+    () => zoomF,
+    (z) => { zoomF = z; },
+    render,
+  );
+  setupZoomPan(
+    canvasBakwEl,
+    () => zoomB,
+    (z) => { zoomB = z; },
+    render,
+  );
+
+  // クリックマーキング イベント登録（一度だけ）
+  canvasForwEl.addEventListener("click", (e: MouseEvent) => {
+    if (!currentState || !lastVpF) return;
+    // render で使ったビューポートと同一の vpF で逆変換（モードによって異なる）
+    const baseX = (e.offsetX - zoomF.tx) / zoomF.scale;
+    const baseY = (e.offsetY - zoomF.ty) / zoomF.scale;
+    const dataPt = lastVpF.inverse(baseX, baseY);
+    marker.forwPt = dataPt;
+    const result = currentState.tin.transform(dataPt, false, true);
+    marker.bakwPt = result ? result as Pos : null;
+    render();
+  });
+
+  canvasBakwEl.addEventListener("click", (e: MouseEvent) => {
+    if (!currentState || !lastVpB) return;
+    // render で使ったビューポートと同一の vpB で逆変換
+    const baseX = (e.offsetX - zoomB.tx) / zoomB.scale;
+    const baseY = (e.offsetY - zoomB.ty) / zoomB.scale;
+    const dataPt = lastVpB.inverse(baseX, baseY);
+    marker.bakwPt = dataPt;
+    const result = currentState.tin.transform(dataPt, true, true);
+    marker.forwPt = result ? result as Pos : null;
+    render();
+  });
 
   // イベント: マップ切り替え
   mapSelect.addEventListener("change", () => {

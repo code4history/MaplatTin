@@ -28,12 +28,37 @@ const MAPS = [
   "miesan_ginza_map",
   "tatebayashi_castle_akimoto",
   "tatebayashi_kaei_jokamachi",
+  "1932_nobeoka",
+  "1932_nobeoka_sub0",
 ] as const;
 
 const VERS = ["v2", "v3"] as const;
 
 const outDir = path.join(root, "tests", "cases");
 fs.mkdirSync(outDir, { recursive: true });
+
+/** サンプリング用の [width, height] を返す。
+ *  wh がない場合（V3 サブマップ）は bounds ポリゴンの bbox から計算。 */
+function samplingWH(compiled: Compiled): [number, number] {
+  if (compiled.wh) return compiled.wh as [number, number];
+  if (compiled.bounds && (compiled.bounds as number[][]).length > 0) {
+    const pts = compiled.bounds as number[][];
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    return [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)];
+  }
+  throw new Error(`Cannot determine sampling range for ${JSON.stringify(compiled).slice(0, 80)}`);
+}
+
+/** サンプリング用の原点オフセット [x0, y0] を返す。 */
+function samplingOrigin(compiled: Compiled): [number, number] {
+  if (compiled.xy) return compiled.xy as [number, number];
+  if (compiled.bounds && (compiled.bounds as number[][]).length > 0) {
+    const pts = compiled.bounds as number[][];
+    return [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1]))];
+  }
+  return [0, 0];
+}
 
 for (const key of MAPS) {
   console.log(`\n── ${key} ──`);
@@ -44,13 +69,14 @@ for (const key of MAPS) {
     const tin = new Tin();
     tin.setCompiled(compiled);
 
-    const [width, height] = compiled.wh!;
+    const [width, height] = samplingWH(compiled);
+    const [x0, y0] = samplingOrigin(compiled);
     const cases: [[number, number], [number, number]][] = [];
 
     for (let xp = 0.1; xp < 1; xp += 0.1) {
       for (let yp = 0.1; yp < 1; yp += 0.1) {
-        const x = width * xp;
-        const y = height * yp;
+        const x = x0 + width * xp;
+        const y = y0 + height * yp;
         const result = tin.transform([x, y]);
         if (result) {
           cases.push([[x, y], result as [number, number]]);

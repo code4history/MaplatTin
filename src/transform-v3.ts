@@ -15,7 +15,6 @@ import type {
   Compiled,
   PointSet,
   StrictStatus,
-  WeightBufferBD,
 } from "@maplat/transform";
 import type { Tins, Tri } from "@maplat/transform";
 import { normalizeEdges } from "@maplat/transform";
@@ -117,15 +116,13 @@ export function buildVertexTinsV3(compiled: Compiled, bakw: boolean): Tins[] {
 // Weight-buffer normalisation (same logic as v2 but version-aware)
 // ────────────────────────────────────────────────────────────────────────────
 
-function normalizeWeightBufferV3(compiled: Compiled): WeightBufferBD {
-  // v3 weight buffers are already in the modern key format.
-  return compiled.weight_buffer;
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // Strict-status derivation
 // ────────────────────────────────────────────────────────────────────────────
 
+// TODO: @maplat/transform への移行時に削除予定。
+// compiled-state.ts の deriveStrictStatus() と同一実装。v3 weight_buffer は
+// キー正規化不要なので normalizeWeightBufferV3 は不要（呼び出し元でインライン化済み）。
 function deriveStrictStatusV3(compiled: Compiled): StrictStatus {
   if (compiled.strict_status) return compiled.strict_status;
   if (compiled.kinks_points) return "strict_error";
@@ -137,6 +134,8 @@ function deriveStrictStatusV3(compiled: Compiled): StrictStatus {
 // Centroid builder
 // ────────────────────────────────────────────────────────────────────────────
 
+// TODO: @maplat/transform への移行時に削除予定。
+// compiled-state.ts の buildCentroid() と同一実装。
 function buildCentroidV3(compiled: Compiled) {
   return {
     forw: point(compiled.centroid_point[0], {
@@ -186,6 +185,8 @@ function buildTinsV3(compiled: Compiled) {
 // Kinks builder
 // ────────────────────────────────────────────────────────────────────────────
 
+// TODO: @maplat/transform への移行時に削除予定。
+// compiled-state.ts の buildKinks() と同一実装。
 function buildKinksV3(kinksPoints?: Position[]) {
   if (!kinksPoints) return undefined;
   return {
@@ -228,7 +229,7 @@ export function restoreV3State(compiled: Compiled) {
 
   return {
     points: compiled.points,
-    pointsWeightBuffer: normalizeWeightBufferV3(compiled),
+    pointsWeightBuffer: compiled.weight_buffer, // v3 keys are already normalized
     strictStatus: deriveStrictStatusV3(compiled),
     verticesParams,
     centroid: buildCentroidV3(compiled),
@@ -241,7 +242,9 @@ export function restoreV3State(compiled: Compiled) {
     vertexMode: compiled.vertexMode,
     bounds: compiled.bounds,
     boundsPolygon: compiled.boundsPolygon,
+    // V3 submap: xy/wh are not serialized (bounds polygon is the envelope).
+    // V2 submap and main map: wh is present; xy defaults to [0, 0] when absent.
     wh: compiled.wh,
-    xy: compiled.bounds ? compiled.xy : [0, 0],
+    xy: compiled.xy ?? [0, 0],
   };
 }
