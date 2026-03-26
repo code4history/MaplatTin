@@ -1,5 +1,5 @@
 import { Position, Feature, Point, FeatureCollection, GeoJsonProperties, Polygon } from 'geojson';
-import { Compiled, PointSet, StrictStatus, WeightBufferBD, Tins, EdgeSet, YaxisMode, StrictMode, VertexMode } from '@maplat/transform';
+import { Compiled, PointSet, StrictStatus, Tins, WeightBufferBD, EdgeSet, YaxisMode, StrictMode, VertexMode } from '@maplat/transform';
 /**
  * Build an array of N sector Tins for use in useVerticesArr().
  *
@@ -49,5 +49,5 @@ export declare function restoreV3State(compiled: Compiled): {
     bounds: number[][] | undefined;
     boundsPolygon: Feature<Polygon, GeoJsonProperties> | undefined;
     wh: number[] | undefined;
-    xy: number[] | undefined;
+    xy: number[];
 };

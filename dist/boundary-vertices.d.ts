@@ -4,33 +4,21 @@ interface ConvexEntry {
     forw: Position;
     bakw: Position;
 }
-interface BoundaryVerticesParams {
+/**
+ * Unified parameters for all boundary vertex computations (V2 and V3).
+ *
+ * `allGcps` must include **all** interior points: GCPs from `this.points` **and**
+ * edge intermediate nodes from `this.edgeNodes`.  This is necessary so that
+ * `checkAndAdjustVerticesN` can guarantee that every constrained-edge vertex in
+ * bakw space lies inside the boundary polygon.
+ */
+export interface BoundaryVerticesParams {
     convexBuf: Record<string, ConvexEntry>;
     centroid: {
         forw: Position;
         bakw: Position;
     };
-    bbox: Position[];
-    minx: number;
-    maxx: number;
-    miny: number;
-    maxy: number;
-}
-/**
- * Calculate the standard four boundary vertices around the centroid.
- */
-export declare function calculatePlainVertices(params: BoundaryVerticesParams): VertexPosition[];
-/**
- * Calculate boundary vertices for bird's-eye mode using quadrant-aware ratios.
- */
-export declare function calculateBirdeyeVertices(params: BoundaryVerticesParams): VertexPosition[];
-export interface BoundaryVerticesV3Params {
-    convexBuf: Record<string, ConvexEntry>;
-    centroid: {
-        forw: Position;
-        bakw: Position;
-    };
-    /** All GCPs as { forw, bakw } pairs — used for bin-based selection. */
+    /** GCPs + edge intermediate nodes */
     allGcps: Array<{
         forw: Position;
         bakw: Position;
@@ -41,19 +29,26 @@ export interface BoundaryVerticesV3Params {
     maxy: number;
 }
 /**
- * Calculate boundary vertices for Format Version 3 plain mode.
+ * Calculate boundary vertices in plain mode.
  *
- * Algorithm: "10°-Uniform Bins + Corner Priority"
- *  - 36 bins of 10° each uniformly partition the 360° around the centroid.
- *  - The 4 bbox corners each claim the bin they fall into (up to 4 corner bins).
- *  - Each remaining bin selects the most-exterior GCP (max forw distance from
- *    centroid) in that angular range.
- *  - forw edge point = centroid_forw → selected_GCP_forw ray ∩ forw bbox
- *  - bakw edge point = centroid_bakw → selected_GCP_bakw ray ∩ bakw quad
- *    (computed independently — NOT via transform()).
- *  - Allocation per side is automatically proportional to each side's arc span.
+ * @param params - Input parameters including GCPs, centroid, and bounding box.
+ * @param v3 - When true (V3 format), runs the full 36-bin edge vertex pass
+ *   (Phase 3) in addition to the 4 bbox corners, producing up to 36 vertices.
+ *   When false (V2 format), returns only the 4 bbox corners.
  *
- * @returns Sorted list of up to 36 boundary vertices.
+ * Plain mode uses a single aggregate [scale, rotation] ratio from all GCPs.
  */
-export declare function calculatePlainVerticesV3(params: BoundaryVerticesV3Params): VertexPosition[];
+export declare function calculatePlainVertices(params: BoundaryVerticesParams, v3?: boolean): VertexPosition[];
+/**
+ * Calculate boundary vertices in bird's-eye mode.
+ *
+ * @param params - Input parameters including GCPs, centroid, and bounding box.
+ * @param v3 - When true (V3 format), runs the full 36-bin edge vertex pass
+ *   (Phase 3) in addition to the 4 bbox corners, producing up to 36 vertices.
+ *   When false (V2 format), returns only the 4 bbox corners.
+ *
+ * Birdeye mode uses per-quadrant [scale, rotation] ratios to capture
+ * perspective distortion in the 4 corner positions.
+ */
+export declare function calculateBirdeyeVertices(params: BoundaryVerticesParams, v3?: boolean): VertexPosition[];
 export {};

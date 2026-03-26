@@ -91,6 +91,11 @@ export declare class Tin extends Transform {
      */
     private validateAndPrepareInputs;
     /**
+     * Compute a bounding box derived from GCP coordinates with a 5% margin.
+     * Used in V3 plain mode where no explicit image bounds are available.
+     */
+    private computeGcpBbox;
+    /**
      * TINネットワークを同期的に更新し、座標変換の準備を行います。
      * 重めの計算を伴うため、呼び出し側が非同期制御を行いたい場合は
      * {@link updateTinAsync} を利用してください。
