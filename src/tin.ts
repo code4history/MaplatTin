@@ -11,23 +11,20 @@ import {
   point,
   polygon,
 } from "@turf/turf";
-import type { Feature, Point, Position } from "geojson";
+import type { Feature, Point, Polygon, Position } from "geojson";
 import {
   counterTri,
-  format_version,
+  format_version as FORMAT_VERSION_V2,
   normalizeEdges,
   rotateVerticesTriangle,
   Transform,
   transformArr,
 } from "@maplat/transform";
 
-// Ensure format_version is available
-const FALLBACK_FORMAT_VERSION = 2.00703;
-const safeFormatVersion = typeof format_version !== "undefined"
-  ? format_version
-  : FALLBACK_FORMAT_VERSION;
+const FORMAT_VERSION_V3 = 3.00000;
 import type {
   Compiled,
+  CompiledLegacy,
   Edge,
   EdgeSet,
   EdgeSetLegacy,
@@ -44,6 +41,7 @@ import constrainedTin from "./constrained-tin.ts";
 import {
   calculateBirdeyeVertices,
   calculatePlainVertices,
+  type BoundaryVerticesParams,
 } from "./boundary-vertices.ts";
 import findIntersections from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
@@ -51,7 +49,7 @@ import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import { buildPointsWeightBuffer } from "./weight-buffer.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
 import type { SearchIndex } from "./searchutils.ts";
-import type { PointsSetBD } from "./types/tin.d.ts";
+import type { PointsSetBD, VertexPosition } from "./types/tin.d.ts";
 
 type EdgeSegmentItem = [Position, number, number, number, string?];
 type EdgeNodeItem = [Position, Position, number];
@@ -70,6 +68,8 @@ export interface Options {
   stateFull?: boolean;
   points?: PointSet[];
   edges?: EdgeSet[];
+  /** true にすると v2 アルゴリズム（wh bbox・turf 重心・4 境界頂点）で build する */
+  useV2Algorithm?: boolean;
 }
 
 /**
@@ -80,6 +80,7 @@ export class Tin extends Transform {
   importance: number;
   priority: number;
   pointsSet: PointsSetBD | undefined;
+  useV2Algorithm: boolean;
 
   /**
    * Tinクラスのインスタンスを生成します
@@ -100,6 +101,7 @@ export class Tin extends Transform {
     this.importance = options.importance || 0;
     this.priority = options.priority || 0;
     this.stateFull = options.stateFull || false;
+    this.useV2Algorithm = options.useV2Algorithm ?? false;
 
     if (options.points) {
       this.setPoints(options.points);
@@ -113,7 +115,7 @@ export class Tin extends Transform {
    * フォーマットバージョンを取得します
    */
   getFormatVersion(): number {
-    return safeFormatVersion;
+    return this.useV2Algorithm ? FORMAT_VERSION_V2 : FORMAT_VERSION_V3;
   }
 
   /**
@@ -178,7 +180,7 @@ export class Tin extends Transform {
    */
   getCompiled(): Compiled {
     const compiled: Compiled = {} as Compiled;
-    compiled.version = safeFormatVersion;
+    compiled.version = this.useV2Algorithm ? FORMAT_VERSION_V2 : FORMAT_VERSION_V3;
     compiled.points = this.points;
     compiled.weight_buffer = this.pointsWeightBuffer ?? {};
     compiled.centroid_point = [
@@ -193,12 +195,12 @@ export class Tin extends Transform {
 
     const vertices = this.vertices_params!.forw![1];
     if (vertices) {
-      [0, 1, 2, 3].map((i) => {
+      for (let i = 0; i < vertices.length; i++) {
         const vertex = vertices[i].features[0];
         const forw = vertex.geometry!.coordinates[0][1];
         const bakw = vertex.properties!.b.geom;
         compiled.vertices_points[i] = [forw, bakw];
-      });
+      }
     }
 
     compiled.strict_status = this.strict_status;
@@ -234,9 +236,15 @@ export class Tin extends Transform {
     if (this.bounds) {
       compiled.bounds = this.bounds;
       compiled.boundsPolygon = this.boundsPolygon;
-      compiled.xy = this.xy;
-      compiled.wh = this.wh;
+      if (this.useV2Algorithm) {
+        // V2 submap: xy/wh define the bbox used for triangulation — must be preserved.
+        compiled.xy = this.xy;
+        compiled.wh = this.wh;
+      }
+      // V3 submap: bounds polygon is the envelope; xy/wh are not used for
+      // triangulation and are therefore not serialized.
     } else {
+      // Main map: wh stores image dimensions for display and V2 bbox calculation.
       compiled.wh = this.wh;
     }
 
@@ -245,6 +253,16 @@ export class Tin extends Transform {
     compiled.edgeNodes = (this.edgeNodes ?? []) as any;
 
     return compiled;
+  }
+
+  /**
+   * コンパイルされた設定を適用します（v3+フォーマット対応）
+   *
+   * バージョン3以上のコンパイル済みデータが渡された場合は restoreV3State() を
+   * 使用してN頂点対応の復元を行います。それ以外は基底クラスの実装に委譲します。
+   */
+  override setCompiled(compiled: Compiled | CompiledLegacy): void {
+    super.setCompiled(compiled);
   }
 
   /**
@@ -492,10 +510,13 @@ export class Tin extends Transform {
     const miny = this.xy![1] - 0.05 * this.wh![1];
     const maxy = this.xy![1] + 1.05 * this.wh![1];
 
+    // Invariant: boundsPolygon is always set when bounds is set (see setBounds / setCompiled).
+    if (this.bounds && !this.boundsPolygon) throw new Error("Internal error: bounds is set but boundsPolygon is missing");
+    const bp = this.bounds ? this.boundsPolygon : undefined;
     const allPointsInside = this.points.reduce((prev: boolean, point: PointSet) => {
       return prev &&
-        (this.bounds
-          ? booleanPointInPolygon(point[0] as Position, this.boundsPolygon!)
+        (bp
+          ? booleanPointInPolygon(point[0] as Position, bp)
           : point[0][0] >= minx && point[0][0] <= maxx &&
           point[0][1] >= miny && point[0][1] <= maxy);
     }, true);
@@ -520,6 +541,32 @@ export class Tin extends Transform {
   }
 
   /**
+   * Compute a bounding box derived from GCP coordinates with a 5% margin.
+   * Used in V3 plain mode where no explicit image bounds are available.
+   */
+  private computeGcpBbox(): {
+    minx: number; maxx: number; miny: number; maxy: number;
+  } {
+    let gcpMinx = Infinity, gcpMaxx = -Infinity;
+    let gcpMiny = Infinity, gcpMaxy = -Infinity;
+    for (const p of this.points) {
+      const x = p[0][0] as number, y = p[0][1] as number;
+      if (x < gcpMinx) gcpMinx = x;
+      if (x > gcpMaxx) gcpMaxx = x;
+      if (y < gcpMiny) gcpMiny = y;
+      if (y > gcpMaxy) gcpMaxy = y;
+    }
+    const gcpW = gcpMaxx - gcpMinx;
+    const gcpH = gcpMaxy - gcpMiny;
+    return {
+      minx: gcpMinx - 0.05 * gcpW,
+      maxx: gcpMaxx + 0.05 * gcpW,
+      miny: gcpMiny - 0.05 * gcpH,
+      maxy: gcpMaxy + 0.05 * gcpH,
+    };
+  }
+
+  /**
    * TINネットワークを同期的に更新し、座標変換の準備を行います。
    * 重めの計算を伴うため、呼び出し側が非同期制御を行いたい場合は
    * {@link updateTinAsync} を利用してください。
@@ -530,8 +577,33 @@ export class Tin extends Transform {
       strict = Tin.MODE_AUTO;
     }
 
-    const { pointsSet: rawPointsSet, bbox, minx, maxx, miny, maxy } = this
-      .validateAndPrepareInputs();
+    const isV3 = !this.useV2Algorithm;
+    let rawPointsSet: { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
+    let minx: number, maxx: number, miny: number, maxy: number;
+
+    if (isV3) {
+      // V3 (main map and submap): always derive bbox from GCPs.
+      // When a bounds polygon (envelope) is provided, validate GCPs are inside it first.
+      if (this.bounds) {
+        // Invariant: boundsPolygon is always set when bounds is set (see setBounds / setCompiled).
+        const bp = this.boundsPolygon;
+        if (!bp) throw new Error("Internal error: bounds is set but boundsPolygon is missing");
+        const allInsideBounds = this.points.every(
+          (p: PointSet) => booleanPointInPolygon(p[0] as Position, bp),
+        );
+        if (!allInsideBounds) throw "SOME POINTS OUTSIDE";
+      }
+      rawPointsSet = this.generatePointsSet();
+      ({ minx, maxx, miny, maxy } = this.computeGcpBbox());
+    } else {
+      // V2: use xy/wh bbox with full validation.
+      const validated = this.validateAndPrepareInputs();
+      rawPointsSet = validated.pointsSet;
+      minx = validated.minx;
+      maxx = validated.maxx;
+      miny = validated.miny;
+      maxy = validated.maxy;
+    }
 
     // Create FeatureCollections for use in calculations
     const pointsSetFC = {
@@ -593,10 +665,46 @@ export class Tin extends Transform {
     }
 
     // Set centroids
-    const centCalc = {
-      forw: forCentroid.geometry!.coordinates,
-      bakw: transformArr(forCentroid, tinForw as Tins) as Position,
-    };
+    let centCalc: { forw: Position; bakw: Position };
+    if (isV3) {
+      // V3 (main map and submap): find the TIN triangle containing turf's centroid
+      // and use its geometric centre (mean of 3 vertices) as the new centroid.
+      const forCentCoord = forCentroid.geometry!.coordinates;
+      const containingTri = (tinForw as Tins).features.find((tri: Tri) =>
+        booleanPointInPolygon(
+          point(forCentCoord),
+          tri as unknown as Feature<Polygon>,
+        )
+      );
+      if (containingTri) {
+        const coords = containingTri.geometry!.coordinates[0];
+        const aGeom = containingTri.properties!.a.geom as Position;
+        const bGeom = containingTri.properties!.b.geom as Position;
+        const cGeom = containingTri.properties!.c.geom as Position;
+        centCalc = {
+          forw: [
+            (coords[0][0] + coords[1][0] + coords[2][0]) / 3,
+            (coords[0][1] + coords[1][1] + coords[2][1]) / 3,
+          ],
+          bakw: [
+            (aGeom[0] + bGeom[0] + cGeom[0]) / 3,
+            (aGeom[1] + bGeom[1] + cGeom[1]) / 3,
+          ],
+        };
+      } else {
+        // Fallback: use turf centroid directly.
+        centCalc = {
+          forw: forCentCoord,
+          bakw: transformArr(forCentroid, tinForw as Tins) as Position,
+        };
+      }
+    } else {
+      // V2: transform turf centroid through TIN.
+      centCalc = {
+        forw: forCentroid.geometry!.coordinates,
+        bakw: transformArr(forCentroid, tinForw as Tins) as Position,
+      };
+    }
 
     const centroidPoint = createPoint(centCalc.forw, centCalc.bakw, "c");
     this.centroid = {
@@ -605,18 +713,27 @@ export class Tin extends Transform {
     };
 
     // Calculate vertices
-    const boundaryParams = {
+    // allGcps includes both GCPs and edge intermediate nodes so that
+    // checkAndAdjustVerticesN can guarantee all constrained-edge bakw positions
+    // are enclosed within the boundary polygon.
+    const allGcps: BoundaryVerticesParams["allGcps"] = [
+      ...this.points.map((p) => ({ forw: p[0] as Position, bakw: p[1] as Position })),
+      ...(this.edgeNodes ?? []).map((n) => ({ forw: n[0] as Position, bakw: n[1] as Position })),
+    ];
+    const boundaryParams: BoundaryVerticesParams = {
       convexBuf,
       centroid: centCalc,
-      bbox,
+      allGcps,
       minx,
       maxx,
       miny,
       maxy,
     };
-    const verticesSet = this.vertexMode === Tin.VERTEX_BIRDEYE
-      ? calculateBirdeyeVertices(boundaryParams)
-      : calculatePlainVertices(boundaryParams);
+
+    // V3 enables the 36-bin edge vertex pass for both main maps and submaps.
+    const verticesSet: VertexPosition[] = this.vertexMode === Tin.VERTEX_BIRDEYE
+      ? calculateBirdeyeVertices(boundaryParams, isV3)
+      : calculatePlainVertices(boundaryParams, isV3);
 
     // Add vertices to points set
     const verticesList = {
@@ -690,6 +807,7 @@ export class Tin extends Transform {
       tins: this.tins!,
       targets,
       includeReciprocals,
+      numBoundaryVertices: verticesSet.length,
     });
   }
 

@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>naramachi 変換の可視化</title>
+<style>
+body { font-family: sans-serif; background: #f0f0f0; margin: 10px; }
+canvas { background: white; border: 1px solid #ccc; }
+.row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+h2 { margin: 5px 0; font-size: 16px; }
+p { margin: 4px 0; font-size: 13px; color: #333; }
+.box { background: white; padding: 10px; border: 1px solid #ccc; }
+</style>
+</head>
+<body>
+
+<h1>naramachi の forw ↔ bakw 変換 可視化</h1>
+
+<div class="row">
+  <div class="box">
+    <h2>① forw空間（画像座標）</h2>
+    <p>4コーナーと重心からの角度</p>
+    <canvas id="c1" width="320" height="320"></canvas>
+  </div>
+  <div class="box">
+    <h2>② bakw空間（地理座標）</h2>
+    <p>対応するbakw位置と重心からの角度</p>
+    <canvas id="c2" width="320" height="320"></canvas>
+  </div>
+  <div class="box">
+    <h2>③ 対応関係</h2>
+    <p>forw角度→bakw角度のマッピング</p>
+    <canvas id="c3" width="320" height="320"></canvas>
+  </div>
+</div>
+
+<div class="row">
+  <div class="box">
+    <h2>④ Phase3 interpolation の問題</h2>
+    <p>SW→NW 辺の途中点：正しいbakw方向 vs 現在のコードのbakw方向</p>
+    <canvas id="c4" width="500" height="320"></canvas>
+  </div>
+  <div class="box">
+    <h2>⑤ 共線点の問題</h2>
+    <p>bakw空間でPhase3頂点が辺上に配置→制約辺と干渉</p>
+    <canvas id="c5" width="320" height="320"></canvas>
+  </div>
+</div>
+
+<script>
+// naramachi の実際のデータ
+const forwCentroid = [7487.4, 8440.6];
+const bakwCentroid = [15121489.3, 4121321.8];
+
+// 4コーナー (forw, bakw) — sorted by forwAngle CCW
+// [0]=SW, [1]=NW, [2]=NE(wrap), [3]=SE
+const corners = [
+  { label: 'SW', forw: [-707, -818],   bakw: [15118160, 4124357], forwAngle: 221.5, bakwAngle: 312.4, rotation: -90.9 },
+  { label: 'NW', forw: [-707, 17171],  bakw: [15118789, 4118417], forwAngle: 316.8, bakwAngle: 222.9, rotation: 93.9  },
+  { label: 'NE', forw: [14839, 17171], bakw: [15125491, 4117576], forwAngle: 40.1,  bakwAngle: 133.1, rotation: -93.0 },
+  { label: 'SE', forw: [14839, -818],  bakw: [15126807, 4127359], forwAngle: 141.5, bakwAngle: 41.4,  rotation: 100.1 },
+];
+
+const COLORS = { SW: '#e74c3c', NW: '#3498db', NE: '#2ecc71', SE: '#f39c12' };
+
+function drawSpace(canvasId, points, centroid, title, angleKey, extra) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = 40;
+
+  // fit all points
+  let minX = centroid[0], maxX = centroid[0], minY = centroid[1], maxY = centroid[1];
+  points.forEach(p => {
+    minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]);
+    minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]);
+  });
+  const scaleX = (W - pad*2) / (maxX - minX || 1);
+  const scaleY = (H - pad*2) / (maxY - minY || 1);
+  const scale = Math.min(scaleX, scaleY) * 0.85;
+  const cx = W/2 - (centroid[0] - (minX+maxX)/2) * scale;
+  const cy = H/2 + (centroid[1] - (minY+maxY)/2) * scale;
+
+  function tx(x) { return cx + (x - centroid[0]) * scale; }
+  function ty(y) { return cy - (y - centroid[1]) * scale; } // flip Y
+
+  // draw polygon
+  ctx.beginPath();
+  // sorted CCW
+  const sorted = [...corners].map(c => ({ ...c, coord: c[angleKey === 'forwAngle' ? 'forw' : 'bakw'] }))
+    .sort((a, b) => {
+      const aa = Math.atan2(a.coord[0] - centroid[0], a.coord[1] - centroid[1]);
+      const bb = Math.atan2(b.coord[0] - centroid[0], b.coord[1] - centroid[1]);
+      return aa - bb;
+    });
+  sorted.forEach((c, i) => {
+    const p = c.coord;
+    if (i === 0) ctx.moveTo(tx(p[0]), ty(p[1]));
+    else ctx.lineTo(tx(p[0]), ty(p[1]));
+  });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(200,220,255,0.3)';
+  ctx.fill();
+  ctx.strokeStyle = '#999';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // centroid
+  ctx.beginPath();
+  ctx.arc(tx(centroid[0]), ty(centroid[1]), 5, 0, Math.PI*2);
+  ctx.fillStyle = '#333';
+  ctx.fill();
+  ctx.fillStyle = '#333';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('重心', tx(centroid[0])+7, ty(centroid[1])+4);
+
+  // draw rays and corners
+  corners.forEach(c => {
+    const coord = angleKey === 'forwAngle' ? c.forw : c.bakw;
+    const angle = c[angleKey];
+    const color = COLORS[c.label];
+
+    // ray from centroid
+    ctx.beginPath();
+    ctx.moveTo(tx(centroid[0]), ty(centroid[1]));
+    ctx.lineTo(tx(coord[0]), ty(coord[1]));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // corner dot
+    ctx.beginPath();
+    ctx.arc(tx(coord[0]), ty(coord[1]), 7, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // label
+    ctx.fillStyle = '#222';
+    ctx.font = 'bold 12px sans-serif';
+    const lx = tx(coord[0]) + (coord[0] > centroid[0] ? 10 : -30);
+    const ly = ty(coord[1]) + (coord[1] > centroid[1] ? -10 : 15);
+    ctx.fillText(c.label, lx, ly);
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = color;
+    ctx.fillText(angle.toFixed(1)+'°', lx, ly + 13);
+  });
+
+  if (extra) extra(ctx, tx, ty, centroid, scale);
+}
+
+// ① forw空間
+drawSpace('c1', corners.map(c => c.forw), forwCentroid, 'forw', 'forwAngle');
+
+// ② bakw空間
+drawSpace('c2', corners.map(c => c.bakw), bakwCentroid, 'bakwAngle', 'bakwAngle');
+
+// ③ forw角度→bakw角度のマッピング (scatter)
+{
+  const canvas = document.getElementById('c3');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = 45;
+
+  ctx.fillStyle = '#f8f8f8';
+  ctx.fillRect(0, 0, W, H);
+
+  // axes
+  ctx.strokeStyle = '#aaa';
+  ctx.beginPath();
+  ctx.moveTo(pad, H-pad); ctx.lineTo(W-pad, H-pad); // X
+  ctx.moveTo(pad, pad);   ctx.lineTo(pad, H-pad);    // Y
+  ctx.stroke();
+
+  ctx.fillStyle = '#666';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('forw角度', W/2-20, H-5);
+  ctx.save(); ctx.translate(12, H/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('bakw角度', 0, 0); ctx.restore();
+
+  // ticks
+  for (let d = 0; d <= 360; d += 90) {
+    const x = pad + (d/360)*(W-2*pad);
+    const y = H-pad - (d/360)*(H-2*pad);
+    ctx.strokeStyle = '#ddd';
+    ctx.beginPath(); ctx.moveTo(x, pad); ctx.lineTo(x, H-pad); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W-pad, y); ctx.stroke();
+    ctx.fillStyle = '#999'; ctx.font = '10px sans-serif';
+    ctx.fillText(d+'°', x-10, H-pad+12);
+    ctx.fillText(d+'°', 2, y+4);
+  }
+
+  // identity line (y=x)
+  ctx.beginPath();
+  ctx.moveTo(pad, H-pad);
+  ctx.lineTo(W-pad, pad);
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1; ctx.setLineDash([4,3]);
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // connect corners in forw-CCW order to show the path
+  const sortedByForw = [...corners].sort((a,b) => a.forwAngle - b.forwAngle);
+  ctx.beginPath();
+  sortedByForw.forEach((c, i) => {
+    const x = pad + (c.forwAngle/360)*(W-2*pad);
+    const y = H-pad - (c.bakwAngle/360)*(H-2*pad);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = '#bbb'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // plot corners
+  corners.forEach(c => {
+    const x = pad + (c.forwAngle/360)*(W-2*pad);
+    const y = H-pad - (c.bakwAngle/360)*(H-2*pad);
+    ctx.beginPath();
+    ctx.arc(x, y, 7, 0, Math.PI*2);
+    ctx.fillStyle = COLORS[c.label];
+    ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(c.label, x+8, y-4);
+    ctx.font = '10px sans-serif';
+    ctx.fillStyle = '#555';
+    ctx.fillText(`rot=${c.rotation.toFixed(1)}°`, x+8, y+8);
+  });
+
+  // highlight SW→NW rotation delta issue
+  const sw = corners.find(c => c.label==='SW');
+  const nw = corners.find(c => c.label==='NW');
+  const x1 = pad + (sw.forwAngle/360)*(W-2*pad);
+  const y1 = H-pad - (sw.bakwAngle/360)*(H-2*pad);
+  const x2 = pad + (nw.forwAngle/360)*(W-2*pad);
+  const y2 = H-pad - (nw.bakwAngle/360)*(H-2*pad);
+
+  // midpoint forw
+  const mForw = (sw.forwAngle + nw.forwAngle)/2;
+  // correct bakw midpoint (direct interp)
+  const mBakwCorrect = (sw.bakwAngle + nw.bakwAngle)/2;
+  // wrong bakw midpoint (code does delta=-175.2)
+  const wrongDelta = -175.2;
+  const mRotWrong = sw.rotation + 0.5 * wrongDelta;
+  const mBakwWrong = (mForw - mRotWrong + 360) % 360;
+
+  const xm = pad + (mForw/360)*(W-2*pad);
+  const ymC = H-pad - (mBakwCorrect/360)*(H-2*pad);
+  const ymW = H-pad - (mBakwWrong/360)*(H-2*pad);
+
+  ctx.beginPath();
+  ctx.arc(xm, ymC, 6, 0, Math.PI*2);
+  ctx.fillStyle = '#27ae60';
+  ctx.fill();
+  ctx.fillStyle = '#27ae60'; ctx.font = '10px sans-serif';
+  ctx.fillText('正しい', xm+8, ymC+4);
+
+  ctx.beginPath();
+  ctx.arc(xm, ymW, 6, 0, Math.PI*2);
+  ctx.fillStyle = '#e74c3c';
+  ctx.fill();
+  ctx.fillStyle = '#e74c3c'; ctx.font = '10px sans-serif';
+  ctx.fillText('コード', xm+8, ymW+4);
+
+  // arrow between wrong and correct
+  ctx.beginPath();
+  ctx.moveTo(xm-10, ymW);
+  ctx.lineTo(xm-10, ymC);
+  ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 2;
+  ctx.setLineDash([3,2]); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 11px sans-serif';
+  const diff = Math.abs(mBakwCorrect - mBakwWrong);
+  ctx.fillText(`差${diff.toFixed(0)}°`, xm-38, (ymW+ymC)/2+4);
+}
+
+// ④ Phase3補間の問題 (bakw空間で2つの方向を表示)
+{
+  const canvas = document.getElementById('c4');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // bakw空間を描画 (左半分: bakw空間の概略)
+  // scale: fit bakw polygon
+  const bw = corners.map(c => c.bakw[0]);
+  const bh = corners.map(c => c.bakw[1]);
+  const minBX = Math.min(...bw), maxBX = Math.max(...bw);
+  const minBY = Math.min(...bh), maxBY = Math.max(...bh);
+  const margin = 50;
+  const scaleB = Math.min((W-margin*2)/(maxBX-minBX), (H-margin*2)/(maxBY-minBY)) * 0.9;
+
+  function tbx(x) { return margin + (x - minBX + (maxBX-minBX)*0.05) * scaleB; }
+  function tby(y) { return H - margin - (y - minBY + (maxBY-minBY)*0.05) * scaleB; }
+
+  // draw 4-corner bakw polygon
+  ctx.beginPath();
+  const bSorted = [...corners].sort((a,b) => {
+    const aa = Math.atan2(a.bakw[0]-bakwCentroid[0], a.bakw[1]-bakwCentroid[1]);
+    const bb = Math.atan2(b.bakw[0]-bakwCentroid[0], b.bakw[1]-bakwCentroid[1]);
+    return aa - bb;
+  });
+  bSorted.forEach((c, i) => {
+    if (i===0) ctx.moveTo(tbx(c.bakw[0]), tby(c.bakw[1]));
+    else ctx.lineTo(tbx(c.bakw[0]), tby(c.bakw[1]));
+  });
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(200,220,255,0.3)';
+  ctx.fill();
+  ctx.strokeStyle = '#999'; ctx.lineWidth = 2; ctx.stroke();
+
+  // corners
+  corners.forEach(c => {
+    ctx.beginPath();
+    ctx.arc(tbx(c.bakw[0]), tby(c.bakw[1]), 7, 0, Math.PI*2);
+    ctx.fillStyle = COLORS[c.label];
+    ctx.fill();
+    ctx.fillStyle = '#222'; ctx.font = 'bold 11px sans-serif';
+    const offX = c.bakw[0] > bakwCentroid[0] ? 10 : -28;
+    const offY = c.bakw[1] > bakwCentroid[1] ? -10 : 16;
+    ctx.fillText(c.label, tbx(c.bakw[0])+offX, tby(c.bakw[1])+offY);
+  });
+
+  // centroid
+  const cxB = tbx(bakwCentroid[0]), cyB = tby(bakwCentroid[1]);
+  ctx.beginPath(); ctx.arc(cxB, cyB, 5, 0, Math.PI*2);
+  ctx.fillStyle = '#333'; ctx.fill();
+  ctx.fillStyle = '#555'; ctx.font = '11px sans-serif';
+  ctx.fillText('重心', cxB+7, cyB+4);
+
+  // SW corner (red), NW corner (blue) highlighted
+  const sw = corners.find(c => c.label==='SW');
+  const nw = corners.find(c => c.label==='NW');
+  const ne = corners.find(c => c.label==='NE');
+  const se = corners.find(c => c.label==='SE');
+
+  // midpoint forw angle between SW and NW
+  const mForwAngle = (sw.forwAngle + nw.forwAngle) / 2; // 269.15°
+
+  // CORRECT bakwTheta at midpoint: direct interpolation
+  const correctBakwTheta = (sw.bakwAngle + nw.bakwAngle) / 2; // 267.65°
+
+  // WRONG bakwTheta: rotation-based interpolation
+  const wrongDelta = -175.2;
+  const wrongRotation = sw.rotation + 0.5 * wrongDelta;
+  const wrongBakwTheta = (mForwAngle - wrongRotation + 720) % 360;
+
+  // Draw correct direction (green arrow from centroid)
+  const correctRad = correctBakwTheta * Math.PI / 180;
+  const len = 80;
+  const cxBd = cxB + Math.sin(correctRad) * len;
+  const cyBd = cyB - Math.cos(correctRad) * len;
+  ctx.beginPath();
+  ctx.moveTo(cxB, cyB);
+  ctx.lineTo(cxBd, cyBd);
+  ctx.strokeStyle = '#27ae60'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#27ae60'; ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('✓ 正しい方向', cxBd+5, cyBd);
+  ctx.fillText(`bakw ${correctBakwTheta.toFixed(0)}°`, cxBd+5, cyBd+13);
+
+  // Draw wrong direction (red arrow from centroid)
+  const wrongRad = wrongBakwTheta * Math.PI / 180;
+  const wxBd = cxB + Math.sin(wrongRad) * len;
+  const wyBd = cyB - Math.cos(wrongRad) * len;
+  ctx.beginPath();
+  ctx.moveTo(cxB, cyB);
+  ctx.lineTo(wxBd, wyBd);
+  ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('✗ コードの方向', wxBd + (wxBd > cxB ? 5 : -100), wyBd);
+  ctx.fillText(`bakw ${wrongBakwTheta.toFixed(0)}°`, wxBd + (wxBd > cxB ? 5 : -100), wyBd+13);
+
+  // annotation: which side of polygon each hits
+  ctx.fillStyle = '#888'; ctx.font = '11px sans-serif';
+  ctx.fillText(`forw中間点 ${mForwAngle.toFixed(0)}°(SW-NW辺の途中)`, 5, H-10);
+
+  // label sides
+  ctx.fillStyle = '#e74c3c'; ctx.font = '11px sans-serif';
+  ctx.fillText('← コードはNE-SE辺に当たる（反対側！）', 5, 18);
+  ctx.fillStyle = '#27ae60';
+  ctx.fillText('← 正解はSW-NW辺（隣のコーナー同士の辺）', 5, 32);
+}
+
+// ⑤ 共線点の問題
+{
+  const canvas = document.getElementById('c5');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2;
+  const r = 110;
+
+  // Draw quadrilateral corners at cardinal positions
+  const qCorners = [
+    { x: cx,    y: cy-r, label: 'A' },
+    { x: cx+r,  y: cy,   label: 'B' },
+    { x: cx,    y: cy+r, label: 'C' },
+    { x: cx-r,  y: cy,   label: 'D' },
+  ];
+
+  // Midpoints (Phase3 edge vertices - collinear)
+  const midAB = { x: (qCorners[0].x+qCorners[1].x)/2, y: (qCorners[0].y+qCorners[1].y)/2, label: 'P1' };
+
+  // Draw polygon
+  ctx.beginPath();
+  qCorners.forEach((p,i) => i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(200,220,255,0.2)'; ctx.fill();
+  ctx.strokeStyle = '#888'; ctx.lineWidth = 2; ctx.stroke();
+
+  // highlight A-B side with collinear P1
+  ctx.beginPath();
+  ctx.moveTo(qCorners[0].x, qCorners[0].y);
+  ctx.lineTo(qCorners[1].x, qCorners[1].y);
+  ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 4; ctx.stroke();
+
+  // Phase3 point P1 on A-B
+  ctx.beginPath();
+  ctx.arc(midAB.x, midAB.y, 7, 0, Math.PI*2);
+  ctx.fillStyle = '#e74c3c'; ctx.fill();
+  ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('P1(Phase3頂点)', midAB.x+10, midAB.y-5);
+  ctx.fillText('共線！', midAB.x+10, midAB.y+10);
+
+  // degenerate triangle: A, P1, centroid-adjacent triangle
+  // The triangle A-P1-interior has nearly zero area
+  const intPt = { x: cx+20, y: cy-40 };
+  ctx.beginPath();
+  ctx.moveTo(qCorners[0].x, qCorners[0].y);
+  ctx.lineTo(midAB.x, midAB.y);
+  ctx.lineTo(intPt.x, intPt.y);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(231,76,60,0.2)'; ctx.fill();
+  ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = '#c0392b'; ctx.font = '10px sans-serif';
+  ctx.fillText('ゼロ面積に', cx-15, cy-68);
+  ctx.fillText('近い三角形', cx-15, cy-57);
+
+  // constrained interior edge trying to pass near
+  const gcp1 = { x: cx-30, y: cy-50 };
+  const gcp2 = { x: cx+60, y: cy-20 };
+  ctx.beginPath();
+  ctx.moveTo(gcp1.x, gcp1.y);
+  ctx.lineTo(gcp2.x, gcp2.y);
+  ctx.strokeStyle = '#8e44ad'; ctx.lineWidth = 2.5; ctx.setLineDash([6,3]); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#8e44ad'; ctx.font = '11px sans-serif';
+  ctx.fillText('制約辺', (gcp1.x+gcp2.x)/2-10, (gcp1.y+gcp2.y)/2-8);
+
+  // GCP points
+  [gcp1, gcp2].forEach(p => {
+    ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2);
+    ctx.fillStyle = '#8e44ad'; ctx.fill();
+  });
+
+  // Corners
+  qCorners.forEach(p => {
+    ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI*2);
+    ctx.fillStyle = '#3498db'; ctx.fill();
+    ctx.fillStyle = 'white'; ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.label, p.x, p.y);
+  });
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+  // centroid
+  ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2);
+  ctx.fillStyle = '#333'; ctx.fill();
+
+  ctx.fillStyle = '#555'; ctx.font = '11px sans-serif';
+  ctx.fillText('P1が辺AB上に共線→制約辺(紫)の', 5, H-28);
+  ctx.fillText('三角分割が破綻→kinks発生', 5, H-14);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>TIN Viz</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font: 12px sans-serif; background: #1a1a1a; color: #ddd; display: flex; flex-direction: column; height: 100vh; }
+#header { padding: 5px 10px; background: #2a2a2a; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+#header h1 { font-size: 13px; color: #fff; }
+#status { font-size: 11px; color: #fa0; flex: 1; }
+label { cursor: pointer; user-select: none; }
+label input { margin-right: 3px; }
+#btn-download { display: none; padding: 4px 12px; background: #0a0; color: #fff; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; }
+#btn-download.visible { display: inline-block; }
+#btn-download:hover { background: #0c0; }
+#panels { display: flex; flex: 1; overflow: hidden; }
+.panel { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #333; }
+.panel:last-child { border-right: none; }
+.panel-title { padding: 3px 8px; background: #222; font-size: 11px; color: #aaa; }
+canvas { flex: 1; cursor: crosshair; display: block; width: 100%; height: 100%; }
+#cv-bakw { cursor: cell; }
+#info { padding: 3px 10px; background: #111; font-size: 10px; color: #888; height: 20px; white-space: nowrap; overflow: hidden; }
+.overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.75); color: #fff; padding: 12px 24px; border-radius: 6px; font-size: 14px; pointer-events: none; display: none; }
+#panel-bakw { position: relative; flex: 1; display: flex; flex-direction: column; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>TIN Viz</h1>
+  <span id="status">Loading…</span>
+  <label><input type="checkbox" id="chk-tris" checked> Triangles</label>
+  <label><input type="checkbox" id="chk-verts" checked> Boundary</label>
+  <label><input type="checkbox" id="chk-gcps" checked> GCPs</label>
+  <label><input type="checkbox" id="chk-kinks" checked> Kinks</label>
+  <button id="btn-download">⬇ Download Map JSON</button>
+  <span style="color:#555;font-size:10px">Wheel=zoom · Drag=pan · RClick=reset</span>
+</div>
+<div id="panels">
+  <div class="panel"><div class="panel-title">forw (pixel) — read only</div><canvas id="cv-forw"></canvas></div>
+  <div id="panel-bakw" class="panel">
+    <div class="panel-title">bakw (mercator) — <span style="color:#fa0">click nearest GCP to delete</span></div>
+    <canvas id="cv-bakw"></canvas>
+    <div class="overlay" id="overlay-compile">再コンパイル中…</div>
+  </div>
+</div>
+<div id="info">—</div>
+<script>
+class PZ {
+  constructor(cv) {
+    this.cv = cv;
+    this.tx = 0; this.ty = 0; this.sc = 1;
+    this._itx = 0; this._ity = 0; this._is = 1;
+    this._drag = false; this._mx = 0; this._my = 0;
+    cv.addEventListener('wheel', e => { e.preventDefault(); this._wheel(e); }, { passive: false });
+    cv.addEventListener('mousedown', e => {
+      if (e.button === 0) { this._drag = false; this._startX = e.clientX; this._startY = e.clientY;
+        this._dragging = false; this._mx = e.clientX; this._my = e.clientY; this._didDrag = false; }
+    });
+    cv.addEventListener('mousemove', e => {
+      if (e.buttons !== 1) return;
+      const dx = e.clientX - this._mx, dy = e.clientY - this._my;
+      if (Math.hypot(dx,dy) > 3) this._didDrag = true;
+      this.tx += e.clientX - this._mx; this.ty += e.clientY - this._my;
+      this._mx = e.clientX; this._my = e.clientY;
+      redraw();
+    });
+    cv.addEventListener('contextmenu', e => { e.preventDefault(); this.reset(); redraw(); });
+  }
+  _wheel(e) {
+    const r = this.cv.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const f = e.deltaY < 0 ? 1.15 : 1/1.15;
+    this.tx = mx + (this.tx - mx) * f; this.ty = my + (this.ty - my) * f; this.sc *= f;
+    redraw();
+  }
+  fit(pts) {
+    const W = this.cv.clientWidth, H = this.cv.clientHeight;
+    if (!W || !H || !pts.length) return;
+    let mnx=Infinity,mny=Infinity,mxx=-Infinity,mxy=-Infinity;
+    for (const [x,y] of pts) { if(!isFinite(x)||!isFinite(y)) continue; mnx=Math.min(mnx,x); mny=Math.min(mny,y); mxx=Math.max(mxx,x); mxy=Math.max(mxy,y); }
+    const pad = 30;
+    const s = Math.min((W-pad*2)/Math.max(mxx-mnx,1), (H-pad*2)/Math.max(mxy-mny,1));
+    const tx = pad + (W-pad*2-(mxx-mnx)*s)/2 - mnx*s;
+    const ty = pad + (H-pad*2-(mxy-mny)*s)/2 - mny*s;
+    this.tx = tx; this.ty = ty; this.sc = s;
+    this._itx = tx; this._ity = ty; this._is = s;
+  }
+  reset() { this.tx = this._itx; this.ty = this._ity; this.sc = this._is; }
+  sx(x) { return x * this.sc + this.tx; }
+  sy(y) { return y * this.sc + this.ty; }
+  inv(cx, cy) { return [(cx-this.tx)/this.sc, (cy-this.ty)/this.sc]; }
+}
+
+let DATA = null;
+let busy = false;
+const cvF = document.getElementById('cv-forw');
+const cvB = document.getElementById('cv-bakw');
+const pzF = new PZ(cvF);
+const pzB = new PZ(cvB);
+const overlay = document.getElementById('overlay-compile');
+
+function resizeCanvas(cv) {
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+}
+
+function drawPanel(pz, tris, verts, gcps, kinks, isForw) {
+  const cv = pz.cv;
+  resizeCanvas(cv);
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const sx = x => pz.sx(x), sy = y => pz.sy(y);
+  const showTris  = document.getElementById('chk-tris').checked;
+  const showVerts = document.getElementById('chk-verts').checked;
+  const showGcps  = document.getElementById('chk-gcps').checked;
+  const showKinks = document.getElementById('chk-kinks').checked;
+
+  if (showTris && tris) {
+    ctx.strokeStyle = 'rgba(80,140,255,0.28)'; ctx.lineWidth = 0.5;
+    for (const [x0,y0,x1,y1,x2,y2] of tris) {
+      ctx.beginPath(); ctx.moveTo(sx(x0),sy(y0)); ctx.lineTo(sx(x1),sy(y1)); ctx.lineTo(sx(x2),sy(y2)); ctx.closePath(); ctx.stroke();
+    }
+  }
+  if (showVerts && verts && verts.length) {
+    const side = isForw ? 0 : 1;
+    const pts = verts.map(v => v[side]);
+    ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(sx(pts[0][0]),sy(pts[0][1]));
+    for (let i=1;i<pts.length;i++) ctx.lineTo(sx(pts[i][0]),sy(pts[i][1]));
+    ctx.closePath(); ctx.stroke();
+    ctx.fillStyle = '#ffcc00';
+    for (const p of pts) { ctx.beginPath(); ctx.arc(sx(p[0]),sy(p[1]),4,0,Math.PI*2); ctx.fill(); }
+  }
+  if (showGcps && gcps) {
+    const side = isForw ? 0 : 1;
+    ctx.fillStyle = 'rgba(0,220,100,0.7)';
+    for (const g of gcps) { const p=g[side]; ctx.beginPath(); ctx.arc(sx(p[0]),sy(p[1]),2.5,0,Math.PI*2); ctx.fill(); }
+  }
+  if (showKinks && kinks && kinks.length) {
+    ctx.fillStyle = '#ff2222'; ctx.strokeStyle = '#ff8080'; ctx.lineWidth = 1;
+    for (const p of kinks) { ctx.beginPath(); ctx.arc(sx(p[0]),sy(p[1]),6,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+  }
+}
+
+function updateStatus() {
+  if (!DATA) return;
+  const kB = (DATA.kinks_bakw||[]).length, kF = (DATA.kinks_points||[]).length;
+  const ok = DATA.strictStatus === 'strict' && kB === 0 && kF === 0;
+  document.getElementById('status').textContent =
+    `status:${DATA.strictStatus} | kinks_forw:${kF} | kinks_bakw:${kB} | verts:${(DATA.vertices_points||[]).length} | gcps:${DATA.gcpCount||'?'}`;
+  document.getElementById('status').style.color = ok ? '#0f0' : '#fa0';
+  const btn = document.getElementById('btn-download');
+  if (ok) btn.classList.add('visible'); else btn.classList.remove('visible');
+}
+
+function redraw() {
+  if (!DATA) return;
+  const kF = DATA.kinks_points || [];
+  const kB = DATA.kinks_bakw && DATA.kinks_bakw.length ? DATA.kinks_bakw : [];
+  drawPanel(pzF, DATA.forwTris, DATA.vertices_points, DATA.gcps, kF, true);
+  drawPanel(pzB, DATA.bakwTris, DATA.vertices_points, DATA.gcps, kB, false);
+}
+
+// ── bakw クリックで GCP 削除 ───────────────────────────────────────────────
+cvB.addEventListener('click', async e => {
+  if (busy || !DATA) return;
+  if (pzB._didDrag) return; // パン操作後はスキップ
+  const r = cvB.getBoundingClientRect();
+  const [bakwX, bakwY] = pzB.inv(e.clientX - r.left, e.clientY - r.top);
+
+  // 最近傍 GCP を表示
+  let bestIdx = -1, bestDist = Infinity;
+  for (let i = 0; i < DATA.gcps.length; i++) {
+    const p = DATA.gcps[i][1];
+    // bakw panel では p[1] が bakw 座標
+    const d = Math.hypot(p[0]-bakwX, p[1]-bakwY);
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  }
+  if (bestIdx < 0) return;
+
+  // 画面距離が遠すぎる場合は無視（50px 以内の GCP のみ）
+  const screenDist = bestDist * pzB.sc;
+  if (screenDist > 50) {
+    document.getElementById('info').textContent = `GCP が遠すぎます (${screenDist.toFixed(0)}px)。もっと近くをクリックしてください。`;
+    return;
+  }
+
+  busy = true;
+  overlay.style.display = 'block';
+  document.getElementById('info').textContent = `GCP[${bestIdx}] 削除中… forw=${JSON.stringify(DATA.gcps[bestIdx][0])}`;
+
+  try {
+    const resp = await fetch('/api/delete-gcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bakwX, bakwY }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    DATA = await resp.json();
+    updateStatus();
+    redraw();
+    document.getElementById('info').textContent =
+      `削除完了 forw=${JSON.stringify(DATA.deletedForw)} | kinks_bakw:${(DATA.kinks_bakw||[]).length}`;
+  } catch (err) {
+    document.getElementById('info').textContent = `エラー: ${err.message}`;
+  } finally {
+    busy = false;
+    overlay.style.display = 'none';
+  }
+});
+
+// ── ダウンロード ──────────────────────────────────────────────────────────
+document.getElementById('btn-download').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = '/api/download-map';
+  a.download = 'naramachi_yasui_bunko.json';
+  a.click();
+});
+
+// ── チェックボックス ───────────────────────────────────────────────────────
+['chk-tris','chk-verts','chk-gcps','chk-kinks'].forEach(id =>
+  document.getElementById(id).addEventListener('change', redraw));
+
+// ── 座標表示 ───────────────────────────────────────────────────────────────
+function addInfo(pz, label) {
+  pz.cv.addEventListener('mousemove', e => {
+    if (e.buttons === 1) return;
+    const r = pz.cv.getBoundingClientRect();
+    const [wx,wy] = pz.inv(e.clientX-r.left, e.clientY-r.top);
+    document.getElementById('info').textContent = `${label}: (${wx.toFixed(1)}, ${wy.toFixed(1)})`;
+  });
+}
+addInfo(pzF, 'forw');
+addInfo(pzB, 'bakw');
+
+// ── 初回ロード ─────────────────────────────────────────────────────────────
+fetch('debug_tin_data.json').then(r => r.json()).then(d => {
+  DATA = d;
+  if (!DATA.gcpCount) DATA.gcpCount = DATA.gcps.length;
+  updateStatus();
+  resizeCanvas(cvF); resizeCanvas(cvB);
+  pzF.fit((d.forwTris||[]).flatMap(([x0,y0,x1,y1,x2,y2])=>[[x0,y0],[x1,y1],[x2,y2]]));
+  pzB.fit((d.bakwTris||[]).flatMap(([x0,y0,x1,y1,x2,y2])=>[[x0,y0],[x1,y1],[x2,y2]]));
+  redraw();
+});
+
+window.addEventListener('resize', redraw);
+</script>
+</body>
+</html>

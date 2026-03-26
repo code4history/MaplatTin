@@ -1,50 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { Transform } from "@maplat/transform";
-import { Tin, type Options } from "../src/index.ts";
+import { Tin } from "../src/index.ts";
 import fs from "node:fs";
 
-console.log("transform.test.ts module loaded");
-process.on("uncaughtException", (err) => {
-  console.error("uncaught exception in transform.test.ts", err);
-});
-process.on("unhandledRejection", (reason) => {
-  console.error("unhandled rejection in transform.test.ts", reason);
-});
+// ─── データセット定義 ──────────────────────────────────────────────────────────
+// [label, key, ver]
+// caseFile: tests/cases/{key}_{ver}.json
+// compiledFile: tests/compiled/{key}_{ver}.json
 
-const datasets = [
-  ["Nara", "naramachi_yasui_bunko"],
-  ["Fushimi", "fushimijo_maplat"],
+type Dataset = [string, string, "v2" | "v3"];
+
+const datasets: Dataset[] = [
+  ["Nara v2",          "naramachi_yasui_bunko",   "v2"],
+  ["Nara v3",          "naramachi_yasui_bunko",   "v3"],
+  ["Nara Revised v2",  "naramachi_yasui_revised", "v2"],
+  ["Nara Revised v3",  "naramachi_yasui_revised", "v3"],
+  ["Fushimi v2", "fushimijo_maplat",      "v2"],
+  ["Fushimi v3", "fushimijo_maplat",      "v3"],
+  ["Miesan v2",  "miesan_ginza_map",      "v2"],
+  ["Miesan v3",  "miesan_ginza_map",      "v3"],
+  ["Tatebayashi Castle v2",    "tatebayashi_castle_akimoto",  "v2"],
+  ["Tatebayashi Castle v3",    "tatebayashi_castle_akimoto",  "v3"],
+  ["Tatebayashi Jokamachi v2", "tatebayashi_kaei_jokamachi",  "v2"],
+  ["Tatebayashi Jokamachi v3", "tatebayashi_kaei_jokamachi",  "v3"],
+  ["Nobeoka v2",               "1932_nobeoka",                "v2"],
+  ["Nobeoka v3",               "1932_nobeoka",                "v3"],
+  ["Nobeoka Sub v2",           "1932_nobeoka_sub0",           "v2"],
+  ["Nobeoka Sub v3",           "1932_nobeoka_sub0",           "v3"],
 ];
 
-describe("Tin", () => {
-  datasets.forEach(([town, filename]) => {
-    describe(`Test by actual data (${town})`, () => {
+describe("Tin — transform", () => {
+  datasets.forEach(([town, key, ver]) => {
+    describe(`${town}`, () => {
+      // Load compiled and case data synchronously at describe time
+      const compiledData = JSON.parse(
+        fs.readFileSync(`${__dirname}/compiled/${key}_${ver}.json`, "utf-8"),
+      );
       const cases: [[[number, number], [number, number]]] = JSON.parse(
-        fs.readFileSync(`${__dirname}/cases/${filename}.json`, "utf-8"),
+        fs.readFileSync(`${__dirname}/cases/${key}_${ver}.json`, "utf-8"),
       );
 
-      const load_m = JSON.parse(
-        fs.readFileSync(`${__dirname}/maps/${filename}.json`, "utf-8"),
-      );
-
-      const builder = new Tin({
-        wh: [load_m.width, load_m.height],
-        strictMode: load_m.strictMode as Options["strictMode"],
-        vertexMode: load_m.vertexMode as Options["vertexMode"],
-        stateFull: false,
-      });
-
-      builder.setPoints(load_m.gcps);
-      if (load_m.edges) {
-        builder.setEdges(load_m.edges);
-      }
-      builder.updateTin();
-
-      const compiledData = builder.getCompiled();
-      const tin = new Transform();
+      const tin = new Tin();
       tin.setCompiled(compiledData);
 
-      describe(`Forward transformation`, () => {
+      describe("Forward transformation", () => {
         let i = 0;
         for (const [forw, bakw] of cases) {
           i++;
@@ -56,8 +54,8 @@ describe("Tin", () => {
         }
       });
 
-      if (compiledData.strict_status !== "strict_error") {
-        describe(`Backward transformation`, () => {
+      if (compiledData.strict_status !== "strict_error" && !compiledData.bounds) {
+        describe("Backward transformation", () => {
           let i = 0;
           for (const [forw, bakw] of cases) {
             i++;

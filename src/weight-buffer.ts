@@ -9,6 +9,8 @@ interface WeightBufferOptions {
   tins: TinsBD;
   targets: Array<keyof TinsBD>;
   includeReciprocals: boolean;
+  /** Number of boundary vertices (b0..b{N-1}).  Defaults to 4 for v2 format. */
+  numBoundaryVertices?: number;
 }
 
 /**
@@ -17,7 +19,7 @@ interface WeightBufferOptions {
 export function buildPointsWeightBuffer(
   options: WeightBufferOptions,
 ): WeightBufferBD {
-  const { tins, targets, includeReciprocals } = options;
+  const { tins, targets, includeReciprocals, numBoundaryVertices = 4 } = options;
   const edgeRatios: WeightBufferBD = {};
 
   targets.forEach((target) => {
@@ -93,13 +95,14 @@ export function buildPointsWeightBuffer(
     });
 
     let centroidSum = 0;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < numBoundaryVertices; i++) {
       const key = `b${i}`;
       const weight =
         pointsWeightBuffer[target as keyof WeightBufferBD]![key] || 0;
       centroidSum += weight;
     }
-    pointsWeightBuffer[target as keyof WeightBufferBD]!["c"] = centroidSum / 4;
+    pointsWeightBuffer[target as keyof WeightBufferBD]!["c"] =
+      centroidSum / numBoundaryVertices;
 
     if (includeReciprocals && pointsWeightBuffer.bakw) {
       pointsWeightBuffer.bakw["c"] = 1 /

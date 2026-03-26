@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "MaplatTin Demo",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173,
+      "autoPort": true
+    },
+    {
+      "name": "Debug Viz",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "scripts/dev-server.ts"],
+      "port": 8765
+    }
+  ]
+}
