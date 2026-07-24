@@ -2,9 +2,9 @@
 <h1 align="center">MaplatTin</h1>
 
 <p align="center">
-  [![CI](https://github.com/code4history/MaplatTin/actions/workflows/ci.yml/badge.svg)](https://github.com/code4history/MaplatTin/actions/workflows/ci.yml)
-  [![npm version](https://img.shields.io/npm/v/@maplat/tin)](https://www.npmjs.com/package/@maplat/tin)
-  [![License](https://img.shields.io/npm/l/@maplat/tin)](LICENSE)
+  <a href="https://github.com/code4history/MaplatTin/actions/workflows/ci.yml"><img src="https://github.com/code4history/MaplatTin/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://www.npmjs.com/package/@maplat/tin"><img src="https://img.shields.io/npm/v/@maplat/tin" alt="npm version" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/npm/l/@maplat/tin" alt="License" /></a>
 </p>
 
 <!-- SECTION 2: Elevator Pitch -->
