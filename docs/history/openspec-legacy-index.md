@@ -18,7 +18,15 @@
 | typescript-error-fix | archive済み | 2025-12-20（bfebcf9） | `src/tin.ts` のTypeScriptコンパイルエラーと`pnpm-lock.yaml`の不整合（`@maplat/transform`のコミットハッシュずれ）によるCI/CD失敗を解消する。 | 完了 | 完了・削除対象 | [原文](openspec-legacy/typescript-error-fix/) |
 | unify-libs-turf-vite | archive済み | 2025-12-20（3b0076a） | 個別の `@turf/*` パッケージ依存を `@turf/turf` へ統合し、`vite.config.ts` をビルド・テストの単一情報源とし、ESLint Flat Configへ統一する。 | 完了 | 完了・削除対象 | [原文](openspec-legacy/unify-libs-turf-vite/) |
 | complete-v3-runtime-and-format | 未archive | 2026-04-10（341fbf8） | V3三角網ペイロードにおけるGCPメタデータ・ランタイム専用ペイロード・軽量配布ペイロードの表現方法を正式仕様として定義する提案。 | 未実装（0/23） | **V4へ再定義済みの歴史文書（実施せず破棄・履歴化。決定B、m15マイルストーン設計 v1.2 §0.6参照。20/23がV4計画文書 `NextTargets/10-maplat-tin.md` と新3パッケージ Atlas/Daedalus/Teiresias で再定義・移管・無効化済み。代替としてm12-t24「MaplatTin V4仕様への未反映事項の反映」が既に登録済み）** | [原文](openspec-legacy/complete-v3-runtime-and-format/) |
-| standarized_c4h_standard | 未archive | 2025-12-24（ff530eb） | Code4History標準への準拠（pnpm強制・`dist/`成果物分離・devサーバのルートURL動作・CI/CDのtest/deploy分離）を図る、Maplatの `standardize-repo-structure` と同系統の提案。 | ほぼ完了（22/29。pnpm engines制約・README pnpm記載・`dist`/`dist-demo`分離ビルドは実装済みを確認。残タスクはnpm失敗確認・CI稼働確認・GitHub Pagesデプロイ確認という手動検証チェックリストと、CONTRIBUTING.md新設（「存在すれば更新」という条件付きタスクのため該当なし）） | 完了・削除対象 | [原文](openspec-legacy/standarized_c4h_standard/) |
+| standarized_c4h_standard | 未archive | 2025-12-24（ff530eb） | Code4History標準への準拠（pnpm強制・`dist/`成果物分離・devサーバのルートURL動作・CI/CDのtest/deploy分離）を図る、Maplatの `standardize-repo-structure` と同系統の提案。 | ほぼ完了（22/29。pnpm engines制約・README pnpm記載（6.1）・`dist`/`dist-demo`分離ビルド出力先のREADME記載（6.2、README.md L133-134で実装済みを確認）は未チェックのまま実装済み。残タスクはdevサーバのルートURL動作確認（5.4）・npm失敗確認（5.2）・CI稼働確認（5.5）・GitHub Pagesデプロイ確認（5.6）という手動検証チェックリストと、CONTRIBUTING.md新設（6.3、「存在すれば更新」という条件付きタスクのため該当なし）） | 完了・削除対象 | [原文](openspec-legacy/standarized_c4h_standard/) |
+
+## 既知の問題対応履歴（openspec/known-issues、計1件）
+
+> `openspec/changes/` の提案とは別に、`openspec/known-issues/` にはテストデータの不具合修復記録が保存されている。マイルストーン設計 v1.2 §1 の棚卸し表がこの区分を対象外としており、当初のT1実装ではAC1の91エントリに含まれていなかった（実装レビューv1 スコープ外Major1として指摘）。T1への前進修正でマイルストーン設計・タスク設計両方に区分を追記した上で本エントリを追加している。
+
+| ファイル | 推定時期 | 目的 | 現在の扱い | 原文 |
+|---|---|---|---|---|
+| naramachi-strict-error.md | 2026-03-24（1247e44、解決2026-03-25） | 奈良町テストデータ（naramachi_yasui_bunko）で `strict_status` が `strict_error` を返すようになった不具合（2025-11-09のオーバーラップ検出アルゴリズム変更に起因）を、縮退三角形フリップ修復の反復ループ化で完全解決した経緯の記録。 | 完了・解決済みの修復記録（削除対象） | [原文](openspec-legacy/_known-issues/naramachi-strict-error.md) |
 
 ## 当時のプロジェクト概要（参考・陳腐化済み）
 
