@@ -1,4 +1,16 @@
 packages:
   - '.'
+
+# 依存の上書き。pnpm 10+ はここから読む(pnpm 9 は package.json の pnpm.overrides を
+# 読むため両方を維持する)。pnpm 11.16.0 は package.json の pnpm フィールドを
+# 一切読まないため、ここに無いと override が無効になる(m1-t1 で実測)
+overrides:
+  "@microsoft/api-extractor": 7.58.0
+
+# build script 許可リスト。pnpm 11 で onlyBuiltDependencies(リスト形式)は
+# allowBuilds(マップ形式)に置換された(旧キーは警告なしで無視される)。
+# pnpm 9/10/11 との両対応のため新旧両形式を併記する
 allowBuilds:
   esbuild: true
+onlyBuiltDependencies:
+  - esbuild
