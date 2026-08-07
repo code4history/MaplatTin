@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@maplat/transform':
-        specifier: ^0.5.2
-        version: 0.5.2
+        specifier: ^1.0.0-rc1
+        version: 1.0.0-rc1
       '@turf/turf':
         specifier: ^7.3.1
         version: 7.3.1
@@ -411,8 +411,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@maplat/transform@0.5.2':
-    resolution: {integrity: sha512-iDn0t3wRxXsgkSwBdbPUFcN/A/syRZgk4O5TcKf/kqyTgHuPnKNWL5PUbo4u9dXOoB/W8RvIdCJAIwk2MUZO8Q==}
+  '@maplat/transform@1.0.0-rc1':
+    resolution: {integrity: sha512-+FDUFP4HEeNMomKbmYbdX6pEfmCfKU23a9tTWK+VbEyOdH7J/RPnFrnlAjpBXEjptNuwIobaZniWPQ6LvIpTfg==}
     engines: {node: '>=20', pnpm: '>=9'}
 
   '@microsoft/api-extractor-model@7.33.5':
@@ -2504,7 +2504,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@maplat/transform@0.5.2':
+  '@maplat/transform@1.0.0-rc1':
     dependencies:
       '@turf/turf': 7.3.1
 
