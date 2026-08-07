@@ -40,7 +40,7 @@ MaplatTin is open-source under the Apache License 2.0 (from version 0.14.2).
 <!-- SECTION 5: Quick Start -->
 ## Quick Start
 
-> Release-dependent information (ADR-0012). The version `0.14.2` below is the
+> Release-dependent information (ADR-0012). The version `1.0.0-rc1` below is the
 > current release; update it on each new release.
 
 ### Install
@@ -86,7 +86,7 @@ const restored = tin.transform(transformed, true);
 
 ```html
 <!-- MaplatTin (UMD) -->
-<script src="https://cdn.jsdelivr.net/npm/@maplat/tin@0.14.2/dist/maplat_tin.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@maplat/tin@1.0.0-rc1/dist/maplat_tin.umd.js"></script>
 <script>
   const tin = new maplatTin.default({ wh: [500, 500] });
 </script>
@@ -96,7 +96,7 @@ Or using ES modules:
 
 ```html
 <script type="module">
-  import Tin from 'https://cdn.jsdelivr.net/npm/@maplat/tin@0.14.2/dist/maplat_tin.js';
+  import Tin from 'https://cdn.jsdelivr.net/npm/@maplat/tin@1.0.0-rc1/dist/maplat_tin.js';
   const tin = new Tin({ wh: [500, 500] });
 </script>
 ```
@@ -218,7 +218,7 @@ limitations under the License.
 
 > **Past versions**: Versions before 0.14.2 were distributed under the
 > Maplat Limited License 1.1. The license restoration to Apache 2.0 takes
-> effect from version 0.14.2 onward. Earlier versions available on npmjs.com
+> effect from version 1.0.0-rc1 onward. Earlier versions available on npmjs.com
 > remain under their original limited-license terms.
 
 <!-- SECTION 11: Contributors / Sponsors -->

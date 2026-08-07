@@ -37,7 +37,7 @@ MaplatTin は Apache License 2.0（バージョン 0.14.2 以降）のオープ�
 <!-- SECTION 5: Quick Start -->
 ## クイックスタート
 
-> リリース依存情報（ADR-0012）。下記バージョン `0.14.2` は現在の
+> リリース依存情報（ADR-0012）。下記バージョン `1.0.0-rc1` は現在の
 > リリースです。リリースごとに更新してください。
 
 ### インストール
@@ -83,7 +83,7 @@ const restored = tin.transform(transformed, true);
 
 ```html
 <!-- MaplatTin (UMD) -->
-<script src="https://cdn.jsdelivr.net/npm/@maplat/tin@0.14.2/dist/maplat_tin.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@maplat/tin@1.0.0-rc1/dist/maplat_tin.umd.js"></script>
 <script>
   const tin = new maplatTin.default({ wh: [500, 500] });
 </script>
@@ -93,7 +93,7 @@ const restored = tin.transform(transformed, true);
 
 ```html
 <script type="module">
-  import Tin from 'https://cdn.jsdelivr.net/npm/@maplat/tin@0.14.2/dist/maplat_tin.js';
+  import Tin from 'https://cdn.jsdelivr.net/npm/@maplat/tin@1.0.0-rc1/dist/maplat_tin.js';
   const tin = new Tin({ wh: [500, 500] });
 </script>
 ```

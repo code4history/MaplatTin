@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.14.2",
+  "version": "1.0.0-rc1",
   "description": "JavaScript library which performs homeomorphic conversion mutually between the coordinate systems of two planes based on the control points.",
   "type": "module",
   "module": "./dist/maplat_tin.js",
@@ -65,7 +65,7 @@
     "deno"
   ],
   "dependencies": {
-    "@maplat/transform": "^0.5.2",
+    "@maplat/transform": "^1.0.0-rc1",
     "@turf/turf": "^7.3.1",
     "delaunator": "^5.0.1",
     "robust-predicates": "^3.0.2"
