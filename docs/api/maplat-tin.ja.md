@@ -1,6 +1,8 @@
 # Tin API シグネチャ
 
-> `@maplat/tin`（`0.14.2`）のリリース依存シグネチャ。
+> `@maplat/tin` のリリース依存シグネチャ。
+> 対象リリースは [README](../../README.ja.md#クイックスタート) のリリースブロックに
+> 記載しています。
 > 概念解説（TIN 理論・strict/loose モード）は
 > [Wiki API-Reference](https://github.com/code4history/MaplatTin/wiki/API-Reference) を参照してください。
 

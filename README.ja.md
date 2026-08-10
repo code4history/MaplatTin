@@ -3,7 +3,6 @@
 
 <p align="center">
   <a href="https://github.com/code4history/MaplatTin/actions/workflows/ci.yml"><img src="https://github.com/code4history/MaplatTin/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://www.npmjs.com/package/@maplat/tin"><img src="https://img.shields.io/npm/v/@maplat/tin" alt="npm version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/@maplat/tin" alt="License" /></a>
 </p>
 
@@ -37,17 +36,21 @@ MaplatTin は Apache License 2.0（バージョン 0.14.2 以降）のオープ�
 <!-- SECTION 5: Quick Start -->
 ## クイックスタート
 
-> リリース依存情報（ADR-0012）。下記バージョン `1.0.0-rc1` は現在の
-> リリースです。リリースごとに更新してください。
+<!-- release-pinned:start -->
+> **現在のリリース: `1.0.0-rc1`**（リリース候補）。このブロックは本リポジトリで唯一
+> リリース版数を持つ場所です（ADR-0012）。ブロックの外はすべて 1.0 正式版を前提に
+> 書かれています。
+> npm: [`@maplat/tin`](https://www.npmjs.com/package/@maplat/tin)
+> [![npm rc](https://img.shields.io/npm/v/@maplat/tin/rc)](https://www.npmjs.com/package/@maplat/tin)
 
 ### インストール
 
 ```bash
 # pnpm（推奨）
-pnpm add @maplat/tin
+pnpm add @maplat/tin@rc
 
 # npm
-npm install @maplat/tin
+npm install @maplat/tin@rc
 ```
 
 ### 最小利用例
@@ -145,6 +148,7 @@ pnpm lint          # リンター/フォーマッター (ESLint/Prettier) を実
 - `tests/edgebound/` — 内部 EdgeBound 制約エンジンのテスト（455 テスト）
 - `tests/tin.test.ts` — 実際の地図データを使用した TIN 変換テスト
 - `tests/transform.test.ts` — 座標変換テスト
+<!-- release-pinned:end -->
 
 <!-- SECTION 6: Prerequisites -->
 ## 動作環境

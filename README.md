@@ -3,7 +3,6 @@
 
 <p align="center">
   <a href="https://github.com/code4history/MaplatTin/actions/workflows/ci.yml"><img src="https://github.com/code4history/MaplatTin/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://www.npmjs.com/package/@maplat/tin"><img src="https://img.shields.io/npm/v/@maplat/tin" alt="npm version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/@maplat/tin" alt="License" /></a>
 </p>
 
@@ -40,17 +39,21 @@ MaplatTin is open-source under the Apache License 2.0 (from version 0.14.2).
 <!-- SECTION 5: Quick Start -->
 ## Quick Start
 
-> Release-dependent information (ADR-0012). The version `1.0.0-rc1` below is the
-> current release; update it on each new release.
+<!-- release-pinned:start -->
+> **Current release: `1.0.0-rc1`** — a release candidate. This block is the only place in
+> this repository that carries a release version (ADR-0012); everything outside it is
+> written against the 1.0 release.
+> npm: [`@maplat/tin`](https://www.npmjs.com/package/@maplat/tin)
+> [![npm rc](https://img.shields.io/npm/v/@maplat/tin/rc)](https://www.npmjs.com/package/@maplat/tin)
 
 ### Install
 
 ```bash
 # pnpm (recommended)
-pnpm add @maplat/tin
+pnpm add @maplat/tin@rc
 
 # npm
-npm install @maplat/tin
+npm install @maplat/tin@rc
 ```
 
 ### Minimal usage
@@ -147,6 +150,7 @@ Test coverage:
 - `tests/edgebound/` — internal EdgeBound constraint engine tests (455 tests)
 - `tests/tin.test.ts` — TIN transformation tests with real map data
 - `tests/transform.test.ts` — coordinate transformation tests
+<!-- release-pinned:end -->
 
 <!-- SECTION 6: Prerequisites -->
 ## Prerequisites
