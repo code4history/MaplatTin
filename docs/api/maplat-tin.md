@@ -1,6 +1,8 @@
 # Tin API signatures
 
-> Release-dependent signatures for `@maplat/tin` (`0.14.2`).
+> Release-dependent signatures for `@maplat/tin`.
+> The release these signatures track is listed in the release block of the
+> [README](../../README.md#quick-start).
 > For the conceptual guide (TIN theory, strict/loose modes) see the
 > [Wiki API-Reference](https://github.com/code4history/MaplatTin/wiki/API-Reference).
 

@@ -3,7 +3,6 @@
 
 <p align="center">
   <a href="https://github.com/code4history/MaplatTin/actions/workflows/ci.yml"><img src="https://github.com/code4history/MaplatTin/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://www.npmjs.com/package/@maplat/tin"><img src="https://img.shields.io/npm/v/@maplat/tin" alt="npm version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/@maplat/tin" alt="License" /></a>
 </p>
 
@@ -37,17 +36,21 @@ MaplatTin は Apache License 2.0（バージョン 0.14.2 以降）のオープ�
 <!-- SECTION 5: Quick Start -->
 ## クイックスタート
 
-> リリース依存情報（ADR-0012）。下記バージョン `0.14.2` は現在の
-> リリースです。リリースごとに更新してください。
+<!-- release-pinned:start -->
+> **現在のリリース: `1.0.0-rc1`**（リリース候補）。このブロックは本リポジトリで唯一
+> リリース版数を持つ場所です（ADR-0012）。ブロックの外はすべて 1.0 正式版を前提に
+> 書かれています。
+> npm: [`@maplat/tin`](https://www.npmjs.com/package/@maplat/tin)
+> [![npm rc](https://img.shields.io/npm/v/@maplat/tin/rc)](https://www.npmjs.com/package/@maplat/tin)
 
 ### インストール
 
 ```bash
 # pnpm（推奨）
-pnpm add @maplat/tin
+pnpm add @maplat/tin@rc
 
 # npm
-npm install @maplat/tin
+npm install @maplat/tin@rc
 ```
 
 ### 最小利用例
@@ -83,7 +86,7 @@ const restored = tin.transform(transformed, true);
 
 ```html
 <!-- MaplatTin (UMD) -->
-<script src="https://cdn.jsdelivr.net/npm/@maplat/tin@0.14.2/dist/maplat_tin.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@maplat/tin@1.0.0-rc1/dist/maplat_tin.umd.js"></script>
 <script>
   const tin = new maplatTin.default({ wh: [500, 500] });
 </script>
@@ -93,7 +96,7 @@ const restored = tin.transform(transformed, true);
 
 ```html
 <script type="module">
-  import Tin from 'https://cdn.jsdelivr.net/npm/@maplat/tin@0.14.2/dist/maplat_tin.js';
+  import Tin from 'https://cdn.jsdelivr.net/npm/@maplat/tin@1.0.0-rc1/dist/maplat_tin.js';
   const tin = new Tin({ wh: [500, 500] });
 </script>
 ```
@@ -145,6 +148,7 @@ pnpm lint          # リンター/フォーマッター (ESLint/Prettier) を実
 - `tests/edgebound/` — 内部 EdgeBound 制約エンジンのテスト（455 テスト）
 - `tests/tin.test.ts` — 実際の地図データを使用した TIN 変換テスト
 - `tests/transform.test.ts` — 座標変換テスト
+<!-- release-pinned:end -->
 
 <!-- SECTION 6: Prerequisites -->
 ## 動作環境
@@ -174,6 +178,9 @@ Maplat エコシステムの一部です。全容は下記エコシステム図�
 | [MaplatTin](https://github.com/code4history/MaplatTin) | Apache 2.0 | `@maplat/tin` | TIN 変換 |
 | [MaplatTransform](https://github.com/code4history/MaplatTransform) | Apache 2.0 | `@maplat/transform` | 座標変換 |
 | [MaplatEditor](https://github.com/code4history/MaplatEditor) | Apache 2.0 | — | データ作成ツール（デスクトップ） |
+| [Chuci](https://github.com/code4history/Chuci) | MIT | `@c4h/chuci` | マルチメディアスワイパー/ビューア Web Components |
+| [Quyuan](https://github.com/code4history/Quyuan) | MIT | `@c4h/quyuan` | GeoJSON テンプレートエンジン＋マルチメディアビューア Web Components |
+| [Weiwudi](https://github.com/code4history/Weiwudi) | MIT | `@c4h/weiwudi` | タイルキャッシュ用 Service Worker |
 
 > MaplatEditor は上記ビューアライブラリが描画する地図・POI を作成する
 > データ作成ツールです。Maplat エコシステムはエンドツーエンド:
