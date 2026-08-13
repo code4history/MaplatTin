@@ -7,6 +7,12 @@ import { insertSearchIndex, removeSearchIndex } from "./searchutils.ts";
 
 type ConstraintEdges = number[][];
 
+/**
+ * pointsSet 内の配列位置 → 頂点 index（properties.target.index）の対応表。
+ * GCP は数値、エッジ中間ノードは "e12"、境界頂点は "b3" のような文字列。
+ */
+export type PointIndices = readonly (number | string)[];
+
 /** Matches the shape of PropertyTri in @maplat/transform (not publicly exported). */
 type VertexInfo = {
   prop: { index: number | string; geom: Position };
@@ -35,20 +41,35 @@ function isDegenerate(triangle: [number, number][], epsilon = 1e-6): boolean {
   return doubleArea < epsilon;
 }
 
-function isConstraintEdge(key: string, edges: ConstraintEdges): boolean {
-  const parts = key.split("-");
-  if (parts.length !== 2) return false;
-  if (!parts.every((value) => /^-?\d+$/.test(value))) return false;
-
-  const [a, b] = parts.map((value) => parseInt(value, 10)).sort((x, y) => x - y);
-
-  return edges.some((edge) => {
-    if (edge.length !== 2) return false;
-    const parsed = edge.map((value) => parseInt(`${value}`, 10));
-    if (parsed.some((val) => Number.isNaN(val))) return false;
-    const sorted = parsed.sort((x, y) => x - y);
-    return sorted[0] === a && sorted[1] === b;
+/**
+ * 制約エッジを searchIndex のキー形式へ正規化した集合を作る。
+ *
+ * 二つの名前空間が混在している点に注意すること:
+ * - `edges` の要素は **pointsSet 内の配列位置**（数値）
+ * - searchIndex のキーは **頂点 index**（properties.target.index。
+ *   GCP は数値だがエッジ中間ノードは "e58" のような文字列）
+ *
+ * GCP は「配列位置 == index」なので偶然一致するが、エッジ中間ノードは
+ * 配列位置と `e` の連番が別物であり、対応表なしでは一致しない。
+ * そのため pointIndices で配列位置を頂点 index へ引き直してからキー化する。
+ *
+ * キーの作り方は searchutils.ts の calcSearchKeys と厳密に揃える
+ * （String 化 → sort（既定の文字列比較）→ "-" 連結）。
+ */
+export function buildConstraintEdgeKeys(
+  edges: ConstraintEdges,
+  pointIndices?: PointIndices,
+): Set<string> {
+  const keys = new Set<string>();
+  edges.forEach((edge) => {
+    if (edge.length !== 2) return;
+    const resolved = edge.map((position) => {
+      const index = pointIndices?.[position];
+      return `${index ?? position}`;
+    });
+    keys.add(resolved.sort().join("-"));
   });
+  return keys;
 }
 
 function extractVertices(tri: Tri) {
@@ -174,7 +195,9 @@ export function resolveOverlaps(
   tins: TinsBD,
   searchIndex: SearchIndex,
   edges: ConstraintEdges,
+  pointIndices?: PointIndices,
 ): boolean {
+  const constraintEdgeKeys = buildConstraintEdgeKeys(edges, pointIndices);
   const processedKeys = new Set<string>();
   let repaired = false;
 
@@ -191,7 +214,7 @@ export function resolveOverlaps(
       const sharedKeys = key.split("-");
       if (sharedKeys.length !== 2) continue;
 
-      if (isConstraintEdge(key, edges)) continue;
+      if (constraintEdgeKeys.has(key)) continue;
 
       const tri0Bakw = extractVertices(trises[0].bakw);
       const tri1Bakw = extractVertices(trises[1].bakw);
