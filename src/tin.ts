@@ -298,7 +298,7 @@ export class Tin extends Transform {
   /**
    * 厳密なTINを計算します
    */
-  calcurateStrictTin(): void {
+  calculateStrictTin(): void {
     const bakTins = this.tins!.forw!.features.map((tri: Tri) =>
       counterTri(tri)
     );
@@ -779,7 +779,7 @@ export class Tin extends Transform {
 
     // Calculate strict TIN if needed
     if (strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO) {
-      this.calcurateStrictTin();
+      this.calculateStrictTin();
     }
 
     // Generate backward TIN if needed
