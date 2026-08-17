@@ -27,3 +27,8 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - "@maplat/*"
   - "@c4h/*"
+
+overrides:
+  # postcss > nanoid。<3.3.18 の high（CVE-2026-67213）。3系の最新へ留める。
+  # 正本: scripts/m1-t3/overrides.json（outer）。ここは その部分集合である
+  nanoid: "^3.3.18"
