@@ -76,7 +76,7 @@ export declare class Tin extends Transform {
     /**
      * 厳密なTINを計算します
      */
-    calcurateStrictTin(): void;
+    calculateStrictTin(): void;
     /**
      * 点群セットを生成します。
     * GCP と中間エッジノードを GeoJSON Point に変換し、後続の三角分割に備えます。
