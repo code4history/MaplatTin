@@ -298,7 +298,7 @@ export class Tin extends Transform {
   /**
    * 厳密なTINを計算します
    */
-  calcurateStrictTin(): void {
+  calculateStrictTin(): void {
     const bakTins = this.tins!.forw!.features.map((tri: Tri) =>
       counterTri(tri)
     );
@@ -310,10 +310,19 @@ export class Tin extends Transform {
       insertSearchIndex(searchIndex, { forw: forTri, bakw: bakTri });
     });
 
+    // pointsSet.edges の要素は pointsSet 内の「配列位置」だが、searchIndex の
+    // キーは頂点 index（properties.target.index）で作られている。
+    // エッジ中間ノードは配列位置と index（"e58" 等）が一致しないため、
+    // 対応表を渡して resolveOverlaps 側でキーを揃えさせる。
+    const pointIndices = (this.pointsSet?.forw.features ?? []).map(
+      (point: Feature<Point>) => point.properties!.target.index as number | string,
+    );
+
     resolveOverlaps(
       this.tins!,
       searchIndex,
       this.pointsSet?.edges || [],
+      pointIndices,
     );
 
     const kinks = ["forw", "bakw"].map((direction) => {
@@ -770,7 +779,7 @@ export class Tin extends Transform {
 
     // Calculate strict TIN if needed
     if (strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO) {
-      this.calcurateStrictTin();
+      this.calculateStrictTin();
     }
 
     // Generate backward TIN if needed
