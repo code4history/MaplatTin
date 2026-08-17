@@ -18,7 +18,7 @@ importers:
         specifier: ^1.0.0-rc1
         version: 1.0.0-rc1
       '@turf/turf':
-        specifier: ^7.3.1
+        specifier: ^7.4.0
         version: 7.4.0
       delaunator:
         specifier: ^5.0.1
@@ -79,7 +79,7 @@ importers:
         specifier: ^30.0.1
         version: 30.0.1
       prettier:
-        specifier: ^3.7.4
+        specifier: ^3.9.6
         version: 3.9.6
       robust-segment-intersect:
         specifier: ^1.0.1
