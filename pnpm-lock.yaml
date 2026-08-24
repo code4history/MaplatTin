@@ -15,8 +15,8 @@ importers:
   .:
     dependencies:
       '@maplat/transform':
-        specifier: ^1.0.0-rc1
-        version: 1.0.0-rc1
+        specifier: ^1.0.0
+        version: 1.0.0
       '@turf/turf':
         specifier: ^7.4.0
         version: 7.4.0
@@ -433,8 +433,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@maplat/transform@1.0.0-rc1':
-    resolution: {integrity: sha512-+FDUFP4HEeNMomKbmYbdX6pEfmCfKU23a9tTWK+VbEyOdH7J/RPnFrnlAjpBXEjptNuwIobaZniWPQ6LvIpTfg==}
+  '@maplat/transform@1.0.0':
+    resolution: {integrity: sha512-BBYXqMlaiiF782M7JvmGAdfDXomcUGDoDUnEBmAyRCm8y9EWqIsJxHhVh9TrWwegHxjA+0q2sELd3jhVKmStdw==}
     engines: {node: '>=20', pnpm: '>=9'}
 
   '@microsoft/api-extractor-model@7.33.10':
@@ -1458,6 +1458,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -2544,7 +2545,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@maplat/transform@1.0.0-rc1':
+  '@maplat/transform@1.0.0':
     dependencies:
       '@turf/turf': 7.4.0
 
