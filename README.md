@@ -40,20 +40,20 @@ MaplatTin is open-source under the Apache License 2.0 (from version 0.14.2).
 ## Quick Start
 
 <!-- release-pinned:start -->
-> **Current release: `1.0.0-rc1`** — a release candidate. This block is the only place in
+> **Current release: `1.0.0`**. This block is the only place in
 > this repository that carries a release version (ADR-0012); everything outside it is
 > written against the 1.0 release.
 > npm: [`@maplat/tin`](https://www.npmjs.com/package/@maplat/tin)
-> [![npm rc](https://img.shields.io/npm/v/@maplat/tin/rc)](https://www.npmjs.com/package/@maplat/tin)
+> [![npm](https://img.shields.io/npm/v/@maplat/tin)](https://www.npmjs.com/package/@maplat/tin)
 
 ### Install
 
 ```bash
 # pnpm (recommended)
-pnpm add @maplat/tin@rc
+pnpm add @maplat/tin
 
 # npm
-npm install @maplat/tin@rc
+npm install @maplat/tin
 ```
 
 ### Minimal usage
@@ -89,7 +89,7 @@ const restored = tin.transform(transformed, true);
 
 ```html
 <!-- MaplatTin (UMD) -->
-<script src="https://cdn.jsdelivr.net/npm/@maplat/tin@1.0.0-rc1/dist/maplat_tin.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@maplat/tin@1.0.0/dist/maplat_tin.umd.js"></script>
 <script>
   const tin = new maplatTin.default({ wh: [500, 500] });
 </script>
@@ -99,7 +99,7 @@ Or using ES modules:
 
 ```html
 <script type="module">
-  import Tin from 'https://cdn.jsdelivr.net/npm/@maplat/tin@1.0.0-rc1/dist/maplat_tin.js';
+  import Tin from 'https://cdn.jsdelivr.net/npm/@maplat/tin@1.0.0/dist/maplat_tin.js';
   const tin = new Tin({ wh: [500, 500] });
 </script>
 ```
