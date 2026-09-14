@@ -1344,13 +1344,11 @@ function Le(e, t, n = {}) {
   if (s && nr(i, s) === !1)
     return !1;
   r === "Polygon" && (a = [a]);
-  let l = !1;
-  for (var f = 0; f < a.length; ++f) {
-    const u = er(i, a[f]);
-    if (u === 0) return !n.ignoreBoundary;
-    u && (l = !0);
+  for (var l = 0; l < a.length; ++l) {
+    const f = er(i, a[l]);
+    if (f === 0 && !n.ignoreBoundary || f) return !0;
   }
-  return l;
+  return !1;
 }
 function nr(e, t) {
   return t[0] <= e[0] && t[1] <= e[1] && t[2] >= e[0] && t[3] >= e[1];
