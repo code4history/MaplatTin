@@ -2320,7 +2320,7 @@ class kr extends Sr {
    */
   findEdge(t, n) {
     const i = this.vertMap[n], { triangles: o, halfedges: r } = this.del;
-    let s = i, a = -1;
+    let s = i, a;
     do {
       if (o[s] === t)
         return s;

@@ -282,7 +282,7 @@ export class Constrain extends Base {
     const start1 = this.vertMap[p2];
     const { triangles, halfedges } = this.del;
     let edg = start1;
-    let prv = -1;
+    let prv: number;
     // Walk around p2, iterating over the edges pointing to it.
     do {
       if (triangles[edg] === p1) {
