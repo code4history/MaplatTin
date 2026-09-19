@@ -46,7 +46,7 @@ Either `bounds` or `wh` must be specified.
 
 **Format version:**
 
-- `format_version` — Current TIN format version
+- `format_version` — Current TIN format version (2.00704; the V2 version Tin writes)
 
 ## Utility functions
 

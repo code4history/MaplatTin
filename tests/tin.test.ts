@@ -184,8 +184,8 @@ describe("Tin — v2 vs v3 format differences", () => {
     it(`${label}: v3 has more boundary vertices than v2`, () => {
       const v2 = loadCompiled(`${key}_v2`);
       const v3 = loadCompiled(`${key}_v3`);
-      expect(v2.version).toEqual(2.00703);
-      expect(v3.version).toEqual(3);
+      expect(v2.version).toEqual(2.00704);
+      expect(v3.version).toEqual(3.00001);
       expect(v3.vertices_points.length).toBeGreaterThan(v2.vertices_points.length);
     });
   });

@@ -11,6 +11,67 @@ const __dirname = path.dirname(__filename);
 
 expect.extend({ toBeDeepCloseTo });
 
+// m12 t2a: 独立アフィン参照（t1 設計 §5 T-AFF と同じ考え方。Cramer 式で重心座標を
+// 求め、三角形の頂点の対応点から純アフィン補間を求める。@maplat/transform の
+// geometry.ts の式は写さない）。三角形 geometry の座標は始点側、properties[k].geom は
+// 目標側。戻り値は「点 p を含む可能性のある三角形のアフィン結果の候補配列」。
+function affineRef(tri, p) {
+  const s = tri.geometry.coordinates[0];
+  const g = ["a", "b", "c"].map((k) => tri.properties[k].geom);
+  const d =
+    (s[1][0] - s[0][0]) * (s[2][1] - s[0][1]) -
+    (s[2][0] - s[0][0]) * (s[1][1] - s[0][1]);
+  const u =
+    ((p[0] - s[0][0]) * (s[2][1] - s[0][1]) -
+      (s[2][0] - s[0][0]) * (p[1] - s[0][1])) /
+    d;
+  const v =
+    ((s[1][0] - s[0][0]) * (p[1] - s[0][1]) -
+      (p[0] - s[0][0]) * (s[1][1] - s[0][1])) /
+    d;
+  return [
+    g[0][0] + u * (g[1][0] - g[0][0]) + v * (g[2][0] - g[0][0]),
+    g[0][1] + u * (g[1][1] - g[0][1]) + v * (g[2][1] - g[0][1]),
+  ];
+}
+
+function sideSign(p, a, b) {
+  return (p[0] - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (p[1] - b[1]);
+}
+
+function inTriangle(p, a, b, c) {
+  const d1 = sideSign(p, a, b);
+  const d2 = sideSign(p, b, c);
+  const d3 = sideSign(p, c, a);
+  const hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
+  const hasPos = d1 > 0 || d2 > 0 || d3 > 0;
+  return !(hasNeg && hasPos);
+}
+
+function m12AffineCandidates(tin, p, backward) {
+  const dir = backward ? "bakw" : "forw";
+  const tins = tin.tins && tin.tins[dir];
+  const out = [];
+  if (tins && tins.features) {
+    for (const tri of tins.features) {
+      const s = tri.geometry.coordinates[0];
+      if (inTriangle(p, s[0], s[1], s[2])) {
+        out.push(affineRef(tri, p));
+      }
+    }
+  }
+  if (out.length === 0) {
+    const vp = tin.vertices_params && tin.vertices_params[dir];
+    const fans = vp && vp[1];
+    if (fans) {
+      for (const fc of fans) {
+        out.push(affineRef(fc.features[0], p));
+      }
+    }
+  }
+  return out;
+}
+
 let stateFull = false;
 const testSet = () => {
   [
@@ -176,24 +237,34 @@ const testSet = () => {
       await tin.updateTinAsync();
       expect(tin.xy).toEqual([50, 50]);
       expect(tin.wh).toEqual([100, 150]);
-      expect(tin.transform([140, 150])).toBeDeepCloseTo(
-        [273.4630063298798, -160.88802038019304],
-        7
+
+      // ① 順変換が含まれる三角形（凸包外なら扇形三角形）の純アフィン参照と 1e-7 以内
+      const fwd = tin.transform([140, 150]);
+      const fwdCands = m12AffineCandidates(tin, [140, 150], false);
+      const fwdErr = Math.min(
+        ...fwdCands.map((q) => Math.hypot(fwd[0] - q[0], fwd[1] - q[1])),
       );
-      expect(
-        tin.transform([273.4630063298798, -160.88802038019304], true)
-      ).toEqual([140, 150]);
+      expect(fwdErr).toBeLessThanOrEqual(1e-7);
+
+      // ② 逆変換が元の点に戻る（値の出所が実行時算出に変わったため 1e-7 に改める）
+      expect(tin.transform(fwd, true)).toBeDeepCloseTo([140, 150], 7);
+
+      // ③（不変）
       expect(tin.transform([200, 130])).toEqual(false);
-      expect(
-        tin.transform([385.4712629785805, -115.06461521258161], true)
-      ).toEqual(false);
-      expect(tin.transform([200, 130], false, true)).toBeDeepCloseTo(
-        [385.4712629785805, -115.06461521258161],
-        7
+
+      // ④ 凸包外の順変換（ignoreBounds）も同じ参照と 1e-7 以内
+      const out = tin.transform([200, 130], false, true);
+      const outCands = m12AffineCandidates(tin, [200, 130], false);
+      const outErr = Math.min(
+        ...outCands.map((q) => Math.hypot(out[0] - q[0], out[1] - q[1])),
       );
-      expect(
-        tin.transform([385.4712629785805, -115.06461521258161], true, true)
-      ).toBeDeepCloseTo([200, 130], 7);
+      expect(outErr).toBeLessThanOrEqual(1e-7);
+
+      // ⑤（不変）
+      expect(tin.transform(out, true)).toEqual(false);
+
+      // ⑥ 逆変換（ignoreBounds）が元の点に戻る
+      expect(tin.transform(out, true, true)).toBeDeepCloseTo([200, 130], 7);
     });
   });
 
