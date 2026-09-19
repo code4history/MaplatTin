@@ -5,8 +5,8 @@
 MaplatTin の `getCompiled()` / `setCompiled()` で扱うコンパイル済みデータ（以下 **Compiled**）は、
 GCP（地上基準点）と境界頂点から構築した TIN（不規則三角網）を JSON シリアライズしたものです。
 
-バージョン番号によって V2（`version: 2.00703`）と V3（`version: 3`）の 2 種類があり、
-境界頂点の数え方と一部フィールドの有無が異なります。
+バージョン番号によって V2（`version: 2.00704`）と V3（`version: 3.00001`）の 2 種類があり、
+境界頂点の数え方と一部フィールドの有無が異なります。旧版（`version: 2.00703` / `3`）も読み込めます。
 
 ---
 
@@ -14,7 +14,7 @@ GCP（地上基準点）と境界頂点から構築した TIN（不規則三角�
 
 ```typescript
 export interface Compiled {
-  version?: number;           // 2.00703 = V2, 3 = V3
+  version?: number;           // 2.00704 = V2, 3.00001 = V3
   wh?: [number, number];     // [width, height]（画像サイズ）
   xy?: [number, number];     // [x, y] 原点オフセット（オプション）
 
@@ -68,7 +68,7 @@ type WeightBufferBD = {
 
 | フィールド | 型 | 説明 |
 |-----------|---|------|
-| `version` | `number` | フォーマットバージョン（2.00703 または 3） |
+| `version` | `number` | フォーマットバージョン（2.00704 または 3.00001） |
 | `wh` | `[number, number]` | 画像の `[width, height]`（ピクセル）。`setWh()` または `setBounds()` 呼び出し時に存在 |
 | `xy` | `[number, number]` | バウンディングボックスの原点 `[x, y]`。`setBounds()` 呼び出し時（サブマップ等）のみ存在。通常の矩形画像では `wh` のみで `xy` は省略される |
 
@@ -204,21 +204,7 @@ TIN を構成する三角形のインデックス配列。
 
 #### `weight_buffer: WeightBufferBD`
 
-重み付き変換のための補助データ。内部構造は `@maplat/transform` が管理する。
-
-- `weight_buffer.forw` = forward 方向の伸縮比（Mercator 辺長 ÷ 画像辺長）
-- `weight_buffer.bakw` = 逆変換用の逆数（`1 / forw`）
-
-`bakw` が存在するかどうかは V2/V3 の違いではなく、**`strict_status` による**：
-
-```typescript
-const includeReciprocals = this.strict_status === Tin.STATUS_STRICT;
-```
-
-| `strict_status` | `weight_buffer.forw` | `weight_buffer.bakw` |
-|----------------|:--------------------:|:--------------------:|
-| `"strict"` | ✓ | ✓ |
-| `"strict_error"` / `"loose"` | ✓ | — |
+常に空オブジェクト `{}` を書く（2.00704 / 3.00001 以降）。値は読み込み側で無視される。以前の `@maplat/transform` との互換のためキーは省略しない。2.00703 / 3 以前の compiled に含まれる値も無視される。
 
 ---
 
@@ -287,17 +273,16 @@ GCP 間の拘束辺（Constrained Delaunay Triangulation における固定辺�
 
 | 項目 | V2 | V3 |
 |------|----|----|
-| `version` | `2.00703` | `3` |
+| `version` | `2.00704` | `3.00001` |
 | `vertices_points` 点数 | 常に 4 点 | `plain`/`birdeye` 問わず最大 36 点（実質 36 点固定） |
 | `vertices_params` 要素数 | 4 | `vertices_points.length` と同数 |
 | `centroid_point` の計算 | turf 重心を TIN 変換 | `plain` モードでは含む三角形の幾何学的平均 |
 | `wh` / `xy` フィールド | `setWh()`/`setBounds()` 依存（V3 と同条件） | 同左 |
-| `weight_buffer.bakw` | `strict_status === "strict"` 時のみ（V3 と同条件） | 同左 |
+| `weight_buffer` | 常に空オブジェクト `{}`（V3 と同条件） | 同左 |
 | 境界頂点の生成アルゴリズム | 画像の4隅を投影（4点固定） | GCP の角度分布に基づく（`plain` では多点） |
 | `strict_status` の傾向 | 4点境界のため `strict_error` になりやすい | `plain` では多点境界で `strict` を達成しやすい |
 
-> **補足**: `wh`/`xy` の有無および `weight_buffer.bakw` の有無は V2/V3 の違いではなく、
-> それぞれ `setBounds()` 呼び出しの有無・`strict_status` の値に依存する。
+> **補足**: `wh`/`xy` の有無は V2/V3 の違いではなく、`setBounds()` 呼び出しの有無に依存する。`weight_buffer` は上記のとおり常に空オブジェクト `{}` で、版に依存しない。
 
 ---
 
@@ -305,7 +290,7 @@ GCP 間の拘束辺（Constrained Delaunay Triangulation における固定辺�
 
 | 指標 | V2 | V3 |
 |-----|----|----|
-| `version` | `2.00703` | `3` |
+| `version` | `2.00704` | `3.00001` |
 | `points.length` | 972 | 972 |
 | `vertices_points.length` | 4 | 36 |
 | `tins_points[0].length`（三角形数） | 3898 | 3898 |
@@ -343,4 +328,4 @@ tests/
 |---------|------|
 | `src/tin.ts` | `getCompiled()` / `setCompiled()` の実装 |
 | `src/transform-v3.ts` | V3 形式のリストア処理（`restoreV3State()`）。設計上は「コンパイル済みデータから座標変換する処理」は `@maplat/transform` の担当だが、V3 開発効率のため一時的に `@maplat/tin` にまとめた。V3 開発完了後、この処理を `@maplat/transform` に移す際の境界となるファイル |
-| `@maplat/transform` | `Compiled` 型定義・重みバッファ処理 |
+| `@maplat/transform` | `Compiled` 型定義 |

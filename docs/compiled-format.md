@@ -7,8 +7,10 @@ serialization of the TIN (Triangulated Irregular Network) built from GCPs (Groun
 and boundary vertices.
 
 There are two format versions:
-- **V2** (`version: 2.00703`) — legacy format with exactly 4 boundary vertices
-- **V3** (`version: 3`) — current format with variable boundary vertices and improved topology
+- **V2** (`version: 2.00704`) — legacy format with exactly 4 boundary vertices
+- **V3** (`version: 3.00001`) — current format with variable boundary vertices and improved topology
+
+Older versions (`2.00703` and `3`) remain readable.
 
 ---
 
@@ -16,7 +18,7 @@ There are two format versions:
 
 ```typescript
 export interface Compiled {
-  version?: number;           // 2.00703 = V2, 3 = V3
+  version?: number;           // 2.00704 = V2, 3.00001 = V3
   wh?: [number, number];     // [width, height] of the source image
   xy?: [number, number];     // origin offset [x, y] (optional)
 
@@ -70,7 +72,7 @@ type WeightBufferBD = {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `version` | `number` | Format version (2.00703 or 3) |
+| `version` | `number` | Format version (2.00704 or 3.00001) |
 | `wh` | `[number, number]` | Image `[width, height]` in pixels. Present when `setWh()` or `setBounds()` was called |
 | `xy` | `[number, number]` | Bounding box origin `[x, y]`. Present only when `setBounds()` was called (submaps with explicit boundary polygon). Omitted for regular rectangular images |
 
@@ -207,21 +209,7 @@ Each triangle is an array of **3 vertex indices**.
 
 #### `weight_buffer: WeightBufferBD`
 
-Auxiliary data for weighted interpolation. Internal structure is managed by `@maplat/transform`.
-
-- `weight_buffer.forw` = forward stretch ratios (Mercator edge length ÷ image edge length)
-- `weight_buffer.bakw` = reciprocal weights for inverse transformation (`1 / forw`)
-
-Whether `bakw` is present depends on `strict_status`, not V2 vs V3:
-
-```typescript
-const includeReciprocals = this.strict_status === Tin.STATUS_STRICT;
-```
-
-| `strict_status` | `weight_buffer.forw` | `weight_buffer.bakw` |
-|----------------|:--------------------:|:--------------------:|
-| `"strict"` | ✓ | ✓ |
-| `"strict_error"` / `"loose"` | ✓ | — |
+Always written as an empty object `{}` (from 2.00704 / 3.00001 onwards). The values are ignored on read. The key is kept for compatibility with earlier `@maplat/transform` releases. Values present in compiled data from 2.00703 / 3 or earlier are also ignored.
 
 ---
 
@@ -290,17 +278,16 @@ Each element is `[[forwX, forwY], [bakwX, bakwY]]`.
 
 | Aspect | V2 | V3 |
 |--------|----|----|
-| `version` | `2.00703` | `3` |
+| `version` | `2.00704` | `3.00001` |
 | `vertices_points` count | Always 4 | Up to 36 regardless of mode (36 in practice) |
 | `vertices_params` element count | 4 | Same as `vertices_points.length` |
 | `centroid_point` computation | turf centroid → TIN transform | `plain`: geometric mean of containing triangle |
 | `wh` / `xy` presence | Depends on `setWh()`/`setBounds()` (same rule as V3) | Same |
-| `weight_buffer.bakw` presence | When `strict_status === "strict"` (same rule as V3) | Same |
+| `weight_buffer` | Always empty object `{}` (same rule as V3) | Same |
 | Boundary vertex algorithm | Fixed 4 corners (image rectangle) | `plain`: angular bins from GCP distribution |
 | `strict_status` tendency | Prone to `"strict_error"` (only 4 corners) | `plain` achieves `"strict"` more readily |
 
-> **Note**: `wh`/`xy` presence and `weight_buffer.bakw` presence are NOT differences between
-> V2 and V3 — they depend on `setBounds()` usage and `strict_status` respectively.
+> **Note**: `wh`/`xy` presence is NOT a difference between V2 and V3 — it depends on `setBounds()` usage. `weight_buffer` is always an empty object `{}` regardless of version.
 
 ---
 
@@ -308,7 +295,7 @@ Each element is `[[forwX, forwY], [bakwX, bakwY]]`.
 
 | Metric | V2 | V3 |
 |--------|----|----|
-| `version` | `2.00703` | `3` |
+| `version` | `2.00704` | `3.00001` |
 | `points.length` | 972 | 972 |
 | `vertices_points.length` | 4 | 36 |
 | `tins_points[0].length` (triangle count) | 3898 | 3898 |
@@ -346,4 +333,4 @@ Generation scripts:
 |------|------|
 | `src/tin.ts` | `getCompiled()` / `setCompiled()` implementation |
 | `src/transform-v3.ts` | V3 format restore logic (`restoreV3State()`). By design, "transform from compiled data" belongs in `@maplat/transform`, but was placed here temporarily for V3 development efficiency. This file represents the migration boundary: when V3 development is complete, its contents will move to `@maplat/transform` |
-| `@maplat/transform` | `Compiled` type definition and weight buffer handling |
+| `@maplat/transform` | `Compiled` type definition |

@@ -20,7 +20,7 @@ This document (`AGENTS.md`) itself is written in English, independent of princip
 
 ## Project Structure & Module Organization
 
-Core homeomorphic-transform logic lives in `src/` (`tin.ts`, `constrained-tin.ts`, `boundary-vertices.ts`, `kinks.ts`, `strict-overlap.ts`, `searchutils.ts`, `vertexutils.ts`, `weight-buffer.ts`, `edgebound/`, `types/`). Vitest unit tests live in `tests/` (`*.test.ts`, fixture maps under `tests/maps/`, `setup.ts`); legacy Node-based regression specs remain under `spec/` for reference. `demo/` and `public/` host the Vite demo playground. Release helper scripts live in `scripts/`; do not edit generated `dist-demo/` artifacts directly. `claudedocs/` and `debug/` hold ad-hoc investigation notes and are not part of the shipped package.
+Core homeomorphic-transform logic lives in `src/` (`tin.ts`, `constrained-tin.ts`, `boundary-vertices.ts`, `kinks.ts`, `strict-overlap.ts`, `searchutils.ts`, `vertexutils.ts`, `edgebound/`, `types/`). Vitest unit tests live in `tests/` (`*.test.ts`, fixture maps under `tests/maps/`, `setup.ts`); legacy Node-based regression specs remain under `spec/` for reference. `demo/` and `public/` host the Vite demo playground. Release helper scripts live in `scripts/`; do not edit generated `dist-demo/` artifacts directly. `claudedocs/` and `debug/` hold ad-hoc investigation notes and are not part of the shipped package.
 
 ## Build, Test, and Development Commands
 
