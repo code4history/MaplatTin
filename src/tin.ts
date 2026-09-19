@@ -14,14 +14,16 @@ import {
 import type { Feature, Point, Polygon, Position } from "geojson";
 import {
   counterTri,
-  format_version as FORMAT_VERSION_V2,
   normalizeEdges,
   rotateVerticesTriangle,
   Transform,
   transformArr,
 } from "@maplat/transform";
 
-const FORMAT_VERSION_V3 = 3.00000;
+// Tin が書き出す compiled の版。2.00704 / 3.00001 で重みバッファを廃止（空 {} を書く）。
+// @maplat/transform の publish 時期に依存させないため Tin が自前で持つ
+export const FORMAT_VERSION_V2 = 2.00704;
+export const FORMAT_VERSION_V3 = 3.00001;
 import type {
   Compiled,
   CompiledLegacy,
@@ -46,7 +48,6 @@ import {
 import findIntersections from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
-import { buildPointsWeightBuffer } from "./weight-buffer.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
 import type { SearchIndex } from "./searchutils.ts";
 import type { PointsSetBD, VertexPosition } from "./types/tin.d.ts";
@@ -182,7 +183,9 @@ export class Tin extends Transform {
     const compiled: Compiled = {} as Compiled;
     compiled.version = this.useV2Algorithm ? FORMAT_VERSION_V2 : FORMAT_VERSION_V3;
     compiled.points = this.points;
-    compiled.weight_buffer = this.pointsWeightBuffer ?? {};
+    // 重みバッファは廃止（2.00704）。以前の @maplat/transform は compiled に
+    // 重みキーが無いと transform() で TypeError になるため、空オブジェクトを必ず書く
+    compiled.weight_buffer = {};
     compiled.centroid_point = [
       this.centroid!.forw!.geometry!.coordinates,
       this.centroid!.forw!.properties!.target.geom,
@@ -806,18 +809,11 @@ export class Tin extends Transform {
 
     this.addIndexedTin();
 
-    const targets: Array<keyof TinsBD> = ["forw"];
-    if (this.strict_status === Tin.STATUS_LOOSE) {
-      targets.push("bakw");
-    }
-
-    const includeReciprocals = this.strict_status === Tin.STATUS_STRICT;
-    this.pointsWeightBuffer = buildPointsWeightBuffer({
-      tins: this.tins!,
-      targets,
-      includeReciprocals,
-      numBoundaryVertices: verticesSet.length,
-    });
+    // 旧 @maplat/transform の transform() は、重みバッファの forw／bakw を無条件に読む
+    // （旧 transform.ts:304-306）。Tin の CI・手元はその旧版と組まれるので、未設定だと
+    // updateTin() 直後の transform() が TypeError になる。{} の .forw は undefined なので
+    // 旧版でも純アフィンになる。新 Transform はこの値を読まない。
+    this.pointsWeightBuffer = {};
   }
 
   /**

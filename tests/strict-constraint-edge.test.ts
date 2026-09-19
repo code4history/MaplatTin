@@ -105,8 +105,8 @@ describe("strict mode keeps constrained edges (with edge intermediate nodes)", (
 //
 // 制約エッジが TIN の辺として保たれていれば、その辺上の点は TIN の区分アフィン
 // 変換によって対応する bakw 側の線分上へ正確に写る。
-// （tin.transform() は重みバッファ補正が入るため、ここでは TIN 変換カーネル
-//   そのものである transformArr を使う。）
+// （2.00704 以降は重み補正は無いが、辺上の検査は補間関数そのもの
+//   （transformArr）で行う。）
 
 /** 制約エッジの中点を forw TIN で変換し、bakw 線分の中点からのずれを返す */
 function edgeMidpointDeviations(tin: Tin): number[] {

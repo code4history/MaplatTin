@@ -38,5 +38,5 @@ export type {
   YaxisMode,
 } from "@maplat/transform";
 
-// Re-export format_version
-export { format_version } from "@maplat/transform";
+// Tin が書き出す V2 フォーマット版
+export { FORMAT_VERSION_V2 as format_version } from "./tin.ts";
