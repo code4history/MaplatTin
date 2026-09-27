@@ -3,8 +3,12 @@ import fs from "node:fs";
 import { Tin, format_version } from "../src/index.ts";
 import type { Options } from "../src/index.ts";
 import type { Compiled, Tri } from "@maplat/transform";
-import { format_version as resolvedTransformFormatVersion } from "@maplat/transform";
+import { format_version as transformFormatVersion } from "@maplat/transform";
 import type { Position } from "geojson";
+
+// @maplat/transform 1.1 以降は format_version がリテラル型 2.00704 になり、1.0 系（2.00703）との分岐が
+// 型検査で「常に偽」と判定される。解決された版に応じて分岐するため number へ広げる。
+const resolvedTransformFormatVersion: number = transformFormatVersion;
 
 // ─── データセット（tin.test.ts の BUILD_DATASETS と同じ 10 通り） ─────────────
 type BuildDataset = {
