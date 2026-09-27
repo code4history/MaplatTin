@@ -15,8 +15,8 @@ importers:
   .:
     dependencies:
       '@maplat/transform':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.1.0-rc.1
+        version: 1.1.0-rc.1
       '@turf/turf':
         specifier: ^7.4.0
         version: 7.4.0
@@ -440,8 +440,8 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@maplat/transform@1.0.0':
-    resolution: {integrity: sha512-BBYXqMlaiiF782M7JvmGAdfDXomcUGDoDUnEBmAyRCm8y9EWqIsJxHhVh9TrWwegHxjA+0q2sELd3jhVKmStdw==}
+  '@maplat/transform@1.1.0-rc.1':
+    resolution: {integrity: sha512-7hh41P/dZHeL49GxgEBy6EYIGvIMF8vL29E1MrtB18qqH4z/M/ogjeyHBoQi+RM8mFGd0kAKGkPWanTCkIlDaQ==}
     engines: {node: '>=20', pnpm: '>=9'}
 
   '@microsoft/api-extractor-model@7.33.10':
@@ -1147,6 +1147,11 @@ packages:
 
   '@volar/typescript@2.4.28':
     resolution: {integrity: sha512-Ja6yvWrbis2QtN4ClAKreeUZPVYMARDYZl9LMEv1iQ1QdepB6wn0jTRxA9MftYmYa4DQ4k/DaSZpFPUfxl8giw==}
+    peerDependencies:
+      typescript: '*'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -2413,7 +2418,7 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@maplat/transform@1.0.0':
+  '@maplat/transform@1.1.0-rc.1':
     dependencies:
       '@turf/turf': 7.4.0
 
@@ -3926,11 +3931,13 @@ snapshots:
 
   '@volar/source-map@2.4.28': {}
 
-  '@volar/typescript@2.4.28':
+  '@volar/typescript@2.4.28(typescript@5.9.3)':
     dependencies:
       '@volar/language-core': 2.4.28
       path-browserify: 1.0.1
       vscode-uri: 3.1.0
+    optionalDependencies:
+      typescript: 5.9.3
 
   acorn-jsx@5.3.2(acorn@8.18.0):
     dependencies:
@@ -4803,7 +4810,7 @@ snapshots:
   unplugin-dts@1.1.0(@microsoft/api-extractor@7.58.12(@types/node@25.9.5))(esbuild@0.28.2)(rollup@4.62.4)(supports-color@8.1.1)(typescript@5.9.3)(vite@7.3.6(@types/node@25.9.5)):
     dependencies:
       '@rollup/pluginutils': 5.4.0(rollup@4.62.4)
-      '@volar/typescript': 2.4.28
+      '@volar/typescript': 2.4.28(typescript@5.9.3)
       compare-versions: 6.1.1
       debug: 4.4.3(supports-color@8.1.1)
       glob-to-regexp: 0.4.1
