@@ -15,4 +15,4 @@ export type { SearchIndex } from "./searchutils";
 export type { IntersectionPoint } from "./types/kinks.d";
 export type { TriangleProperties } from "./types/tin.d";
 export type { Compiled, Edge, EdgeSet, EdgeSetLegacy, PointSet, PropertyTriKey, StrictMode, StrictStatus, Tins, Transform, Tri, VertexMode, YaxisMode, } from '@maplat/transform';
-export { format_version } from '@maplat/transform';
+export { FORMAT_VERSION_V2 as format_version } from "./tin";

@@ -1,6 +1,8 @@
 import { Feature, Point, Position } from 'geojson';
 import { Transform, Compiled, CompiledLegacy, Edge, EdgeSet, EdgeSetLegacy, PointSet, StrictMode, VertexMode, YaxisMode } from '@maplat/transform';
 import { PointsSetBD } from "./types/tin.d";
+export declare const FORMAT_VERSION_V2 = 2.00704;
+export declare const FORMAT_VERSION_V3 = 3.00001;
 /**
  * Tinクラスの初期化オプション
  */
