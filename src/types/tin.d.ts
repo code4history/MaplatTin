@@ -11,6 +11,11 @@ export interface VertexDelta {
   bakw?: [number, number];
 }
 
+/**
+ * 三角形ごとの重み付き補間のバッファ（旧 compiled の weight_buffer の中身の形）。
+ *
+ * @deprecated 1.1.0（compiled 2.00704／3.00001）で weight_buffer の算出を廃止したため、Tin はこの型を使わない（MaplatTin#48）。代わりの型は無い。2.0.0 で削除する
+ */
 export interface WeightBuffer {
   [target: string]: {
     [vertexKey: string]: {
