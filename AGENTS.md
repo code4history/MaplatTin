@@ -28,7 +28,7 @@ Core homeomorphic-transform logic lives in `src/` (`tin.ts`, `constrained-tin.ts
 
 ## Coding Style & Naming Conventions
 
-TypeScript with `strict: true` in `tsconfig.json` and the `@/*` path alias mapped to `src/*`. Two ESLint config files coexist in this repository (`eslint.config.js` and `eslint.config.mjs`); `pnpm lint` resolves to the active one. Prettier formatting is enforced via `.prettierrc`. Run `pnpm lint` before committing.
+TypeScript with `strict: true` in `tsconfig.json` and the `@/*` path alias mapped to `src/*`. The ESLint config is the single flat config `eslint.config.mjs` (nov26-m8-t5 merged the former `eslint.config.js` / `.mjs` pair). Prettier formatting is enforced via `.prettierrc`. Run `pnpm lint` before committing.
 
 ## Testing Guidelines
 
