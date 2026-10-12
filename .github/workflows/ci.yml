@@ -49,3 +49,15 @@ jobs:
         
       - name: Build
         run: pnpm run build
+
+      # 追跡している dist/ が、この commit のソースから build したものと一致するかを検査する（MaplatTin#49）。
+      # dist は outer の workspace で兄弟が Tin を解決するときに使うため追跡している。
+      # 検査は dist/ に絞る: 上の「Apply CI-only pnpm config」が未追跡の pnpm-workspace.yaml を作るため、
+      # 絞りを外すと常に失敗する
+      - name: Check tracked dist is up to date
+        run: |
+          if [ -n "$(git status --porcelain -- dist)" ]; then
+            git status --porcelain -- dist
+            echo "::error::追跡している dist/ がソースと一致しません。standalone の clone で cp ci/pnpm-workspace.ci.yaml pnpm-workspace.yaml && pnpm install --frozen-lockfile && pnpm run build を実行し、dist/ を同じ commit に含めてください（outer の workspace で build した dist は CI と一致しません）"
+            exit 1
+          fi
