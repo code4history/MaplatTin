@@ -72,7 +72,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/jest-dom": "^7.0.1",
     "@types/delaunator": "^5.0.3",
     "@types/estree": "^1.0.8",
     "@types/geojson": "^7946.0.16",
