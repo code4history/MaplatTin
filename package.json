@@ -65,7 +65,7 @@
     "deno"
   ],
   "dependencies": {
-    "@maplat/transform": "^1.1.0",
+    "@maplat/transform": "file:/Users/kochizufan/zcode/nov26-work/m9-artifacts/MaplatTransform/nov26-m9-t5-0275/base/maplat-transform-1.1.0.tgz",
     "@turf/turf": "^7.4.0",
     "delaunator": "^5.0.1",
     "robust-predicates": "^3.0.2"
