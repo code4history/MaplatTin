@@ -15,8 +15,8 @@ importers:
   .:
     dependencies:
       '@maplat/transform':
-        specifier: ^1.1.0
-        version: 1.1.0
+        specifier: file:/tmp/work/m9-artifacts/MaplatTransform/s8b-upstream-head-types-node-cloud0306/maplat-transform-1.1.0.tgz
+        version: file:../m9-artifacts/MaplatTransform/s8b-upstream-head-types-node-cloud0306/maplat-transform-1.1.0.tgz
       '@turf/turf':
         specifier: ^7.4.0
         version: 7.4.0
@@ -440,8 +440,9 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@maplat/transform@1.1.0':
-    resolution: {integrity: sha512-oBfH0vSJQx+xsVUE/tFI42JCSrXMKjFcoKbbN4yG2Cv5M2gaOhQyzn9ZO8RZFcQ18Do0c7WWpFbx72R+IhWeZw==}
+  '@maplat/transform@file:../m9-artifacts/MaplatTransform/s8b-upstream-head-types-node-cloud0306/maplat-transform-1.1.0.tgz':
+    resolution: {integrity: sha512-xAgmYZjjcWY9QRtSBAkHmiqVKi5VzVhKCbbiDbiJq+5VhevWbReksWEqSzeBn3qGUH6vcMveKUgt+0lXLZnJUA==, tarball: file:../m9-artifacts/MaplatTransform/s8b-upstream-head-types-node-cloud0306/maplat-transform-1.1.0.tgz}
+    version: 1.1.0
     engines: {node: '>=20', pnpm: '>=9'}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
@@ -2253,7 +2254,7 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@maplat/transform@1.1.0':
+  '@maplat/transform@file:../m9-artifacts/MaplatTransform/s8b-upstream-head-types-node-cloud0306/maplat-transform-1.1.0.tgz':
     dependencies:
       '@turf/turf': 7.4.0
 
