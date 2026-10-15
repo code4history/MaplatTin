@@ -81,7 +81,7 @@
     "@typescript-eslint/parser": "^8.66.0",
     "@vitest/coverage-v8": "^4.1.11",
     "cross-env": "^10.1.0",
-    "dotenv": "^17.4.0",
+    "dotenv": "^18.0.7",
     "dotenv-cli": "^11.0.0",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
