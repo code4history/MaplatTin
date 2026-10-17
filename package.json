@@ -72,20 +72,20 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/jest-dom": "^7.0.1",
     "@types/delaunator": "^5.0.3",
     "@types/estree": "^1.0.8",
     "@types/geojson": "^7946.0.16",
-    "@types/node": "^25.5.2",
+    "@types/node": "^26.6.5",
     "@typescript-eslint/eslint-plugin": "^8.66.0",
     "@typescript-eslint/parser": "^8.66.0",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.4",
     "cross-env": "^10.1.0",
     "dotenv": "^17.4.0",
     "dotenv-cli": "^11.0.0",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
-    "globals": "^16.5.0",
+    "globals": "^17.13.0",
     "jest-matcher-deep-close-to": "^3.0.2",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
@@ -94,6 +94,6 @@
     "typescript-eslint": "^8.66.0",
     "vite": "^7.3.5",
     "vite-plugin-dts": "^5.1.0",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.4"
   }
 }
