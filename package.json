@@ -90,7 +90,7 @@
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
     "robust-segment-intersect": "^1.0.1",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.66.0",
     "vite": "^7.3.5",
     "vite-plugin-dts": "^5.1.0",
