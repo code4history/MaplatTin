@@ -4,5 +4,6 @@ import { Feature, Point, Position } from 'geojson';
  *
  * @param coords - 線分群の座標配列。各線分は始点と終点の座標で表現
  * @returns 検出された交差点のFeature配列
+ * @throws {Error} 座標に有限数（Number.isFinite）でない値が含まれる場合
  */
 export default function findIntersections(coords: Position[][]): Feature<Point>[];

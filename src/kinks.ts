@@ -7,10 +7,12 @@ import type { IntersectionPoint } from "./types/kinks.d.ts";
  *
  * @param coords - 線分群の座標配列。各線分は始点と終点の座標で表現
  * @returns 検出された交差点のFeature配列
+ * @throws {Error} 座標に有限数（Number.isFinite）でない値が含まれる場合
  */
 export default function findIntersections(
   coords: Position[][],
 ): Feature<Point>[] {
+  validateCoordinateValues(coords);
   const arcs = new ArcCollection(coords);
   const xy = arcs.findSegmentIntersections();
   const deduped: IntersectionPoint[] = dedupIntersections(xy);
@@ -23,6 +25,43 @@ export default function findIntersections(
   return Array.from(unique.values()).map((apoint) =>
     point([apoint.x, apoint.y])
   );
+}
+
+/**
+ * 入力座標がすべて有限数（NaN や Infinity でない）であることを検証する
+ *
+ * 非有限数が混ざると、以降の交差判定のループが終了しなくなる恐れがあるため、
+ * 公開関数の入口で受け付けない。
+ *
+ * @param coords - 検証対象の線分群の座標配列
+ * @throws {Error} 有限数でない座標が見つかった場合
+ */
+function validateCoordinateValues(coords: Position[][]) {
+  for (let i = 0, n = coords.length; i < n; i++) {
+    const points = coords[i];
+    if (!isArrayLike(points)) {
+      error(
+        "findIntersections() received invalid coordinates:",
+        `line=${i}`,
+        `points=${points}`,
+      );
+    }
+    for (let j = 0, m = points.length; j < m; j++) {
+      const xy = points[j];
+      if (
+        !isArrayLike(xy) ||
+        !Number.isFinite(xy[0]) ||
+        !Number.isFinite(xy[1])
+      ) {
+        error(
+          "findIntersections() received non-finite coordinates:",
+          `line=${i}`,
+          `point=${j}`,
+          `coordinates=${JSON.stringify(xy)}`,
+        );
+      }
+    }
+  }
 }
 
 /**
@@ -243,6 +282,9 @@ class ArcCollection {
       stripeId = stripeCount > 1
         ? (y: number) => Math.floor(((stripeCount - 1) * (y - ymin)) / yrange)
         : () => 0;
+    // 線分が属するストライプを辿る走査は、高々 stripeCount 回で終わる。
+    // 万一の迷走（非有限数に由来する NaN など）に備えて上限を設ける。
+    const maxStripeSteps = stripeCount + 1;
     let i, j;
 
     // Count segments in each stripe
@@ -250,9 +292,19 @@ class ArcCollection {
       (id1: number, id2: number, _xx: Float64Array, yy: Float64Array) => {
         let s1 = stripeId(yy[id1]);
         const s2 = stripeId(yy[id2]);
+        let steps = 0;
         while (true) {
           stripeSizes[s1] = stripeSizes[s1] + 2;
           if (s1 == s2) break;
+          steps++;
+          if (steps > maxStripeSteps) {
+            error(
+              "findSegmentIntersections() exceeded the stripe iteration limit:",
+              `stripeCount=${stripeCount}`,
+              `s1=${s1}`,
+              `s2=${s2}`,
+            );
+          }
           s1 += s2 > s1 ? 1 : -1;
         }
       },
@@ -275,6 +327,7 @@ class ArcCollection {
         let s1 = stripeId(yy[id1]);
         const s2 = stripeId(yy[id2]);
         let count, stripe;
+        let steps = 0;
         while (true) {
           count = stripeSizes[s1];
           stripeSizes[s1] = count + 2;
@@ -282,6 +335,15 @@ class ArcCollection {
           stripe[count] = id1;
           stripe[count + 1] = id2;
           if (s1 == s2) break;
+          steps++;
+          if (steps > maxStripeSteps) {
+            error(
+              "findSegmentIntersections() exceeded the stripe iteration limit:",
+              `stripeCount=${stripeCount}`,
+              `s1=${s1}`,
+              `s2=${s2}`,
+            );
+          }
           s1 += s2 > s1 ? 1 : -1;
         }
       },
