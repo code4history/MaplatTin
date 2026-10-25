@@ -2,7 +2,9 @@
 
 このプロジェクトの主な変更を記録します。版数は [Semantic Versioning](https://semver.org/) に従います。
 
-## [Unreleased]
+## [1.1.1-rc.1] - 2026-10-26
+
+- 版の種別: 既定案 minor（1.2.0）→ 確定 patch（1.1.1）（人間の確定・2026-10-25。理由: `WeightBuffer` の非推奨は公開の entry から届かず、minor の前提が成り立たない〔m1 C-7〕）
 
 ### Deprecated
 - 内部の型 `WeightBuffer`（`src/types/tin.d.ts`）を非推奨にした。1.1.0 で weight_buffer の算出を廃止して以降使っておらず、代わりの型は無い。公開の entry（`@maplat/tin`）から export されていない型のため、次のメジャー（2.0.0）で削除する（MaplatTin#48）
