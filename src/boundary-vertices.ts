@@ -1,6 +1,6 @@
 import { lineString, lineIntersect } from "@turf/turf";
 import type { Position } from "geojson";
-import type { VertexPosition } from "./types/tin.d.ts";
+import type { VertexPosition } from "./types/tin.ts";
 
 interface ConvexEntry {
   forw: Position;
