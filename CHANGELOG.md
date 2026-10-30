@@ -4,8 +4,11 @@
 
 ## [Unreleased]
 
+### Fixed
+- 公開の型定義を、利用側の `skipLibCheck: false` で検査できるようにした。`dist/index.d.ts` が指す `./types/kinks.d`・`./types/tin.d` が `dist` に無かったのを直し、`dist` の型定義の相対 import に `.js` を付けた（`moduleResolution: node16` で必要）。公開している型の名前は変えていない
+
 ### Deprecated
-- 内部の型 `WeightBuffer`（`src/types/tin.d.ts`）を非推奨にした。1.1.0 で weight_buffer の算出を廃止して以降使っておらず、代わりの型は無い。公開の entry（`@maplat/tin`）から export されていない型のため、次のメジャー（2.0.0）で削除する（MaplatTin#48）
+- 内部の型 `WeightBuffer`（`src/types/tin.ts`）を非推奨にした。1.1.0 で weight_buffer の算出を廃止して以降使っておらず、代わりの型は無い。公開の entry（`@maplat/tin`）から export されていない型のため、次のメジャー（2.0.0）で削除する（MaplatTin#48）
 
 ## [1.1.0] - 2026-10-05
 

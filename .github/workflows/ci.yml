@@ -66,3 +66,8 @@ jobs:
             echo "::error::追跡している dist/ がソースと一致しません。standalone の clone で cp ci/pnpm-workspace.ci.yaml pnpm-workspace.yaml && pnpm install --frozen-lockfile && pnpm run build を実行し、dist/ を同じ commit に含めてください（outer の workspace で build した dist は CI と一致しません）"
             exit 1
           fi
+
+      # 公開の型定義を、利用者と同じ形で入れて検査する。npm と pnpm で入れ、bundler と node16 で
+      # strict: true・skipLibCheck: false・types: [] の tsc を通す
+      - name: Consumer smoke test
+        run: pnpm run smoke:consumer

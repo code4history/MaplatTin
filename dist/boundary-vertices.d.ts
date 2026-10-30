@@ -1,5 +1,5 @@
 import { Position } from 'geojson';
-import { VertexPosition } from "./types/tin.d";
+import { VertexPosition } from "./types/tin.js";
 interface ConvexEntry {
     forw: Position;
     bakw: Position;

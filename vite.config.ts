@@ -1,8 +1,9 @@
 import { defineConfig } from "vitest/config";
 import dts from "vite-plugin-dts";
-import { resolve } from "node:path";
-import { readFileSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import process from "node:process";
+import { addJsExtensions } from "./scripts/dts-import-extensions.ts";
 
 const packageJson = JSON.parse(readFileSync("./package.json", "utf-8"));
 const isPackageBuild = process.env.BUILD_MODE === "package";
@@ -96,13 +97,12 @@ export default defineConfig({
       insertTypesEntry: true,
       staticImport: true,
       beforeWriteFile: (filePath, content) => {
-        // Remove .ts extensions
-        const fixedContent = content
-          .replace(/from ['"](\.[^'"]+)\.ts['"]/g, 'from "$1"')
-          .replace(/import\(["'](\.[^'"]+)\.ts["']\)/g, 'import("$1")');
+        const sourceDir = resolve(__dirname, "src", relative(resolve(__dirname, "dist"), dirname(filePath)));
         return {
           filePath,
-          content: fixedContent
+          content: addJsExtensions(content, (specifier) =>
+            existsSync(resolve(sourceDir, specifier, "index.ts"))
+          )
         };
       }
     }),

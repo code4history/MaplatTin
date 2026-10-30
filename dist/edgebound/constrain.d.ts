@@ -1,5 +1,5 @@
-import { Base, DelaunatorLike, intersectSegments as baseIntersectSegments } from "./base";
-import { BitSet } from "./bitset";
+import { Base, DelaunatorLike, intersectSegments as baseIntersectSegments } from "./base.js";
+import { BitSet } from "./bitset.js";
 export declare class Constrain extends Base {
     vertMap: Uint32Array;
     flips: BitSet;
