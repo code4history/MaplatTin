@@ -50,7 +50,7 @@ import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
 import type { SearchIndex } from "./searchutils.ts";
-import type { PointsSetBD, VertexPosition } from "./types/tin.d.ts";
+import type { PointsSetBD, VertexPosition } from "./types/tin.ts";
 
 type EdgeSegmentItem = [Position, number, number, number, string?];
 type EdgeNodeItem = [Position, Position, number];

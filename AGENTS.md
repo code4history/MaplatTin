@@ -40,4 +40,4 @@ Recent `git log` shows a mix of Conventional Commits (`fix:`) and task-ID-prefix
 
 ## Release & Configuration Tips
 
-Version and publish helper scripts live in `scripts/` (`version:bump`, `version:sync`, `publish:npm`/`publish:npm:dry`). `pnpm prepublishOnly` is the release gate (lint + typecheck + test + build) and expects a clean working tree. Keep secrets and any proprietary map coordinates out of the repository.
+Version helper scripts live in `scripts/` (`version:bump`, `version:sync`). `pnpm prepublishOnly` is the release gate (lint + typecheck + test + build) and expects a clean working tree. Keep secrets and any proprietary map coordinates out of the repository.

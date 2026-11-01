@@ -1,5 +1,5 @@
 import { TinsBD } from '@maplat/transform';
-import { SearchIndex } from "./searchutils";
+import { SearchIndex } from "./searchutils.js";
 type ConstraintEdges = number[][];
 /**
  * pointsSet 内の配列位置 → 頂点 index（properties.target.index）の対応表。
