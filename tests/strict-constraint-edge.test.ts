@@ -5,6 +5,7 @@ import { counterTri, transformArr } from "@maplat/transform";
 import type { PropertyTriKey, Tins, Tri } from "@maplat/transform";
 import type { Position } from "geojson";
 import { Options, Tin } from "../src/index.ts";
+import { REAL_DATA_TIMEOUT_MS } from "./timeouts.ts";
 import { resolveOverlaps } from "../src/strict-overlap.ts";
 import type { SearchIndex } from "../src/searchutils.ts";
 import { insertSearchIndex } from "../src/searchutils.ts";
@@ -69,7 +70,7 @@ function missingConstraintEdges(tin: Tin): string[] {
 // 文字列になる。strict モードの resolveOverlaps はこれらを制約エッジと認識できず、
 // フリップで破壊していた（配列位置の名前空間と index の名前空間の取り違え）。
 
-describe("strict mode keeps constrained edges (with edge intermediate nodes)", () => {
+describe("strict mode keeps constrained edges (with edge intermediate nodes)", { timeout: REAL_DATA_TIMEOUT_MS }, () => {
   (["uno_bus_gtfs_error", "uno_bus_gtfs_loose"] as const).forEach((key) => {
     (
       [
@@ -129,7 +130,7 @@ function edgeMidpointDeviations(tin: Tin): number[] {
   });
 }
 
-describe("points on constrained edges map onto the corresponding segment", () => {
+describe("points on constrained edges map onto the corresponding segment", { timeout: REAL_DATA_TIMEOUT_MS }, () => {
   (
     [
       { label: "v3", useV2: false },

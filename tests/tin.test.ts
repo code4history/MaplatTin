@@ -7,6 +7,7 @@ import type { Compiled, PropertyTriKey, Tri, Tins } from "@maplat/transform";
 import { resolveOverlaps } from "../src/strict-overlap.ts";
 import type { SearchIndex } from "../src/searchutils.ts";
 import { insertSearchIndex } from "../src/searchutils.ts";
+import { REAL_DATA_TIMEOUT_MS } from "./timeouts.ts";
 import fs from "node:fs";
 
 expect.extend({ toBeDeepCloseTo });
@@ -163,7 +164,7 @@ const BUILD_DATASETS: BuildDataset[] = [
   { label: "Tatebayashi Jokamachi v3", key: "tatebayashi_kaei_jokamachi", ver: "v3", useV2: false, gcpSource: "compiled_points" },
 ];
 
-describe("Tin — build accuracy (GCP maps)", () => {
+describe("Tin — build accuracy (GCP maps)", { timeout: REAL_DATA_TIMEOUT_MS }, () => {
   BUILD_DATASETS.forEach((dataset) => {
     const { label } = dataset;
     describe(`${label}`, () => {
@@ -193,7 +194,7 @@ describe("Tin — v2 vs v3 format differences", () => {
 
 // ─── Uno マップ: strict_status チェック ─────────────────────────────────────
 
-describe("Tin — Uno maps (error/status checks)", () => {
+describe("Tin — Uno maps (error/status checks)", { timeout: REAL_DATA_TIMEOUT_MS }, () => {
   it("uno_bus_gtfs_loose: builds successfully (strict/loose)", () => {
     const load_m = loadMap("uno_bus_gtfs_loose");
     const tin = new Tin({

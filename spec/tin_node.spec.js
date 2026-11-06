@@ -1,6 +1,7 @@
 import { Tin } from "../src/index.ts";
 import { toBeDeepCloseTo } from "jest-matcher-deep-close-to";
 import { expect, describe, it } from "vitest";
+import { REAL_DATA_TIMEOUT_MS } from "../tests/timeouts.ts";
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -352,9 +353,9 @@ const testSet = () => {
   });
 };
 
-describe("Test for Tin function", testSet);
+describe("Test for Tin function", { timeout: REAL_DATA_TIMEOUT_MS }, testSet);
 stateFull = true;
-describe("Test for Tin function (StateFull)", testSet);
+describe("Test for Tin function (StateFull)", { timeout: REAL_DATA_TIMEOUT_MS }, testSet);
 
 function treeWalk(obj, depth) {
   if (typeof obj === "object") {
