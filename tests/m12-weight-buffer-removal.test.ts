@@ -5,6 +5,7 @@ import type { Options } from "../src/index.ts";
 import type { Compiled, Tri } from "@maplat/transform";
 import { format_version as transformFormatVersion } from "@maplat/transform";
 import type { Position } from "geojson";
+import { REAL_DATA_TIMEOUT_MS } from "./timeouts.ts";
 
 // @maplat/transform 1.1 以降は format_version がリテラル型 2.00704 になり、1.0 系（2.00703）との分岐が
 // 型検査で「常に偽」と判定される。解決された版に応じて分岐するため number へ広げる。
@@ -170,7 +171,7 @@ function affineDeviations(tin: Tin, compiled: Compiled, backward: boolean): numb
   return count;
 }
 
-describe("m12 t2a — weight_buffer の廃止（純アフィン化）", () => {
+describe("m12 t2a — weight_buffer の廃止（純アフィン化）", { timeout: REAL_DATA_TIMEOUT_MS }, () => {
   describe("T2-EMPTY (AC-4a)", () => {
     BUILD_DATASETS.forEach((dataset) => {
       it(`${dataset.label}: getCompiled() が weight_buffer キーを持ち値が {}`, () => {
