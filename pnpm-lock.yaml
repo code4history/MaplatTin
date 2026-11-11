@@ -24,6 +24,9 @@ importers:
       '@turf/turf':
         specifier: ^7.4.0
         version: 7.4.0
+      '@types/geojson':
+        specifier: ^7946.0.16
+        version: 7946.0.16
       delaunator:
         specifier: ^5.0.1
         version: 5.1.0
@@ -43,9 +46,6 @@ importers:
       '@types/estree':
         specifier: ^1.0.8
         version: 1.0.9
-      '@types/geojson':
-        specifier: ^7946.0.16
-        version: 7946.0.16
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
