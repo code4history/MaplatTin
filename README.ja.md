@@ -38,7 +38,7 @@ MaplatTin は Apache License 2.0（バージョン 0.14.2 以降）のオープ�
 
 <!-- release-pinned:start -->
 > **現在のリリース: `1.1.1`**。このブロックは本リポジトリで唯一
-> リリース版数を持つ場所です（ADR-0012）。ブロックの外はすべて 1.0 正式版を前提に
+> リリース版数を持つ場所です。ブロックの外はすべて 1.0 正式版を前提に
 > 書かれています。
 > npm: [`@maplat/tin`](https://www.npmjs.com/package/@maplat/tin)
 > [![npm](https://img.shields.io/npm/v/@maplat/tin)](https://www.npmjs.com/package/@maplat/tin)
@@ -153,7 +153,7 @@ pnpm lint          # リンター/フォーマッター (ESLint/Prettier) を実
 <!-- SECTION 6: Prerequisites -->
 ## 動作環境
 
-> `package.json` の `engines` フィールドから自動抽出（ADR-0012: リリース依存）。
+> `package.json` の `engines` フィールドから自動抽出（特定のリリースに紐づく値）。
 
 - Node.js: `>=20.0.0`（GitHub Actions で検証済みの LTS）
 - pnpm: `>=9.0.0`（必須・`package.json` で pnpm を強制）
@@ -194,7 +194,7 @@ Maplat エコシステムの一部です。全容は下記エコシステム図�
 | プロジェクト情報・機能紹介・事例 | <https://www.maplat.jp/> | 製品サイト |
 | 支援企業・案件問い合わせ | <https://www.nayuta-inc.co.jp/> | コーポレートサイト（那由多社） |
 
-> ADR-0013: Apache ライセンスのリポジトリ（本リポジトリ）は両サイトへリンクします。
+> Apache ライセンスのリポジトリ（本リポジトリ）は両サイトへリンクします。
 > MIT ライセンスの姉妹リポジトリ（Weiwudi / Quyuan / Chuci）へは那由多社リンクを置きません。
 > 英語ページへ遷移する場合は `/en/` を付与してください（例: `https://www.maplat.jp/en/`）。
 
