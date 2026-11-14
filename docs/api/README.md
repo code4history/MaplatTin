@@ -2,7 +2,7 @@
 
 This directory holds the **release-dependent API signatures** for `@maplat/tin`.
 
-ADR-0012 splits Maplat documentation into two layers:
+Maplat documentation is split into two layers:
 
 - **Release-dependent signatures** (constructor options, method names,
   constants, utility functions) — this `docs/api/` directory. Updated on each

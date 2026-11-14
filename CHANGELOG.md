@@ -5,7 +5,7 @@
 ## [Unreleased]
 
 ### Fixed
-- dist の型定義が参照する `geojson` の型が `hoist: false` の利用者で解決できない不具合を直す（`@types/geojson` を dependencies へ移動）
+- dist の型定義が参照する `geojson` の型が `hoist: false` の利用者で解決できない不具合を直した（`@types/geojson` を dependencies へ移動）(#76)
 
 ## [1.1.1] - 2026-11-02
 
@@ -13,7 +13,7 @@
 
 ## [1.1.1-rc.1] - 2026-10-26
 
-- 版の種別: 既定案 minor（1.2.0）→ 確定 patch（1.1.1）（人間の確定・2026-10-25。理由: `WeightBuffer` の非推奨は公開の entry から届かず、minor の前提が成り立たない〔m1 C-7〕）
+- 版の種別: patch（1.1.1）。`WeightBuffer` の非推奨は公開の entry から届かないため、minor（1.2.0）にはしなかった
 
 ### Fixed
 - 公開の型定義を、利用側の `skipLibCheck: false` で検査できるようにした。`dist/index.d.ts` が指す `./types/kinks.d`・`./types/tin.d` が `dist` に無かったのを直し、`dist` の型定義の相対 import に `.js` を付けた（`moduleResolution: node16` で必要）。公開している型の名前は変えていない
