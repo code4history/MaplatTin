@@ -172,7 +172,7 @@ function affineDeviations(tin: Tin, compiled: Compiled, backward: boolean): numb
 }
 
 describe("weight_buffer の廃止（純アフィン化）", { timeout: REAL_DATA_TIMEOUT_MS }, () => {
-  describe("EMPTY", () => {
+  describe("new compiled data has an empty weight_buffer", () => {
     BUILD_DATASETS.forEach((dataset) => {
       it(`${dataset.label}: getCompiled() が weight_buffer キーを持ち値が {}`, () => {
         const tin = buildTin(dataset);
@@ -183,7 +183,7 @@ describe("weight_buffer の廃止（純アフィン化）", { timeout: REAL_DATA
     });
   });
 
-  describe("RELOAD", () => {
+  describe("reloading weighted legacy compiled data drops the weights", () => {
     it("重み入り旧 compiled（1932_nobeoka.json・V3/版3）の setCompiled 後は {} と 3.00001", () => {
       const weighted = loadCompiled("1932_nobeoka");
       // 陽性対照: 入力が本当に重み入りであること
@@ -199,7 +199,7 @@ describe("weight_buffer の廃止（純アフィン化）", { timeout: REAL_DATA
     });
   });
 
-  describe("VER", () => {
+  describe("format version", () => {
     it("format_version === 2.00704 / getFormatVersion() が同値", () => {
       expect(format_version).toEqual(2.00704);
       expect(new Tin({ useV2Algorithm: true }).getFormatVersion()).toEqual(2.00704);
@@ -218,7 +218,7 @@ describe("weight_buffer の廃止（純アフィン化）", { timeout: REAL_DATA
     });
   });
 
-  describe("AFF", () => {
+  describe("transform after setCompiled is purely affine", () => {
     BUILD_DATASETS.forEach((dataset) => {
       it(`${dataset.label}: setCompiled 後の順逆が純アフィン（相対 1e-12 以内）`, () => {
         const compiled = buildTin(dataset).getCompiled();
@@ -257,7 +257,7 @@ describe("weight_buffer の廃止（純アフィン化）", { timeout: REAL_DATA
     });
   });
 
-  describe("DIRECT", () => {
+  describe("direct transform right after updateTin", () => {
     BUILD_DATASETS.forEach((dataset) => {
       it(`${dataset.label}: updateTin() 直後の Tin で直接 transform（相対 1e-12 以内・例外なし）`, () => {
         const tin = buildTin(dataset);
