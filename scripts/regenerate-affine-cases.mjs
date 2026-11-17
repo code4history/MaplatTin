@@ -1,12 +1,12 @@
-// m12 t1b/t2b 共通: tests/cases/*.json の出力（bakw）を、対応する compiled を読み込んだ
+// tests/cases/*.json の出力（bakw）を、対応する compiled を読み込んだ
 // Transform で再計算する。forw は据え置き（入力側の差分 0）。合格は旧結果一致ではなく、
 // 「純アフィン参照と相対 1e-12 以内」「逆変換が forw と各成分 0.005 未満」で判定する。
-// （t1 設計 §6.1 と同一内容。t2 は --only で *_v2.json / *_v3.json に絞って使う）
+// （--only で *_v2.json / *_v3.json に絞れる）
 //
 // 使い方:
-//   node scripts/m12-regenerate-cases.mjs --lib <maplat_transform.js> --tests tests [--only '*_v2.json,*_v3.json']   # 検査のみ
-//   node scripts/m12-regenerate-cases.mjs --lib <maplat_transform.js> --tests tests [--only ...] --write              # 書き出し
-//   node scripts/m12-regenerate-cases.mjs --lib <maplat_transform.js> --tests tests [--only ...] --self-test          # 自己検査
+//   node scripts/regenerate-affine-cases.mjs --lib <maplat_transform.js> --tests tests [--only '*_v2.json,*_v3.json']   # 検査のみ
+//   node scripts/regenerate-affine-cases.mjs --lib <maplat_transform.js> --tests tests [--only ...] --write              # 書き出し
+//   node scripts/regenerate-affine-cases.mjs --lib <maplat_transform.js> --tests tests [--only ...] --self-test          # 自己検査
 import fs from "node:fs";
 import path from "node:path";
 

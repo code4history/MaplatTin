@@ -79,7 +79,7 @@ function buildTin(dataset: BuildDataset): Tin {
   return tin;
 }
 
-// ─── 独立アフィン参照（t1 設計 §5 T-AFF と同じ。Cramer 式。geometry.ts の式は写さない） ──
+// ─── 独立アフィン参照（Cramer 式。geometry.ts の式は写さない） ──
 const PROP_KEYS = ["a", "b", "c"] as const;
 
 function affineReference(tri: Tri, p: Position): Position {
@@ -102,7 +102,7 @@ function affineReference(tri: Tri, p: Position): Position {
   ];
 }
 
-// GRID-P: 当該方向の対応点 bbox を各辺 20% 広げた 41×41 点（t1 設計 §5）
+// GRID-P: 当該方向の対応点 bbox を各辺 20% 広げた 41×41 点
 function gridPoints(compiled: Compiled, backward: boolean): Position[] {
   const src = compiled.points.map((p) => (backward ? p[1] : p[0]));
   const xs = src.map((p) => p[0]);
@@ -125,7 +125,7 @@ function gridPoints(compiled: Compiled, backward: boolean): Position[] {
   return pts;
 }
 
-// 「相対 X 以内」の分母: 対応点の両座標系を通じた座標絶対値の最大（m12 設計 §6 補足）
+// 「相対 X 以内」の分母: 対応点の両座標系を通じた座標絶対値の最大
 function relativeScale(compiled: Compiled): number {
   let scale = 0;
   for (const p of compiled.points) {
@@ -171,8 +171,8 @@ function affineDeviations(tin: Tin, compiled: Compiled, backward: boolean): numb
   return count;
 }
 
-describe("m12 t2a — weight_buffer の廃止（純アフィン化）", { timeout: REAL_DATA_TIMEOUT_MS }, () => {
-  describe("T2-EMPTY (AC-4a)", () => {
+describe("weight_buffer の廃止（純アフィン化）", { timeout: REAL_DATA_TIMEOUT_MS }, () => {
+  describe("EMPTY", () => {
     BUILD_DATASETS.forEach((dataset) => {
       it(`${dataset.label}: getCompiled() が weight_buffer キーを持ち値が {}`, () => {
         const tin = buildTin(dataset);
@@ -183,7 +183,7 @@ describe("m12 t2a — weight_buffer の廃止（純アフィン化）", { timeou
     });
   });
 
-  describe("T2-RELOAD (AC-4a)", () => {
+  describe("RELOAD", () => {
     it("重み入り旧 compiled（1932_nobeoka.json・V3/版3）の setCompiled 後は {} と 3.00001", () => {
       const weighted = loadCompiled("1932_nobeoka");
       // 陽性対照: 入力が本当に重み入りであること
@@ -199,7 +199,7 @@ describe("m12 t2a — weight_buffer の廃止（純アフィン化）", { timeou
     });
   });
 
-  describe("T2-VER (AC-4b)", () => {
+  describe("VER", () => {
     it("format_version === 2.00704 / getFormatVersion() が同値", () => {
       expect(format_version).toEqual(2.00704);
       expect(new Tin({ useV2Algorithm: true }).getFormatVersion()).toEqual(2.00704);
@@ -218,7 +218,7 @@ describe("m12 t2a — weight_buffer の廃止（純アフィン化）", { timeou
     });
   });
 
-  describe("T2-AFF (AC-4c)", () => {
+  describe("AFF", () => {
     BUILD_DATASETS.forEach((dataset) => {
       it(`${dataset.label}: setCompiled 後の順逆が純アフィン（相対 1e-12 以内）`, () => {
         const compiled = buildTin(dataset).getCompiled();
@@ -257,7 +257,7 @@ describe("m12 t2a — weight_buffer の廃止（純アフィン化）", { timeou
     });
   });
 
-  describe("T2-DIRECT (AC-4c・MAJ-1)", () => {
+  describe("DIRECT", () => {
     BUILD_DATASETS.forEach((dataset) => {
       it(`${dataset.label}: updateTin() 直後の Tin で直接 transform（相対 1e-12 以内・例外なし）`, () => {
         const tin = buildTin(dataset);

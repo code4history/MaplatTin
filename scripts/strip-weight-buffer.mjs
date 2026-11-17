@@ -1,10 +1,10 @@
-// m12 t2b: Tin の出力フィクスチャ（tests/compiled/*_v2.json / *_v3.json）の
+// Tin の出力フィクスチャ（tests/compiled/*_v2.json / *_v3.json）の
 // weight_buffer を {} に、version を 2.00703→2.00704 / 3→3.00001 に機械置換する。
-// 原則: LLM の手編集で JSON を書き換えない。このスクリプトで書く（t2 設計 §5.1）。
+// 原則: LLM の手編集で JSON を書き換えない。このスクリプトで書く。
 //
 // 使い方:
-//   node scripts/m12-strip-weight-buffer.mjs --self-test   # 置換ガードの自己検査（書かない）
-//   node scripts/m12-strip-weight-buffer.mjs               # 本実行（16 件を上書き）
+//   node scripts/strip-weight-buffer.mjs --self-test   # 置換ガードの自己検査（書かない）
+//   node scripts/strip-weight-buffer.mjs               # 本実行（16 件を上書き）
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

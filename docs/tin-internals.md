@@ -26,7 +26,7 @@ The outcome is a set of four synthetic points that safely enclose all transforme
 
 ## Weight Buffer (Removed)
 
-Removed in 2.00704: in-triangle interpolation is now pure affine. See m12 for background.
+Removed in 2.00704: in-triangle interpolation is now pure affine.
 
 ## Related Observations
 
