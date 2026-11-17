@@ -28,7 +28,7 @@ Core homeomorphic-transform logic lives in `src/` (`tin.ts`, `constrained-tin.ts
 
 ## Coding Style & Naming Conventions
 
-TypeScript with `strict: true` in `tsconfig.json` and the `@/*` path alias mapped to `src/*`. The ESLint config is the single flat config `eslint.config.mjs` (nov26-m8-t5 merged the former `eslint.config.js` / `.mjs` pair). Prettier formatting is enforced via `.prettierrc`. Run `pnpm lint` before committing.
+TypeScript with `strict: true` in `tsconfig.json` and the `@/*` path alias mapped to `src/*`. The ESLint config is the single flat config `eslint.config.mjs` (it replaced the former `eslint.config.js` / `.mjs` pair). Prettier formatting is enforced via `.prettierrc`. Run `pnpm lint` before committing.
 
 ## Testing Guidelines
 
@@ -36,7 +36,7 @@ Vitest is the canonical runner (`pnpm test`). Tests live in `tests/` and mirror 
 
 ## Commit & Pull Request Guidelines
 
-Recent `git log` shows a mix of Conventional Commits (`fix:`) and task-ID-prefixed messages (e.g. `m15-t1:`, `c2-m4-t1:`, `c2-m1-t1:`) tied to this project's internal task tracking. Keep commits scoped to one concern; when a message is not part of a tracked task, prefer a Conventional Commits prefix. Pull requests should describe the transform scenario affected, reference any changed fixture maps, and confirm lint, typecheck, and tests pass locally before requesting review.
+Recent `git log` shows a mix of Conventional Commits (`fix:`) and messages prefixed with internal task identifiers. Keep commits scoped to one concern; when a message is not part of a tracked task, prefer a Conventional Commits prefix. Pull requests should describe the transform scenario affected, reference any changed fixture maps, and confirm lint, typecheck, and tests pass locally before requesting review.
 
 ## Release & Configuration Tips
 

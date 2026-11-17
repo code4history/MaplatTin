@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 
 expect.extend({ toBeDeepCloseTo });
 
-// m12 t2a: 独立アフィン参照（t1 設計 §5 T-AFF と同じ考え方。Cramer 式で重心座標を
+// 独立アフィン参照（weight-buffer-removal.test.ts と同じ考え方。Cramer 式で重心座標を
 // 求め、三角形の頂点の対応点から純アフィン補間を求める。@maplat/transform の
 // geometry.ts の式は写さない）。三角形 geometry の座標は始点側、properties[k].geom は
 // 目標側。戻り値は「点 p を含む可能性のある三角形のアフィン結果の候補配列」。
@@ -49,7 +49,7 @@ function inTriangle(p, a, b, c) {
   return !(hasNeg && hasPos);
 }
 
-function m12AffineCandidates(tin, p, backward) {
+function affineCandidates(tin, p, backward) {
   const dir = backward ? "bakw" : "forw";
   const tins = tin.tins && tin.tins[dir];
   const out = [];
@@ -241,7 +241,7 @@ const testSet = () => {
 
       // ① 順変換が含まれる三角形（凸包外なら扇形三角形）の純アフィン参照と 1e-7 以内
       const fwd = tin.transform([140, 150]);
-      const fwdCands = m12AffineCandidates(tin, [140, 150], false);
+      const fwdCands = affineCandidates(tin, [140, 150], false);
       const fwdErr = Math.min(
         ...fwdCands.map((q) => Math.hypot(fwd[0] - q[0], fwd[1] - q[1])),
       );
@@ -255,7 +255,7 @@ const testSet = () => {
 
       // ④ 凸包外の順変換（ignoreBounds）も同じ参照と 1e-7 以内
       const out = tin.transform([200, 130], false, true);
-      const outCands = m12AffineCandidates(tin, [200, 130], false);
+      const outCands = affineCandidates(tin, [200, 130], false);
       const outErr = Math.min(
         ...outCands.map((q) => Math.hypot(out[0] - q[0], out[1] - q[1])),
       );
