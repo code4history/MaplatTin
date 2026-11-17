@@ -6,8 +6,9 @@ import { format_version as tinFormatVersion } from "../src/index.ts";
 
 // MaplatTransform#13: compiled のフォーマット版の定数は Transform と Tin の 2 か所にある。
 // 検査を Tin 側に置く理由: Transform の @maplat/tin（devDependency）は 0.14.0 に固定されており、
-// Transform のテストから最新の Tin の定数は見えない（最新の Tin は @maplat/transform に依存するので、
-// Transform が最新の Tin に依存すると循環依存になる。0.14.0 は fixture の生成にだけ使う）。
+// Transform のテストから最新の Tin の定数は見えない（最新の Tin は @maplat/transform ^1.1 に依存するので、
+// Transform が最新の Tin に依存すると循環する。0.14.0 は旧い @maplat/transform 0.5.0 に依存するので循環しない。
+// 0.14.0 は fixture の生成にだけ使う）。
 // V3（3.00001）は Transform が export しない（compiled-state.ts のコメント）ので比べない。
 // 検出の時機: Tin だけが定数を変えたら Tin の CI で即時。Transform だけが変えたら、Transform の公開後に
 // Tin の lock を作り直したときの Tin の CI。
