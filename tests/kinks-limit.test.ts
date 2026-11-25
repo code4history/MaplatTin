@@ -1,0 +1,124 @@
+import { describe, expect, it } from "vitest";
+import type { Position } from "geojson";
+import { findIntersections, Tin } from "../src/index.ts";
+import {
+  findIntersectionsUpTo,
+  MAX_KINKS_PER_DIRECTION,
+} from "../src/kinks.ts";
+import { REAL_DATA_TIMEOUT_MS } from "./timeouts.ts";
+
+// 交差の件数は線分の数の 2 乗まで増えうる。
+// 件数に上限を置き、上限に届いたら数え上げをやめることを確かめる。
+
+function rng(seed: number) {
+  return () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 2 ** 32;
+  };
+}
+
+/** 互いに交わる線分の束（縦 n 本 × 横 n 本 ∴ 交点は n×n 個） */
+function lattice(n: number): Position[][] {
+  const lines: Position[][] = [];
+  for (let i = 0; i < n; i++) {
+    lines.push([[i + 0.5, -1], [i + 0.5, n + 1]]);
+    lines.push([[-1, i + 0.5], [n + 1, i + 0.5]]);
+  }
+  return lines;
+}
+
+/** 画像側と地図側の位置に関係が無い GCP */
+function unrelatedPoints(n: number): [[number, number], [number, number]][] {
+  const r = rng(n);
+  const points: [[number, number], [number, number]][] = [];
+  for (let i = 0; i < n; i++) {
+    points.push([
+      [r() * 5000, r() * 5000],
+      [r() * 5000, r() * -5000],
+    ]);
+  }
+  return points;
+}
+
+describe("findIntersectionsUpTo: 交差の件数の上限", () => {
+  it("上限が件数より大きければ findIntersections と同じ結果を返す", () => {
+    const coords = lattice(10);
+    const all = findIntersections(coords);
+    expect(all).toHaveLength(100);
+    expect(findIntersectionsUpTo(coords, 1000)).toEqual(all);
+    expect(findIntersectionsUpTo(coords, 100)).toEqual(all);
+  });
+
+  it("上限に届いたら数え上げをやめる", () => {
+    const coords = lattice(10);
+    expect(findIntersectionsUpTo(coords, 7)).toHaveLength(7);
+    expect(findIntersectionsUpTo(coords, 1)).toHaveLength(1);
+  });
+
+  it("交差が無ければ上限に関係なく空を返す", () => {
+    const parallel = [
+      [[0, 0], [10, 0]],
+      [[0, 10], [10, 10]],
+    ];
+    expect(findIntersectionsUpTo(parallel, 1)).toEqual([]);
+  });
+
+  it("公開関数 findIntersections は件数を切らない", () => {
+    expect(findIntersections(lattice(40))).toHaveLength(1600);
+  });
+});
+
+describe("Tin: 対応が乱れた GCP の交差の数え上げ", () => {
+  it("strict では kinks の件数が上限を超えない", () => {
+    const tin = new Tin({
+      wh: [5000, 5000],
+      strictMode: "strict",
+      stateFull: false,
+    });
+    tin.setPoints(unrelatedPoints(400));
+    tin.updateTin();
+    expect(tin.strict_status).toBe(Tin.STATUS_ERROR);
+    expect(tin.kinks!.bakw!.features.length).toBeGreaterThan(0);
+    expect(tin.kinks!.bakw!.features.length).toBeLessThanOrEqual(
+      MAX_KINKS_PER_DIRECTION,
+    );
+  }, REAL_DATA_TIMEOUT_MS);
+
+  it("件数の上限を 1 にした数え上げ（auto が使う形）は交差を 1 件だけ持つ", () => {
+    const tin = new Tin({
+      wh: [5000, 5000],
+      strictMode: "strict",
+      stateFull: false,
+    });
+    tin.setPoints(unrelatedPoints(200));
+    tin.updateTin();
+    tin.calculateStrictTin(1);
+    expect(tin.strict_status).toBe(Tin.STATUS_ERROR);
+    expect(tin.kinks!.bakw!.features).toHaveLength(1);
+  }, REAL_DATA_TIMEOUT_MS);
+
+  it("auto では loose に切り替わり kinks を残さない（今までどおり）", () => {
+    const tin = new Tin({ wh: [5000, 5000], stateFull: false });
+    tin.setPoints(unrelatedPoints(200));
+    tin.updateTin();
+    expect(tin.strict_status).toBe(Tin.STATUS_LOOSE);
+    expect(tin.kinks).toBeUndefined();
+  }, REAL_DATA_TIMEOUT_MS);
+
+  it("交差の無い GCP は strict のまま（上限は効かない）", () => {
+    const points: [[number, number], [number, number]][] = [];
+    for (let y = 0; y < 6; y++) {
+      for (let x = 0; x < 6; x++) {
+        points.push([
+          [x * 100 + 50, y * 100 + 50],
+          [x * 10 + 5, y * -10 - 5],
+        ]);
+      }
+    }
+    const tin = new Tin({ wh: [600, 600], stateFull: false });
+    tin.setPoints(points);
+    tin.updateTin();
+    expect(tin.strict_status).toBe(Tin.STATUS_STRICT);
+    expect(tin.kinks).toBeUndefined();
+  });
+});
