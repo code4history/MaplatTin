@@ -14,6 +14,10 @@ import {
 import type { BitSet } from "./bitset.ts";
 
 export class Constrain extends Base {
+  /** See {@link Constrain.maxConstrainSteps}. */
+  static readonly MAX_STEPS_PER_EDGE = 64;
+  static readonly MIN_MAX_STEPS = 1024;
+
   vertMap: Uint32Array;
   flips: BitSet;
   consd: BitSet;
@@ -75,11 +79,30 @@ export class Constrain extends Base {
    */
   constrainOne(segP1: number, segP2: number): number {
     const { triangles, halfedges } = this.del;
+    this.assertVertex(segP1, segP1, segP2);
+    this.assertVertex(segP2, segP1, segP2);
     const start = this.vertMap[segP1];
+    if (start >= triangles.length) {
+      // segP1 is a valid point id, but it is not part of the triangulation
+      // (Delaunator leaves out points that coincide with another point).
+      throw new Error(
+        `Invalid edge [${segP1}, ${segP2}]: vertex ${segP1} is not part of the triangulation`,
+      );
+    }
+
+    // Both walks below visit a bounded number of edges for any valid input.
+    // The limit only guards against a walk that never terminates.
+    const maxSteps = this.maxConstrainSteps();
+    let steps = 0;
 
     // Loop over the edges touching segP1.
     let edg = start;
     do {
+      if (++steps > maxSteps) {
+        throw new Error(
+          `Constraining edge [${segP1}, ${segP2}] exceeded the iteration limit`,
+        );
+      }
       const p4 = triangles[edg];
       const nxt = nextEdge(edg);
 
@@ -115,6 +138,11 @@ export class Constrain extends Base {
     // no more intersects.
     let rescan = -1;
     while (edg !== -1) {
+      if (++steps > maxSteps) {
+        throw new Error(
+          `Constraining edge [${segP1}, ${segP2}] exceeded the iteration limit`,
+        );
+      }
       const adj = halfedges[edg];
       const bot = prevEdge(edg);
       const top = prevEdge(adj);
@@ -218,6 +246,26 @@ export class Constrain extends Base {
     this.protect(conEdge);
     this.delaunify(true);
     return this.findEdge(segP1, segP2);
+  }
+
+  /**
+   * Upper bound for the number of edges visited while constraining one edge.
+   */
+  private maxConstrainSteps(): number {
+    const numEdges = this.del.triangles.length;
+    return numEdges * Constrain.MAX_STEPS_PER_EDGE + Constrain.MIN_MAX_STEPS;
+  }
+
+  /**
+   * Throw unless `vertex` is an id of a point given to Delaunator.
+   */
+  private assertVertex(vertex: number, segP1: number, segP2: number): void {
+    const numPoints = this.vertMap.length;
+    if (!Number.isInteger(vertex) || vertex < 0 || vertex >= numPoints) {
+      throw new Error(
+        `Invalid edge [${String(segP1)}, ${String(segP2)}]: vertex ids must be integers from 0 to ${numPoints - 1}`,
+      );
+    }
   }
 
   /**

@@ -382,6 +382,10 @@ export class Tin extends Transform {
       const illstNodes = Object.assign([], this.edges[i][0]);
       const mercNodes = Object.assign([], this.edges[i][1]);
 
+      // 端点は GCP の添字で指す。範囲に無い・整数でない添字は、
+      // 以降の計算に渡さずここで止める。
+      assertEdgeIndices(edge, this.points.length, i);
+
       if (illstNodes.length === 0 && mercNodes.length === 0) {
         edges.push(edge);
         continue;
@@ -822,5 +826,31 @@ export class Tin extends Transform {
    */
   async updateTinAsync(): Promise<void> {
     this.updateTin();
+  }
+}
+
+/**
+ * edge の両端が GCP の添字（0 以上・GCP の数未満の整数）であることを確かめます。
+ *
+ * @param edge - 検査する edge の両端（[始点の添字, 終点の添字]）
+ * @param pointCount - GCP の数
+ * @param edgeIndex - edges の中での位置（エラーメッセージ用）
+ * @throws {Error} 添字が整数でない、または GCP の範囲に無い場合
+ */
+function assertEdgeIndices(
+  edge: Edge,
+  pointCount: number,
+  edgeIndex: number,
+): void {
+  const isValid = (index: unknown) =>
+    Number.isInteger(index) &&
+    (index as number) >= 0 &&
+    (index as number) < pointCount;
+  if (!Array.isArray(edge) || !isValid(edge[0]) || !isValid(edge[1])) {
+    throw new Error(
+      `Invalid edge at edges[${edgeIndex}]: start/end ${
+        JSON.stringify(edge)
+      } must be integer indices of points (0 to ${pointCount - 1})`,
+    );
   }
 }
