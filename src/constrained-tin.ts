@@ -44,6 +44,7 @@ interface ForbiddenGroups {
   groupsOf: (vertex: number) => readonly number[];
   planes: readonly ArrayLike<number>[];
   boundary?: Edge[];
+  allowUnusableBoundary?: boolean;
 }
 
 /** 制約付き三角分割を作り、指定された群の禁止制約と残数を求める。 */
@@ -71,7 +72,14 @@ export function buildConstrainedTin(
   let outside: Set<number> | undefined;
   if (del.triangles.length !== 0 && (edges.length !== 0 || forbidden)) {
     let con = new EdgeBound(del);
-    con.constrainAll(edges);
+    try {
+      con.constrainAll(edges);
+    } catch (error) {
+      if (!forbidden?.allowUnusableBoundary) throw error;
+      // 補助頂点を加える前に検査済みの必須エッジがここで張れなければ、
+      // この面の余白候補は使えない（例えば補助頂点が必須エッジに重なる）。
+      return { tin: featureCollection([]), remaining: 0, hasBoundary: false };
+    }
     if (forbidden?.boundary) {
       outside = closeBoundary(con, forbidden.boundary);
       if (!outside) {

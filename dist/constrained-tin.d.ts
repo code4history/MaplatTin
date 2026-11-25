@@ -31,6 +31,7 @@ interface ForbiddenGroups {
     groupsOf: (vertex: number) => readonly number[];
     planes: readonly ArrayLike<number>[];
     boundary?: Edge[];
+    allowUnusableBoundary?: boolean;
 }
 /** 制約付き三角分割を作り、指定された群の禁止制約と残数を求める。 */
 export declare function buildConstrainedTin(points: FeatureCollection<Point>, edges: Edge[], z: string, forbidden?: ForbiddenGroups): {

@@ -25,6 +25,9 @@ export type { TriangleProperties } from "./types/tin.ts";
 // Re-export types from @maplat/transform
 export type {
   Compiled,
+  CompiledExtrapolate,
+  CompiledTransformData,
+  CompiledWorldFileOuter,
   Edge,
   EdgeSet,
   EdgeSetLegacy,
@@ -36,6 +39,7 @@ export type {
   Transform,
   Tri,
   VertexMode,
+  WorldFile,
   YaxisMode,
 } from "@maplat/transform";
 

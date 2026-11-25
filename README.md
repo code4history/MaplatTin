@@ -91,7 +91,7 @@ const restored = tin.transform(transformed, true);
 <!-- MaplatTin (UMD) -->
 <script src="https://cdn.jsdelivr.net/npm/@maplat/tin@1.1.1/dist/maplat_tin.umd.js"></script>
 <script>
-  const tin = new maplatTin.default({ wh: [500, 500] });
+  const mapTin = new tin.Tin({ wh: [500, 500] });
 </script>
 ```
 
@@ -106,6 +106,31 @@ Or using ES modules:
 
 *Note: Make sure to use the latest compatible versions.*
 
+### V3 world file outside the boundary
+
+Use `new Tin({ points, outerTransform: "worldFile", worldFile })` to apply an
+affine world file outside the quadrilateral surrounding the TIN. The auxiliary
+vertices are projected with the same world file, which keeps the transformation
+continuous across each boundary edge. Supply coefficients in the same CRS as the
+geographic GCPs, with the origin at the center of the upper-left pixel.
+Tin rejects missing or invalid coefficients and rejects `"worldFile"` with
+`useV2Algorithm: true`. The default is `"extrapolate"`.
+
+Tin tries the V3 margins in order and accepts a world file boundary when every
+triangle touching an auxiliary vertex has the expected winding and nonzero area
+in the meshes selected for transformation. With `strict`, the reverse mesh is
+derived from the forward mesh. With `loose`, the reverse mesh is triangulated
+independently. If the search reaches 50% without a usable boundary, Tin rebuilds
+with `"extrapolate"`.
+
+`getCompiled()` returns `CompiledTransformData`. A world file result stores
+`outerTransform: "worldFile"`, `worldFile`, and all auxiliary vertices in
+`vertices_points`. When Tin falls back, it stores `outerTransform: "extrapolate"`
+and the fan parameters. Reading either result requires a compatible
+`@maplat/transform` with world file outer transforms. When loading this build
+directly in a browser, load Transform's UMD script first or use an import map
+that resolves the ES module specifier `@maplat/transform`.
+
 ### V3 boundary diagnostics
 
 After `updateTin()` or `updateTinAsync()`, `tin.boundaryDiagnostics` exposes the
@@ -117,12 +142,16 @@ independently in the map and geographic planes. Its type is `BoundaryDiagnostics
 | `margin` | Fraction of the GCP bounding box width or height added on each side. |
 | `boundaryTriangleFlips` | Sum, over the triangulation built in the map plane and the one built independently in the geographic plane, of the triangles containing an auxiliary vertex that reverse orientation between the planes or have zero area. In `strict` mode the geographic triangulation actually used is copied from the map plane, so this search-time count can differ from the flips of the final mesh. |
 | `remainingForbiddenTriangles` | Number of triangles that still consist entirely of vertices from one group after flipping edges. A group contains all auxiliary vertices or the endpoints and intermediate vertices of one constrained edge. |
+| `requestedOuterTransform` | `"worldFile"` when a world file boundary was requested. |
+| `outerTransform` | The method selected for a world file request, `"worldFile"` or `"extrapolate"`. |
+| `fallbackReason` | `"boundaryFlips"` when no world file candidate passed and Tin rebuilt with extrapolation. |
 
-V3 tries margins of 10%, 15%, 22.5%, 34%, and 50% in order. It takes the first
+For extrapolation, V3 tries margins of 10%, 15%, 22.5%, 34%, and 50% in order. It takes the first
 margin with zero boundary triangle flips and a star-shaped fan around the
 centroid in both planes. If no margin passes, it prefers margins whose ring closes
 (star-shaped fan) in both planes, then the fewest flips, breaking ties in favor
-of the smaller margin.
+of the smaller margin. If a world file request falls back to extrapolation,
+the reported diagnostics come from the extrapolation search.
 `getCompiled()` omits these diagnostics. The property is `undefined` for V2
 and after loading a compiled TIN.
 

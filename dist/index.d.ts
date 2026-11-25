@@ -15,5 +15,5 @@ export { counterPoint, createPoint, vertexCalc } from "./vertexutils.js";
 export type { SearchIndex } from "./searchutils.js";
 export type { IntersectionPoint } from "./types/kinks.js";
 export type { TriangleProperties } from "./types/tin.js";
-export type { Compiled, Edge, EdgeSet, EdgeSetLegacy, PointSet, PropertyTriKey, StrictMode, StrictStatus, Tins, Transform, Tri, VertexMode, YaxisMode, } from '@maplat/transform';
+export type { Compiled, CompiledExtrapolate, CompiledTransformData, CompiledWorldFileOuter, Edge, EdgeSet, EdgeSetLegacy, PointSet, PropertyTriKey, StrictMode, StrictStatus, Tins, Transform, Tri, VertexMode, WorldFile, YaxisMode, } from '@maplat/transform';
 export { FORMAT_VERSION_V2 as format_version } from "./tin.js";

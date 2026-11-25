@@ -1,5 +1,5 @@
 import { Feature, Point, Position } from 'geojson';
-import { Transform, Compiled, CompiledLegacy, Edge, EdgeSet, EdgeSetLegacy, PointSet, StrictMode, VertexMode, YaxisMode } from '@maplat/transform';
+import { Transform, CompiledLegacy, CompiledTransformData, Edge, EdgeSet, EdgeSetLegacy, PointSet, StrictMode, VertexMode, WorldFile, YaxisMode } from '@maplat/transform';
 import { BoundaryDiagnostics } from "./boundary-search.js";
 import { PointsSetBD } from "./types/tin.js";
 export declare const FORMAT_VERSION_V2 = 2.00704;
@@ -20,6 +20,10 @@ export interface Options {
     edges?: EdgeSet[];
     /** true にすると v2 アルゴリズム（wh bbox・turf 重心・4 境界頂点）で build する */
     useV2Algorithm?: boolean;
+    /** V3 の四辺形の外側で使う変換。省略時は従来の扇形外挿。 */
+    outerTransform?: "extrapolate" | "worldFile";
+    /** 四辺形の外側に使う world file。`outerTransform: "worldFile"` のとき必須。 */
+    worldFile?: WorldFile;
 }
 /**
  * Tin (Triangulated Irregular Network) クラス
@@ -31,6 +35,8 @@ export declare class Tin extends Transform {
     pointsSet: PointsSetBD | undefined;
     useV2Algorithm: boolean;
     private lastBoundaryDiagnostics?;
+    private requestedWorldFile?;
+    private compiledOuter?;
     /** 現在の三角網を V3 で生成したときの外周の診断。 */
     get boundaryDiagnostics(): BoundaryDiagnostics | undefined;
     /**
@@ -59,14 +65,9 @@ export declare class Tin extends Transform {
     /**
      * 現在の設定を永続化可能な形式にコンパイルします
      */
-    getCompiled(): Compiled;
-    /**
-     * コンパイルされた設定を適用します（v3+フォーマット対応）
-     *
-     * バージョン3以上のコンパイル済みデータが渡された場合は restoreV3State() を
-     * 使用してN頂点対応の復元を行います。それ以外は基底クラスの実装に委譲します。
-     */
-    setCompiled(compiled: Compiled | CompiledLegacy): void;
+    getCompiled(): CompiledTransformData;
+    /** コンパイルされた設定を基底クラスで復元し、外周方式を次の生成にも引き継ぐ。 */
+    setCompiled(compiled: CompiledTransformData | CompiledLegacy): void;
     /**
      * 幅と高さを設定します
      */
@@ -107,6 +108,8 @@ export declare class Tin extends Transform {
      * {@link updateTinAsync} を利用してください。
      */
     updateTin(): void;
+    /** 補助頂点を含め、strictMode に従って実際に使う両方向の三角網を組む。 */
+    private buildTin;
     /**
      * 非同期ラッパーを提供します。
      * 互換性のために Promise ベースの API を維持しますが、内部処理は同期的です。

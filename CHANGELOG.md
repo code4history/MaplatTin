@@ -5,6 +5,9 @@
 ## [Unreleased]
 
 ### Added
+- V3 の四辺形の外を world file で変換する `outerTransform: "worldFile"` と `worldFile` を追加した。上限までに成立しないときは扇形で作り直し、`Tin.boundaryDiagnostics` に要求方式・採用方式・理由を返す (#82)
+  - Added world file transformation outside the V3 quadrilateral, with automatic fallback to fan extrapolation and diagnostics (#82)
+
 - 制約付き三角網（`Constrain`）に `forbidGroupTriangles(groupsOf, planes?)` を足した。同じ群（四辺形の補助頂点の全体・必須エッジごとの端点と中継点など）に属する点だけでできた三角形を、制約でない辺の反転で解消する（禁止制約）。反転は、反転後の三角形がすべての面で三角網と同じ向きの、面積 0 でない三角形になるときだけ行い、反転した辺は制約として扱う。
 
 - V3 の生成時に採用した余白、補助頂点の三角形の反転数、禁止制約の残数を `Tin.boundaryDiagnostics` で参照できるようにした (#82)

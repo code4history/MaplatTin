@@ -18,6 +18,8 @@ import {
   rotateVerticesTriangle,
   Transform,
   transformArr,
+  validateWorldFile,
+  worldFileToCrs,
 } from "@maplat/transform";
 
 // Tin が書き出す compiled の版。2.00704 / 3.00001 で重みバッファを廃止（空 {} を書く）。
@@ -25,8 +27,9 @@ import {
 export const FORMAT_VERSION_V2 = 2.00704;
 export const FORMAT_VERSION_V3 = 3.00001;
 import type {
-  Compiled,
   CompiledLegacy,
+  CompiledTransformData,
+  CompiledWorldFileOuter,
   Edge,
   EdgeSet,
   EdgeSetLegacy,
@@ -37,13 +40,20 @@ import type {
   TinsBD,
   Tri,
   VertexMode,
+  WorldFile,
   YaxisMode,
 } from "@maplat/transform";
 import constrainedTin from "./constrained-tin.ts";
-import { searchBoundary, type BoundaryDiagnostics } from "./boundary-search.ts";
+import {
+  countBoundaryFlips,
+  searchBoundary,
+  type BoundaryCandidate,
+  type BoundaryDiagnostics,
+} from "./boundary-search.ts";
 import {
   calculateBirdeyeVertices,
   calculatePlainVertices,
+  calculateWorldFileVertices,
   type BoundaryVerticesParams,
 } from "./boundary-vertices.ts";
 import { findIntersectionsUpTo, MAX_KINKS_PER_DIRECTION } from "./kinks.ts";
@@ -52,6 +62,10 @@ import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
 import type { SearchIndex } from "./searchutils.ts";
 import type { PointsSetBD, VertexPosition } from "./types/tin.ts";
+
+type RawPointsSet = { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
+type CompiledOuter = Pick<CompiledWorldFileOuter, "outerTransform" | "worldFile" | "vertices_points"> |
+  { outerTransform: "extrapolate" };
 
 type EdgeSegmentItem = [Position, number, number, number, string?];
 type EdgeNodeItem = [Position, Position, number];
@@ -72,6 +86,10 @@ export interface Options {
   edges?: EdgeSet[];
   /** true にすると v2 アルゴリズム（wh bbox・turf 重心・4 境界頂点）で build する */
   useV2Algorithm?: boolean;
+  /** V3 の四辺形の外側で使う変換。省略時は従来の扇形外挿。 */
+  outerTransform?: "extrapolate" | "worldFile";
+  /** 四辺形の外側に使う world file。`outerTransform: "worldFile"` のとき必須。 */
+  worldFile?: WorldFile;
 }
 
 /**
@@ -84,6 +102,8 @@ export class Tin extends Transform {
   pointsSet: PointsSetBD | undefined;
   useV2Algorithm: boolean;
   private lastBoundaryDiagnostics?: BoundaryDiagnostics;
+  private requestedWorldFile?: WorldFile;
+  private compiledOuter?: CompiledOuter;
 
   /** 現在の三角網を V3 で生成したときの外周の診断。 */
   get boundaryDiagnostics(): BoundaryDiagnostics | undefined {
@@ -110,6 +130,12 @@ export class Tin extends Transform {
     this.priority = options.priority || 0;
     this.stateFull = options.stateFull || false;
     this.useV2Algorithm = options.useV2Algorithm ?? false;
+    if (options.outerTransform === "worldFile") {
+      if (this.useV2Algorithm) throw new Error("V2 では world file 外周を使えません");
+      if (!options.worldFile) throw new Error("worldFile が必要です");
+      validateWorldFile(options.worldFile);
+      this.requestedWorldFile = { ...options.worldFile };
+    }
 
     if (options.points) {
       this.setPoints(options.points);
@@ -186,30 +212,34 @@ export class Tin extends Transform {
   /**
    * 現在の設定を永続化可能な形式にコンパイルします
    */
-  getCompiled(): Compiled {
-    const compiled: Compiled = {} as Compiled;
+  getCompiled(): CompiledTransformData {
+    const compiled = {} as CompiledTransformData;
     compiled.version = this.useV2Algorithm ? FORMAT_VERSION_V2 : FORMAT_VERSION_V3;
     compiled.points = this.points;
     // 重みバッファは廃止（2.00704）。以前の @maplat/transform は compiled に
     // 重みキーが無いと transform() で TypeError になるため、空オブジェクトを必ず書く
     compiled.weight_buffer = {};
-    compiled.centroid_point = [
-      this.centroid!.forw!.geometry!.coordinates,
-      this.centroid!.forw!.properties!.target.geom,
-    ];
-    compiled.vertices_params = [
-      this.vertices_params!.forw![0],
-      this.vertices_params!.bakw![0],
-    ];
-    compiled.vertices_points = [];
+    if (this.compiledOuter?.outerTransform === "worldFile") {
+      Object.assign(compiled, this.compiledOuter);
+    } else {
+      compiled.centroid_point = [
+        this.centroid!.forw!.geometry!.coordinates,
+        this.centroid!.forw!.properties!.target.geom,
+      ];
+      compiled.vertices_params = [
+        this.vertices_params!.forw![0],
+        this.vertices_params!.bakw![0],
+      ];
+      compiled.vertices_points = [];
 
-    const vertices = this.vertices_params!.forw![1];
-    if (vertices) {
-      for (let i = 0; i < vertices.length; i++) {
-        const vertex = vertices[i].features[0];
-        const forw = vertex.geometry!.coordinates[0][1];
-        const bakw = vertex.properties!.b.geom;
-        compiled.vertices_points[i] = [forw, bakw];
+      const vertices = this.vertices_params!.forw![1];
+      if (vertices) {
+        for (let i = 0; i < vertices.length; i++) {
+          const vertex = vertices[i].features[0];
+          const forw = vertex.geometry!.coordinates[0][1];
+          const bakw = vertex.properties!.b.geom;
+          compiled.vertices_points[i] = [forw, bakw];
+        }
       }
     }
 
@@ -262,17 +292,33 @@ export class Tin extends Transform {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     compiled.edgeNodes = (this.edgeNodes ?? []) as any;
 
+    if (this.compiledOuter?.outerTransform === "extrapolate") {
+      Object.assign(compiled, this.compiledOuter);
+    }
     return compiled;
   }
 
-  /**
-   * コンパイルされた設定を適用します（v3+フォーマット対応）
-   *
-   * バージョン3以上のコンパイル済みデータが渡された場合は restoreV3State() を
-   * 使用してN頂点対応の復元を行います。それ以外は基底クラスの実装に委譲します。
-   */
-  override setCompiled(compiled: Compiled | CompiledLegacy): void {
+  /** コンパイルされた設定を基底クラスで復元し、外周方式を次の生成にも引き継ぐ。 */
+  override setCompiled(compiled: CompiledTransformData | CompiledLegacy): void {
+    const outer = "outerTransform" in compiled ? compiled : undefined;
+    if (outer?.outerTransform === "worldFile" && this.useV2Algorithm) {
+      throw new Error("V2 では world file 外周を使えません");
+    }
+    const replacesWorldFile = this.outerTransform === "worldFile" || outer?.outerTransform === "worldFile";
     super.setCompiled(compiled);
+    if (replacesWorldFile) this.stateTriangle = undefined;
+    this.requestedWorldFile = undefined;
+    this.compiledOuter = undefined;
+    if (outer?.outerTransform === "worldFile") {
+      this.requestedWorldFile = { ...outer.worldFile };
+      this.compiledOuter = {
+        outerTransform: "worldFile",
+        worldFile: outer.worldFile,
+        vertices_points: outer.vertices_points,
+      };
+    } else if (outer?.outerTransform === "extrapolate") {
+      this.compiledOuter = { outerTransform: "extrapolate" };
+    }
     this.lastBoundaryDiagnostics = undefined;
   }
 
@@ -596,7 +642,9 @@ export class Tin extends Transform {
     }
 
     const isV3 = !this.useV2Algorithm;
-    let rawPointsSet: { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
+    const worldFile = this.requestedWorldFile;
+    if (worldFile && !isV3) throw new Error("V2 では world file 外周を使えません");
+    let rawPointsSet: RawPointsSet;
     let minx: number, maxx: number, miny: number, maxy: number;
 
     if (isV3) {
@@ -748,66 +796,64 @@ export class Tin extends Transform {
       maxy,
     };
 
+    if (worldFile) {
+      this.stateTriangle = undefined;
+      // follow では、GCP と同様に外部 CRS の Y を反転して三角網に入れる。
+      // world file 自体は反転前の係数を保存する。
+      const follow = this.yaxisMode === Tin.YAXIS_FOLLOW;
+      const orientation = follow ? 1 : -1;
+      const boundary = searchBoundary(
+        boundaryParams,
+        (params) => calculateWorldFileVertices(params, (xy) => {
+          const [x, y] = worldFileToCrs(worldFile, xy);
+          return [x, follow ? -y : y];
+        }),
+        rawPointsSet,
+        this.points.length,
+        {
+          orientation,
+          accept: (candidate) => {
+            if (!candidate.hasMapBoundary) return false;
+            this.buildTin(rawPointsSet, candidate.vertices, strict, candidate);
+            // auto の切り替えと strict の重なり解消を経て、採用した三角網で判定する。
+            return (this.strict_status !== Tin.STATUS_LOOSE || candidate.hasBoundary) &&
+              countBoundaryFlips(this.tins!.forw!, orientation) === 0 &&
+              countBoundaryFlips(this.tins!.bakw!, orientation) === 0;
+          },
+        },
+      );
+      if (boundary) {
+        this.compiledOuter = {
+          outerTransform: "worldFile",
+          worldFile,
+          vertices_points: boundary.vertices.map(({ forw, bakw }) => [forw, bakw]),
+        };
+        // Transform と同じ読み込み経路で内外判定用の輪と三角網の索引を作る。
+        // 生成時の重心、領域の寸法、両方向の交差は Tin の実行時の値として保つ。
+        const { centroid, xy, wh, kinks } = this;
+        super.setCompiled(this.getCompiled());
+        Object.assign(this, { centroid, xy, wh, kinks });
+        this.lastBoundaryDiagnostics = {
+          ...boundary.diagnostics,
+          requestedOuterTransform: "worldFile",
+          outerTransform: "worldFile",
+        };
+        return;
+      }
+      this.compiledOuter = { outerTransform: "extrapolate" };
+      this.outerTransform = "extrapolate";
+      this.worldFile = undefined;
+    }
+
     const calculateVertices = this.vertexMode === Tin.VERTEX_BIRDEYE
       ? calculateBirdeyeVertices
       : calculatePlainVertices;
     const boundary = isV3
       ? searchBoundary(boundaryParams, calculateVertices, rawPointsSet, this.points.length)
       : undefined;
-    const verticesSet: VertexPosition[] =
-      boundary?.vertices ?? calculateVertices(boundaryParams, false);
+    const verticesSet = boundary?.vertices ?? calculateVertices(boundaryParams, false);
+    const verticesList = this.buildTin(rawPointsSet, verticesSet, strict, boundary);
 
-    // Add vertices to points set
-    const verticesList = {
-      forw: [] as Feature<Point>[],
-      bakw: [] as Feature<Point>[],
-    };
-    for (let i = 0; i < verticesSet.length; i++) {
-      const forw = verticesSet[i].forw;
-      const bakw = verticesSet[i].bakw;
-      const forPoint = createPoint(forw, bakw, `b${i}`);
-      const bakPoint = counterPoint(forPoint);
-      rawPointsSet.forw.push(forPoint);
-      rawPointsSet.bakw.push(bakPoint);
-      verticesList.forw.push(forPoint);
-      verticesList.bakw.push(bakPoint);
-    }
-
-    this.pointsSet = {
-      forw: featureCollection(rawPointsSet.forw),
-      bakw: featureCollection(rawPointsSet.bakw),
-      edges: rawPointsSet.edges,
-    };
-
-    // Generate forward TIN
-    this.tins = {
-      forw: rotateVerticesTriangle(
-        boundary?.forw ?? constrainedTin(this.pointsSet!.forw, rawPointsSet.edges, "target") as Tins,
-      ),
-    };
-
-    // Calculate strict TIN if needed
-    if (strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO) {
-      // auto は交差の有無しか使わない（あれば loose に切り替えて kinks を捨てる）
-      // ので、1 件見つけた時点で数え上げをやめる。
-      this.calculateStrictTin(
-        strict === Tin.MODE_AUTO ? 1 : MAX_KINKS_PER_DIRECTION,
-      );
-    }
-
-    // Generate backward TIN if needed
-    if (
-      strict === Tin.MODE_LOOSE ||
-      (strict === Tin.MODE_AUTO && this.strict_status === Tin.STATUS_ERROR)
-    ) {
-      this.tins!.bakw = rotateVerticesTriangle(
-        boundary?.bakw ?? constrainedTin(this.pointsSet!.bakw, rawPointsSet.edges, "target") as Tins,
-      );
-      delete this.kinks;
-      this.strict_status = Tin.STATUS_LOOSE;
-    }
-
-    // Calculate vertices parameters
     this.vertices_params = {
       forw: vertexCalc(verticesList.forw, this.centroid.forw!),
       bakw: vertexCalc(verticesList.bakw, this.centroid.bakw!),
@@ -821,6 +867,72 @@ export class Tin extends Transform {
     // 旧版でも純アフィンになる。新 Transform はこの値を読まない。
     this.pointsWeightBuffer = {};
     this.lastBoundaryDiagnostics = boundary?.diagnostics;
+    if (worldFile && this.lastBoundaryDiagnostics) {
+      this.lastBoundaryDiagnostics = {
+        ...this.lastBoundaryDiagnostics,
+        requestedOuterTransform: "worldFile",
+        outerTransform: "extrapolate",
+        fallbackReason: "boundaryFlips",
+      };
+    }
+  }
+
+  /** 補助頂点を含め、strictMode に従って実際に使う両方向の三角網を組む。 */
+  private buildTin(
+    rawPointsSet: RawPointsSet,
+    verticesSet: VertexPosition[],
+    strict: StrictMode,
+    boundary?: BoundaryCandidate,
+  ): { forw: Feature<Point>[]; bakw: Feature<Point>[] } {
+    // 補助頂点を生成する。
+    const verticesList = {
+      forw: [] as Feature<Point>[],
+      bakw: [] as Feature<Point>[],
+    };
+    for (let i = 0; i < verticesSet.length; i++) {
+      const forw = verticesSet[i].forw;
+      const bakw = verticesSet[i].bakw;
+      const forPoint = createPoint(forw, bakw, `b${i}`);
+      const bakPoint = counterPoint(forPoint);
+      verticesList.forw.push(forPoint);
+      verticesList.bakw.push(bakPoint);
+    }
+
+    this.pointsSet = {
+      forw: featureCollection([...rawPointsSet.forw, ...verticesList.forw]),
+      bakw: featureCollection([...rawPointsSet.bakw, ...verticesList.bakw]),
+      edges: rawPointsSet.edges,
+    };
+
+    // 順変換の三角網を作る。
+    this.tins = {
+      forw: rotateVerticesTriangle(
+        boundary?.forw ?? constrainedTin(this.pointsSet!.forw, rawPointsSet.edges, "target") as Tins,
+      ),
+    };
+
+    // strict または auto では逆三角網を順三角網から写す。
+    if (strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO) {
+      // auto は交差の有無しか使わない（あれば loose に切り替えて kinks を捨てる）
+      // ので、1 件見つけた時点で数え上げをやめる。
+      this.calculateStrictTin(
+        strict === Tin.MODE_AUTO ? 1 : MAX_KINKS_PER_DIRECTION,
+      );
+    }
+
+    // loose では地理面で独立に三角網を作る。
+    if (
+      strict === Tin.MODE_LOOSE ||
+      (strict === Tin.MODE_AUTO && this.strict_status === Tin.STATUS_ERROR)
+    ) {
+      this.tins!.bakw = rotateVerticesTriangle(
+        boundary?.bakw ?? constrainedTin(this.pointsSet!.bakw, rawPointsSet.edges, "target") as Tins,
+      );
+      delete this.kinks;
+      this.strict_status = Tin.STATUS_LOOSE;
+    }
+
+    return verticesList;
   }
 
   /**

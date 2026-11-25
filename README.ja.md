@@ -88,7 +88,7 @@ const restored = tin.transform(transformed, true);
 <!-- MaplatTin (UMD) -->
 <script src="https://cdn.jsdelivr.net/npm/@maplat/tin@1.1.1/dist/maplat_tin.umd.js"></script>
 <script>
-  const tin = new maplatTin.default({ wh: [500, 500] });
+  const mapTin = new tin.Tin({ wh: [500, 500] });
 </script>
 ```
 
@@ -103,6 +103,27 @@ const restored = tin.transform(transformed, true);
 
 ※最新の互換バージョンを使用してください。
 
+### V3 の四辺形の外を world file で変換する
+
+`new Tin({ points, outerTransform: "worldFile", worldFile })` では、三角網を囲む
+四辺形の外側を world file のアフィン変換で扱います。四隅と辺上の補助頂点にも
+同じ world file を適用するため、四辺形の辺をまたいで変換が連続します。
+地理面の GCP と同じ CRS を使い、原点の値は左上画素の中心の座標で指定します。
+係数の欠落や不正がある場合と、`useV2Algorithm: true` との併用はエラーです。
+既定の方式は `"extrapolate"` です。
+
+V3 の余白を小さい順に試し、実際に使う三角網で、補助頂点を含む三角形の反転と
+面積 0 がなくなった最初の余白を採用します。`strict` では地図面から逆変換用の
+三角網を写し、`loose` では地理面で独立に三角網を組みます。50% まで試しても
+使える外周が見つからない場合、`"extrapolate"` で三角網を作り直します。
+
+`getCompiled()` の戻り値は `CompiledTransformData` です。world file 外周の出力は
+`outerTransform: "worldFile"`、`worldFile`、全補助頂点を並べた `vertices_points`
+を持ちます。扇形に切り替えた出力には `outerTransform: "extrapolate"` と扇形の
+パラメータが入ります。いずれも world file 外周に対応した `@maplat/transform` で
+読み込めます。このビルドをブラウザーで直接使う場合は、Transform の UMD スクリプトを
+先に読み込むか、インポートマップで ES モジュールの `@maplat/transform` を解決してください。
+
 ### V3 の外周の診断
 
 `updateTin()` または `updateTinAsync()` の後、`tin.boundaryDiagnostics` から、採用した
@@ -114,10 +135,14 @@ const restored = tin.transform(transformed, true);
 | `margin` | GCP の外接矩形の幅・高さに対し、各辺に加えた余白の割合。 |
 | `boundaryTriangleFlips` | 地図面で作った三角網と、地理面で独立に作った三角網のそれぞれで、補助頂点を含む三角形のうち面の間で向きが反転するか面積が 0 になるものを数えた合計。`strict` では実際に使う地理面の三角網を地図面から写して作るので、探索の時点のこの値と、出来上がった三角網の反転の数は一致しないことがある。 |
 | `remainingForbiddenTriangles` | 辺反転の後も同じ群の点だけでできている三角形の数。群は補助頂点の全体、または 1 本の必須エッジの端点と中継点。 |
+| `requestedOuterTransform` | world file 外周を指定したときの `"worldFile"`。 |
+| `outerTransform` | world file 外周を指定したときに実際に採用した `"worldFile"` または `"extrapolate"`。 |
+| `fallbackReason` | world file 外周が成立せず扇形で作り直したときの `"boundaryFlips"`。 |
 
-V3 は 10%、15%、22.5%、34%、50% の順に試し、補助頂点の三角形の反転が 0 で、
+扇形外挿の余白は 10%、15%、22.5%、34%、50% の順に試し、補助頂点の三角形の反転が 0 で、
 重心からの扇形が両面で星形になる最初の余白を採用します。どの余白も合格しない場合は、
 両面で輪が閉じる（扇形が星形になる）余白を優先し、その中で反転が最少の余白を採用し、同数なら小さい方を選びます。
+world file 外周を指定して扇形に切り替わった場合は、作り直した三角網の余白と件数を返します。
 `getCompiled()` は診断を出力しません。V2 と、compiled を読み込んだ直後のプロパティは
 `undefined` です。
 

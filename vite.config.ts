@@ -45,6 +45,7 @@ const cjsCompatWrapper = () => ({
 });
 
 const shouldExternalize = (id: string) => {
+  if (id === "@maplat/transform") return true;
   if (id.startsWith("node:")) return true;
   if (id === "fs" || id === "path" || id === "process") return true;
   return false;
@@ -72,7 +73,8 @@ export default defineConfig({
       rollupOptions: {
         external: shouldExternalize,
         output: {
-          exports: "named"
+          exports: "named",
+          globals: { "@maplat/transform": "maplat_transform" }
         }
       }
     }

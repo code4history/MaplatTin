@@ -51,4 +51,6 @@ export declare function calculatePlainVertices(params: BoundaryVerticesParams, v
  * perspective distortion in the 4 corner positions.
  */
 export declare function calculateBirdeyeVertices(params: BoundaryVerticesParams, v3?: boolean): VertexPosition[];
+/** 四隅と辺上の補助頂点を輪の順に並べ、地理側は world file の値で固定する。 */
+export declare function calculateWorldFileVertices(params: BoundaryVerticesParams, project: (forw: Position) => Position): VertexPosition[];
 export {};

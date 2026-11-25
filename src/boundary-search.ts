@@ -22,14 +22,22 @@ export interface BoundaryDiagnostics {
   readonly boundaryTriangleFlips: number;
   /** 同じ群の点だけででき、辺反転で解消できなかった三角形の数。 */
   readonly remainingForbiddenTriangles: number;
+  /** world file 外周を指定した場合の要求方式。 */
+  readonly requestedOuterTransform?: "worldFile";
+  /** world file 外周を指定した場合に、実際に採用した方式。 */
+  readonly outerTransform?: "worldFile" | "extrapolate";
+  /** 上限までに使える world file 外周が見つからなかった。 */
+  readonly fallbackReason?: "boundaryFlips";
 }
 
-interface BoundaryCandidate {
+export interface BoundaryCandidate {
   vertices: VertexPosition[];
   forw: Tins;
   bakw: Tins;
   diagnostics: BoundaryDiagnostics;
-  /** 両面で補助頂点の輪が閉じた（扇形が星形で、輪の外に GCP・中継点が無い）か。 */
+  /** 地図面で外周の辺を三角網の境界として確保できたか。 */
+  hasMapBoundary: boolean;
+  /** 両面で外周の辺を三角網の境界として確保できたか。 */
   hasBoundary: boolean;
 }
 
@@ -51,7 +59,7 @@ function orientation(a: Position, b: Position, c: Position): number {
   return Math.sign(orient2d(a[0], a[1], b[0], b[1], c[0], c[1]));
 }
 
-function countBoundaryFlips(tin: Tins): number {
+export function countBoundaryFlips(tin: Tins, expectedOrientation: -1 | 1 = -1): number {
   let count = 0;
   for (const triangle of tin.features) {
     const { a, b, c } = triangle.properties!;
@@ -62,9 +70,8 @@ function countBoundaryFlips(tin: Tins): number {
     )
       continue;
     const [p, q, r] = triangle.geometry!.coordinates[0];
-    // 地理面の内部座標は地図面と Y 軸の向きが逆。
-    if (orientation(p, q, r) * orientation(a.geom, b.geom, c.geom) >= 0)
-      count++;
+    const orientationProduct = orientation(p, q, r) * orientation(a.geom, b.geom, c.geom);
+    if (orientationProduct * expectedOrientation <= 0) count++;
   }
   return count;
 }
@@ -96,8 +103,12 @@ export function searchBoundary(
     v3: boolean
   ) => VertexPosition[],
   points: { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] },
-  gcpCount: number
-): BoundaryCandidate {
+  gcpCount: number,
+  worldFile?: {
+    orientation: -1 | 1;
+    accept: (candidate: BoundaryCandidate) => boolean;
+  }
+): BoundaryCandidate | undefined {
   const { minx, maxx, miny, maxy, centroid } = params;
   const width = maxx - minx;
   const height = maxy - miny;
@@ -126,6 +137,10 @@ export function searchBoundary(
       },
       true
     );
+    if (
+      worldFile &&
+      (vertices.length < 4 || !vertices.every(({ bakw }) => bakw.every(Number.isFinite)))
+    ) continue;
     const auxiliary = vertices.map(({ forw, bakw }, i) =>
       createPoint(forw, bakw, `b${i}`)
     );
@@ -145,25 +160,25 @@ export function searchBoundary(
         )
       )
     );
-    // 境界頂点は地図面で時計回り、地理面で反時計回りに並ぶ。
-    const star =
-      isStarShaped(
+    // 扇形の境界には、地図面で時計回り、地理面で反時計回りの星形が必要。
+    const canConstrainBoundary = worldFile !== undefined ||
+      (isStarShaped(
         vertices.map((v) => v.forw),
         centroid.forw,
         -1
       ) &&
-      isStarShaped(
-        vertices.map((v) => v.bakw),
-        centroid.bakw,
-        1
-      );
-    const boundary = star
+        isStarShaped(
+          vertices.map((v) => v.bakw),
+          centroid.bakw,
+          1
+        ));
+    const boundary = canConstrainBoundary
       ? vertices.map((_, i): Edge => [
           interiorCount + i,
           interiorCount + ((i + 1) % vertices.length)
         ])
       : undefined;
-    const forbidden = { groupsOf, planes, boundary };
+    const forbidden = { groupsOf, planes, boundary, allowUnusableBoundary: worldFile !== undefined };
     const fromMap = buildConstrainedTin(
       forw,
       points.edges,
@@ -178,8 +193,10 @@ export function searchBoundary(
     );
     const forwTin = fromMap.tin as Tins;
     const bakwTin = fromGeographic.tin as Tins;
+    const expectedOrientation = worldFile?.orientation ?? -1;
     const boundaryTriangleFlips =
-      countBoundaryFlips(forwTin) + countBoundaryFlips(bakwTin);
+      countBoundaryFlips(forwTin, expectedOrientation) +
+      countBoundaryFlips(bakwTin, expectedOrientation);
     const candidate: BoundaryCandidate = {
       vertices,
       forw: forwTin,
@@ -190,9 +207,14 @@ export function searchBoundary(
         remainingForbiddenTriangles:
           fromMap.remaining + fromGeographic.remaining
       },
+      hasMapBoundary: fromMap.hasBoundary,
       hasBoundary: fromMap.hasBoundary && fromGeographic.hasBoundary
     };
 
+    if (worldFile) {
+      if (worldFile.accept(candidate)) return candidate;
+      continue;
+    }
     if (boundaryTriangleFlips === 0 && candidate.hasBoundary) {
       return candidate;
     }
@@ -200,5 +222,5 @@ export function searchBoundary(
       best = candidate;
     }
   }
-  return best!;
+  return best;
 }
