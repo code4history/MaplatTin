@@ -119,6 +119,66 @@ describe("Constrain / constrainedTin: edge の添字の検査", () => {
     expect(() => con.constrainOne(unused!, 1)).toThrow(/Invalid edge/);
   });
 
+  describe("同じ位置の点が 2 回あるとき（片方は三角網に入らない）", () => {
+    // 少しずつずらした 10×10 の格子と、0 番（外周の角）と同じ位置の 100 番
+    const jittered: [number, number][] = [];
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 10; x++) {
+        jittered.push([x * 100 + 50 + (y % 2) * 13, y * 100 + 50 + (x % 3) * 7]);
+      }
+    }
+    const withTwin: [number, number][] = [...jittered, [...jittered[0]]];
+    const twins = (del: Delaunator<Float64Array>) => {
+      const used = new Set(Array.from(del.triangles));
+      const unused = [0, 100].find((i) => !used.has(i))!;
+      return { unused, used: unused === 0 ? 100 : 0 };
+    };
+
+    it("その 2 点を結ぶ edge は、どちら向きでも例外になる", () => {
+      const del = Delaunator.from(withTwin);
+      const { unused, used } = twins(del);
+      expect(unused).toBeDefined();
+      expect(() => new Constrain(del).constrainOne(used, unused)).toThrow(
+        /Invalid edge/,
+      );
+      expect(() => new Constrain(del).constrainOne(unused, used)).toThrow(
+        /Invalid edge/,
+      );
+    });
+
+    it("三角網に入らなかった点を終点にする edge は例外になる", () => {
+      const del = Delaunator.from(withTwin);
+      const { unused } = twins(del);
+      for (const from of [3, 45, 99]) {
+        expect(() => new Constrain(del).constrainOne(from, unused)).toThrow(
+          /Invalid edge/,
+        );
+      }
+    });
+
+    it("findEdge は、三角網に無い点・範囲に無い点に対して Infinity を返す", () => {
+      const del = Delaunator.from(withTwin);
+      const { unused, used } = twins(del);
+      const con = new Constrain(del);
+      expect(con.findEdge(used, unused)).toBe(Infinity);
+      expect(con.findEdge(unused, used)).toBe(Infinity);
+      expect(con.findEdge(3, 9999)).toBe(Infinity);
+      expect(con.findEdge(3, -1)).toBe(Infinity);
+    });
+
+    it("Tin: 同じ GCP を 2 回入れて線で結ぶと updateTin() が例外になる", () => {
+      const gcps = withTwin.map(
+        (p) => [p, [p[0] / 10, -p[1] / 10]] as [[number, number], [number, number]],
+      );
+      for (const edge of [[0, 100], [100, 0]] as [number, number][]) {
+        const tin = new Tin({ wh: [1100, 1100], stateFull: false });
+        tin.setPoints(gcps);
+        tin.setEdges([[[], [], edge]]);
+        expect(() => tin.updateTin()).toThrow(/Invalid edge/);
+      }
+    });
+  });
+
   it("歩く回数の上限を超えたら例外になる（止まらない状態にならない）", () => {
     // 座標が数でない点を端点にすると、添字が正しくても歩きが終わらない
     const points: [number, number][] = [];

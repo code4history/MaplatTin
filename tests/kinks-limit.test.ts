@@ -113,6 +113,28 @@ describe("findIntersectionsUpTo: 上限は重複を除いた件数に掛かる",
   });
 });
 
+describe("findIntersectionsUpTo: 位置が重なる交差ばかりのとき", () => {
+  it("件数の上限に届かなくても、見つけた交差の総数の上限で数え上げをやめる", () => {
+    // 端点を 3×3 の格子点だけから選んだ線分。交差は多いが、位置は少数に重なる
+    const r = rng(7);
+    const node = (): Position => [Math.floor(r() * 3), Math.floor(r() * 3)];
+    const coords: Position[][] = [];
+    while (coords.length < 8000) {
+      const a = node();
+      const b = node();
+      if (a[0] !== b[0] || a[1] !== b[1]) coords.push([a, b]);
+    }
+    const limit = 1000;
+    const started = performance.now();
+    const found = findIntersectionsUpTo(coords, limit);
+    const elapsed = performance.now() - started;
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.length).toBeLessThan(limit);
+    // 上限が無いと数千万組を数え上げる（手元で 5 秒以上）。上限があれば一瞬で終わる
+    expect(elapsed).toBeLessThan(2000);
+  }, REAL_DATA_TIMEOUT_MS);
+});
+
 describe("Tin: 対応が乱れた GCP の交差の数え上げ", () => {
   it("strict では kinks の件数が上限を超えない", () => {
     const tin = new Tin({
