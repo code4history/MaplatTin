@@ -21,7 +21,8 @@ export declare const MAX_KINKS_PER_DIRECTION = 100000;
  *
  * @param coords - 線分群の座標配列
  * @param limit - 返す交差点の件数の上限。同じ位置の交差を 1 件に数えた件数で数え、
- *   届いた時点で検出をやめる
+ *   届いた時点で検出をやめる。位置が重なる交差ばかりのときは、見つけた交差の総数が
+ *   limit の 16 倍に届いた時点でもやめる
  * @returns 検出された交差点のFeature配列（同じ位置の重複なし・高々 limit 件）
  * @throws {Error} 座標に有限数（Number.isFinite）でない値が含まれる場合
  */

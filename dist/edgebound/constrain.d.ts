@@ -27,6 +27,12 @@ export declare class Constrain extends Base {
      */
     private maxConstrainSteps;
     /**
+     * Throw unless `vertex` is part of the triangulation. Delaunator leaves out
+     * points that coincide with another point, so a valid point id may have no
+     * triangle. An edge cannot start or end at such a point.
+     */
+    private assertInTriangulation;
+    /**
      * Throw unless `vertex` is an id of a point given to Delaunator.
      */
     private assertVertex;
