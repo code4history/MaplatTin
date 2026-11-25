@@ -3,6 +3,7 @@ import Delaunator from "delaunator";
 import { featureCollection, point } from "@turf/turf";
 import { constrainedTin, Tin } from "../src/index.ts";
 import { Constrain } from "../src/edgebound/index.ts";
+import { REAL_DATA_TIMEOUT_MS } from "./timeouts.ts";
 
 // 制約線（edge）の端点は GCP の添字で指定する。
 // 添字が GCP の範囲に無い・整数でない edge は、計算に入る前に例外で止める。
@@ -128,6 +129,28 @@ describe("Constrain / constrainedTin: edge の添字の検査", () => {
     const con = new Constrain(Delaunator.from(points));
     expect(() => con.constrainOne(44, 100)).toThrow(/iteration limit/);
   });
+
+  it("多くの辺を横切る制約線は、歩く回数が増えても通る（上限が誤って効かない）", () => {
+    // 制約線の上下に弓なりの点列を置き、1 本の制約線がその間の辺をすべて横切る配置。
+    // 歩く回数は横切る辺の数の 2 乗に比例して増える。
+    const half = 2500;
+    const curve = 200 / (half * half);
+    const points: [number, number][] = [];
+    for (let i = 0; i < half; i++) {
+      const upperX = i + 0.25;
+      const lowerX = i + 0.75;
+      points.push([upperX, 60 + curve * (upperX - half / 2) ** 2]);
+      points.push([lowerX, -60 - curve * (lowerX - half / 2) ** 2]);
+    }
+    points.push([-half, 0.0007]);
+    points.push([2 * half, -0.0011]);
+    const start = points.length - 2;
+    const end = points.length - 1;
+    const con = new Constrain(Delaunator.from(points));
+    const edge = con.constrainOne(start, end);
+    expect(edge).not.toBe(Infinity);
+    expect(con.isConstrained(Math.abs(edge))).toBe(true);
+  }, REAL_DATA_TIMEOUT_MS);
 
   it("正しい添字の edge は constrainOne が辺を返す", () => {
     const con = new Constrain(Delaunator.from(coords));

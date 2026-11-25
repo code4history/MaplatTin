@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
 import type { Position } from "geojson";
 import { findIntersections, Tin } from "../src/index.ts";
 import {
@@ -65,6 +66,50 @@ describe("findIntersectionsUpTo: 交差の件数の上限", () => {
 
   it("公開関数 findIntersections は件数を切らない", () => {
     expect(findIntersections(lattice(40))).toHaveLength(1600);
+  });
+});
+
+describe("Tin: 実データの kinks は上限で切れない", () => {
+  // strict で交差が残る実データ。kinks の件数は上限を置く前と同じであること。
+  it.each([
+    ["V3", false, 31334],
+    ["V2", true, 28599],
+  ])("uno_bus_gtfs_error (%s) の bakw の kinks は全件残る", (_label, useV2, expected) => {
+    const map = JSON.parse(
+      fs.readFileSync(`${__dirname}/maps/uno_bus_gtfs_error.json`, "utf-8"),
+    );
+    const tin = new Tin({
+      wh: [map.width, map.height],
+      strictMode: "strict",
+      vertexMode: map.vertexMode,
+      stateFull: false,
+      useV2Algorithm: useV2,
+    });
+    tin.setPoints(map.gcps);
+    tin.setEdges(map.edges);
+    tin.updateTin();
+    expect(tin.strict_status).toBe(Tin.STATUS_ERROR);
+    const all = findIntersections(
+      tin.tins!.bakw!.features.map((tri) => tri.geometry!.coordinates[0]),
+    );
+    expect(tin.kinks!.bakw!.features).toHaveLength(all.length);
+    expect(tin.kinks!.bakw!.features).toHaveLength(expected);
+  }, REAL_DATA_TIMEOUT_MS);
+});
+
+describe("findIntersectionsUpTo: 上限は重複を除いた件数に掛かる", () => {
+  it("同じ位置の交差が何度見つかっても、返す件数は上限まで届く", () => {
+    // 3 本以上の線分が同じ点で交わると、同じ位置の交差が複数回見つかる
+    const star = (cx: number): Position[][] => [
+      [[cx - 1, -1], [cx + 1, 1]],
+      [[cx - 1, 1], [cx + 1, -1]],
+      [[cx - 1, 0], [cx + 1, 0]],
+      [[cx, -1], [cx, 1]],
+    ];
+    const coords = [0, 10, 20, 30, 40].flatMap(star);
+    expect(findIntersections(coords)).toHaveLength(5);
+    expect(findIntersectionsUpTo(coords, 3)).toHaveLength(3);
+    expect(findIntersectionsUpTo(coords, 5)).toEqual(findIntersections(coords));
   });
 });
 
