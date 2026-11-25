@@ -1,6 +1,7 @@
 import { Transform, worldFileToCrs, type PointSet, type WorldFile } from "@maplat/transform";
 import { expect, it } from "vitest";
 import { Tin, type Options } from "../src/index.ts";
+import naramachi from "./maps/naramachi_yasui_bunko.json";
 import nobeoka from "./maps/1932_nobeoka.json";
 import { REAL_DATA_TIMEOUT_MS } from "./timeouts.ts";
 
@@ -50,6 +51,15 @@ function interpolate(a: number[], b: number[], t: number): number[] {
 }
 
 const nobeokaPoints = nobeoka.compiled.points as PointSet[];
+
+const naramachiPoints = naramachi.gcps as PointSet[];
+const naramachiModel = fitWorldFile(naramachiPoints);
+const naramachiOptions: Options = {
+  points: naramachiPoints,
+  wh: [naramachi.width, naramachi.height],
+  vertexMode: naramachi.vertexMode as Options["vertexMode"],
+  edges: naramachi.edges as unknown as Options["edges"]
+};
 
 const cases: {
   name: string;
@@ -162,10 +172,11 @@ it.each(cases)("$name の外周と compiled の受け渡し", ({ name, margin, f
   console.info(`${name}の最大往復誤差: ${roundTripError.toExponential(3)} 画素`);
 }, REAL_DATA_TIMEOUT_MS);
 
-it("world file 外周で係数の欠落・不正と V2 の指定を拒否する", () => {
+it("world file 外周で係数の欠落・不正・鏡像と V2 の指定を拒否する", () => {
   expect(() => new Tin({ outerTransform: "worldFile" })).toThrow(/worldFile/);
   expect(() => new Tin({ outerTransform: "worldFile", worldFile: { ...worldFile, yScale: 0 } })).toThrow(/非正則/);
   expect(() => new Tin({ outerTransform: "worldFile", worldFile: { ...worldFile, yScale: Infinity } })).toThrow(/有限/);
+  expect(() => new Tin({ outerTransform: "worldFile", worldFile: { ...worldFile, yScale: 1 } })).toThrow(/鏡像/);
   expect(() => new Tin({ outerTransform: "worldFile", worldFile, useV2Algorithm: true })).toThrow(/V2/);
 });
 
@@ -188,6 +199,37 @@ it("strict と loose は実際に使う三角網で余白を選ぶ", () => {
     margin: 0.225, boundaryTriangleFlips: 0, outerTransform: "worldFile"
   });
 });
+
+// 余白の探索は 50% までなので、扇形に落ちる = 50% でも B が成立しないことになる。
+it.each(["auto", "loose"] as const)(
+  "奈良町八水文庫図の %s は 50% でも world file 外周が成立せず扇形に落ちる",
+  (strictMode) => {
+    const tin = new Tin({ ...naramachiOptions, strictMode, outerTransform: "worldFile", worldFile: naramachiModel });
+    tin.updateTin();
+    expect(tin.boundaryDiagnostics).toMatchObject({
+      requestedOuterTransform: "worldFile",
+      outerTransform: "extrapolate",
+      fallbackReason: "boundaryFlips"
+    });
+    const compiled = tin.getCompiled();
+    expect(compiled).toHaveProperty("outerTransform", "extrapolate");
+    expect(compiled).not.toHaveProperty("worldFile");
+  },
+  REAL_DATA_TIMEOUT_MS
+);
+
+it("奈良町八水文庫図の strict は 50% の余白で world file 外周を成立させる", () => {
+  const tin = new Tin({ ...naramachiOptions, strictMode: "strict", outerTransform: "worldFile", worldFile: naramachiModel });
+  tin.updateTin();
+  expect(tin.boundaryDiagnostics).toMatchObject({
+    margin: 0.5,
+    requestedOuterTransform: "worldFile",
+    outerTransform: "worldFile"
+  });
+  const compiled = tin.getCompiled();
+  expect(compiled).toHaveProperty("outerTransform", "worldFile");
+  expect(compiled).toHaveProperty("worldFile", naramachiModel);
+}, REAL_DATA_TIMEOUT_MS);
 
 it("内側の交差は B を降格させず、strict と auto の逆変換規則を保つ", () => {
   const points: PointSet[] = [
@@ -241,4 +283,38 @@ it("有効な必須エッジが余白候補の補助頂点に重なったとき�
   const reader = new Transform();
   reader.setCompiled(tin.getCompiled());
   expect(mapPoint(reader, [100, 0])).toEqual([110, 10]);
+});
+
+it("bounds を持つ副層でも world file 外周を作れる", () => {
+  const sub = nobeoka.sub_maps[0].compiled;
+  const points = sub.points as PointSet[];
+  const model = fitWorldFile(points);
+  const tin = new Tin({
+    bounds: sub.bounds,
+    points,
+    edges: sub.edges as unknown as Options["edges"],
+    strictMode: "loose",
+    outerTransform: "worldFile",
+    worldFile: model
+  });
+  tin.updateTin();
+  expect(tin.boundaryDiagnostics).toMatchObject({
+    margin: 0.15,
+    requestedOuterTransform: "worldFile",
+    outerTransform: "worldFile"
+  });
+  const compiled = tin.getCompiled();
+  expect(compiled).toHaveProperty("outerTransform", "worldFile");
+  expect(compiled).toHaveProperty("worldFile", model);
+}, REAL_DATA_TIMEOUT_MS);
+
+it("V2 の Tin に world file 外周の compiled を setCompiled すると拒否する", () => {
+  const tin = new Tin({
+    points: translatedPoints(40), yaxisMode: "follow",
+    strictMode: "strict", outerTransform: "worldFile", worldFile
+  });
+  tin.updateTin();
+  const compiled = tin.getCompiled();
+  expect(compiled).toHaveProperty("outerTransform", "worldFile");
+  expect(() => new Tin({ useV2Algorithm: true }).setCompiled(compiled)).toThrow(/V2/);
 });

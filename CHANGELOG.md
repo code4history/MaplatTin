@@ -17,6 +17,12 @@
 - V3 は GCP の外接矩形に 10〜50% の余白を試し、地図面・地理面の三角網に補助頂点と必須エッジの禁止制約を適用する (#82)
   - V3 tries margins of 10–50% around the GCP bounding box and applies the auxiliary vertex and constrained edge group rules to triangulations in both planes (#82)
 
+- `Tin.getCompiled()` の戻り値の型を `Compiled` から `CompiledTransformData`（`Compiled` と world file 外周の `CompiledWorldFileOuter` の和）に変えた。`const c: Compiled = tin.getCompiled()` と書く TypeScript の利用者は型の調整が必要
+  - Changed the return type of `Tin.getCompiled()` from `Compiled` to `CompiledTransformData` (the union of `Compiled` and the world file outer `CompiledWorldFileOuter`). TypeScript users writing `const c: Compiled = tin.getCompiled()` need to adjust their types
+
+- ビルドで `@maplat/transform` を外部依存（external）にした
+  - Marked `@maplat/transform` as an external dependency in the build
+
 ### Fixed
 - dist の型定義が参照する `geojson` の型が `hoist: false` の利用者で解決できない不具合を直した（`@types/geojson` を dependencies へ移動）(#76)
 - 制約線（edge）の端点の添字を検査するようにした。GCP の範囲に無い添字・整数でない添字の edge と、位置が重なって三角網に入らなかった点を端点にする edge は、`updateTin()`（と `constrainedTin`）が `Error` を投げる。制約線の処理に反復の上限（辺の数の 2 乗）を置いた

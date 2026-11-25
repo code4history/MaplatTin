@@ -114,8 +114,10 @@ const restored = tin.transform(transformed, true);
 
 V3 の余白を小さい順に試し、実際に使う三角網で、補助頂点を含む三角形の反転と
 面積 0 がなくなった最初の余白を採用します。`strict` では地図面から逆変換用の
-三角網を写し、`loose` では地理面で独立に三角網を組みます。50% まで試しても
-使える外周が見つからない場合、`"extrapolate"` で三角網を作り直します。
+三角網を写し、`loose` では地理面で独立に三角網を組みます。既定の `auto` は、
+内側に交差が無ければ `strict` の三角網で、あれば `loose` の三角網で判定します。
+50% まで試しても使える外周が見つからない場合、`"extrapolate"` で三角網を
+作り直します。
 
 `getCompiled()` の戻り値は `CompiledTransformData` です。world file 外周の出力は
 `outerTransform: "worldFile"`、`worldFile`、全補助頂点を並べた `vertices_points`

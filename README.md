@@ -120,8 +120,9 @@ Tin tries the V3 margins in order and accepts a world file boundary when every
 triangle touching an auxiliary vertex has the expected winding and nonzero area
 in the meshes selected for transformation. With `strict`, the reverse mesh is
 derived from the forward mesh. With `loose`, the reverse mesh is triangulated
-independently. If the search reaches 50% without a usable boundary, Tin rebuilds
-with `"extrapolate"`.
+independently. The default `auto` judges with the `strict` meshes when the inner
+transform has no crossings, and with the `loose` meshes when it does. If the
+search reaches 50% without a usable boundary, Tin rebuilds with `"extrapolate"`.
 
 `getCompiled()` returns `CompiledTransformData`. A world file result stores
 `outerTransform: "worldFile"`, `worldFile`, and all auxiliary vertices in
