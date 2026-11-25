@@ -301,8 +301,8 @@ export class Tin extends Transform {
   /**
    * 厳密なTINを計算します
    *
-   * @param kinkLimit - forw / bakw それぞれで数え上げる交差（kinks）の件数の上限。
-   *   届いた時点で数え上げをやめ、strict_status は error になります
+   * @param kinkLimit - forw / bakw それぞれで残す交差（kinks）の件数の上限
+   *   （同じ位置の交差を 1 件に数えた件数）。届いた時点で数え上げをやめます
    */
   calculateStrictTin(kinkLimit: number = MAX_KINKS_PER_DIRECTION): void {
     const bakTins = this.tins!.forw!.features.map((tri: Tri) =>
