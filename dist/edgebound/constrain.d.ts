@@ -1,9 +1,6 @@
 import { Base, DelaunatorLike, intersectSegments as baseIntersectSegments } from "./base.js";
 import { BitSet } from "./bitset.js";
 export declare class Constrain extends Base {
-    /** See {@link Constrain.maxConstrainSteps}. */
-    static readonly MAX_STEPS_PER_EDGE = 64;
-    static readonly MIN_MAX_STEPS = 1024;
     vertMap: Uint32Array;
     flips: BitSet;
     consd: BitSet;
@@ -19,7 +16,14 @@ export declare class Constrain extends Base {
      */
     constrainOne(segP1: number, segP2: number): number;
     /**
-     * Upper bound for the number of edges visited while constraining one edge.
+     * Upper bound for the number of steps taken while constraining one edge.
+     *
+     * A constraint that crosses k edges is resolved in passes over the crossed
+     * edges, so the number of steps can grow with k squared (for example when
+     * the crossed edges fan out between two bowed rows of points). k is less
+     * than the number of half-edges, so the square of that number is never
+     * reached by a walk that terminates. The floor keeps tiny meshes away from
+     * the limit.
      */
     private maxConstrainSteps;
     /**
