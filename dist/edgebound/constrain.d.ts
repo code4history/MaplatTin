@@ -45,6 +45,25 @@ export declare class Constrain extends Base {
      */
     constrainAll(edges: readonly [number, number][]): this;
     /**
+     * 同じ群に属する点だけでできた三角形を、制約でない辺の反転で解消する（禁止制約）。
+     *
+     * 群の例: 四辺形の補助頂点の全体、必須エッジごとの端点と中継点。四辺形では角の前後の補助頂点を
+     * 結ぶ弦（角と凸包の GCP の間をせき止める辺）が、必須エッジでは途中の点を飛ばす弦（片方の面で
+     * 一直線に並び面積 0 になる三角形の辺）が反転される。
+     *
+     * 反転は、反転後の 2 つの三角形が `planes` のすべての面で、その面の三角網の向き（三角形の向きの
+     * 多数決）と同じ向きの、面積 0 でない三角形になるときだけ行う。制約された辺・外周の辺は反転しない。
+     * 違反が無くなるか、1 周して反転が起きなくなったら止める。
+     *
+     * @param groupsOf 点の番号から、その点が属する群の番号の配列（属さなければ空）
+     * @param planes 向きを確かめる面の座標（`coords` と同じ並び）。既定は三角網を作った面だけ
+     * @returns 反転した数と、解消できずに残った違反の三角形の数
+     */
+    forbidGroupTriangles(groupsOf: (vertex: number) => readonly number[], planes?: readonly ArrayLike<number>[]): {
+        flips: number;
+        remaining: number;
+    };
+    /**
      * Whether an edge is constrained.
      */
     isConstrained(edg: number): boolean;

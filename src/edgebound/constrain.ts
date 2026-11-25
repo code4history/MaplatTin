@@ -331,6 +331,83 @@ export class Constrain extends Base {
   }
 
   /**
+   * 同じ群に属する点だけでできた三角形を、制約でない辺の反転で解消する（禁止制約）。
+   *
+   * 群の例: 四辺形の補助頂点の全体、必須エッジごとの端点と中継点。四辺形では角の前後の補助頂点を
+   * 結ぶ弦（角と凸包の GCP の間をせき止める辺）が、必須エッジでは途中の点を飛ばす弦（片方の面で
+   * 一直線に並び面積 0 になる三角形の辺）が反転される。
+   *
+   * 反転は、反転後の 2 つの三角形が `planes` のすべての面で、その面の三角網の向き（三角形の向きの
+   * 多数決）と同じ向きの、面積 0 でない三角形になるときだけ行う。制約された辺・外周の辺は反転しない。
+   * 違反が無くなるか、1 周して反転が起きなくなったら止める。
+   *
+   * @param groupsOf 点の番号から、その点が属する群の番号の配列（属さなければ空）
+   * @param planes 向きを確かめる面の座標（`coords` と同じ並び）。既定は三角網を作った面だけ
+   * @returns 反転した数と、解消できずに残った違反の三角形の数
+   */
+  forbidGroupTriangles(
+    groupsOf: (vertex: number) => readonly number[],
+    planes: readonly ArrayLike<number>[] = [this.del.coords],
+  ): { flips: number; remaining: number } {
+    const { triangles, halfedges } = this.del;
+    const numTris = triangles.length / 3;
+    const sharedGroup = (a: number, b: number, c: number): boolean => {
+      const gb = groupsOf(b), gc = groupsOf(c);
+      return groupsOf(a).some((g) => gb.includes(g) && gc.includes(g));
+    };
+    const violates = (t: number): boolean =>
+      sharedGroup(triangles[t * 3], triangles[t * 3 + 1], triangles[t * 3 + 2]);
+    const sign = (xy: ArrayLike<number>, a: number, b: number, c: number): number =>
+      Math.sign(orient2d(xy[a * 2], xy[a * 2 + 1], xy[b * 2], xy[b * 2 + 1], xy[c * 2], xy[c * 2 + 1]));
+
+    // 面ごとの三角網の向き（三角形の向きの多数決。既に折り返した三角形があっても、全体の向きで判定する）
+    const planeSigns = planes.map((xy) => {
+      let sum = 0;
+      for (let t = 0; t < numTris; t++) sum += sign(xy, triangles[t * 3], triangles[t * 3 + 1], triangles[t * 3 + 2]);
+      return sum < 0 ? -1 : 1;
+    });
+
+    // edg は違反の三角形の辺。反転すると p(edg の向かいの点)と q(adj の向かいの点)を結ぶ
+    const canFlip = (edg: number): boolean => {
+      if (this.consd.has(edg)) return false;
+      const adj = halfedges[edg];
+      if (adj === -1) return false;
+      const u = triangles[edg], v = triangles[nextEdge(edg)];
+      const p = triangles[prevEdge(edg)], q = triangles[prevEdge(adj)];
+      // 反転後の三角形 (p, u, q) と (q, v, p) は、どの面でもその面の三角網と同じ向き（面積 0 は不可）
+      return planes.every((xy, i) => sign(xy, p, u, q) === planeSigns[i] && sign(xy, q, v, p) === planeSigns[i]);
+    };
+
+    let flips = 0;
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      for (let t = 0; t < numTris; t++) {
+        if (!violates(t)) continue;
+        for (let k = 0; k < 3; k++) {
+          const edg = t * 3 + k;
+          if (!canFlip(edg)) continue;
+          const adj = halfedges[edg];
+          // 反転で向こう側の三角形が違反に変わるなら、得にならないので行わない
+          const u = triangles[edg], v = triangles[nextEdge(edg)];
+          const p = triangles[prevEdge(edg)], q = triangles[prevEdge(adj)];
+          if (sharedGroup(p, u, q) && sharedGroup(q, v, p)) continue;
+          // flipDiagonal は新しい対角線（p → q）の半辺を返す。反転した辺は戻されないよう制約として扱う
+          // （反転のたびに制約の辺が 1 本増えるので、繰り返しは必ず終わる）
+          this.protect(this.flipDiagonal(edg));
+          flips++;
+          progressed = true;
+          break;
+        }
+      }
+    }
+
+    let remaining = 0;
+    for (let t = 0; t < numTris; t++) if (violates(t)) remaining++;
+    return { flips, remaining };
+  }
+
+  /**
    * Whether an edge is constrained.
    */
   isConstrained(edg: number): boolean {
