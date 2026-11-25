@@ -77,8 +77,11 @@ export declare class Tin extends Transform {
     setStrictMode(mode: StrictMode): void;
     /**
      * 厳密なTINを計算します
+     *
+     * @param kinkLimit - forw / bakw それぞれで数え上げる交差（kinks）の件数の上限。
+     *   届いた時点で数え上げをやめ、strict_status は error になります
      */
-    calculateStrictTin(): void;
+    calculateStrictTin(kinkLimit?: number): void;
     /**
      * 点群セットを生成します。
     * GCP と中間エッジノードを GeoJSON Point に変換し、後続の三角分割に備えます。

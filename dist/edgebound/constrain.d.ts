@@ -1,6 +1,9 @@
 import { Base, DelaunatorLike, intersectSegments as baseIntersectSegments } from "./base.js";
 import { BitSet } from "./bitset.js";
 export declare class Constrain extends Base {
+    /** See {@link Constrain.maxConstrainSteps}. */
+    static readonly MAX_STEPS_PER_EDGE = 64;
+    static readonly MIN_MAX_STEPS = 1024;
     vertMap: Uint32Array;
     flips: BitSet;
     consd: BitSet;
@@ -15,6 +18,14 @@ export declare class Constrain extends Base {
      * Constrain the triangulation such that there is an edge between p1 and p2.
      */
     constrainOne(segP1: number, segP2: number): number;
+    /**
+     * Upper bound for the number of edges visited while constraining one edge.
+     */
+    private maxConstrainSteps;
+    /**
+     * Throw unless `vertex` is an id of a point given to Delaunator.
+     */
+    private assertVertex;
     /**
      * Fix the Delaunay condition.
      */
