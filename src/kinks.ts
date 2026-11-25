@@ -12,17 +12,47 @@ import type { IntersectionPoint } from "./types/kinks.ts";
 export default function findIntersections(
   coords: Position[][],
 ): Feature<Point>[] {
+  return findIntersectionsUpTo(coords, Infinity);
+}
+
+/**
+ * Tin が 1 方向（forw / bakw）について数え上げる交差の件数の上限
+ * （同じ位置の交差を 1 件に数えた件数）。
+ *
+ * 交差の件数は線分の数の 2 乗まで増えうる。対応が大きく乱れた制御点では
+ * 時間とメモリを使い切るため、ここで打ち切る。
+ * 同梱の実データで strict の交差が最も多いもの（約 3 万件）の 3 倍強にあたる。
+ */
+export const MAX_KINKS_PER_DIRECTION = 100000;
+
+/**
+ * 件数の上限 1 件あたりに許す「見つけた交差の総数（重複を含む）」。
+ *
+ * 同じ位置の交差は 1 件に数えるので、位置が重なる交差ばかりの入力では
+ * 件数の上限に届かない。総数がこの倍率を超えたら数え上げをやめる。
+ * 同梱の実データでは、総数は残る件数の約 4 倍。
+ */
+const MAX_FOUND_PER_LIMIT = 16;
+
+/**
+ * 線分の交差点を、件数の上限つきで検出する（Tin の内部用）
+ *
+ * @param coords - 線分群の座標配列
+ * @param limit - 返す交差点の件数の上限。同じ位置の交差を 1 件に数えた件数で数え、
+ *   届いた時点で検出をやめる。位置が重なる交差ばかりのときは、見つけた交差の総数が
+ *   limit の 16 倍に届いた時点でもやめる
+ * @returns 検出された交差点のFeature配列（同じ位置の重複なし・高々 limit 件）
+ * @throws {Error} 座標に有限数（Number.isFinite）でない値が含まれる場合
+ */
+export function findIntersectionsUpTo(
+  coords: Position[][],
+  limit: number,
+): Feature<Point>[] {
   validateCoordinateValues(coords);
   const arcs = new ArcCollection(coords);
-  const xy = arcs.findSegmentIntersections();
-  const deduped: IntersectionPoint[] = dedupIntersections(xy);
-  const unique = new Map<string, IntersectionPoint>();
+  const unique = arcs.findSegmentIntersections(limit);
 
-  deduped.forEach((apoint: IntersectionPoint) => {
-    unique.set(`${apoint.x}:${apoint.y}`, apoint);
-  });
-
-  return Array.from(unique.values()).map((apoint) =>
+  return unique.map((apoint) =>
     point([apoint.x, apoint.y])
   );
 }
@@ -271,9 +301,10 @@ class ArcCollection {
    * 線分の交差を検出
    * ストライプ分割による効率的な判定を実装
    *
-   * @returns 検出された交差点の配列
+   * @param limit - 返す交差点の件数の上限（同じ位置の交差は 1 件に数える）
+   * @returns 検出された交差点の配列（同じ位置の重複なし）
    */
-  findSegmentIntersections() {
+  findSegmentIntersections(limit = Infinity) {
     const bounds = this.getBounds(),
       ymin = bounds.ymin || 0,
       yrange = (bounds.ymax || 0) - ymin,
@@ -285,7 +316,7 @@ class ArcCollection {
     // 線分が属するストライプを辿る走査は、高々 stripeCount 回で終わる。
     // 万一の迷走（非有限数に由来する NaN など）に備えて上限を設ける。
     const maxStripeSteps = stripeCount + 1;
-    let i, j;
+    let i;
 
     // Count segments in each stripe
     this.forEachSegment(
@@ -350,18 +381,30 @@ class ArcCollection {
     );
 
     // Detect intersections among segments in each stripe.
-    const raw = this.getVertexData(),
-      intersections = [];
-    let arr;
-    for (i = 0; i < stripeCount; i++) {
-      if (raw.xx && raw.yy) {
-        arr = intersectSegments(stripes[i], raw.xx, raw.yy);
-        for (j = 0; j < arr.length; j++) {
-          intersections.push(arr[j]);
-        }
+    const raw = this.getVertexData();
+    // 同じ線分の組は複数のストライプで見つかることがあり、別の組が同じ位置で
+    // 交わることもある。上限は、同じ位置の交差を 1 件に数えた件数に掛ける。
+    // 位置が重なる交差ばかりだと、件数の上限に届かないまま数え上げが続く。
+    // 見つけた交差の総数（重複を含む）にも上限を置き、時間と seenKeys の大きさを抑える。
+    const maxFound = limit * MAX_FOUND_PER_LIMIT;
+    let found = 0;
+    const seenKeys = new Set<string>();
+    const unique = new Map<string, IntersectionPoint>();
+    const collect = (o: IntersectionPoint): boolean => {
+      found++;
+      const key = getIntersectionKey(o);
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        unique.set(`${o.x}:${o.y}`, o);
+      }
+      return unique.size >= limit || found >= maxFound;
+    };
+    if (raw.xx && raw.yy) {
+      for (i = 0; i < stripeCount; i++) {
+        if (intersectSegments(stripes[i], raw.xx, raw.yy, collect)) break;
       }
     }
-    return dedupIntersections(intersections);
+    return Array.from(unique.values());
   }
 }
 
@@ -444,9 +487,9 @@ function intersectSegments(
   ids: Uint32Array,
   xx: Float64Array,
   yy: Float64Array,
-) {
-  const lim = ids.length - 2,
-    intersections = [];
+  collect: (intersection: IntersectionPoint) => boolean,
+): boolean {
+  const lim = ids.length - 2;
   let s1p1,
     s1p2,
     s2p1,
@@ -521,18 +564,21 @@ function intersectSegments(
       if (hit) {
         seg1 = [s1p1, s1p2];
         seg2 = [s2p1, s2p2];
-        intersections.push(formatIntersection(hit, seg1, seg2, xx, yy));
+        // collect() returns true once enough intersections have been found.
+        if (collect(formatIntersection(hit, seg1, seg2, xx, yy))) return true;
         if (hit.length == 4) {
           // two collinear segments may have two endpoint intersections
-          intersections.push(
-            formatIntersection(hit.slice(2), seg1, seg2, xx, yy),
-          );
+          if (
+            collect(formatIntersection(hit.slice(2), seg1, seg2, xx, yy))
+          ) {
+            return true;
+          }
         }
       }
     }
     i += 2;
   }
-  return intersections;
+  return false;
 }
 
 /**
@@ -971,18 +1017,6 @@ function formatIntersectingSegment(
  * @param arr - 交差点情報の配列
  * @returns 重複を除去した交差点情報の配列
  */
-function dedupIntersections(arr: IntersectionPoint[]) {
-  const index: Record<string, boolean> = {};
-  return arr.filter((o: IntersectionPoint) => {
-    const key = getIntersectionKey(o);
-    if (key in index) {
-      return false;
-    }
-    index[key] = true;
-    return true;
-  });
-}
-
 // Get an indexable key from an intersection object
 // Assumes that vertex ids of o.a and o.b are sorted
 function getIntersectionKey(o: IntersectionPoint) {

@@ -16,6 +16,27 @@ export declare class Constrain extends Base {
      */
     constrainOne(segP1: number, segP2: number): number;
     /**
+     * Upper bound for the number of steps taken while constraining one edge.
+     *
+     * A constraint that crosses k edges is resolved in passes over the crossed
+     * edges, so the number of steps can grow with k squared (for example when
+     * the crossed edges fan out between two bowed rows of points). k is less
+     * than the number of half-edges, so the square of that number is never
+     * reached by a walk that terminates. The floor keeps tiny meshes away from
+     * the limit.
+     */
+    private maxConstrainSteps;
+    /**
+     * Throw unless `vertex` is part of the triangulation. Delaunator leaves out
+     * points that coincide with another point, so a valid point id may have no
+     * triangle. An edge cannot start or end at such a point.
+     */
+    private assertInTriangulation;
+    /**
+     * Throw unless `vertex` is an id of a point given to Delaunator.
+     */
+    private assertVertex;
+    /**
      * Fix the Delaunay condition.
      */
     delaunify(deep?: boolean): this;

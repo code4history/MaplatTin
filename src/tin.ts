@@ -45,7 +45,7 @@ import {
   calculatePlainVertices,
   type BoundaryVerticesParams,
 } from "./boundary-vertices.ts";
-import findIntersections from "./kinks.ts";
+import { findIntersectionsUpTo, MAX_KINKS_PER_DIRECTION } from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
@@ -300,8 +300,11 @@ export class Tin extends Transform {
 
   /**
    * 厳密なTINを計算します
+   *
+   * @param kinkLimit - forw / bakw それぞれで残す交差（kinks）の件数の上限
+   *   （同じ位置の交差を 1 件に数えた件数）。届いた時点で数え上げをやめます
    */
-  calculateStrictTin(): void {
+  calculateStrictTin(kinkLimit: number = MAX_KINKS_PER_DIRECTION): void {
     const bakTins = this.tins!.forw!.features.map((tri: Tri) =>
       counterTri(tri)
     );
@@ -332,7 +335,7 @@ export class Tin extends Transform {
       const tins = this.tins![direction as keyof TinsBD]!.features.map(
         (tin: Tri) => tin.geometry!.coordinates[0],
       );
-      return findIntersections(tins);
+      return findIntersectionsUpTo(tins, kinkLimit);
     });
 
     if (kinks[0].length === 0 && kinks[1].length === 0) {
@@ -381,6 +384,10 @@ export class Tin extends Transform {
       const edge = this.edges[i][2];
       const illstNodes = Object.assign([], this.edges[i][0]);
       const mercNodes = Object.assign([], this.edges[i][1]);
+
+      // 端点は GCP の添字で指す。範囲に無い・整数でない添字は、
+      // 以降の計算に渡さずここで止める。
+      assertEdgeIndices(edge, this.points.length, i);
 
       if (illstNodes.length === 0 && mercNodes.length === 0) {
         edges.push(edge);
@@ -782,7 +789,11 @@ export class Tin extends Transform {
 
     // Calculate strict TIN if needed
     if (strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO) {
-      this.calculateStrictTin();
+      // auto は交差の有無しか使わない（あれば loose に切り替えて kinks を捨てる）
+      // ので、1 件見つけた時点で数え上げをやめる。
+      this.calculateStrictTin(
+        strict === Tin.MODE_AUTO ? 1 : MAX_KINKS_PER_DIRECTION,
+      );
     }
 
     // Generate backward TIN if needed
@@ -822,5 +833,31 @@ export class Tin extends Transform {
    */
   async updateTinAsync(): Promise<void> {
     this.updateTin();
+  }
+}
+
+/**
+ * edge の両端が GCP の添字（0 以上・GCP の数未満の整数）であることを確かめます。
+ *
+ * @param edge - 検査する edge の両端（[始点の添字, 終点の添字]）
+ * @param pointCount - GCP の数
+ * @param edgeIndex - edges の中での位置（エラーメッセージ用）
+ * @throws {Error} 添字が整数でない、または GCP の範囲に無い場合
+ */
+function assertEdgeIndices(
+  edge: Edge,
+  pointCount: number,
+  edgeIndex: number,
+): void {
+  const isValid = (index: unknown) =>
+    Number.isInteger(index) &&
+    (index as number) >= 0 &&
+    (index as number) < pointCount;
+  if (!Array.isArray(edge) || !isValid(edge[0]) || !isValid(edge[1])) {
+    throw new Error(
+      `Invalid edge at edges[${edgeIndex}]: start/end ${
+        JSON.stringify(edge)
+      } must be integer indices of points (0 to ${pointCount - 1})`,
+    );
   }
 }
