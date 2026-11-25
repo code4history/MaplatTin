@@ -13,7 +13,12 @@ const MARGINS = [0.1, 0.15, 0.225, 0.34, 0.5] as const;
 export interface BoundaryDiagnostics {
   /** GCP の外接矩形の幅・高さに対する、各辺に加えた余白の割合。 */
   readonly margin: number;
-  /** 補助頂点を含む三角形のうち、向きが反転したか、面積が 0 のものの数。 */
+  /**
+   * 補助頂点を含む三角形のうち、向きが反転したか、面積が 0 のものの数。地図面で作った三角網と、
+   * 地理面で独立に作った三角網（`loose` の経路で使うもの）の合計。`strict` で地理面の三角網を
+   * 地図面から写して作る場合も、探索の判定に使った両面の値を返す（実際に使う三角網の反転の数とは
+   * 一致しないことがある）。
+   */
   readonly boundaryTriangleFlips: number;
   /** 同じ群の点だけででき、辺反転で解消できなかった三角形の数。 */
   readonly remainingForbiddenTriangles: number;
@@ -24,6 +29,22 @@ interface BoundaryCandidate {
   forw: Tins;
   bakw: Tins;
   diagnostics: BoundaryDiagnostics;
+  /** 両面で補助頂点の輪が閉じた（扇形が星形で、輪の外に GCP・中継点が無い）か。 */
+  hasBoundary: boolean;
+}
+
+/**
+ * どの余白も合格しなかったときに、候補 a が b より良いか。
+ * 両面で輪が閉じた候補を、反転の数より優先する（輪が閉じない候補は扇形の外挿が成り立たない）。
+ * 同じ扱いの中では反転の少ない方。同数なら先に試した（小さい余白の）b を残す。
+ */
+export function isBetterBoundaryCandidate(
+  a: { hasBoundary: boolean; diagnostics: Pick<BoundaryDiagnostics, "boundaryTriangleFlips"> },
+  b: { hasBoundary: boolean; diagnostics: Pick<BoundaryDiagnostics, "boundaryTriangleFlips"> } | undefined
+): boolean {
+  if (!b) return true;
+  if (a.hasBoundary !== b.hasBoundary) return a.hasBoundary;
+  return a.diagnostics.boundaryTriangleFlips < b.diagnostics.boundaryTriangleFlips;
 }
 
 function orientation(a: Position, b: Position, c: Position): number {
@@ -168,20 +189,14 @@ export function searchBoundary(
         boundaryTriangleFlips,
         remainingForbiddenTriangles:
           fromMap.remaining + fromGeographic.remaining
-      }
+      },
+      hasBoundary: fromMap.hasBoundary && fromGeographic.hasBoundary
     };
 
-    if (
-      boundaryTriangleFlips === 0 &&
-      fromMap.hasBoundary &&
-      fromGeographic.hasBoundary
-    ) {
+    if (boundaryTriangleFlips === 0 && candidate.hasBoundary) {
       return candidate;
     }
-    if (
-      !best ||
-      boundaryTriangleFlips < best.diagnostics.boundaryTriangleFlips
-    ) {
+    if (isBetterBoundaryCandidate(candidate, best)) {
       best = candidate;
     }
   }

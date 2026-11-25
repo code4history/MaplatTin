@@ -115,13 +115,14 @@ independently in the map and geographic planes. Its type is `BoundaryDiagnostics
 | Field | Meaning |
 |---|---|
 | `margin` | Fraction of the GCP bounding box width or height added on each side. |
-| `boundaryTriangleFlips` | Number of triangles containing an auxiliary vertex that reverse orientation or have zero area in either plane. |
+| `boundaryTriangleFlips` | Sum, over the triangulation built in the map plane and the one built independently in the geographic plane, of the triangles containing an auxiliary vertex that reverse orientation between the planes or have zero area. In `strict` mode the geographic triangulation actually used is copied from the map plane, so this search-time count can differ from the flips of the final mesh. |
 | `remainingForbiddenTriangles` | Number of triangles that still consist entirely of vertices from one group after flipping edges. A group contains all auxiliary vertices or the endpoints and intermediate vertices of one constrained edge. |
 
 V3 tries margins of 10%, 15%, 22.5%, 34%, and 50% in order. It takes the first
 margin with zero boundary triangle flips and a star-shaped fan around the
-centroid in both planes. If no margin passes, it takes the margin with the
-fewest flips, breaking ties in favor of the smaller margin.
+centroid in both planes. If no margin passes, it prefers margins whose ring closes
+(star-shaped fan) in both planes, then the fewest flips, breaking ties in favor
+of the smaller margin.
 `getCompiled()` omits these diagnostics. The property is `undefined` for V2
 and after loading a compiled TIN.
 

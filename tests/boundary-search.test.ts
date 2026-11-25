@@ -4,6 +4,7 @@ import { orient2d } from "robust-predicates";
 import type { Position } from "geojson";
 import { Tin, type Compiled, type Options } from "../src/index.ts";
 import { REAL_DATA_TIMEOUT_MS } from "./timeouts.ts";
+import { isBetterBoundaryCandidate } from "../src/boundary-search.ts";
 
 interface MapFixture {
   width: number;
@@ -15,7 +16,7 @@ interface MapFixture {
   sub_maps?: { compiled: Compiled }[];
 }
 
-function buildMap(name: string, submap = false): Tin {
+function buildMap(name: string, submap = false, strictMode: Options["strictMode"] = Tin.MODE_LOOSE): Tin {
   const map: MapFixture = JSON.parse(
     readFileSync(new URL(`./maps/${name}.json`, import.meta.url), "utf8")
   );
@@ -24,7 +25,7 @@ function buildMap(name: string, submap = false): Tin {
     bounds: submap ? compiled?.bounds : undefined,
     wh: compiled?.wh ?? [map.width, map.height],
     vertexMode: map.vertexMode ?? compiled?.vertexMode,
-    strictMode: Tin.MODE_LOOSE,
+    strictMode,
     yaxisMode: compiled?.yaxisMode,
     points: map.gcps ?? compiled?.points,
     edges: map.edges ?? compiled?.edges
@@ -172,3 +173,33 @@ it("必須エッジの端点と生成された中継点だけの三角形を解�
   tin.setPoints(tin.points);
   expect(tin.boundaryDiagnostics).toBeUndefined();
 });
+
+it("どの余白も合格しないときは、輪が閉じる候補を反転の数より優先する", () => {
+  const c = (hasBoundary: boolean, flips: number) => ({
+    hasBoundary,
+    diagnostics: { boundaryTriangleFlips: flips }
+  });
+  expect(isBetterBoundaryCandidate(c(false, 1), undefined)).toBe(true);
+  // 輪が閉じる候補は、反転が多くても閉じない候補に勝つ
+  expect(isBetterBoundaryCandidate(c(true, 3), c(false, 1))).toBe(true);
+  expect(isBetterBoundaryCandidate(c(false, 0), c(true, 3))).toBe(false);
+  // 同じ扱いの中では反転の少ない方、同数なら先の（小さい余白の）候補を残す
+  expect(isBetterBoundaryCandidate(c(true, 1), c(true, 2))).toBe(true);
+  expect(isBetterBoundaryCandidate(c(true, 2), c(true, 2))).toBe(false);
+});
+
+it(
+  "strict でも診断は探索の時点の両面の値を返す（実際の三角網の反転とは一致しないことがある）",
+  () => {
+    const tin = buildMap("tatebayashi_castle_akimoto", false, Tin.MODE_STRICT);
+    expect(tin.strict_status).toBe(Tin.STATUS_STRICT);
+    expect(tin.boundaryDiagnostics).toEqual({
+      margin: 0.15,
+      boundaryTriangleFlips: 1,
+      remainingForbiddenTriangles: 0
+    });
+    // strict では地理面の三角網を地図面から写すので、実際の三角網には反転が無い
+    checkBoundary(tin, [0, 0], [0, 0]);
+  },
+  REAL_DATA_TIMEOUT_MS
+);
