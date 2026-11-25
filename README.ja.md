@@ -103,6 +103,24 @@ const restored = tin.transform(transformed, true);
 
 ※最新の互換バージョンを使用してください。
 
+### V3 の外周の診断
+
+`updateTin()` または `updateTinAsync()` の後、`tin.boundaryDiagnostics` から、採用した
+余白と、地図面・地理面でそれぞれ作った三角網の診断件数の合計を取得できます。
+型は `BoundaryDiagnostics` です。
+
+| 項目 | 意味 |
+|---|---|
+| `margin` | GCP の外接矩形の幅・高さに対し、各辺に加えた余白の割合。 |
+| `boundaryTriangleFlips` | 補助頂点を含む三角形のうち、面間で向きが反転するか、いずれかの面で面積が 0 になるものの数。 |
+| `remainingForbiddenTriangles` | 辺反転の後も同じ群の点だけでできている三角形の数。群は補助頂点の全体、または 1 本の必須エッジの端点と中継点。 |
+
+V3 は 10%、15%、22.5%、34%、50% の順に試し、補助頂点の三角形の反転が 0 で、
+重心からの扇形が両面で星形になる最初の余白を採用します。どの余白も合格しない場合は、
+反転が最少の余白を採用し、同数なら小さい方を選びます。
+`getCompiled()` は診断を出力しません。V2 と、compiled を読み込んだ直後のプロパティは
+`undefined` です。
+
 ### API リファレンス
 
 - **API シグネチャ**（リリース依存）: [`docs/api/`](docs/api/) を参照

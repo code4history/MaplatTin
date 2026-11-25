@@ -1,5 +1,6 @@
 import { Feature, Point, Position } from 'geojson';
 import { Transform, Compiled, CompiledLegacy, Edge, EdgeSet, EdgeSetLegacy, PointSet, StrictMode, VertexMode, YaxisMode } from '@maplat/transform';
+import { BoundaryDiagnostics } from "./boundary-search.js";
 import { PointsSetBD } from "./types/tin.js";
 export declare const FORMAT_VERSION_V2 = 2.00704;
 export declare const FORMAT_VERSION_V3 = 3.00001;
@@ -29,6 +30,9 @@ export declare class Tin extends Transform {
     priority: number;
     pointsSet: PointsSetBD | undefined;
     useV2Algorithm: boolean;
+    private lastBoundaryDiagnostics?;
+    /** 現在の三角網を V3 で生成したときの外周の診断。 */
+    get boundaryDiagnostics(): BoundaryDiagnostics | undefined;
     /**
      * Tinクラスのインスタンスを生成します
      * @param options - 初期化オプション
@@ -95,10 +99,7 @@ export declare class Tin extends Transform {
      * 入力データの検証と初期データの準備
      */
     private validateAndPrepareInputs;
-    /**
-     * Compute a bounding box derived from GCP coordinates with a 5% margin.
-     * Used in V3 plain mode where no explicit image bounds are available.
-     */
+    /** 余白を加える前の GCP の外接矩形を求める。 */
     private computeGcpBbox;
     /**
      * TINネットワークを同期的に更新し、座標変換の準備を行います。

@@ -2,6 +2,7 @@ import { featureCollection, polygon } from "@turf/turf";
 import type { FeatureCollection, Point, Polygon } from "geojson";
 import Delaunator from "delaunator";
 import { Constrain as EdgeBound } from "./edgebound/index.ts";
+import { nextEdge } from "./edgebound/base.ts";
 import type { Edge } from "@maplat/transform";
 import type { TriangleProperties } from "./types/tin.ts";
 
@@ -34,36 +35,71 @@ import type { TriangleProperties } from "./types/tin.ts";
 export default function (
   points: FeatureCollection<Point>,
   edges: Edge[],
-  z: string,
+  z: string
 ): FeatureCollection<Polygon> {
+  return buildConstrainedTin(points, edges, z).tin;
+}
+
+interface ForbiddenGroups {
+  groupsOf: (vertex: number) => readonly number[];
+  planes: readonly ArrayLike<number>[];
+  boundary?: Edge[];
+}
+
+/** 制約付き三角分割を作り、指定された群の禁止制約と残数を求める。 */
+export function buildConstrainedTin(
+  points: FeatureCollection<Point>,
+  edges: Edge[],
+  z: string,
+  forbidden?: ForbiddenGroups
+): {
+  tin: FeatureCollection<Polygon>;
+  remaining: number;
+  hasBoundary: boolean;
+} {
   if (!edges) edges = [];
   if (typeof points !== "object" || points.type !== "FeatureCollection") {
     throw "Argument points must be FeatureCollection";
   }
   if (!Array.isArray(edges)) throw "Argument points must be Array of Array";
 
-  // Delaunay三角分割の実行
-  const del_points = points.features.map(
-    (point) => point.geometry!.coordinates as number[],
+  const coordinates = points.features.map(
+    (point) => point.geometry!.coordinates
   );
-  const del = Delaunator.from(del_points);
-
-  // 制約エッジの適用
-  let con;
-  const tris = [];
-  if (del.triangles.length !== 0 && edges.length !== 0) {
-    con = new EdgeBound(del);
+  let del = Delaunator.from(coordinates);
+  let remaining = 0;
+  let outside: Set<number> | undefined;
+  if (del.triangles.length !== 0 && (edges.length !== 0 || forbidden)) {
+    let con = new EdgeBound(del);
     con.constrainAll(edges);
+    if (forbidden?.boundary) {
+      outside = closeBoundary(con, forbidden.boundary);
+      if (!outside) {
+        // 外周の適用に失敗した候補も最少反転の選択肢に残す。
+        // 必須エッジを保つため、外周を適用する前の三角網を組み直す。
+        del = Delaunator.from(coordinates);
+        con = new EdgeBound(del, edges);
+      }
+    }
+    if (forbidden) {
+      ({ remaining } = con.forbidGroupTriangles(
+        forbidden.groupsOf,
+        forbidden.planes
+      ));
+      // 外周は制約エッジなので反転をまたがない。外側の三角形はすべて補助頂点群に属する。
+      remaining -= outside?.size ?? 0;
+    }
   }
 
-  // 三角形リストの構築
+  const tris = [];
   for (let i = 0; i < del.triangles.length; i += 3) {
+    if (outside?.has(i / 3)) continue;
     tris.push([del.triangles[i], del.triangles[i + 1], del.triangles[i + 2]]);
   }
 
   // GeoJSON形式での出力
   const keys = ["a", "b", "c"] as const;
-  return featureCollection(
+  const tin = featureCollection(
     tris.map((indices) => {
       const properties: TriangleProperties = {};
       const coords = indices.map((index, i) => {
@@ -79,6 +115,50 @@ export default function (
       });
       coords[3] = coords[0];
       return polygon([coords], properties);
-    }),
+    })
   );
+  return { tin, remaining, hasBoundary: outside !== undefined };
+}
+
+/**
+ * 補助頂点の輪を制約し、輪の外にある三角形を求める。
+ * GCP や必須エッジの中継点が輪の外に出る場合は、輪を閉じられなかったものとして扱う。
+ */
+function closeBoundary(
+  con: EdgeBound,
+  boundary: Edge[]
+): Set<number> | undefined {
+  try {
+    con.constrainAll(boundary);
+  } catch {
+    return undefined;
+  }
+  const border = new Map(boundary);
+  const { triangles, halfedges } = con.del;
+  const isBorder = (e: number): boolean => {
+    const a = triangles[e],
+      b = triangles[nextEdge(e)];
+    return border.get(a) === b || border.get(b) === a;
+  };
+
+  // 輪を越えずに凸包の外からたどれる三角形は、扇形で扱う領域にある。
+  const outside = new Set<number>();
+  const queue: number[] = [];
+  const visit = (edge: number) => {
+    const t = Math.floor(edge / 3);
+    if (!outside.has(t)) {
+      outside.add(t);
+      queue.push(t);
+    }
+  };
+  for (let e = 0; e < halfedges.length; e++) {
+    if (halfedges[e] === -1 && !isBorder(e)) visit(e);
+  }
+  for (let i = 0; i < queue.length; i++) {
+    for (let e = queue[i] * 3; e < queue[i] * 3 + 3; e++) {
+      if (!border.has(triangles[e])) return undefined;
+      if (halfedges[e] !== -1 && !isBorder(e)) visit(halfedges[e]);
+    }
+  }
+  return outside;
 }

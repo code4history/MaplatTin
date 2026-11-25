@@ -40,6 +40,7 @@ import type {
   YaxisMode,
 } from "@maplat/transform";
 import constrainedTin from "./constrained-tin.ts";
+import { searchBoundary, type BoundaryDiagnostics } from "./boundary-search.ts";
 import {
   calculateBirdeyeVertices,
   calculatePlainVertices,
@@ -82,6 +83,12 @@ export class Tin extends Transform {
   priority: number;
   pointsSet: PointsSetBD | undefined;
   useV2Algorithm: boolean;
+  private lastBoundaryDiagnostics?: BoundaryDiagnostics;
+
+  /** 現在の三角網を V3 で生成したときの外周の診断。 */
+  get boundaryDiagnostics(): BoundaryDiagnostics | undefined {
+    return this.tins && !this.useV2Algorithm ? this.lastBoundaryDiagnostics : undefined;
+  }
 
   /**
    * Tinクラスのインスタンスを生成します
@@ -266,6 +273,7 @@ export class Tin extends Transform {
    */
   override setCompiled(compiled: Compiled | CompiledLegacy): void {
     super.setCompiled(compiled);
+    this.lastBoundaryDiagnostics = undefined;
   }
 
   /**
@@ -559,10 +567,7 @@ export class Tin extends Transform {
     };
   }
 
-  /**
-   * Compute a bounding box derived from GCP coordinates with a 5% margin.
-   * Used in V3 plain mode where no explicit image bounds are available.
-   */
+  /** 余白を加える前の GCP の外接矩形を求める。 */
   private computeGcpBbox(): {
     minx: number; maxx: number; miny: number; maxy: number;
   } {
@@ -575,14 +580,7 @@ export class Tin extends Transform {
       if (y < gcpMiny) gcpMiny = y;
       if (y > gcpMaxy) gcpMaxy = y;
     }
-    const gcpW = gcpMaxx - gcpMinx;
-    const gcpH = gcpMaxy - gcpMiny;
-    return {
-      minx: gcpMinx - 0.05 * gcpW,
-      maxx: gcpMaxx + 0.05 * gcpW,
-      miny: gcpMiny - 0.05 * gcpH,
-      maxy: gcpMaxy + 0.05 * gcpH,
-    };
+    return { minx: gcpMinx, maxx: gcpMaxx, miny: gcpMiny, maxy: gcpMaxy };
   }
 
   /**
@@ -591,6 +589,7 @@ export class Tin extends Transform {
    * {@link updateTinAsync} を利用してください。
    */
   updateTin(): void {
+    this.lastBoundaryDiagnostics = undefined;
     let strict = this.strictMode;
     if (strict !== Tin.MODE_STRICT && strict !== Tin.MODE_LOOSE) {
       strict = Tin.MODE_AUTO;
@@ -749,10 +748,14 @@ export class Tin extends Transform {
       maxy,
     };
 
-    // V3 enables the 36-bin edge vertex pass for both main maps and submaps.
-    const verticesSet: VertexPosition[] = this.vertexMode === Tin.VERTEX_BIRDEYE
-      ? calculateBirdeyeVertices(boundaryParams, isV3)
-      : calculatePlainVertices(boundaryParams, isV3);
+    const calculateVertices = this.vertexMode === Tin.VERTEX_BIRDEYE
+      ? calculateBirdeyeVertices
+      : calculatePlainVertices;
+    const boundary = isV3
+      ? searchBoundary(boundaryParams, calculateVertices, rawPointsSet, this.points.length)
+      : undefined;
+    const verticesSet: VertexPosition[] =
+      boundary?.vertices ?? calculateVertices(boundaryParams, false);
 
     // Add vertices to points set
     const verticesList = {
@@ -779,11 +782,7 @@ export class Tin extends Transform {
     // Generate forward TIN
     this.tins = {
       forw: rotateVerticesTriangle(
-        constrainedTin(
-          this.pointsSet!.forw,
-          rawPointsSet.edges,
-          "target",
-        ) as Tins,
+        boundary?.forw ?? constrainedTin(this.pointsSet!.forw, rawPointsSet.edges, "target") as Tins,
       ),
     };
 
@@ -802,11 +801,7 @@ export class Tin extends Transform {
       (strict === Tin.MODE_AUTO && this.strict_status === Tin.STATUS_ERROR)
     ) {
       this.tins!.bakw = rotateVerticesTriangle(
-        constrainedTin(
-          this.pointsSet!.bakw,
-          rawPointsSet.edges,
-          "target",
-        ) as Tins,
+        boundary?.bakw ?? constrainedTin(this.pointsSet!.bakw, rawPointsSet.edges, "target") as Tins,
       );
       delete this.kinks;
       this.strict_status = Tin.STATUS_LOOSE;
@@ -825,6 +820,7 @@ export class Tin extends Transform {
     // updateTin() 直後の transform() が TypeError になる。{} の .forw は undefined なので
     // 旧版でも純アフィンになる。新 Transform はこの値を読まない。
     this.pointsWeightBuffer = {};
+    this.lastBoundaryDiagnostics = boundary?.diagnostics;
   }
 
   /**

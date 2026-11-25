@@ -106,6 +106,25 @@ Or using ES modules:
 
 *Note: Make sure to use the latest compatible versions.*
 
+### V3 boundary diagnostics
+
+After `updateTin()` or `updateTinAsync()`, `tin.boundaryDiagnostics` exposes the
+selected GCP bounding box margin and two counts from the triangulations built
+independently in the map and geographic planes. Its type is `BoundaryDiagnostics`.
+
+| Field | Meaning |
+|---|---|
+| `margin` | Fraction of the GCP bounding box width or height added on each side. |
+| `boundaryTriangleFlips` | Number of triangles containing an auxiliary vertex that reverse orientation or have zero area in either plane. |
+| `remainingForbiddenTriangles` | Number of triangles that still consist entirely of vertices from one group after flipping edges. A group contains all auxiliary vertices or the endpoints and intermediate vertices of one constrained edge. |
+
+V3 tries margins of 10%, 15%, 22.5%, 34%, and 50% in order. It takes the first
+margin with zero boundary triangle flips and a star-shaped fan around the
+centroid in both planes. If no margin passes, it takes the margin with the
+fewest flips, breaking ties in favor of the smaller margin.
+`getCompiled()` omits these diagnostics. The property is `undefined` for V2
+and after loading a compiled TIN.
+
 ### API reference
 
 - **API signatures** (release-dependent): see [`docs/api/`](docs/api/)

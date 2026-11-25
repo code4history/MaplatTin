@@ -6,6 +6,7 @@
  */
 export { Tin } from "./tin.js";
 export type { Options } from "./tin.js";
+export type { BoundaryDiagnostics } from "./boundary-search.js";
 export { Tin as default } from "./tin.js";
 export { default as constrainedTin } from "./constrained-tin.js";
 export { default as findIntersections } from "./kinks.js";
