@@ -12,9 +12,33 @@ import type { IntersectionPoint } from "./types/kinks.ts";
 export default function findIntersections(
   coords: Position[][],
 ): Feature<Point>[] {
+  return findIntersectionsUpTo(coords, Infinity);
+}
+
+/**
+ * Tin が 1 方向（forw / bakw）について数え上げる交差の件数の上限。
+ *
+ * 交差の件数は線分の数の 2 乗まで増えうる。対応が大きく乱れた制御点では
+ * 数十万件を超え、時間とメモリを使い切るため、ここで打ち切る。
+ * 正しく作られた地図の交差は多くても数十〜数百件で、この上限には届かない。
+ */
+export const MAX_KINKS_PER_DIRECTION = 100000;
+
+/**
+ * 線分の交差点を、件数の上限つきで検出する（Tin の内部用）
+ *
+ * @param coords - 線分群の座標配列
+ * @param limit - 数え上げる交差の件数の上限。届いた時点で検出をやめる
+ * @returns 検出された交差点のFeature配列（高々 limit 件）
+ * @throws {Error} 座標に有限数（Number.isFinite）でない値が含まれる場合
+ */
+export function findIntersectionsUpTo(
+  coords: Position[][],
+  limit: number,
+): Feature<Point>[] {
   validateCoordinateValues(coords);
   const arcs = new ArcCollection(coords);
-  const xy = arcs.findSegmentIntersections();
+  const xy = arcs.findSegmentIntersections(limit);
   const deduped: IntersectionPoint[] = dedupIntersections(xy);
   const unique = new Map<string, IntersectionPoint>();
 
@@ -273,7 +297,7 @@ class ArcCollection {
    *
    * @returns 検出された交差点の配列
    */
-  findSegmentIntersections() {
+  findSegmentIntersections(limit = Infinity) {
     const bounds = this.getBounds(),
       ymin = bounds.ymin || 0,
       yrange = (bounds.ymax || 0) - ymin,
@@ -353,15 +377,26 @@ class ArcCollection {
     const raw = this.getVertexData(),
       intersections = [];
     let arr;
-    for (i = 0; i < stripeCount; i++) {
+    // 同じ交差が複数のストライプで見つかることがあるので、
+    // 上限は重複を除いた件数で数える。
+    const seen = new Set<string>();
+    for (i = 0; i < stripeCount && intersections.length < limit; i++) {
       if (raw.xx && raw.yy) {
-        arr = intersectSegments(stripes[i], raw.xx, raw.yy);
-        for (j = 0; j < arr.length; j++) {
+        arr = intersectSegments(
+          stripes[i],
+          raw.xx,
+          raw.yy,
+          limit - intersections.length + seen.size,
+        );
+        for (j = 0; j < arr.length && intersections.length < limit; j++) {
+          const key = getIntersectionKey(arr[j]);
+          if (seen.has(key)) continue;
+          seen.add(key);
           intersections.push(arr[j]);
         }
       }
     }
-    return dedupIntersections(intersections);
+    return intersections;
   }
 }
 
@@ -444,6 +479,7 @@ function intersectSegments(
   ids: Uint32Array,
   xx: Float64Array,
   yy: Float64Array,
+  limit = Infinity,
 ) {
   const lim = ids.length - 2,
     intersections = [];
@@ -528,6 +564,7 @@ function intersectSegments(
             formatIntersection(hit.slice(2), seg1, seg2, xx, yy),
           );
         }
+        if (intersections.length >= limit) return intersections;
       }
     }
     i += 2;

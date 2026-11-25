@@ -45,7 +45,7 @@ import {
   calculatePlainVertices,
   type BoundaryVerticesParams,
 } from "./boundary-vertices.ts";
-import findIntersections from "./kinks.ts";
+import { findIntersectionsUpTo, MAX_KINKS_PER_DIRECTION } from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
@@ -300,8 +300,11 @@ export class Tin extends Transform {
 
   /**
    * 厳密なTINを計算します
+   *
+   * @param kinkLimit - forw / bakw それぞれで数え上げる交差（kinks）の件数の上限。
+   *   届いた時点で数え上げをやめ、strict_status は error になります
    */
-  calculateStrictTin(): void {
+  calculateStrictTin(kinkLimit: number = MAX_KINKS_PER_DIRECTION): void {
     const bakTins = this.tins!.forw!.features.map((tri: Tri) =>
       counterTri(tri)
     );
@@ -332,7 +335,7 @@ export class Tin extends Transform {
       const tins = this.tins![direction as keyof TinsBD]!.features.map(
         (tin: Tri) => tin.geometry!.coordinates[0],
       );
-      return findIntersections(tins);
+      return findIntersectionsUpTo(tins, kinkLimit);
     });
 
     if (kinks[0].length === 0 && kinks[1].length === 0) {
@@ -786,7 +789,11 @@ export class Tin extends Transform {
 
     // Calculate strict TIN if needed
     if (strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO) {
-      this.calculateStrictTin();
+      // auto は交差の有無しか使わない（あれば loose に切り替えて kinks を捨てる）
+      // ので、1 件見つけた時点で数え上げをやめる。
+      this.calculateStrictTin(
+        strict === Tin.MODE_AUTO ? 1 : MAX_KINKS_PER_DIRECTION,
+      );
     }
 
     // Generate backward TIN if needed
