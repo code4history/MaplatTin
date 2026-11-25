@@ -77,14 +77,9 @@ export class Constrain extends Base {
     const { triangles, halfedges } = this.del;
     this.assertVertex(segP1, segP1, segP2);
     this.assertVertex(segP2, segP1, segP2);
+    this.assertInTriangulation(segP1, segP1, segP2);
+    this.assertInTriangulation(segP2, segP1, segP2);
     const start = this.vertMap[segP1];
-    if (start >= triangles.length) {
-      // segP1 is a valid point id, but it is not part of the triangulation
-      // (Delaunator leaves out points that coincide with another point).
-      throw new Error(
-        `Invalid edge [${segP1}, ${segP2}]: vertex ${segP1} is not part of the triangulation`,
-      );
-    }
 
     // The limit only guards against a walk that never terminates.
     // See maxConstrainSteps() for how it relates to valid input.
@@ -260,6 +255,23 @@ export class Constrain extends Base {
   }
 
   /**
+   * Throw unless `vertex` is part of the triangulation. Delaunator leaves out
+   * points that coincide with another point, so a valid point id may have no
+   * triangle. An edge cannot start or end at such a point.
+   */
+  private assertInTriangulation(
+    vertex: number,
+    segP1: number,
+    segP2: number,
+  ): void {
+    if (this.vertMap[vertex] >= this.del.triangles.length) {
+      throw new Error(
+        `Invalid edge [${segP1}, ${segP2}]: vertex ${vertex} is not part of the triangulation`,
+      );
+    }
+  }
+
+  /**
    * Throw unless `vertex` is an id of a point given to Delaunator.
    */
   private assertVertex(vertex: number, segP1: number, segP2: number): void {
@@ -332,10 +344,21 @@ export class Constrain extends Base {
   findEdge(p1: number, p2: number): number {
     const start1 = this.vertMap[p2];
     const { triangles, halfedges } = this.del;
+    // p2 is not a point of the triangulation: there is no edge to find.
+    if (!(start1 < triangles.length)) {
+      return Infinity;
+    }
     let edg = start1;
     let prv: number;
+    // A walk around one vertex visits each half-edge at most once.
+    let steps = 0;
     // Walk around p2, iterating over the edges pointing to it.
     do {
+      if (++steps > triangles.length) {
+        throw new Error(
+          `Looking up edge [${p1}, ${p2}] exceeded the iteration limit`,
+        );
+      }
       if (triangles[edg] === p1) {
         return edg;
       }

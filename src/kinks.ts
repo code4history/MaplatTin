@@ -26,11 +26,21 @@ export default function findIntersections(
 export const MAX_KINKS_PER_DIRECTION = 100000;
 
 /**
+ * 件数の上限 1 件あたりに許す「見つけた交差の総数（重複を含む）」。
+ *
+ * 同じ位置の交差は 1 件に数えるので、位置が重なる交差ばかりの入力では
+ * 件数の上限に届かない。総数がこの倍率を超えたら数え上げをやめる。
+ * 同梱の実データでは、総数は残る件数の約 4 倍。
+ */
+const MAX_FOUND_PER_LIMIT = 16;
+
+/**
  * 線分の交差点を、件数の上限つきで検出する（Tin の内部用）
  *
  * @param coords - 線分群の座標配列
  * @param limit - 返す交差点の件数の上限。同じ位置の交差を 1 件に数えた件数で数え、
- *   届いた時点で検出をやめる
+ *   届いた時点で検出をやめる。位置が重なる交差ばかりのときは、見つけた交差の総数が
+ *   limit の 16 倍に届いた時点でもやめる
  * @returns 検出された交差点のFeature配列（同じ位置の重複なし・高々 limit 件）
  * @throws {Error} 座標に有限数（Number.isFinite）でない値が含まれる場合
  */
@@ -374,15 +384,20 @@ class ArcCollection {
     const raw = this.getVertexData();
     // 同じ線分の組は複数のストライプで見つかることがあり、別の組が同じ位置で
     // 交わることもある。上限は、同じ位置の交差を 1 件に数えた件数に掛ける。
+    // 位置が重なる交差ばかりだと、件数の上限に届かないまま数え上げが続く。
+    // 見つけた交差の総数（重複を含む）にも上限を置き、時間と seenKeys の大きさを抑える。
+    const maxFound = limit * MAX_FOUND_PER_LIMIT;
+    let found = 0;
     const seenKeys = new Set<string>();
     const unique = new Map<string, IntersectionPoint>();
     const collect = (o: IntersectionPoint): boolean => {
+      found++;
       const key = getIntersectionKey(o);
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
         unique.set(`${o.x}:${o.y}`, o);
       }
-      return unique.size >= limit;
+      return unique.size >= limit || found >= maxFound;
     };
     if (raw.xx && raw.yy) {
       for (i = 0; i < stripeCount; i++) {
