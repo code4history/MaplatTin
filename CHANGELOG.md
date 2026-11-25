@@ -6,6 +6,8 @@
 
 ### Fixed
 - dist の型定義が参照する `geojson` の型が `hoist: false` の利用者で解決できない不具合を直した（`@types/geojson` を dependencies へ移動）(#76)
+- 制約線（edge）の端点の添字を検査するようにした。GCP の範囲に無い添字・整数でない添字の edge は、`updateTin()`（と `constrainedTin`）が `Error` を投げる。制約線の処理に反復の上限を置いた
+- 対応が大きく乱れた制御点で、交差（kinks）の数え上げが時間とメモリを使い切るのを直した。`strictMode` が `auto` のときは交差を 1 件見つけた時点で `loose` へ切り替え、`strict` のときは `kinks` を 1 方向あたり 10 万件までにする。公開関数 `findIntersections` の結果は変わらない
 
 ## [1.1.1] - 2026-11-02
 
