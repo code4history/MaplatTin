@@ -102,6 +102,14 @@ function reduceSamples(samples: SamplePair[]): [number, number] {
 }
 
 /**
+ * 扇形外挿の縮尺と回転の推定方法。
+ *
+ * - `"min"`: 従来。縮尺は凸包の点の比の最小値、回転は重みなしの平均。V2・birdeye・world file 外周が使う。
+ * - `"farLsq"`: 重心から遠い凸包の点の最小二乗（V3 の plain）。当てはまりが悪いときは `"min"` に戻る。
+ */
+export type RatioEstimator = "min" | "farLsq";
+
+/**
  * 扇形外挿の縮尺と回転を、重心から遠い凸包の点の最小二乗で決める（V3 の plain だけ）。
  *
  * 従来の `reduceSamples` は、縮尺を凸包の点の比の最小値、回転を重みなしの平均で決める。重心に近い凸包の点
@@ -113,39 +121,54 @@ function reduceSamples(samples: SamplePair[]): [number, number] {
  * 複素数（向きの基準は `atan2(Δx, Δy)` に合わせる）。`z = Σ F·conj(B) / Σ |B|²` で、縮尺は `|z|`、回転は
  * `arg z`。重みが `|B|²` になるので、近い点の誤差は効きにくい。
  *
- * 遠い点が `FAN_FIT_MIN_POINTS` 点に満たないとき（GCP が 4〜6 組の図など）は、凸包の全点で同じ最小二乗を
- * 当てはめる。
+ * 従来の推定へ戻る場合:
+ * - 遠い点が `FAN_FIT_MIN_POINTS` 点に満たないとき（GCP が 4〜6 組の図など）は、凸包の全点で同じ最小二乗を
+ *   当てはめる（これは戻りではなく、使う点を増やす）。
+ * - 当てはめの一致度 `|Σ F·conj(B)| / √(Σ|F|²·Σ|B|²)`（0〜1。相似に完全に乗れば 1）が
+ *   `FAN_FIT_MIN_AGREEMENT` に満たないとき。地理側が紙に対して裏返し（鏡像）だと、`Σ F·conj(B)` が
+ *   打ち消し合って `|z|` が 0 に近い正の値になり、補助頂点が際限なく遠くへ飛ぶ。このとき相似では
+ *   説明できないので、従来の推定（縮尺の最小値）に戻す。
+ * - 点が空、または全点が重心と一致して `Σ|F|²` か `Σ|B|²` が 0 のとき。
  */
 const FAN_FIT_FAR_RATIO = 0.6;
 const FAN_FIT_MIN_POINTS = 3;
+// 正常な入力の一致度の実測（凸包の点の相似への乗り方）: Core のデモの素材（P1・P3・打ち間違い入り）は
+// 0.9996 以上、実地図（延岡・伏見・三重山・館林 2 枚・宇野バス）は 0.90〜1.00、それらの GCP を間引いた
+// 4〜6 組・中心寄りの 40〜80 %（234 件）は最小 0.79・5 % 点 0.93・中央値 0.9986。鏡像は 0 に近い。
+// 0.5 なら、一致度が低いまま採っても縮尺は理想の半分（補助頂点が 2 倍遠い）までで、際限なくは飛ばない。
+const FAN_FIT_MIN_AGREEMENT = 0.5;
 
-function fitSimilarity(samples: SamplePair[]): [number, number] {
+/** 重心固定の相似の最小二乗。当てはまらないとき（退化・一致度が低い）は undefined。 */
+function fitSimilarity(samples: SamplePair[]): [number, number] | undefined {
   let re = 0;
   let im = 0;
-  let norm = 0;
+  let bakwNorm = 0;
+  let forwNorm = 0;
   samples.forEach(({ forw, bakw }) => {
     // F = Δy + iΔx、B = Δy + iΔx（collectSamples で bakw の y は反転済み）
     re += forw[1] * bakw[1] + forw[0] * bakw[0];
     im += forw[0] * bakw[1] - forw[1] * bakw[0];
-    norm += bakw[0] * bakw[0] + bakw[1] * bakw[1];
+    bakwNorm += bakw[0] * bakw[0] + bakw[1] * bakw[1];
+    forwNorm += forw[0] * forw[0] + forw[1] * forw[1];
   });
-  if (!(norm > 0)) return [1, 0];
-  const scale = Math.hypot(re, im) / norm;
-  return scale > 0 ? [scale, Math.atan2(im, re)] : [1, 0];
+  if (!(bakwNorm > 0 && forwNorm > 0)) return undefined;
+  const agreement = Math.hypot(re, im) / Math.sqrt(forwNorm * bakwNorm);
+  if (!(agreement >= FAN_FIT_MIN_AGREEMENT)) return undefined;
+  return [Math.hypot(re, im) / bakwNorm, Math.atan2(im, re)];
 }
 
 function reduceSamplesFar(samples: SamplePair[]): [number, number] {
   const distance = (s: SamplePair) => Math.hypot(s.forw[0], s.forw[1]);
   const farthest = Math.max(...samples.map(distance));
   const far = samples.filter((s) => distance(s) >= FAN_FIT_FAR_RATIO * farthest);
-  return fitSimilarity(far.length >= FAN_FIT_MIN_POINTS ? far : samples);
+  return fitSimilarity(far.length >= FAN_FIT_MIN_POINTS ? far : samples) ?? reduceSamples(samples);
 }
 
 function buildVertexRatio(
   convexBuf: Record<string, ConvexEntry>,
   centroid: { forw: Position; bakw: Position },
   mode: "plain" | "birdeye",
-  fit = false,
+  estimator: RatioEstimator,
 ): Array<[number, number]> {
   const { perQuad, aggregate } = collectSamples(convexBuf, centroid);
   const hasAllQuadrants = perQuad.every((samples) => samples.length > 0);
@@ -154,8 +177,9 @@ function buildVertexRatio(
     ? (hasAllQuadrants ? perQuad : [aggregate])
     : [aggregate];
 
-  // fit は plain の V3 だけ。birdeye の象限ごとの推定と V2 は従来の最小値（既存の地図の結果を変えない）。
-  const reduce = fit && mode === "plain" ? reduceSamplesFar : reduceSamples;
+  // "farLsq" は plain の V3 だけ（呼び出し側が選ぶ）。V2・birdeye の象限ごとの推定は従来の最小値のまま
+  // （既存の地図の結果を変えない）。
+  const reduce = estimator === "farLsq" ? reduceSamplesFar : reduceSamples;
   const vertexRatio = groups.map((samples) => reduce(samples));
 
   if (vertexRatio.length === 1) {
@@ -403,13 +427,16 @@ function checkAndAdjustVerticesN(
 function calculateVerticesCore(
   params: BoundaryVerticesParams,
   mode: "plain" | "birdeye",
+  /** 辺の上に補助頂点を作るか（V3）。V2 は四隅だけ。 */
   withEdgeVertices: boolean,
+  /** 扇形外挿の縮尺と回転の推定方法。辺の上に補助頂点を作るかとは独立に選ぶ。 */
+  estimator: RatioEstimator,
   project?: (forw: Position) => Position,
 ): VertexPosition[] {
   const { convexBuf, centroid, allGcps, minx, maxx, miny, maxy } = params;
 
   // ── Phase 1 ───────────────────────────────────────────────────────────────
-  const cornerRatios = project ? undefined : buildVertexRatio(convexBuf, centroid, mode, withEdgeVertices);
+  const cornerRatios = project ? undefined : buildVertexRatio(convexBuf, centroid, mode, estimator);
 
   // ── Phase 2: 4 bbox corner vertices ───────────────────────────────────────
   const bboxCornerForws: Position[] = [
@@ -600,12 +627,14 @@ function calculateVerticesCore(
  *   When false (V2 format), returns only the 4 bbox corners.
  *
  * Plain mode uses a single aggregate [scale, rotation] ratio from all GCPs.
+ * V3 estimates it by a least-squares fit to the hull points far from the
+ * centroid; V2 keeps the minimum-ratio estimate.
  */
 export function calculatePlainVertices(
   params: BoundaryVerticesParams,
   v3 = false,
 ): VertexPosition[] {
-  return calculateVerticesCore(params, "plain", v3);
+  return calculateVerticesCore(params, "plain", v3, v3 ? "farLsq" : "min");
 }
 
 /**
@@ -623,7 +652,7 @@ export function calculateBirdeyeVertices(
   params: BoundaryVerticesParams,
   v3 = false,
 ): VertexPosition[] {
-  return calculateVerticesCore(params, "birdeye", v3);
+  return calculateVerticesCore(params, "birdeye", v3, "min");
 }
 
 /** 四隅と辺上の補助頂点を輪の順に並べ、地理側は world file の値で固定する。 */
@@ -632,7 +661,7 @@ export function calculateWorldFileVertices(
   project: (forw: Position) => Position
 ): VertexPosition[] {
   const seen = new Set<string>();
-  return calculateVerticesCore(params, "plain", true, project).filter(({ forw: [x, y] }) => {
+  return calculateVerticesCore(params, "plain", true, "min", project).filter(({ forw: [x, y] }) => {
     const key = `${x}:${y}`;
     if (seen.has(key)) return false;
     seen.add(key);
