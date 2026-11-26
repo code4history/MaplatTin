@@ -28,7 +28,7 @@ interface LayerFixture {
   edges: NonNullable<Options["edges"]>;
 }
 
-/** [地図, 紙の面の食い込みの上限, 地理面の食い込みの上限, 第 1 段の輪の頂点数の下限] */
+/** [地図, 紙の面の食い込みの上限, 地理面の食い込みの上限] */
 const LAYERS = [
   ["kaisei_hiroshima_jissoku_sub1", 1e-4, 0.11],
   ["naramachi_yasui_bunko_core", 1e-4, 0.03]
@@ -70,6 +70,33 @@ const BEFORE: Record<string, string> = {
   "naramachi_yasui_bunko_core|auto": "6a4819c955cc6ecd"
 };
 
+/**
+ * 救えた 2 層の出力（compiled の digest）・輪の頂点数・補完点の数・組んだ三角網の試行数の上限。
+ * [広島 strict・auto, 奈良町 strict・auto] のとおり。試行数は、最初の組み立ての試行数（広島 5・奈良町 5 前後）の
+ * 倍数の上限（探索 4 倍・戻す試行を含めて 8 倍）の中に収まる。遅い退行は、この上限で気づく。
+ */
+const RESCUED: Record<string, { digest: string; ring: number; supplements: number; attempts: number; worldFile: { digest: string; ring: number; outer: string; attempts: number } }> = {
+  "kaisei_hiroshima_jissoku_sub1|strict": {
+    digest: "776ac9696ec63388", ring: 29, supplements: 2, attempts: 30,
+    worldFile: { digest: "bd6484f82be9a783", ring: 33, outer: "worldFile", attempts: 12 }
+  },
+  "kaisei_hiroshima_jissoku_sub1|auto": {
+    digest: "e1f484b56938bfd7", ring: 29, supplements: 2, attempts: 30,
+    worldFile: { digest: "d3f35a1d08ad74ba", ring: 33, outer: "worldFile", attempts: 12 }
+  },
+  "naramachi_yasui_bunko_core|strict": {
+    digest: "472986d0f4d9ac79", ring: 29, supplements: 6, attempts: 25,
+    worldFile: { digest: "47cccc1b99b36161", ring: 29, outer: "extrapolate", attempts: 26 }
+  },
+  "naramachi_yasui_bunko_core|auto": {
+    digest: "4232662ba90afa3c", ring: 29, supplements: 6, attempts: 25,
+    worldFile: { digest: "af078cd9fe97b6fa", ring: 29, outer: "extrapolate", attempts: 26 }
+  }
+};
+
+/** 三角網を組んだ試行の数（`updateTin()` の中で数える。手当ての手間の見張りに使う）。 */
+const attemptsOf = (tin: Tin) => (tin as unknown as { attemptTotal: number }).attemptTotal;
+
 describe.each(LAYERS)("%s", (name, paperLimit, geoLimit) => {
   it("V2 は strict で、出力は #94 と 1 ビットも変わらない（V2 は変えない）", () => {
     const expected: Record<string, string> = {
@@ -92,9 +119,12 @@ describe.each(LAYERS)("%s", (name, paperLimit, geoLimit) => {
         expect(tin.kinks).toBeUndefined();
         expect(orientationFlips(tin)).toBe(0);
         expect(tin.boundaryDiagnostics!.ringRescue).toBe("thinned");
-        const ring = tin.getCompiled().vertices_points.length;
-        expect(ring).toBeGreaterThan(4);
-        expect(ring).toBeLessThan(36);
+        // 外した区分のうち、strict に要らないものは戻す（要る区分だけを外した輪）。出力・手間を固定する
+        const expected = RESCUED[`${name}|${mode}`];
+        expect(tin.getCompiled().vertices_points).toHaveLength(expected.ring);
+        expect(tin.supplementPairs).toHaveLength(expected.supplements);
+        expect(digest(tin.getCompiled())).toBe(expected.digest);
+        expect(attemptsOf(tin)).toBeLessThanOrEqual(expected.attempts);
       },
       REAL_DATA_TIMEOUT_MS
     );
@@ -157,6 +187,8 @@ describe("手当ては、必要なときだけ・戻せるときだけ", () => {
         expect(tin.boundaryDiagnostics!.ringRescue).toBeUndefined();
         expect(tin.getCompiled().vertices_points).toHaveLength(36);
         expect(digest(tin.getCompiled())).toBe(expected[mode]);
+        // 早く諦める。手当ての試行を含めて、三角網を組む試行は 6（#94 は最初の組み立てだけ）
+        expect(attemptsOf(tin)).toBeLessThanOrEqual(8);
       }
     },
     REAL_DATA_TIMEOUT_MS * 2
@@ -299,7 +331,8 @@ describe("world file 外周（B）でも strict にする", () => {
   describe.each([Tin.MODE_STRICT, Tin.MODE_AUTO] as const)("広島 strictMode=%s", (mode) => {
     const worldFile = fitWorldFile(load("kaisei_hiroshima_jissoku_sub1").gcps as PointSet[]);
     const tin = build("kaisei_hiroshima_jissoku_sub1", mode, { outerTransform: "worldFile", worldFile });
-    const without = build("kaisei_hiroshima_jissoku_sub1", mode, { outerTransform: "worldFile", worldFile });
+    // 手当てをしない（loose）の、36 区分の輪
+    const loose = build("kaisei_hiroshima_jissoku_sub1", "loose", { outerTransform: "worldFile", worldFile });
 
     it("B のまま strict になり、補助頂点を外した輪が compiled に全部書かれる", () => {
       expect(tin.strict_status).toBe(Tin.STATUS_STRICT);
@@ -312,7 +345,11 @@ describe("world file 外周（B）でも strict にする", () => {
         .pointsSet!.forw.features.filter((f) => String(f.properties!.target.index).startsWith("b"))
         .map((f) => f.geometry.coordinates);
       expect(compiled.vertices_points.map(([forw]) => forw)).toEqual(aux);
-      expect(without.getCompiled().vertices_points).toEqual(compiled.vertices_points);
+      const expected = RESCUED[`kaisei_hiroshima_jissoku_sub1|${mode}`].worldFile;
+      expect(compiled.vertices_points).toHaveLength(expected.ring);
+      expect(compiled.vertices_points.length).toBeLessThan(loose.getCompiled().vertices_points.length);
+      expect(digest(compiled)).toBe(expected.digest);
+      expect(attemptsOf(tin)).toBeLessThanOrEqual(expected.attempts);
     });
 
     it("Transform で読み直して、GCP が往復する", () => {
@@ -340,9 +377,42 @@ describe("world file 外周（B）でも strict にする", () => {
         fallbackReason: "boundaryFlips",
         ringRescue: "thinned"
       });
+      const expected = RESCUED["naramachi_yasui_bunko_core|strict"].worldFile;
+      expect(tin.getCompiled().vertices_points).toHaveLength(expected.ring);
+      expect(digest(tin.getCompiled())).toBe(expected.digest);
+      // C に落ちた後の手当ての手間は、C の最初の組み立てを基準にする（B の試行を基準に含めない）
+      expect(attemptsOf(tin)).toBeLessThanOrEqual(expected.attempts);
     },
-    REAL_DATA_TIMEOUT_MS * 2
+    REAL_DATA_TIMEOUT_MS * 3
   );
+
+  // B が成立しなかった入力（扇形に落ちて、36 点で strict）に、四隅だけの B を採らせない。
+  // 乱数 1,500 件・world file ありで、手当てが四隅の B を採った入力が strict で 12 件、auto で 23 件あった
+  it("B が成立しなかったときは、四隅だけの B を試さない（C の 36 点のまま）", () => {
+    const points: PointSet[] = [
+      [[568.222, 203.489], [-1061.964, 707.662]],
+      [[188.205, 661.909], [-409.976, 1340.703]],
+      [[79.088, 194.051], [-183.894, 286.315]],
+      [[520.127, 744.659], [-1205.755, 2128.619]],
+      [[267.311, 734.207], [-294.846, 1749.292]],
+      [[119.504, 480.916], [79.17, 1513.422]],
+      [[452.085, 543.517], [-1056.412, 1416.951]]
+    ];
+    const worldFile = fitWorldFile(points);
+    for (const [mode, expected] of [
+      [Tin.MODE_STRICT, "e272e82c4337fcbc"],
+      [Tin.MODE_AUTO, "a5985de2998d8b71"]
+    ] as const) {
+      const tin = new Tin({ wh: [1000, 800], points, strictMode: mode, outerTransform: "worldFile", worldFile });
+      tin.updateTin();
+      expect(tin.strict_status).toBe(Tin.STATUS_STRICT);
+      expect(tin.getCompiled()).toHaveProperty("outerTransform", "extrapolate");
+      expect(tin.getCompiled().vertices_points).toHaveLength(36);
+      expect(tin.boundaryDiagnostics).toMatchObject({ outerTransform: "extrapolate", fallbackReason: "boundaryFlips" });
+      expect(tin.boundaryDiagnostics!.ringRescue).toBeUndefined();
+      expect(digest(tin.getCompiled())).toBe(expected);
+    }
+  });
 
   it("loose 指定の world file 外周は手当てをしない", () => {
     const worldFile = fitWorldFile(load("kaisei_hiroshima_jissoku_sub1").gcps as PointSet[]);

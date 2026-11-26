@@ -97,8 +97,27 @@ const MAX_HULL_REFINEMENTS = 12;
 const MAX_RING_ROUNDS = 4;
 /** 補助頂点を外すとき、壊す補助頂点の両隣の区分もまとめて外す数（回数を減らす）。 */
 const RING_SPREAD = 1;
-/** 補助頂点の手当てに使ってよい手間（三角網を組んだ試行の数）の上限。最初の組み立ての試行数の何倍か。 */
-const RING_RESCUE_BUDGET = 3;
+/** 補助頂点の手当ての探索（第 1 段の各回と第 2 段）に使ってよい手間（三角網を組んだ試行の数）の上限。最初の組み立ての試行数の何倍か。 */
+const RING_RESCUE_BUDGET = 4;
+/** strict になった後に、外した区分を戻す試行を含めた手間の上限（最初の組み立ての試行数の何倍か）。 */
+const RING_RESTORE_BUDGET = 8;
+/** 外す区分がこの数以上（輪の 2/3）になったら、第 1 段の残りの回を飛ばして四隅だけにする。 */
+const RING_GIVE_UP_BINS = 24;
+
+/** 区分の番号（0〜35、輪になっている）の集合を、連続するかたまりに分ける。 */
+function clustersOf(bins: ReadonlySet<number>): number[][] {
+  if (bins.size === 0) return [];
+  if (bins.size >= 36) return [[...bins].sort((a, b) => a - b)];
+  // かたまりの先頭（前の区分が無い区分）から順に伸ばす
+  const clusters: number[][] = [];
+  for (let bin = 0; bin < 36; bin++) {
+    if (!bins.has(bin) || bins.has((bin + 35) % 36)) continue;
+    const cluster = [bin];
+    for (let next = (bin + 1) % 36; bins.has(next); next = (next + 1) % 36) cluster.push(next);
+    clusters.push(cluster);
+  }
+  return clusters;
+}
 
 /** 補完点の組み直しが手間の上限を超えたことを知らせる（`buildWithSupplements` の中だけで投げて捕まえる）。 */
 const OUT_OF_BUDGET = Symbol("supplement pairs out of budget");
@@ -866,61 +885,115 @@ export class Tin extends Transform {
       maxy,
     };
 
-    // strict にならないときの補助頂点の手当て（MaplatTin#98）。strict または auto で、組んだ三角網が strict に
-    // ならないときだけ、strict を壊す補助頂点（地理面で内側の三角形と重なる、向きが逆になる）だけを外して
-    // 組み直し（第 1 段。外す区分は両隣もまとめる）、それでもだめなら補助頂点を四隅だけにして組み直す
-    // （第 2 段。縮尺と回転の推定は V3 のまま）。どちらも strict になったときだけ採り、ならなければ最初の
-    // 結果へ状態ごと戻す。手間は、最初の組み立ての試行数の `RING_RESCUE_BUDGET` 倍までにする。
+    // strict にならないときの補助頂点の手当て（MaplatTin#98）。strict または auto で、最初の組み立てで外周が
+    // 成立したのに strict にならないときだけ、strict を壊す補助頂点（地理面で内側の三角形と重なる、向きが
+    // 逆になる）だけを外して組み直し（第 1 段。外す区分は両隣もまとめる）、strict になったら、外した区分を
+    // かたまりごとに 1 回ずつ戻して、strict を保てるかを試す。第 1 段で救えないときは、補助頂点を四隅だけにして
+    // 組み直す（第 2 段。縮尺と回転の推定は V3 のまま）。どちらも strict になったときだけ採り、ならなければ
+    // 最初の結果へ状態ごと戻す。外周が成立しなかった（boundary が無い）ときは、手当てをしない（world file
+    // 外周が成立しなくて扇形へ落ちる入力を、四隅だけの world file 外周に変えない）。
+    //
+    // 手間の上限（三角網を組んだ試行の数）は、最初の組み立ての試行数 `firstCost` の倍数で置く。探索（第 1 段の
+    // 各回と第 2 段）は `RING_RESCUE_BUDGET` 倍まで（第 2 段の 1 回分は取っておく）、外した区分を戻す試行は
+    // `RING_RESTORE_BUDGET` 倍まで。外す区分が輪の大半になったら、残りの回を飛ばして第 2 段へ進む。
     const wantsStrict = strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO;
     const rescue = <T extends { boundary?: BoundaryCandidate }>(
       first: T,
+      firstCost: number,
       build: (ring: RingOptions) => T,
     ): { result: T; kind?: "thinned" | "corners" } => {
-      if (!wantsStrict || this.isStrict()) return { result: first };
-      const kept = {
+      if (!wantsStrict || this.isStrict() || !first.boundary) return { result: first };
+      // 状態（三角網・点群・補完点・必須エッジの中継点）の控え。採る試行へ戻す
+      const snapshot = () => ({
         build: this.captureBuild(),
+        raw: [rawPointsSet.forw.slice(), rawPointsSet.bakw.slice()],
+        gcps: allGcps.slice(),
+        edgeNodes: this.edgeNodes!.slice(),
         supplementRecords: this.supplementRecords,
         supplementDiagnostics: this.lastSupplementDiagnostics,
-        rawCount: rawPointsSet.forw.length,
-        gcpCount: allGcps.length,
-        edgeNodeCount: this.edgeNodes!.length,
+      });
+      const apply = (state: ReturnType<typeof snapshot>) => {
+        rawPointsSet.forw.splice(0, rawPointsSet.forw.length, ...state.raw[0]);
+        rawPointsSet.bakw.splice(0, rawPointsSet.bakw.length, ...state.raw[1]);
+        allGcps.splice(0, allGcps.length, ...state.gcps);
+        this.edgeNodes!.splice(0, this.edgeNodes!.length, ...state.edgeNodes);
+        this.restoreBuild(state.build);
+        this.supplementRecords = state.supplementRecords;
+        this.lastSupplementDiagnostics = state.supplementDiagnostics;
       };
-      const restore = () => {
-        rawPointsSet.forw.length = kept.rawCount;
-        rawPointsSet.bakw.length = kept.rawCount;
-        allGcps.length = kept.gcpCount;
-        this.edgeNodes!.length = kept.edgeNodeCount;
-        this.restoreBuild(kept.build);
-        this.supplementRecords = kept.supplementRecords;
-        this.lastSupplementDiagnostics = kept.supplementDiagnostics;
-      };
-      const firstCost = this.attemptTotal;
+      const kept = snapshot();
       const start = this.attemptTotal;
+      const used = () => this.attemptTotal - start;
+      const isCorner = (forw: Position, ring: Position[]) => {
+        const xs = ring.map(([x]) => x);
+        const ys = ring.map(([, y]) => y);
+        return (forw[0] === Math.min(...xs) || forw[0] === Math.max(...xs)) &&
+          (forw[1] === Math.min(...ys) || forw[1] === Math.max(...ys));
+      };
+      /** 三角網を組む。`this` は組んだ三角網の状態になる。 */
+      const attempt = (ring: RingOptions) => {
+        // 前の試行が足した補完点・中継点は、次の試行の入力に混ぜない（最初の状態の点群から組む）
+        rawPointsSet.forw.splice(0, rawPointsSet.forw.length, ...kept.raw[0]);
+        rawPointsSet.bakw.splice(0, rawPointsSet.bakw.length, ...kept.raw[1]);
+        allGcps.splice(0, allGcps.length, ...kept.gcps);
+        this.edgeNodes!.splice(0, this.edgeNodes!.length, ...kept.edgeNodes);
+        this.supplementRecords = [];
+        const built = build(ring);
+        return { built, strict: built.boundary !== undefined && this.isStrict() };
+      };
       const skip = new Set<number>();
-      let current = first;
+      // 最初の輪で、外せる補助頂点（四隅以外）のある区分
+      const ringVertices = first.boundary.vertices.map(({ forw }) => forw);
+      const removable = new Set(
+        ringVertices.filter((forw) => !isCorner(forw, ringVertices)).map((forw) => ringBinOf(forw, centCalc.forw)),
+      );
       try {
-        for (let round = 0; round < MAX_RING_ROUNDS && current.boundary; round++) {
-          if (this.attemptTotal - start >= RING_RESCUE_BUDGET * firstCost) break;
-          const ring = current.boundary.vertices.map(({ forw }) => forw);
-          const xs = ring.map(([x]) => x);
-          const ys = ring.map(([, y]) => y);
-          const [lowX, highX, lowY, highY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+        let current: T = first;
+        for (let round = 0; round < MAX_RING_ROUNDS; round++) {
+          if (used() + firstCost >= RING_RESCUE_BUDGET * firstCost) break;
+          const ring = current.boundary!.vertices.map(({ forw }) => forw);
           const before = skip.size;
           for (const forw of findRingCulprits(this.tins!.forw!)) {
-            if ((forw[0] === lowX || forw[0] === highX) && (forw[1] === lowY || forw[1] === highY)) continue;
+            if (isCorner(forw, ring)) continue;
             const bin = ringBinOf(forw, centCalc.forw);
             for (let d = -RING_SPREAD; d <= RING_SPREAD; d++) skip.add((bin + d + 36) % 36);
           }
           if (skip.size === before) break;
-          current = build({ skipBins: new Set(skip) });
-          if (current.boundary && this.isStrict()) return { result: current, kind: "thinned" };
+          // 外す区分が輪の大半になったら、四隅だけにする
+          if (skip.size >= RING_GIVE_UP_BINS) break;
+          const tried = attempt({ skipBins: new Set(skip) });
+          // 外して外周が成立しなくなったら、打ち切る（四隅だけの外周も試さない）
+          if (!tried.built.boundary) {
+            apply(kept);
+            return { result: first };
+          }
+          if (tried.strict) {
+            let best = { result: tried.built, state: snapshot() };
+            // 外した区分を、かたまりごとに 1 回ずつ戻して、strict を保てるかを試す
+            for (const cluster of clustersOf(skip)) {
+              if (!cluster.some((bin) => removable.has(bin))) continue;
+              if (used() >= RING_RESTORE_BUDGET * firstCost) break;
+              const rest = new Set([...skip].filter((bin) => !cluster.includes(bin)));
+              const retried = attempt({ skipBins: rest });
+              if (retried.strict) {
+                for (const bin of cluster) skip.delete(bin);
+                best = { result: retried.built, state: snapshot() };
+              }
+            }
+            apply(best.state);
+            return { result: best.result, kind: "thinned" };
+          }
+          // strict にならなかった組み立ての三角網で、次の回の原因を探す（`this` はその状態にある）
+          current = tried.built;
         }
-        current = build({ cornersOnly: true });
-        if (current.boundary && this.isStrict()) return { result: current, kind: "corners" };
+        if (used() < RING_RESCUE_BUDGET * firstCost) {
+          const tried = attempt({ cornersOnly: true });
+          if (tried.strict) return { result: tried.built, kind: "corners" };
+        }
       } catch {
         // 手当ての組み直しが失敗しても、最初の結果は有効なので、それを返す
       }
-      restore();
+      apply(kept);
       return { result: first };
     };
 
@@ -954,10 +1027,12 @@ export class Tin extends Transform {
             excludedHull,
             cache,
           ) }));
+      const worldStart = this.attemptTotal;
       const worldFirst = buildWorldFile();
+      const worldCost = this.attemptTotal - worldStart;
       // world file 外周でも、strict にならないときは補助頂点を手当てする。外すのは world file の輪の一部で、
       // `vertices_points` には、採用した輪の補助頂点を全部書く
-      const { result: { boundary }, kind: worldRescue } = rescue(worldFirst, buildWorldFile);
+      const { result: { boundary }, kind: worldRescue } = rescue(worldFirst, worldCost, buildWorldFile);
       if (boundary) {
         this.compiledOuter = {
           outerTransform: "worldFile",
@@ -1014,7 +1089,10 @@ export class Tin extends Transform {
               ),
             };
           });
-      const rescued = rescue(buildV3(), buildV3);
+      // 扇形に落ちた入力では、world file 外周の試行は数えず、この最初の組み立ての試行数を基準にする
+      const v3Start = this.attemptTotal;
+      const v3First = buildV3();
+      const rescued = rescue(v3First, this.attemptTotal - v3Start, buildV3);
       ({ boundary, verticesList } = rescued.result);
       ringRescue = rescued.kind;
     } else {
