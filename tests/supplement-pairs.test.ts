@@ -340,15 +340,16 @@ describe("部分集合の入力で、手間の上限の使い方を確かめる�
     ["1932_nobeoka", 579, 44],
     ["tatebayashi_kaei_jokamachi", 83, 35]
   ] as const)(
-    "%s（seed %i・%i 点）: 手間の上限を超えない（超えたら、補完点を使わない結果から悪くならない）",
+    "%s（seed %i・%i 点）: まとめては不採用で、手間が上限に届いて諦め、補完点を使わない結果と 1 ビットも変わらない",
     (name, seed, size) => {
       const tin = build(name, seed, size);
+      const diagnostics = tin.supplementDiagnostics!;
+      expect(diagnostics).toMatchObject({ rounds: 1, batches: 0, perEdge: 0, multiPoint: 0 });
+      expect(diagnostics.cost).toBeGreaterThanOrEqual(diagnostics.budget);
+      expect(diagnostics.cost).toBeLessThanOrEqual(diagnostics.budget + 1);
+      expect(tin.supplementPairs).toHaveLength(0);
       const without = build(name, seed, size, { supplementPairs: false });
-      const diagnostics = tin.supplementDiagnostics;
-      if (diagnostics) expect(diagnostics.cost).toBeLessThanOrEqual(diagnostics.budget + 1);
-      expect(tin.strict_status).toBe(without.strict_status);
-      expect(intrusionFraction(tin, 0)).toBeLessThanOrEqual(intrusionFraction(without, 0) + 1e-12);
-      expect(orientationFlips(tin)).toBeLessThanOrEqual(orientationFlips(without));
+      expect(JSON.stringify(tin.getCompiled())).toBe(JSON.stringify(without.getCompiled()));
     },
     REAL_DATA_TIMEOUT_MS
   );
