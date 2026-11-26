@@ -31,6 +31,11 @@ interface ForbiddenGroups {
     groupsOf: (vertex: number) => readonly number[];
     planes: readonly ArrayLike<number>[];
     boundary?: Edge[];
+    /**
+     * GCP（と必須エッジの中継点）の凸包の辺。制約の辺にして、補助頂点を含む三角形が凸包の内側に
+     * 食い込まないようにする。必須エッジなどと両立しない辺は外す。
+     */
+    hull?: Edge[];
     allowUnusableBoundary?: boolean;
 }
 /** 制約付き三角分割を作り、指定された群の禁止制約と残数を求める。 */
