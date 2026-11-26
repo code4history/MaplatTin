@@ -9,6 +9,17 @@
 3. `constrainedTin()` を使って前面・背面の制約付き三角網を生成します（`src/tin.ts:699`–`708`）。背面は、strict モードが維持できず loose になったときだけ独立に再生成されます。
 4. 重心点 `c` は前面の GCP の重心（`src/tin.ts:714`）で、背面の位置は前面の三角網で変換して求めます（`src/tin.ts:757`–`760`）。前面・背面の凸包を `convexBuf` に集め（`src/tin.ts:715`–`752`）、`calculatePlainVertices()` または `calculateBirdeyeVertices()`（選択は `src/tin.ts:838`）で境界ノードを合成します。
 5. V3 は余白を変えながら境界ノードを探し（`searchBoundary`、`src/boundary-search.ts`）、凸包の辺を全部制約にして三角網を組み、strict を壊す凸包の辺だけを外します（`buildWithHull`、`src/tin.ts:915`）。生成したノードを点群に追加し、TIN の検索用インデックスを整備します。
+6. V3 は、それでも外すことになった凸包の辺に**補完点**を足します（`buildWithSupplements`、`src/tin.ts`。置き場所の計算と試行の繰り返しは `src/supplement-pairs.ts`）。下の「補完点」を参照。
+
+## 補完点（V3、#89）
+
+`strict` のために外した凸包の辺 A–B は、A–B を辺にする内側の三角形（A・B・P）が地理の面で裏返る（P′ が A′–B′ の外へ出る）所です。補助頂点を含む三角形が凸包の内側へ食い込むのは、このためです。A–B のすぐ外に点 Q を置き、A–Q・Q–B を制約にすれば、Q′ を「Q を頂点にする三角形が全部、多数派と同じ向きに見える所」に置く限り、問題は無くなります。
+
+1. **見つける。** `buildWithHull` の結果が `strict` のとき、外れた辺 = 紙の面の凸包の辺（`boundary.forwHull.all`）のうち、採用した三角網の辺になっていないもの（`analyzeMesh`）。無ければ何もせず、この機能が無い版と 1 ビットも変わらない。`strict` でなければ足さない。
+2. **紙の面の位置**（`proposeSupplementCandidate`）。S = 地理の面で A′–B′ の外へ出て、弦への足が両面で弦の内側にある点。P\* = S のうち A′–B′ から最も遠い点。Q = P\* から弦 A–B へ下ろした足を、弦の長さ × `SUPPLEMENT_EPSILON`（1e-4）だけ外へ出した点（弦のちょうど上の点は、計算機の数では内か外へずれる）。S が空なら弦の中点。
+3. **地理の面の位置**（`fitToKernel`）。Q′ は半直線 `F′ + s·n`（F′ は P\*′ から弦 A′–B′ へ下ろした足、n は外向きの単位法線）の上。凸包の辺を全部制約にした三角網（`buildWithHull` の最初の試行。交差は調べない）を組み、Q を頂点にする三角形ごとの「向きが多数派と同じ」という半平面の共通部分を `s` で取り、区間 `[lo, hi]`（核を半直線で切ったもの）を得る。`s = max(lo, 0) + m`、`m = min(max(λ·max(lo, d\*), μ·|A′B′|), (hi − lo)/2)`。λ = `SUPPLEMENT_LAMBDA`（0.25）、μ = `SUPPLEMENT_MU`（0.01）、d\* = P\* の出っ張りの高さ。Q′ が動くと輪が変わるので、最大 `MAX_KERNEL_FIT_ITERATIONS`（4）回繰り返す。核が空ならその辺は置けない。
+4. **試す**（`addSupplementPairs`）。外れた辺ごとの候補（各 1 点）を全部まとめて足し、結果が `strict` で、足した点が全部「凸包の頂点で、付く凸包の辺が 2 本とも三角網の辺」なら採用。だめなら辺ごとに（1 点の案、次に弦に沿った出っ張りの上側の凸包から取る複数点の案）、採用後も残る辺があれば繰り返す。上限は、回数 `MAX_SUPPLEMENT_PAIR_ROUNDS`（4）・点数 `MAX_SUPPLEMENT_PAIRS`（32）・同じ辺（紙の両端の座標）は一度だけ。何も採用しなかったときは、足す前の状態へ戻す。
+5. **入力にしない。** 補完点は `rawPointsSet`・`allGcps`・`this.edgeNodes` の中継点の続きに `e{n}` で足すが、`pointsSetFC`・`convexBuf` には入れないので、重心と扇形外挿の推定は人間の GCP と中継点だけで決まる。`generatePointsSet()` が `updateTin()` のたびに `edgeNodes` を作り直すので、前回の結果は引き継がない。`loose` は、`strict` で手順を 1 回走らせて決めた補完点を足して `loose` で組む。`supplementPairs: false` なら手順に入らない。
 
 ## 境界ノード補完（`calculatePlainVertices`）
 

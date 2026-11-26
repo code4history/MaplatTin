@@ -158,6 +158,32 @@ of the two planes disagree, a part of an auxiliary-vertex triangle may remain in
 fraction of the hull area in the bundled data, see the CHANGELOG). The fan center is the centroid of the
 GCPs itself, as in V2.
 
+### V3 supplement pairs (`supplementPairs`)
+
+A hull edge dropped to keep `strict` lets auxiliary-vertex triangles cut into the hull. For such a hull edge
+A–B, V3 adds one **supplement pair** Q: a system-generated GCP-like point on the paper plane just outside
+A–B (1e-4 of the chord length), whose geographic position is chosen inside the kernel of the ring of
+triangles around Q (every triangle keeps the majority orientation), a little outside the most-dented
+GCP of A–B. A–Q and Q–B then replace A–B as constrained hull edges and `strict` holds. In the bundled data
+(Nobeoka, Tatebayashi castle, Naramachi, Miesan, Tatebayashi Jokamachi, Fushimi) the intrusion drops to 0.00% with
+4, 4, 6, 3, 2 and 1 supplement pairs; the result never loses `strict`.
+
+- Supplement pairs are **not input**: `updateTin()` recomputes them from the human GCPs and edges every time,
+  without reading the previous result (same input, same output; nothing accumulates; pairs that are no longer
+  needed are not produced). If a human GCP already sits where a supplement pair would go, none is added.
+- They are not in `tin.points`, are not used for the centroid or the fan extrapolation, but take part in the
+  triangulation and the hull edges. Limits: 4 rounds, 32 pairs in total, each hull edge tried once.
+- Only for V3 (V4 inherits it) when `strict` or `auto` ends in `strict`; `loose` uses the pairs decided by an
+  internal `strict` run. Nothing is added when the triangulation cannot be made `strict` (the hull-edge
+  triangulation is kept). V2 is unchanged.
+- `new Tin({ ..., supplementPairs: false })` turns it off per map (the result equals the version
+  without the feature). `tin.supplementPairs` lists the current pairs (`{ node, forw, bakw, kind, edge, anchor }`,
+  internal coordinates). Cost: about 1.5–3× `updateTin()` for maps that have a dropped hull edge; no change otherwise.
+- `getCompiled()` appends the pairs at the **end of `edgeNodes`** (triangle vertices use `"e{n}"`, so existing
+  `@maplat/transform` reads them as they are) and lists them in the optional `supplementPairs` array
+  ([compiled format](docs/compiled-format.md)). Editors show them as "supplement points" (補完点), distinct from the
+  GCPs people place.
+
 For extrapolation, V3 tries margins of 10%, 15%, 22.5%, 34%, and 50% in order. It takes the first
 margin with zero boundary triangle flips and a star-shaped fan around the
 centroid in both planes. If no margin passes, it prefers margins whose ring closes

@@ -89,8 +89,13 @@ function checkBoundary(
     expect(
       neighbors.every((ns) => ns.some((index) => !isAuxiliary(index)))
     ).toBe(true);
+    // 補完点（システムが凸包の辺に足した点。三角形の頂点としては "e{n}"）は、GCP と同じ凸包の頂点なので、
+    // GCP と同じにつながる先として数える
+    const supplement = new Set(tin.supplementPairs.map(({ node }) => `e${node}`));
     expect(
-      neighbors.filter((ns) => !ns.some((index) => typeof index === "number"))
+      neighbors.filter(
+        (ns) => !ns.some((index) => typeof index === "number" || supplement.has(String(index)))
+      )
     ).toHaveLength(cornersWithoutGcp[direction]);
   }
 }
@@ -113,7 +118,7 @@ it.each([
       boundaryTriangleFlips: flips[0] + flips[1],
       remainingForbiddenTriangles: remaining
     });
-    // 凸包の辺を制約にしたので、延岡のサブマップでも、どの隅も GCP に（必須エッジの中継点だけでなく）つながる。
+    // 凸包の辺を制約にしたので、延岡のサブマップでも、どの隅も GCP（か、凸包の辺に足した補完点）に（必須エッジの中継点だけでなく）つながる。
     checkBoundary(tin, flips, [0, 0]);
   },
   REAL_DATA_TIMEOUT_MS

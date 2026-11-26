@@ -63,10 +63,20 @@ import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
 import { findHullCulprits } from "./hull-culprits.ts";
 import { hullEdgeKey } from "./hull-edges.ts";
+import {
+  addSupplementPairs,
+  analyzeMesh,
+  type SupplementDiagnostics,
+  type SupplementHost,
+  type SupplementPair,
+  type SupplementPairRecord,
+} from "./supplement-pairs.ts";
 import type { SearchIndex } from "./searchutils.ts";
 import type { PointsSetBD, VertexPosition } from "./types/tin.ts";
 
 type RawPointsSet = { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
+/** 補完点の一覧を持つ compiled（Transform の型には無い項目。読み手は無視してよい）。 */
+export type CompiledWithSupplement = CompiledTransformData & { supplementPairs?: SupplementPairRecord[] };
 type CompiledOuter = Pick<CompiledWorldFileOuter, "outerTransform" | "worldFile" | "vertices_points"> |
   { outerTransform: "extrapolate" };
 
@@ -107,6 +117,11 @@ export interface Options {
   outerTransform?: "extrapolate" | "worldFile";
   /** 四辺形の外側に使う world file。`outerTransform: "worldFile"` のとき必須。 */
   worldFile?: WorldFile;
+  /**
+   * V3 だけ。strict のために制約から外した凸包の辺に、システムが補完点（supplementPairs）を足す。
+   * 既定は true。false にすると足さない（#91 と同じ結果）。
+   */
+  supplementPairs?: boolean;
 }
 
 /**
@@ -118,6 +133,10 @@ export class Tin extends Transform {
   priority: number;
   pointsSet: PointsSetBD | undefined;
   useV2Algorithm: boolean;
+  /** V3 で補完点を足すか（`Options#supplementPairs`）。 */
+  useSupplementPairs: boolean;
+  private supplementRecords: SupplementPairRecord[] = [];
+  private lastSupplementDiagnostics?: SupplementDiagnostics;
   private lastBoundaryDiagnostics?: BoundaryDiagnostics;
   private requestedWorldFile?: WorldFile;
   private compiledOuter?: CompiledOuter;
@@ -125,6 +144,24 @@ export class Tin extends Transform {
   /** 現在の三角網を V3 で生成したときの外周の診断。 */
   get boundaryDiagnostics(): BoundaryDiagnostics | undefined {
     return this.tins && !this.useV2Algorithm ? this.lastBoundaryDiagnostics : undefined;
+  }
+
+  /**
+   * システムが足した補完点の一覧（今の三角網のもの）。座標は内部の座標（`edgeNodes` と同じ）。
+   * 人間の対応点（`points`）には入らない。`updateTin()` のたびに、対応点だけから作り直される。
+   */
+  get supplementPairs(): SupplementPair[] {
+    if (!this.tins) return [];
+    const nodes = (this.edgeNodes ?? []) as Position[][];
+    return this.supplementRecords.flatMap((record) => {
+      const node = nodes[record.node];
+      return node ? [{ ...record, forw: node[0], bakw: node[1] }] : [];
+    });
+  }
+
+  /** 直近の `updateTin()` の補完の手順の診断（足す手順に入らなかったときは undefined）。 */
+  get supplementDiagnostics(): SupplementDiagnostics | undefined {
+    return this.tins && !this.useV2Algorithm ? this.lastSupplementDiagnostics : undefined;
   }
 
   /**
@@ -147,6 +184,7 @@ export class Tin extends Transform {
     this.priority = options.priority || 0;
     this.stateFull = options.stateFull || false;
     this.useV2Algorithm = options.useV2Algorithm ?? false;
+    this.useSupplementPairs = options.supplementPairs ?? true;
     if (options.outerTransform === "worldFile") {
       if (this.useV2Algorithm) throw new Error("V2 では world file 外周を使えません");
       if (!options.worldFile) throw new Error("worldFile が必要です");
@@ -229,8 +267,8 @@ export class Tin extends Transform {
   /**
    * 現在の設定を永続化可能な形式にコンパイルします
    */
-  getCompiled(): CompiledTransformData {
-    const compiled = {} as CompiledTransformData;
+  getCompiled(): CompiledWithSupplement {
+    const compiled = {} as CompiledWithSupplement;
     compiled.version = this.useV2Algorithm ? FORMAT_VERSION_V2 : FORMAT_VERSION_V3;
     compiled.points = this.points;
     // 重みバッファは廃止（2.00704）。以前の @maplat/transform は compiled に
@@ -308,6 +346,13 @@ export class Tin extends Transform {
     compiled.edges = this.edges ?? [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     compiled.edgeNodes = (this.edgeNodes ?? []) as any;
+    // 補完点は edgeNodes の末尾にあり、ここはその理由の一覧。無ければ項目ごと書かない
+    if (this.supplementRecords.length > 0) {
+      compiled.supplementPairs = this.supplementRecords.map((record) => ({
+        ...record,
+        edge: [...record.edge] as SupplementPairRecord["edge"],
+      }));
+    }
 
     if (this.compiledOuter?.outerTransform === "extrapolate") {
       Object.assign(compiled, this.compiledOuter);
@@ -323,6 +368,11 @@ export class Tin extends Transform {
     }
     const replacesWorldFile = this.outerTransform === "worldFile" || outer?.outerTransform === "worldFile";
     super.setCompiled(compiled);
+    this.supplementRecords = ((compiled as CompiledWithSupplement).supplementPairs ?? []).map((record) => ({
+      ...record,
+      edge: [...record.edge] as SupplementPairRecord["edge"],
+    }));
+    this.lastSupplementDiagnostics = undefined;
     if (replacesWorldFile) this.stateTriangle = undefined;
     this.requestedWorldFile = undefined;
     this.compiledOuter = undefined;
@@ -373,7 +423,9 @@ export class Tin extends Transform {
    * 厳密なTINを計算します
    *
    * @param kinkLimit - forw / bakw それぞれで残す交差（kinks）の件数の上限
-   *   （同じ位置の交差を 1 件に数えた件数）。届いた時点で数え上げをやめます
+   *   （同じ位置の交差を 1 件に数えた件数）。届いた時点で数え上げをやめます。
+   *   0 のときは交差を調べず、`strict_status` と `kinks` も変えません（重なりの解消だけを行い、
+   *   三角網の向きを読むための内部用）
    */
   calculateStrictTin(kinkLimit: number = MAX_KINKS_PER_DIRECTION): void {
     const bakTins = this.tins!.forw!.features.map((tri: Tri) =>
@@ -403,6 +455,8 @@ export class Tin extends Transform {
       this.pointsSet?.edges || [],
       pointIndices,
     );
+
+    if (kinkLimit <= 0) return;
 
     const kinks = ["forw", "bakw"].map((direction) => {
       const tins = this.tins![direction as keyof TinsBD]!.features.map(
@@ -655,6 +709,9 @@ export class Tin extends Transform {
    */
   updateTin(): void {
     this.lastBoundaryDiagnostics = undefined;
+    // 補完点は保存しない入力。前回の結果は読まず、人間の対応点だけから毎回作り直す
+    this.supplementRecords = [];
+    this.lastSupplementDiagnostics = undefined;
     let strict = this.strictMode;
     if (strict !== Tin.MODE_STRICT && strict !== Tin.MODE_LOOSE) {
       strict = Tin.MODE_AUTO;
@@ -691,9 +748,11 @@ export class Tin extends Transform {
     }
 
     // Create FeatureCollections for use in calculations
+    // 後で補完点を rawPointsSet の末尾に足す。重心・扇形外挿の推定は人間の対応点（と必須エッジの中継点）
+    // だけで行うので、ここで配列を複製して、足した点が入らないようにする
     const pointsSetFC = {
-      forw: featureCollection(rawPointsSet.forw),
-      bakw: featureCollection(rawPointsSet.bakw),
+      forw: featureCollection([...rawPointsSet.forw]),
+      bakw: featureCollection([...rawPointsSet.bakw]),
     };
 
     const tinForw = constrainedTin(
@@ -789,29 +848,29 @@ export class Tin extends Transform {
       // world file 自体は反転前の係数を保存する。
       const follow = this.yaxisMode === Tin.YAXIS_FOLLOW;
       const orientation = follow ? 1 : -1;
-      const cache: SearchCache = new Map();
-      const { boundary } = this.buildWithHull(strict, (excludedHull) => ({ boundary: searchBoundary(
-        boundaryParams,
-        (params) => calculateWorldFileVertices(params, (xy) => {
-          const [x, y] = worldFileToCrs(worldFile, xy);
-          return [x, follow ? -y : y];
-        }),
-        rawPointsSet,
-        this.points.length,
-        {
-          orientation,
-          accept: (candidate) => {
-            if (!candidate.hasMapBoundary) return false;
-            this.buildTin(rawPointsSet, candidate.vertices, strict, candidate, excludedHull.size > 0);
-            // auto の切り替えと strict の重なり解消を経て、採用した三角網で判定する。
-            return (this.strict_status !== Tin.STATUS_LOOSE || candidate.hasBoundary) &&
-              countBoundaryFlips(this.tins!.forw!, orientation) === 0 &&
-              countBoundaryFlips(this.tins!.bakw!, orientation) === 0;
+      const { boundary } = this.buildWithSupplements(strict, rawPointsSet, allGcps, (cache, mode, measureOnly) =>
+        (excludedHull) => ({ boundary: searchBoundary(
+          boundaryParams,
+          (params) => calculateWorldFileVertices(params, (xy) => {
+            const [x, y] = worldFileToCrs(worldFile, xy);
+            return [x, follow ? -y : y];
+          }),
+          rawPointsSet,
+          this.points.length,
+          {
+            orientation,
+            accept: (candidate) => {
+              if (!candidate.hasMapBoundary) return false;
+              this.buildTin(rawPointsSet, candidate.vertices, mode, candidate, excludedHull.size > 0, measureOnly);
+              // auto の切り替えと strict の重なり解消を経て、採用した三角網で判定する。
+              return (this.strict_status !== Tin.STATUS_LOOSE || candidate.hasBoundary) &&
+                countBoundaryFlips(this.tins!.forw!, orientation) === 0 &&
+                countBoundaryFlips(this.tins!.bakw!, orientation) === 0;
+            },
           },
-        },
-        excludedHull,
-        cache,
-      ) }));
+          excludedHull,
+          cache,
+        ) }));
       if (boundary) {
         this.compiledOuter = {
           outerTransform: "worldFile",
@@ -841,28 +900,29 @@ export class Tin extends Transform {
     let boundary: BoundaryCandidate | undefined;
     let verticesList: { forw: Feature<Point>[]; bakw: Feature<Point>[] };
     if (isV3) {
-      const cache: SearchCache = new Map();
-      ({ boundary, verticesList } = this.buildWithHull(strict, (excludedHull) => {
-        const found = searchBoundary(
-          boundaryParams,
-          calculateVertices,
-          rawPointsSet,
-          this.points.length,
-          undefined,
-          excludedHull,
-          cache,
-        );
-        return {
-          boundary: found,
-          verticesList: this.buildTin(
+      ({ boundary, verticesList } = this.buildWithSupplements(strict, rawPointsSet, allGcps, (cache, mode, measureOnly) =>
+        (excludedHull) => {
+          const found = searchBoundary(
+            boundaryParams,
+            calculateVertices,
             rawPointsSet,
-            found?.vertices ?? calculateVertices(boundaryParams, false),
-            strict,
-            found,
-            excludedHull.size > 0,
-          ),
-        };
-      }));
+            this.points.length,
+            undefined,
+            excludedHull,
+            cache,
+          );
+          return {
+            boundary: found,
+            verticesList: this.buildTin(
+              rawPointsSet,
+              found?.vertices ?? calculateVertices(boundaryParams, false),
+              mode,
+              found,
+              excludedHull.size > 0,
+              measureOnly,
+            ),
+          };
+        }));
     } else {
       verticesList = this.buildTin(
         rawPointsSet,
@@ -893,6 +953,104 @@ export class Tin extends Transform {
         fallbackReason: "boundaryFlips",
       };
     }
+  }
+
+  /**
+   * `buildWithHull` で三角網を組み、strict のために制約から外した凸包の辺があれば、システムが補完点を
+   * 足して組み直す（#89）。外れた辺が無いとき、補完点を使わない指定のとき、V2 のときは、`buildWithHull` の
+   * 結果をそのまま返す。
+   *
+   * 補完点は rawPointsSet と allGcps と edgeNodes の末尾に、添字 `e{n}` で足す（必須エッジの中継点の
+   * 続き番号）。重心・扇形外挿の推定（pointsSetFC・convexBuf）には入れない。loose 指定では、内部で
+   * strict の手順を 1 回走らせて補完点を決め、それを足して loose で組む。
+   *
+   * @param makeAttempt 点群ごとの探索の入れ物と strict の方式・「三角網の向きを読むだけ」（交差を調べない）を
+   *   受け取り、`buildWithHull` に渡す試行を返す
+   */
+  private buildWithSupplements<T extends { boundary?: BoundaryCandidate }>(
+    strict: StrictMode,
+    rawPointsSet: RawPointsSet,
+    allGcps: BoundaryVerticesParams["allGcps"],
+    makeAttempt: (
+      cache: SearchCache,
+      mode: StrictMode,
+      measureOnly: boolean,
+    ) => (excludedHull: ReadonlySet<string>) => T,
+  ): T {
+    const run = (mode: StrictMode): T => this.buildWithHull(mode, makeAttempt(new Map(), mode, false));
+    if (!this.useSupplementPairs || this.useV2Algorithm) return run(strict);
+
+    // 補完点を決める手順は strict で走らせる（loose 指定のときも）
+    const trialMode = strict === Tin.MODE_LOOSE ? Tin.MODE_STRICT : strict;
+    const first = run(trialMode);
+    const looseRun = (): T => (strict === Tin.MODE_LOOSE ? run(strict) : first);
+    if (!first.boundary || this.strict_status !== Tin.STATUS_STRICT) return looseRun();
+    const firstAnalysis = analyzeMesh(this.tins!.forw!, this.pointsSet!.forw.features, first.boundary.forwHull.all);
+    if (firstAnalysis.dropped.length === 0) return looseRun();
+
+    const edgeBase = this.edgeNodes!.length;
+    const rawCount = rawPointsSet.forw.length;
+    const gcpCount = allGcps.length;
+    let current: Position[][] = [];
+    // 直近の測り（点群が同じなら、探索の入れ物を組み直しに使い回す）
+    let measured: { pairs: Position[][]; cache: SearchCache } | undefined;
+    const samePairs = (a: Position[][], b: Position[][]) =>
+      a.length === b.length &&
+      a.every((pair, i) => pair.every((position, k) => position[0] === b[i][k][0] && position[1] === b[i][k][1]));
+    const setPairs = (pairs: Position[][]) => {
+      rawPointsSet.forw.length = rawCount;
+      rawPointsSet.bakw.length = rawCount;
+      allGcps.length = gcpCount;
+      this.edgeNodes!.length = edgeBase;
+      for (const [forw, bakw] of pairs) {
+        const pt = createPoint(forw, bakw, `e${this.edgeNodes!.length}`);
+        this.edgeNodes!.push([forw, bakw]);
+        rawPointsSet.forw.push(pt);
+        rawPointsSet.bakw.push(counterPoint(pt));
+        allGcps.push({ forw, bakw });
+      }
+      current = pairs;
+    };
+    const host: SupplementHost<T, { pairs: Position[][]; state: BuildState }> = {
+      edgeBase,
+      snapshot: () => ({ pairs: current, state: this.captureBuild() }),
+      restore: ({ pairs, state }) => {
+        setPairs(pairs);
+        this.restoreBuild(state);
+      },
+      measure: (pairs) => {
+        setPairs(pairs);
+        const saved = this.captureBuild();
+        try {
+          // 凸包の辺を全部制約にした最初の試行だけ。strict になるかは問わない（向きを読むだけ）
+          const cache: SearchCache = new Map();
+          measured = { pairs, cache };
+          const { boundary } = makeAttempt(cache, Tin.MODE_STRICT, true)(new Set());
+          if (!boundary) return undefined;
+          return analyzeMesh(this.tins!.forw!, this.pointsSet!.forw.features, []);
+        } finally {
+          this.restoreBuild(saved);
+        }
+      },
+      build: (pairs) => {
+        setPairs(pairs);
+        const cache = measured && samePairs(measured.pairs, pairs) ? measured.cache : new Map();
+        const result = this.buildWithHull(trialMode, makeAttempt(cache, trialMode, false));
+        if (!result.boundary || this.strict_status !== Tin.STATUS_STRICT) return undefined;
+        return {
+          result,
+          analysis: analyzeMesh(this.tins!.forw!, this.pointsSet!.forw.features, result.boundary.forwHull.all),
+        };
+      },
+    };
+    const outcome = addSupplementPairs(host, { result: first, analysis: firstAnalysis });
+    this.supplementRecords = outcome.records;
+    this.lastSupplementDiagnostics = outcome.diagnostics;
+    if (strict === Tin.MODE_LOOSE) {
+      setPairs(outcome.pairs);
+      return run(strict);
+    }
+    return outcome.result;
   }
 
   /**
@@ -1024,6 +1182,7 @@ export class Tin extends Transform {
     strict: StrictMode,
     boundary?: BoundaryCandidate,
     onlyDetectKinks = false,
+    skipKinks = false,
   ): { forw: Feature<Point>[]; bakw: Feature<Point>[] } {
     // 補助頂点を生成する。
     const verticesList = {
@@ -1057,8 +1216,9 @@ export class Tin extends Transform {
       // auto は交差の有無しか使わない（あれば loose に切り替えて kinks を捨てる）
       // ので、1 件見つけた時点で数え上げをやめる。
       // onlyDetectKinks は、strict になるかどうかだけが要る試行（buildWithHull の途中の試行）。
+      // skipKinks は、三角網の向きを読むだけの試行（補完点の置き場所を測る）で、strict かどうかは要らない。
       this.calculateStrictTin(
-        strict === Tin.MODE_AUTO || onlyDetectKinks ? 1 : MAX_KINKS_PER_DIRECTION,
+        skipKinks ? 0 : strict === Tin.MODE_AUTO || onlyDetectKinks ? 1 : MAX_KINKS_PER_DIRECTION,
       );
     }
 

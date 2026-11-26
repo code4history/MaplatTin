@@ -164,8 +164,9 @@ describe.each([50, 40, 60, 30])("隅の方向が %s° の矩形", (deg) => {
 
 // ─── 実データ: strict を保ったまま食い込みを減らす ──────────────────────────
 // 食い込み = 補助頂点を含む三角形が凸包の内側に入る面積 / 凸包の面積（地図面。auto の strict の三角網）。
-// 凸包の辺を全部制約にして組み、strict を壊す辺だけを外す。割合の上限は実測（括弧内は凸包の辺を
-// 制約にしなかった版の割合）に少し余裕を持たせたもの。
+// 凸包の辺を全部制約にして組み、strict を壊す辺だけを外す（#88）。外した辺には、システムが補完点を
+// 足して補助頂点の食い込みを解く（#89。凸包は補完点を入れずに取る）。割合の上限は 0.01%（実測は
+// 全部 0.00%）。括弧内は、#88 の時点・凸包の辺を制約にしなかった版の割合。
 interface MapFixture {
   width: number;
   height: number;
@@ -191,12 +192,12 @@ function buildFixture(name: string, strictMode: Options["strictMode"]): Tin {
 
 describe.each([
   // [地図, auto の判定, 食い込みの上限]
-  ["tatebayashi_kaei_jokamachi", Tin.STATUS_STRICT, 0.0005], // 0.04%（10.19%）全部の辺を制約にできる
-  ["miesan_ginza_map", Tin.STATUS_STRICT, 0.001], // 0.05%（6.30%）1 本外す
-  ["fushimijo_maplat", Tin.STATUS_STRICT, 0.0001], // 0.0003%（16.09%）
-  ["1932_nobeoka", Tin.STATUS_STRICT, 0.08], // 7.53%（10.94%）。扇形外挿を遠い点の最小二乗にしたので、外す辺が 2 → 3 本（3.80%）
-  ["tatebayashi_castle_akimoto", Tin.STATUS_STRICT, 0.055], // 4.89%（9.33%）。扇形外挿の変更前は 4.98%
-  ["naramachi_yasui_bunko", Tin.STATUS_STRICT, 0.04], // 3.61%（5.59%。base は strict_error）
+  ["tatebayashi_kaei_jokamachi", Tin.STATUS_STRICT, 0.0001], // 0.00%（#88 の時点 0.04%・10.19%）
+  ["miesan_ginza_map", Tin.STATUS_STRICT, 0.0001], // 0.00%（0.05%・6.30%）
+  ["fushimijo_maplat", Tin.STATUS_STRICT, 0.0001], // 0.00%（0.0003%・16.09%）
+  ["1932_nobeoka", Tin.STATUS_STRICT, 0.0001], // 0.00%（3.80%。扇形外挿を最小二乗にした #91 の時点 7.53%・10.94%）
+  ["tatebayashi_castle_akimoto", Tin.STATUS_STRICT, 0.0001], // 0.00%（4.98%・9.33%）
+  ["naramachi_yasui_bunko", Tin.STATUS_STRICT, 0.0001], // 0.00%（3.61%・5.59%。base は strict_error）
   // strict に戻せない地図は、凸包の辺を全部制約にした三角網を採る（外して得るものが無い）。16.26%→0.04%
   ["uno_bus_gtfs_error", Tin.STATUS_LOOSE, 0.0005]
 ] as const)("%s", (name, status, limit) => {

@@ -32,7 +32,8 @@ export interface Compiled {
   kinks_points?: Position[];      // 自己交差点（strict_error 時のみ）
 
   edges: EdgeSet[];            // 拘束辺一覧
-  edgeNodes?: PointSet[];      // 拘束辺中間点
+  edgeNodes?: PointSet[];      // 拘束辺中間点（補完点は末尾に足される）
+  supplementPairs?: SupplementPairRecord[]; // 末尾の edgeNode が補完点である理由（V3・省略可）
 
   yaxisMode?: YaxisMode;       // Y 軸方向
   vertexMode?: VertexMode;     // 境界頂点生成モード
@@ -50,6 +51,14 @@ type StrictStatus  = "strict" | "strict_error" | "loose";
 type YaxisMode     = "invert" | "follow";
 type VertexMode    = "birdeye" | "plain";
 type StrictMode    = "strict" | "auto" | "loose";
+
+// 補完点の記録（「補完点」の節）: 座標は edgeNodes[node]
+type SupplementPairRecord = {
+  node: number;                       // edgeNodes の位置（"e{node}" で参照）
+  kind: "hullEdge";                   // 足した理由（今は凸包の辺だけ）
+  edge: [number | string, number | string]; // 足した先の凸包の辺の両端（GCP の添字、または "eN"）
+  anchor?: number | string;           // 置き場所を決めた、いちばん凹んだ点（無ければ省く）
+};
 
 // 拘束辺: [forw中間点列, bakw中間点列, [始点インデックス, 終点インデックス]]
 type EdgeSet = [Position[], Position[], [number, number]];
@@ -253,6 +262,23 @@ GCP 間の拘束辺（Constrained Delaunay Triangulation における固定辺�
 
 拘束辺の中間点の一覧。`tins_points` 内の `"eN"` インデックスに対応する。
 各要素は `[[forwX, forwY], [bakwX, bakwY]]`。
+
+補完点がある V3 では、**末尾**の要素が補完点のことがある（下記）。`edgeNodes` と `"eN"` だけで読む読み手は、
+変更が要らない。
+
+#### `supplementPairs?: SupplementPairRecord[]`（V3・省略可）
+
+補完点: `strict` を保つために制約から外した凸包の辺に、システムが足す点（MaplatTin #89）。補助頂点を含む三角形が
+凸包の内側へ食い込むのを防ぐ。**人間の GCP ではない**: `points`・`edges` には入らず、Tin は `updateTin()` のたびに
+GCP から作り直す（保存した一覧は読み手のための写しで、入力にはしない）。
+
+- 座標は `edgeNodes[node]` に 1 か所だけ持ち、三角形からは `tins_points` の `"e{node}"` で指す。補完点は
+  `edgeNodes` の最後の `supplementPairs.length` 件で、`node` の順に並ぶ。
+- `kind` は `"hullEdge"`、`edge` は足した先の凸包の辺 A–B、`anchor` は置き場所を決めた、いちばん凹んだ点。
+- 無いときは項目ごと省く（外れた凸包の辺が無い地図は、従来と同じ）。`@maplat/transform` は読まず、
+  `edgeNodes` 経由で補完点を読むので、読み手の変更も版（`version` は 3.00001 のまま）の更新も要らない。V2 には無い。
+- 補完点を `"a0"` のような新しい添字にしない: Transform の `indexesToTri` は、数・`"c"`・`"bN"`・`"eN"` 以外の
+  添字を `Bad index value` で止める。
 
 ---
 
