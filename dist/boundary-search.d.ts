@@ -31,6 +31,14 @@ export interface BoundaryCandidate {
     hasMapBoundary: boolean;
     /** 両面で外周の辺を三角網の境界として確保できたか。 */
     hasBoundary: boolean;
+    /**
+     * 地図面の凸包の辺。`all` は凸包の辺の全部、`applied` は制約にできたもの
+     * （外す指定・必須エッジとの衝突で、`all` より少ないことがある）。
+     */
+    forwHull: {
+        all: Edge[];
+        applied: Edge[];
+    };
 }
 /**
  * どの余白も合格しなかったときに、候補 a が b より良いか。
@@ -52,4 +60,4 @@ export declare function searchBoundary(params: BoundaryVerticesParams, calculate
 }, gcpCount: number, worldFile?: {
     orientation: -1 | 1;
     accept: (candidate: BoundaryCandidate) => boolean;
-}): BoundaryCandidate | undefined;
+}, excludedHull?: ReadonlySet<string>): BoundaryCandidate | undefined;

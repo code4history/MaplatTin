@@ -43,5 +43,7 @@ export declare function buildConstrainedTin(points: FeatureCollection<Point>, ed
     tin: FeatureCollection<Polygon>;
     remaining: number;
     hasBoundary: boolean;
+    /** 制約にできた凸包の辺 */
+    hull: Edge[];
 };
 export {};
