@@ -182,9 +182,9 @@ it("world file 外周で係数の欠落・不正・鏡像と V2 の指定を拒�
 
 it("strict と loose は実際に使う三角網で余白を選ぶ", () => {
   const points: PointSet[] = [
-    [[0, 0], [17, -18]], [[100, 0], [110, -9]],
-    [[100, 100], [93, -87]], [[0, 100], [-14, -85]],
-    [[10, 60], [-2, -79]], [[54, 47], [56, -66]], [[95, 39], [77, -35]]
+    [[0, 0], [2, -15]], [[100, 0], [100, 4]],
+    [[100, 100], [85, -90]], [[0, 100], [-13, -94]],
+    [[28, 49], [44, -45]], [[81, 82], [97, -66]], [[70, 73], [56, -82]]
   ];
   const strictTin = new Tin({ points, strictMode: "strict", outerTransform: "worldFile", worldFile });
   strictTin.updateTin();
@@ -299,7 +299,7 @@ it("bounds を持つ副層でも world file 外周を作れる", () => {
   });
   tin.updateTin();
   expect(tin.boundaryDiagnostics).toMatchObject({
-    margin: 0.15,
+    margin: 0.1,
     requestedOuterTransform: "worldFile",
     outerTransform: "worldFile"
   });

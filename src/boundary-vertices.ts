@@ -26,6 +26,9 @@ export interface BoundaryVerticesParams {
   maxy: number;
 }
 
+/** 10° の区分の境界の方向にある点とみなす角度の許容（度）。 */
+const BIN_EDGE_TOLERANCE_DEG = 1e-9;
+
 // ─── Internal types ──────────────────────────────────────────────────────────
 
 type SamplePair = {
@@ -468,9 +471,15 @@ function calculateVerticesCore(
     if (cornerBins.has(bin)) continue;
 
     const binStart = bin * 10;
-    const inBin = gcpInfos.filter(
-      (g) => g.angleDeg >= binStart && g.angleDeg < binStart + 10,
-    );
+    // 区分は半開区間 [binStart, binStart+10) だが、区分の境界の方向（例: 真東の 90°）にある点は
+    // 両側の区分に入れる。片側にだけ入れると、GCP が対称に並んでいても補助頂点が対称にならない
+    // （真東の点を含む区分は点を通る方向になり、反対側の区分は中心の方向になる）。
+    // 中心と一致する点は方向を持たないので、どの区分にも入れない。
+    const inBin = gcpInfos.filter((g) => {
+      if (g.forwDist === 0) return false;
+      const rel = ((g.angleDeg - binStart) % 360 + 360) % 360;
+      return rel < 10 + BIN_EDGE_TOLERANCE_DEG || rel > 360 - BIN_EDGE_TOLERANCE_DEG;
+    });
 
     let forwEdge: Position | null = null;
 
@@ -490,6 +499,8 @@ function calculateVerticesCore(
     }
 
     if (!forwEdge) continue;
+    // 境界の方向にある点を両側の区分で選ぶと、同じ位置の頂点ができる。1 つにまとめる。
+    if (edgeVertices.some((v) => v.forw[0] === forwEdge![0] && v.forw[1] === forwEdge![1])) continue;
     if (project) {
       edgeVertices.push({ forw: forwEdge, bakw: project(forwEdge) });
       continue;

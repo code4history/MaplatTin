@@ -44,6 +44,11 @@ interface ForbiddenGroups {
   groupsOf: (vertex: number) => readonly number[];
   planes: readonly ArrayLike<number>[];
   boundary?: Edge[];
+  /**
+   * GCP（と必須エッジの中継点）の凸包の辺。制約の辺にして、補助頂点を含む三角形が凸包の内側に
+   * 食い込まないようにする。必須エッジなどと両立しない辺は外す。
+   */
+  hull?: Edge[];
   allowUnusableBoundary?: boolean;
 }
 
@@ -80,13 +85,25 @@ export function buildConstrainedTin(
       // この面の余白候補は使えない（例えば補助頂点が必須エッジに重なる）。
       return { tin: featureCollection([]), remaining: 0, hasBoundary: false };
     }
+    // 凸包の辺を制約にする。必須エッジが辺の途中の点に当たるなど、両立しない辺は外し、
+    // それまでに張れた辺だけで三角網を組み直す（失敗した制約は三角網を途中まで変えてしまうため）。
+    const acceptedHull: Edge[] = [];
+    for (const hullEdge of forbidden?.hull ?? []) {
+      try {
+        con.constrainOne(hullEdge[0], hullEdge[1]);
+        acceptedHull.push(hullEdge);
+      } catch {
+        del = Delaunator.from(coordinates);
+        con = new EdgeBound(del, [...edges, ...acceptedHull]);
+      }
+    }
     if (forbidden?.boundary) {
       outside = closeBoundary(con, forbidden.boundary);
       if (!outside) {
         // 外周の適用に失敗した候補も最少反転の選択肢に残す。
-        // 必須エッジを保つため、外周を適用する前の三角網を組み直す。
+        // 必須エッジと凸包の辺を保つため、外周を適用する前の三角網を組み直す。
         del = Delaunator.from(coordinates);
-        con = new EdgeBound(del, edges);
+        con = new EdgeBound(del, [...edges, ...acceptedHull]);
       }
     }
     if (forbidden) {

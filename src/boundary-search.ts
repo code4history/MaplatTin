@@ -4,6 +4,7 @@ import type { Edge, Tins } from "@maplat/transform";
 import { orient2d } from "robust-predicates";
 import type { BoundaryVerticesParams } from "./boundary-vertices.ts";
 import { buildConstrainedTin } from "./constrained-tin.ts";
+import { sharedHullEdges } from "./hull-edges.ts";
 import type { VertexPosition } from "./types/tin.ts";
 import { counterPoint, createPoint } from "./vertexutils.ts";
 
@@ -121,6 +122,19 @@ export function searchBoundary(
     groups[b].push(edgeGroup);
     if (b < gcpCount) edgeGroup++;
   }
+  // 凸包の辺は面ごとに作り、両面で凸包の辺になるものだけを制約にする。
+  // 凸包は GCP と必須エッジの中継点（内側の点）の全体で取り、中継点が GCP の凸包の外に出る
+  // 場合も必須エッジが凸包の辺をまたがないようにする。
+  const interiorCoordinates = (features: Feature<Point>[]) =>
+    features.slice(0, interiorCount).map(({ geometry }) => geometry.coordinates);
+  const interior = {
+    forw: interiorCoordinates(points.forw),
+    bakw: interiorCoordinates(points.bakw)
+  };
+  const hulls = {
+    forw: sharedHullEdges(interior.forw, interior.bakw),
+    bakw: sharedHullEdges(interior.bakw, interior.forw)
+  };
   const boundaryGroup = [0];
   const groupsOf = (index: number) =>
     index >= interiorCount ? boundaryGroup : groups[index];
@@ -179,18 +193,14 @@ export function searchBoundary(
         ])
       : undefined;
     const forbidden = { groupsOf, planes, boundary, allowUnusableBoundary: worldFile !== undefined };
-    const fromMap = buildConstrainedTin(
-      forw,
-      points.edges,
-      "target",
-      forbidden
-    );
-    const fromGeographic = buildConstrainedTin(
-      bakw,
-      points.edges,
-      "target",
-      forbidden
-    );
+    const fromMap = buildConstrainedTin(forw, points.edges, "target", {
+      ...forbidden,
+      hull: hulls.forw
+    });
+    const fromGeographic = buildConstrainedTin(bakw, points.edges, "target", {
+      ...forbidden,
+      hull: hulls.bakw
+    });
     const forwTin = fromMap.tin as Tins;
     const bakwTin = fromGeographic.tin as Tins;
     const expectedOrientation = worldFile?.orientation ?? -1;

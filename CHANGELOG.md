@@ -14,6 +14,12 @@
   - Added `Tin.boundaryDiagnostics` for the selected V3 margin, boundary triangle flips, and remaining forbidden triangles (#82)
 
 ### Changed
+- V3 は GCP の凸包の辺（凸包の辺の上に並ぶ GCP は隣り合う点どうし）を制約の辺にする。補助頂点を含む三角形が GCP の凸包の内側に食い込まず、凸包の内側は GCP だけの三角形になる。制約にするのは、もう一方の面でも凸包の辺になる辺だけ（もう一方の面で内側へ凹む辺は、strict で両面に共有する三角網では保てない）。必須エッジなどと両立しない辺は外す。V2 は変えない (#86)
+  - V3 now constrains the edges of the GCP convex hull (between neighbouring GCPs, including those lying on a hull side), so triangles with auxiliary vertices no longer cut into the hull. Only edges that are hull edges in both planes are constrained; edges that conflict with required edges are dropped. V2 is unchanged (#86)
+
+- V3 の扇形の中心を、V2 と同じく GCP の重心そのもの（地理側は三角網で変換した点）にした。以前は重心を含む三角形の 3 頂点の平均で、GCP が対称に並ぶと中心が片側へずれ、補助頂点が片側に詰まった。10° の区分の境界の方向（真東など）にある GCP は両側の区分に入れ、同じ位置の補助頂点は 1 つにまとめる。既存の compiled はそのまま読める（作り直したときだけ変わる）(#87)
+  - V3 now uses the GCP centroid itself as the fan center (the geographic side is transformed through the triangulation), as V2 does, instead of the mean of the containing triangle's vertices, which shifted the center when GCPs were laid out symmetrically. GCPs exactly on a 10° bin boundary count for both neighbouring bins. Existing compiled data is read as-is; only regenerating it changes the center (#87)
+
 - V3 は GCP の外接矩形に 10〜50% の余白を試し、地図面・地理面の三角網に補助頂点と必須エッジの禁止制約を適用する (#82)
   - V3 tries margins of 10–50% around the GCP bounding box and applies the auxiliary vertex and constrained edge group rules to triangulations in both planes (#82)
 

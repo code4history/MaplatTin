@@ -11,7 +11,7 @@ import {
   point,
   polygon,
 } from "@turf/turf";
-import type { Feature, Point, Polygon, Position } from "geojson";
+import type { Feature, Point, Position } from "geojson";
 import {
   counterTri,
   normalizeEdges,
@@ -731,46 +731,14 @@ export class Tin extends Transform {
     }
 
     // Set centroids
-    let centCalc: { forw: Position; bakw: Position };
-    if (isV3) {
-      // V3 (main map and submap): find the TIN triangle containing turf's centroid
-      // and use its geometric centre (mean of 3 vertices) as the new centroid.
-      const forCentCoord = forCentroid.geometry!.coordinates;
-      const containingTri = (tinForw as Tins).features.find((tri: Tri) =>
-        booleanPointInPolygon(
-          point(forCentCoord),
-          tri as unknown as Feature<Polygon>,
-        )
-      );
-      if (containingTri) {
-        const coords = containingTri.geometry!.coordinates[0];
-        const aGeom = containingTri.properties!.a.geom as Position;
-        const bGeom = containingTri.properties!.b.geom as Position;
-        const cGeom = containingTri.properties!.c.geom as Position;
-        centCalc = {
-          forw: [
-            (coords[0][0] + coords[1][0] + coords[2][0]) / 3,
-            (coords[0][1] + coords[1][1] + coords[2][1]) / 3,
-          ],
-          bakw: [
-            (aGeom[0] + bGeom[0] + cGeom[0]) / 3,
-            (aGeom[1] + bGeom[1] + cGeom[1]) / 3,
-          ],
-        };
-      } else {
-        // Fallback: use turf centroid directly.
-        centCalc = {
-          forw: forCentCoord,
-          bakw: transformArr(forCentroid, tinForw as Tins) as Position,
-        };
-      }
-    } else {
-      // V2: transform turf centroid through TIN.
-      centCalc = {
-        forw: forCentroid.geometry!.coordinates,
-        bakw: transformArr(forCentroid, tinForw as Tins) as Position,
-      };
-    }
+    // 扇形の中心は、紙側の GCP の重心そのものにする。地理側は三角網（tinForw）で変換して求める
+    // （V2 と同じ。V2 の最初の実装から一貫している）。V3 は一時期、重心を含む三角形の 3 頂点の
+    // 平均にしていたが、GCP が対称に並ぶと重心が GCP に一致して、その GCP を頂点とする最初の
+    // 三角形が選ばれ、中心が片側へずれた（補助頂点の選び方も片側に詰まる）。
+    const centCalc: { forw: Position; bakw: Position } = {
+      forw: forCentroid.geometry!.coordinates,
+      bakw: transformArr(forCentroid, tinForw as Tins) as Position,
+    };
 
     const centroidPoint = createPoint(centCalc.forw, centCalc.bakw, "c");
     this.centroid = {

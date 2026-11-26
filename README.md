@@ -147,6 +147,12 @@ independently in the map and geographic planes. Its type is `BoundaryDiagnostics
 | `outerTransform` | The method selected for a world file request, `"worldFile"` or `"extrapolate"`. |
 | `fallbackReason` | `"boundaryFlips"` when no world file candidate passed and Tin rebuilt with extrapolation. |
 
+V3 constrains the edges of the convex hull of the GCPs (including GCPs lying on a hull side, between
+neighbouring points) in both planes, so triangles containing an auxiliary vertex do not cut into the hull.
+Only edges that are also hull edges in the other plane are constrained (a hull edge that dents inward in the
+other plane cannot be kept by a triangulation shared between the planes). The fan center is the centroid of the
+GCPs itself, as in V2.
+
 For extrapolation, V3 tries margins of 10%, 15%, 22.5%, 34%, and 50% in order. It takes the first
 margin with zero boundary triangle flips and a star-shaped fan around the
 centroid in both planes. If no margin passes, it prefers margins whose ring closes

@@ -102,15 +102,12 @@ GCP の一覧。各要素は `[[forwX, forwY], [bakwX, bakwY]]` の形式。
 
 #### `centroid_point: PointSet`
 
-重心点。シリアライズ形式は `[[forwX, forwY], [bakwX, bakwY]]` で V2/V3 共通だが、
-**計算方法が V3 plain モードで変わっている**。
+重心点。シリアライズ形式 `[[forwX, forwY], [bakwX, bakwY]]` も計算方法も V2/V3 で共通。
+紙側は GCP の重心（turf の重心）そのもので、地理側はその点を forw TIN で変換した点。
 
-| モード | 計算方法 |
-|--------|---------|
-| V2 / V3 `birdeye` | turf の重心座標を forw TIN で変換した点 |
-| V3 `plain` | turf 重心を含む TIN 三角形を探し、その 3 頂点の **幾何学的平均** を使用（三角形が見つからない場合は V2 と同じ fallback） |
-
-V3 plain の変更により、重心が必ず実際の三角形内部に収まることが保証される。
+凸包の辺を制約にする変更より前の V3 は、`plain` で重心を含む TIN 三角形の 3 頂点の平均を使っていた。
+GCP が対称に並ぶと重心が GCP に一致し、その GCP を頂点とする最初の三角形が選ばれて、中心（とその周りで選ぶ補助頂点）が
+片側へずれた。その版で書き出した compiled はそのまま読める。作り直したときだけ中心が変わる。
 
 ---
 
@@ -276,7 +273,7 @@ GCP 間の拘束辺（Constrained Delaunay Triangulation における固定辺�
 | `version` | `2.00704` | `3.00001` |
 | `vertices_points` 点数 | 常に 4 点 | `plain`/`birdeye` 問わず最大 36 点（実質 36 点固定） |
 | `vertices_params` 要素数 | 4 | `vertices_points.length` と同数 |
-| `centroid_point` の計算 | turf 重心を TIN 変換 | `plain` モードでは含む三角形の幾何学的平均 |
+| `centroid_point` の計算 | turf 重心を TIN 変換 | 同左 |
 | `wh` / `xy` フィールド | `setWh()`/`setBounds()` 依存（V3 と同条件） | 同左 |
 | `weight_buffer` | 常に空オブジェクト `{}`（V3 と同条件） | 同左 |
 | 境界頂点の生成アルゴリズム | 画像の4隅を投影（4点固定） | GCP の角度分布に基づく（`plain` では多点） |
