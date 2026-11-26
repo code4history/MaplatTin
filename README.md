@@ -184,6 +184,8 @@ GCP of A–B. A–Q and Q–B then replace A–B as constrained hull edges and `
   effort budget (the effort of the first triangulation × 1, counting a placement trial as 0.4): when it is reached, for
   example for dense, jittered grids whose hull edges have many nearby points, it gives up and keeps the result without
   supplement pairs, so the time stays within about 3× in the worst case.
+  **Inputs with many dropped hull edges (a dense jittered grid, for example) may therefore get no supplement pairs
+  because of this time limit; in that case the result is exactly the same as without the feature (#91).**
 - `getCompiled()` appends the pairs at the **end of `edgeNodes`** (triangle vertices use `"e{n}"`, so existing
   `@maplat/transform` reads them as they are) and lists them in the optional `supplementPairs` array
   ([compiled format](docs/compiled-format.md)). Editors show them as "supplement points" (補完点), distinct from the

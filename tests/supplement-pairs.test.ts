@@ -306,29 +306,51 @@ function subsetPoints(name: string, seed: number, size: number): NonNullable<Opt
   return all.slice(0, size);
 }
 
-describe("部分集合の入力で、手間の上限に達して諦める経路を通す", () => {
+describe("部分集合の入力で、手間の上限の使い方を確かめる（MaplatTin#94 の再レビュー）", () => {
   const build = (name: string, seed: number, size: number, extra: Partial<Options> = {}) => {
     const tin = new Tin({ ...fixtureOptions(name, Tin.MODE_AUTO), points: subsetPoints(name, seed, size), edges: [], ...extra });
     tin.updateTin();
     return tin;
   };
 
+  // seed は、1 回目の乱数で地図、2 回目で点数（20〜99）を決める部分集合の作り方（この試験の subsetPoints と同じ）の番号
+  it.each([
+    // 測るだけで上限（最初の組み立て 1 回分）に届く入力。高さを 1 回測って決めたらすぐ組むので、諦めずに採用される
+    ["tatebayashi_kaei_jokamachi", 616, 39, 1, 0],
+    // まとめて組むと strict だが、一部の点だけ効かない入力。その点を外して、もう一度まとめて組む
+    ["tatebayashi_castle_akimoto", 773, 96, 3, 1.82e-3],
+    ["tatebayashi_castle_akimoto", 244, 58, 2, 0]
+  ] as const)(
+    "%s（seed %i・%i 点）: 補完点 %i 点を採用し、食い込みが %f 以下（諦めて #91 に戻らない）",
+    (name, seed, size, count, intrusionLimit) => {
+      const tin = build(name, seed, size);
+      const without = build(name, seed, size, { supplementPairs: false });
+      expect(tin.strict_status).toBe(Tin.STATUS_STRICT);
+      expect(tin.supplementDiagnostics).toMatchObject({ rounds: 1, batches: 1, perEdge: 0 });
+      expect(tin.supplementPairs).toHaveLength(count);
+      expect(intrusionFraction(tin, 0)).toBeLessThanOrEqual(intrusionLimit + 1e-6);
+      expect(intrusionFraction(tin, 0)).toBeLessThan(intrusionFraction(without, 0));
+      expect(orientationFlips(tin)).toBe(0);
+    },
+    REAL_DATA_TIMEOUT_MS
+  );
+
   it.each([
     ["tatebayashi_kaei_jokamachi", 38, 70],
     ["1932_nobeoka", 579, 44],
     ["tatebayashi_kaei_jokamachi", 83, 35]
   ] as const)(
-    "%s（seed %i・%i 点）: まとめては不採用で、手間が上限に届いて諦め、補完点を使わない結果と 1 ビットも変わらない",
+    "%s（seed %i・%i 点）: 手間の上限を超えない（超えたら、補完点を使わない結果から悪くならない）",
     (name, seed, size) => {
       const tin = build(name, seed, size);
-      const diagnostics = tin.supplementDiagnostics!;
-      expect(diagnostics).toMatchObject({ rounds: 1, batches: 0, perEdge: 0, multiPoint: 0 });
-      expect(diagnostics.cost).toBeGreaterThanOrEqual(diagnostics.budget);
-      expect(diagnostics.cost).toBeLessThanOrEqual(diagnostics.budget + 1);
-      expect(tin.supplementPairs).toHaveLength(0);
       const without = build(name, seed, size, { supplementPairs: false });
-      expect(JSON.stringify(tin.getCompiled())).toBe(JSON.stringify(without.getCompiled()));
-    }
+      const diagnostics = tin.supplementDiagnostics;
+      if (diagnostics) expect(diagnostics.cost).toBeLessThanOrEqual(diagnostics.budget + 1);
+      expect(tin.strict_status).toBe(without.strict_status);
+      expect(intrusionFraction(tin, 0)).toBeLessThanOrEqual(intrusionFraction(without, 0) + 1e-12);
+      expect(orientationFlips(tin)).toBeLessThanOrEqual(orientationFlips(without));
+    },
+    REAL_DATA_TIMEOUT_MS
   );
 });
 
@@ -398,6 +420,8 @@ describe.each([
       };
       const tOff = best(off);
       const tOn = best(on);
+      // 決定の目安は 3 倍。時間は測定の揺れが大きいので、閾値は 3.5 倍に緩めてある。上限そのものは、手間で縛る
+      // 上の試験（cost ≤ budget + 1）が決定的に確かめる
       expect(tOn / tOff).toBeLessThanOrEqual(3.5);
     },
     REAL_DATA_TIMEOUT_MS * 4

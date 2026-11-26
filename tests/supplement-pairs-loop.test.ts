@@ -142,6 +142,27 @@ describe("addSupplementPairs: 試行の繰り返し", () => {
     expect(outcome2.result).toBe(7);
   });
 
+  it("まとめて組んで strict でも、一部の点だけ効かないときは、その点を外してもう一度まとめて組む（測り直さない）", () => {
+    const trace = newTrace();
+    // 1 回目: 2 番目の点（e101）が凸包の頂点になっていない。2 回目: 全部効く
+    const ineffective: MeshAnalysis = {
+      points: [{ id: "e101", paper: [0, 0], geo: [0, 0] }],
+      triangles: [],
+      majority: 1,
+      hullEdges: [],
+      dropped: []
+    };
+    const outcome = addSupplementPairs(fakeHost((_, builds) => (builds === 1 ? ineffective : resolved()), trace), {
+      result: 0,
+      analysis: polygonAnalysis(4)
+    });
+    expect(trace.builds.map((pairs) => pairs.length)).toEqual([4, 3]);
+    expect(trace.measures).toHaveLength(1);
+    expect(outcome.pairs).toHaveLength(3);
+    expect(outcome.records.map(({ node, edge }) => [node, edge])).toEqual([[100, [0, 1]], [101, [2, 3]], [102, [3, 0]]]);
+    expect(outcome.diagnostics).toMatchObject({ batches: 1, perEdge: 0 });
+  });
+
   it("1 点の案が不採用で、複数点の案があれば、複数点の案を試して採用する", () => {
     // 弦 A–B の途中の 2 か所が地理の面で外へ出る（上側の凸包の頂点が 2 つ）
     const points = [
@@ -300,12 +321,13 @@ describe("手間の上限（時間の保証）", () => {
     expect(outcome.pairs).toHaveLength(0);
     expect(outcome.result).toBe(7);
     expect(outcome.diagnostics.budget).toBe(SUPPLEMENT_BUDGET_FACTOR * 1);
-    // 測る 2 回（0.4 ずつ）と、組み直し 1 回（上限 1 回の試行）で、上限に達する
-    expect(trace.measures).toHaveLength(2);
+    // 測る 1 回（0.4。高さを決めたらすぐ組む）と、組み直し 1 回（上限 1 回の試行）で、上限に達する。
+    // 組み直しが通らなくても、手間が尽きているので、測り直しはしない
+    expect(trace.measures).toHaveLength(1);
     expect(trace.builds).toHaveLength(1);
     expect(trace.limits[0]).toBe(1);
     expect(outcome.diagnostics.cost).toBeLessThanOrEqual(outcome.diagnostics.budget + 1);
-    expect(2 * SUPPLEMENT_MEASURE_COST + 1).toBeGreaterThan(outcome.diagnostics.budget);
+    expect(SUPPLEMENT_MEASURE_COST + 1).toBeGreaterThan(outcome.diagnostics.budget);
   });
 
   it("組み直しの試行の数に上限（残りの手間）が渡る。最初の組み立てが重いほど大きい", () => {
@@ -314,7 +336,7 @@ describe("手間の上限（時間の保証）", () => {
       result: 0,
       analysis: polygonAnalysis(6)
     });
-    expect(trace.limits[0]).toBe(Math.ceil(10 * SUPPLEMENT_BUDGET_FACTOR - 2 * SUPPLEMENT_MEASURE_COST));
+    expect(trace.limits[0]).toBe(Math.ceil(10 * SUPPLEMENT_BUDGET_FACTOR - SUPPLEMENT_MEASURE_COST));
   });
 
   it("上限に達しても、足した分だけは残り、状態を戻す", () => {

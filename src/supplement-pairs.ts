@@ -270,10 +270,11 @@ export function proposeSupplementCandidate(
  * 補完点の地理の位置を、紙の面でその点を囲む輪（その点を頂点にする三角形の対辺）の核の中に決め直す
  * （設計書 §2.3）。半直線 `foot + s·normal` の上で、輪の辺ごとの半平面の共通部分 `[lo, hi]` を求め、
  * 下限から少し外の高さを選ぶ。位置が変わると輪が変わるので、変わらなくなるまで（最大
- * `MAX_KERNEL_FIT_ITERATIONS` 回）繰り返す。
+ * `maxIterations` 回、既定は `MAX_KERNEL_FIT_ITERATIONS`）繰り返す。`maxIterations: 1` なら、1 回測って
+ * 高さを決めるだけ（確かめの測り直しをしない。決めた高さで組んで通れば、それで足りる）。
  *
  * 核が空の点は、その点だけを外して、残りで続ける（1 点のために全部を捨てて、辺ごとの組み直しに回さない）。
- * 外した点があれば輪が変わるので、測り直す。残りが無ければ undefined。
+ * 外した点があれば輪が変わるので、続きがあれば測り直す。残りが無ければ undefined。
  *
  * @param rays 決め直す点（紙の面は固定）
  * @param firstNode 先頭の点の `edgeNodes` の位置（`"e{n}"` の n）
@@ -284,10 +285,10 @@ export function fitToKernel(
   rays: readonly SupplementRay[],
   firstNode: number,
   measure: (pairs: Position[][]) => MeshAnalysis | undefined,
-  { lambda = SUPPLEMENT_LAMBDA, mu = SUPPLEMENT_MU } = {}
+  { lambda = SUPPLEMENT_LAMBDA, mu = SUPPLEMENT_MU, maxIterations = MAX_KERNEL_FIT_ITERATIONS } = {}
 ): { rays: SupplementRay[]; kept: number[] } | undefined {
   let current = rays.map((ray, index) => ({ ray: { ...ray }, index }));
-  for (let iteration = 0; iteration < MAX_KERNEL_FIT_ITERATIONS && current.length > 0; iteration++) {
+  for (let iteration = 0; iteration < maxIterations && current.length > 0; iteration++) {
     const analysis = measure(current.map(({ ray }) => [ray.paper, rayGeo(ray)]));
     if (!analysis) return undefined;
     let changed = false;
@@ -347,27 +348,39 @@ export function fitToKernel(
 }
 
 /**
- * 足した補完点（`firstNode` 以降の "e{n}"）が全部効いているか: 紙の面の凸包の頂点で、その点に付く
- * 凸包の辺が全部、三角網の辺になっている。
+ * 足した補完点（`firstNode` 以降の "e{n}"）のうち、効いていないものの `edgeNodes` の位置。
+ * 効いている = 紙の面の凸包の頂点で、その点に付く凸包の辺が全部、三角網の辺になっている。
  */
-export function supplementsTakeEffect(analysis: MeshAnalysis, firstNode: number): boolean {
-  const isNew = (id: VertexId) =>
-    typeof id === "string" && id.startsWith("e") && Number(id.slice(1)) >= firstNode;
+export function ineffectiveSupplements(analysis: MeshAnalysis, firstNode: number): Set<number> {
+  const nodeOf = (id: VertexId) =>
+    typeof id === "string" && id.startsWith("e") && Number(id.slice(1)) >= firstNode ? Number(id.slice(1)) : undefined;
   const meshEdges = new Set<string>();
   for (const { ids } of analysis.triangles) {
     meshEdges.add(meshKey(ids[0], ids[1]));
     meshEdges.add(meshKey(ids[0], ids[2]));
     meshEdges.add(meshKey(ids[1], ids[2]));
   }
+  const bad = new Set<number>();
   const onHull = new Set<number>();
   for (const [i, j] of analysis.hullEdges) {
+    const present = meshEdges.has(meshKey(analysis.points[i].id, analysis.points[j].id));
     for (const k of [i, j]) {
-      if (!isNew(analysis.points[k].id)) continue;
-      if (!meshEdges.has(meshKey(analysis.points[i].id, analysis.points[j].id))) return false;
-      onHull.add(k);
+      const node = nodeOf(analysis.points[k].id);
+      if (node === undefined) continue;
+      onHull.add(node);
+      if (!present) bad.add(node);
     }
   }
-  return analysis.points.every((point, k) => !isNew(point.id) || onHull.has(k));
+  for (const point of analysis.points) {
+    const node = nodeOf(point.id);
+    if (node !== undefined && !onHull.has(node)) bad.add(node);
+  }
+  return bad;
+}
+
+/** 足した補完点が全部効いているか（`ineffectiveSupplements` が空）。 */
+export function supplementsTakeEffect(analysis: MeshAnalysis, firstNode: number): boolean {
+  return ineffectiveSupplements(analysis, firstNode).size === 0;
 }
 
 /** 呼び出し側（Tin）が持つ、三角網の組み立てと状態の保存。 */
@@ -443,35 +456,66 @@ export function addSupplementPairs<T, H>(
   };
   const toPair = (ray: SupplementRay): Position[] => [ray.paper, rayGeo(ray)];
 
-  /** `owned` の点の地理の位置を核の中に決め（核が空の点は外す）、採用済みに足して組み直す。採用したら true。 */
-  const tryAdd = (owned: { ray: SupplementRay; edge: [VertexId, VertexId] }[]): boolean => {
+  type Owned = { ray: SupplementRay; edge: [VertexId, VertexId] };
+  /** `items` の点の地理の位置を核の中に決める（核が空の点は外す）。残りが無ければ undefined。 */
+  const fit = (items: Owned[], first: number, maxIterations: number): Owned[] | undefined => {
+    const fitted = fitToKernel(
+      items.map(({ ray }) => ray),
+      first,
+      (extra) => measure([...adopted, ...extra]),
+      { maxIterations }
+    );
+    return fitted?.rays.map((ray, k) => ({ ray, edge: items[fitted.kept[k]].edge }));
+  };
+  const sameFit = (a: Owned[], b: Owned[]) =>
+    a.length === b.length &&
+    a.every(({ ray }, k) => Math.abs(ray.height - b[k].ray.height) <= 1e-9 * ray.chord);
+
+  /**
+   * `owned` の点を、採用済みに足して組み直す。採用したら true。
+   *
+   * 1 回測って高さを決め、すぐ組む（確かめの測り直しはしない）。組んだ結果が
+   * - strict で、一部の点だけ効いていないなら、その点を外してもう一度まとめて組む。
+   * - strict にならない（または全部効かない）なら、一度だけ測り直して高さを決め直し、変わったときだけ組み直す。
+   */
+  const tryAdd = (owned: Owned[]): boolean => {
     if (owned.length === 0 || adopted.length + owned.length > MAX_SUPPLEMENT_PAIRS) return false;
     const first = host.edgeBase + adopted.length;
-    const fit = fitToKernel(
-      owned.map(({ ray }) => ray),
-      first,
-      (extra) => measure([...adopted, ...extra])
-    );
-    if (!fit || exhausted()) return false;
-    const all = [...adopted, ...fit.rays.map(toPair)];
-    diagnostics.builds++;
-    const built = host.build(all, Math.max(1, Math.ceil(budget - spent())));
-    if (!built || !supplementsTakeEffect(built.analysis, first)) {
+    let items = fit(owned, first, 1);
+    let refitted = false;
+    while (items && items.length > 0 && !exhausted()) {
+      const all = [...adopted, ...items.map(({ ray }) => toPair(ray))];
+      diagnostics.builds++;
+      const built = host.build(all, Math.max(1, Math.ceil(budget - spent())));
+      const bad = built ? ineffectiveSupplements(built.analysis, first) : undefined;
+      if (built && bad!.size === 0) {
+        records = records.concat(
+          items.map(({ ray, edge }, k) => ({
+            node: first + k,
+            kind: "hullEdge" as const,
+            edge,
+            ...(ray.anchor === undefined ? {} : { anchor: ray.anchor })
+          }))
+        );
+        adopted = all;
+        current = built;
+        handle = host.snapshot();
+        return true;
+      }
       host.restore(handle);
-      return false;
+      if (built && bad!.size < items.length) {
+        // strict で、一部の点だけ効いていない: その点を外して、もう一度まとめて組む
+        items = items.filter((_, k) => !bad!.has(first + k));
+        continue;
+      }
+      if (refitted) return false;
+      // strict にならない（全部効かない）: 一度だけ、測り直して高さを決め直す。変わらないなら組み直さない
+      refitted = true;
+      const again = fit(items, first, MAX_KERNEL_FIT_ITERATIONS);
+      if (!again || sameFit(again, items)) return false;
+      items = again;
     }
-    records = records.concat(
-      fit.rays.map((ray, k) => ({
-        node: first + k,
-        kind: "hullEdge" as const,
-        edge: owned[fit.kept[k]].edge,
-        ...(ray.anchor === undefined ? {} : { anchor: ray.anchor })
-      }))
-    );
-    adopted = all;
-    current = built;
-    handle = host.snapshot();
-    return true;
+    return false;
   };
 
   for (let round = 1; round <= MAX_SUPPLEMENT_PAIR_ROUNDS && !exhausted(); round++) {
