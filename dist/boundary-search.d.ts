@@ -1,6 +1,7 @@
 import { Feature, Point } from 'geojson';
 import { Edge, Tins } from '@maplat/transform';
 import { BoundaryVerticesParams } from "./boundary-vertices.js";
+import { buildConstrainedTin, ConstrainedTinReuse } from "./constrained-tin.js";
 import { VertexPosition } from "./types/tin.js";
 /** V3 の境界生成時の診断。件数は地図面と地理面の三角網の合計。 */
 export interface BoundaryDiagnostics {
@@ -53,6 +54,20 @@ export declare function isBetterBoundaryCandidate(a: {
     diagnostics: Pick<BoundaryDiagnostics, "boundaryTriangleFlips">;
 } | undefined): boolean;
 export declare function countBoundaryFlips(tin: Tins, expectedOrientation?: -1 | 1): number;
+/**
+ * 外す凸包の辺だけを変えて `searchBoundary` を繰り返すときに、結果が変わらない計算を使い回す入れ物。
+ * 同じ点群・同じ外周の方式での呼び出しにだけ使う。余白ごとに、補助頂点の位置・地理面の三角網
+ * （凸包の辺は地理面で独立に決まり、外す指定は地図面の凸包の辺にだけ効く）・地図面の必須エッジを
+ * 張った状態を控える。
+ */
+export type SearchCache = Map<number, {
+    vertices?: VertexPosition[];
+    geographic?: {
+        built: ReturnType<typeof buildConstrainedTin>;
+        flips: number;
+    };
+    forwReuse: ConstrainedTinReuse;
+}>;
 export declare function searchBoundary(params: BoundaryVerticesParams, calculateVertices: (params: BoundaryVerticesParams, v3: boolean) => VertexPosition[], points: {
     forw: Feature<Point>[];
     bakw: Feature<Point>[];
@@ -60,4 +75,4 @@ export declare function searchBoundary(params: BoundaryVerticesParams, calculate
 }, gcpCount: number, worldFile?: {
     orientation: -1 | 1;
     accept: (candidate: BoundaryCandidate) => boolean;
-}, excludedHull?: ReadonlySet<string>): BoundaryCandidate | undefined;
+}, excludedHull?: ReadonlySet<string>, cache?: SearchCache): BoundaryCandidate | undefined;
