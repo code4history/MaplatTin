@@ -173,12 +173,17 @@ GCP of A–B. A–Q and Q–B then replace A–B as constrained hull edges and `
   needed are not produced). If a human GCP already sits where a supplement pair would go, none is added.
 - They are not in `tin.points`, are not used for the centroid or the fan extrapolation, but take part in the
   triangulation and the hull edges. Limits: 4 rounds, 32 pairs in total, each hull edge tried once.
-- Only for V3 (V4 inherits it) when `strict` or `auto` ends in `strict`; `loose` uses the pairs decided by an
-  internal `strict` run. Nothing is added when the triangulation cannot be made `strict` (the hull-edge
-  triangulation is kept). V2 is unchanged.
-- `new Tin({ ..., supplementPairs: false })` turns it off per map (the result equals the version
-  without the feature). `tin.supplementPairs` lists the current pairs (`{ node, forw, bakw, kind, edge, anchor }`,
-  internal coordinates). Cost: about 1.5–3× `updateTin()` for maps that have a dropped hull edge; no change otherwise.
+- Only for V3 (V4 inherits it) with `strict` or `auto` that ends in `strict`. **`loose` gets no supplement pairs**
+  (its output is the same as before; tracked in MaplatTin#95). Nothing is added when the triangulation cannot be made
+  `strict` (the hull-edge triangulation is kept). V2 is unchanged.
+- `new Tin({ ..., supplementPairs: false })` turns it off (the result equals the version without the feature).
+  The flag is an option of the instance: it is **not written to `compiled`**, so after `setCompiled()` followed by
+  `updateTin()` the instance's own setting applies (default `true`). Where a map stores the flag is the editor's business.
+  `tin.supplementPairs` lists the current pairs (`{ node, forw, bakw, kind, edge, anchor }`, internal coordinates).
+- Cost: about 1.3–3× `updateTin()` for maps that have a dropped hull edge; no change otherwise. The procedure has an
+  effort budget (the effort of the first triangulation × 1, counting a placement trial as 0.4): when it is reached, for
+  example for dense, jittered grids whose hull edges have many nearby points, it gives up and keeps the result without
+  supplement pairs, so the time stays within about 3× in the worst case.
 - `getCompiled()` appends the pairs at the **end of `edgeNodes`** (triangle vertices use `"e{n}"`, so existing
   `@maplat/transform` reads them as they are) and lists them in the optional `supplementPairs` array
   ([compiled format](docs/compiled-format.md)). Editors show them as "supplement points" (補完点), distinct from the

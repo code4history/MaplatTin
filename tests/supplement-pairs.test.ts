@@ -31,6 +31,7 @@ const SIX_MAPS = [
   ["fushimijo_maplat", 1]
 ] as const;
 const MODES = [Tin.MODE_AUTO, Tin.MODE_STRICT] as const;
+const ALL_MODES = [Tin.MODE_AUTO, Tin.MODE_STRICT, Tin.MODE_LOOSE] as const;
 
 const digest = (compiled: Compiled) =>
   createHash("sha256").update(JSON.stringify(compiled)).digest("hex").slice(0, 16);
@@ -140,7 +141,7 @@ describe.each(["1932_nobeoka", "tatebayashi_castle_akimoto", "naramachi_yasui_bu
 describe("supplementPairs: false と、外れた辺が無い場合", () => {
   const names = [...new Set(Object.keys(baseline.v3).map((key) => key.split(":")[0]))];
   describe.each(names)("%s", (name) => {
-    it.each(MODES)(
+    it.each(ALL_MODES)(
       "strictMode=%s: false なら #91 の getCompiled() と 1 ビットも変わらない",
       (mode) => {
         const tin = buildFixture(name, mode, { supplementPairs: false });
@@ -152,7 +153,7 @@ describe("supplementPairs: false と、外れた辺が無い場合", () => {
       REAL_DATA_TIMEOUT_MS
     );
 
-    it.each(MODES)(
+    it.each(ALL_MODES)(
       "strictMode=%s: 補完点が無いなら、既定でも #91 の getCompiled() と一致する",
       (mode) => {
         const tin = cachedFixture(name, mode);
@@ -305,7 +306,7 @@ function subsetPoints(name: string, seed: number, size: number): NonNullable<Opt
   return all.slice(0, size);
 }
 
-describe("部分集合の入力で、辺ごとに試す経路・何も採用しない経路を通す", () => {
+describe("部分集合の入力で、手間の上限に達して諦める経路を通す", () => {
   const build = (name: string, seed: number, size: number, extra: Partial<Options> = {}) => {
     const tin = new Tin({ ...fixtureOptions(name, Tin.MODE_AUTO), points: subsetPoints(name, seed, size), edges: [], ...extra });
     tin.updateTin();
@@ -313,25 +314,94 @@ describe("部分集合の入力で、辺ごとに試す経路・何も採用し�
   };
 
   it.each([
-    ["tatebayashi_kaei_jokamachi", 38, 70, 1],
-    ["1932_nobeoka", 579, 44, 4]
-  ] as const)("%s（seed %i・%i 点）: まとめては不採用で、辺ごとに %i 点を採用し、strict を保つ", (name, seed, size, count) => {
-    const tin = build(name, seed, size);
-    expect(tin.supplementDiagnostics).toMatchObject({ rounds: 1, batches: 0, perEdge: count });
-    expect(tin.supplementPairs).toHaveLength(count);
-    expect(tin.strict_status).toBe(Tin.STATUS_STRICT);
-    expect(orientationFlips(tin)).toBe(0);
-    const without = build(name, seed, size, { supplementPairs: false });
-    expect(intrusionFraction(tin, 0)).toBeLessThan(intrusionFraction(without, 0));
-  });
+    ["tatebayashi_kaei_jokamachi", 38, 70],
+    ["1932_nobeoka", 579, 44],
+    ["tatebayashi_kaei_jokamachi", 83, 35]
+  ] as const)(
+    "%s（seed %i・%i 点）: まとめては不採用で、手間が上限に届いて諦め、補完点を使わない結果と 1 ビットも変わらない",
+    (name, seed, size) => {
+      const tin = build(name, seed, size);
+      const diagnostics = tin.supplementDiagnostics!;
+      expect(diagnostics).toMatchObject({ rounds: 1, batches: 0, perEdge: 0, multiPoint: 0 });
+      expect(diagnostics.cost).toBeGreaterThanOrEqual(diagnostics.budget);
+      expect(diagnostics.cost).toBeLessThanOrEqual(diagnostics.budget + 1);
+      expect(tin.supplementPairs).toHaveLength(0);
+      const without = build(name, seed, size, { supplementPairs: false });
+      expect(JSON.stringify(tin.getCompiled())).toBe(JSON.stringify(without.getCompiled()));
+    }
+  );
+});
 
-  it("tatebayashi_kaei_jokamachi（seed 83・35 点）: 外れた辺はあるが、どの案も採用されず、補完点を使わない結果と 1 ビットも変わらない", () => {
-    const tin = build("tatebayashi_kaei_jokamachi", 83, 35);
-    expect(tin.supplementDiagnostics).toMatchObject({ rounds: 1, batches: 0, perEdge: 0, multiPoint: 0 });
-    expect(tin.supplementPairs).toHaveLength(0);
-    const without = build("tatebayashi_kaei_jokamachi", 83, 35, { supplementPairs: false });
-    expect(JSON.stringify(tin.getCompiled())).toBe(JSON.stringify(without.getCompiled()));
-  });
+// 受け入れ条件 14（M1）: 辺の近くに対応点が並ぶ入力（格子に揺らぎを付けたもの）でも、時間が補完点なしの 3.5 倍以下で、
+// 諦めても strict を保ち、補完点を使わない結果（#91）より悪くならない
+function jitteredGrid(n: number, seed: number, geoJitter: number): { wh: number[]; points: NonNullable<Options["points"]> } {
+  let state = seed | 0;
+  const random = () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const points: NonNullable<Options["points"]> = [];
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const x = 100 * i + 50;
+      const y = 100 * j + 50;
+      const paper = [x + random() * 6 - 3, y + random() * 6 - 3];
+      points.push([paper, [x + (random() * 2 - 1) * geoJitter, -y + (random() * 2 - 1) * geoJitter]]);
+    }
+  }
+  return { wh: [100 * n + 100, 100 * n + 100], points };
+}
+
+describe.each([
+  [31, 3, 3],
+  [31, 2, 3],
+  [21, 2, 3],
+  [21, 1, 3],
+  [15, 1, 0],
+  [11, 4, 3]
+] as const)("揺らぎを付けた格子 n=%i seed=%i 地理の揺らぎ %i m", (n, seed, geoJitter) => {
+  const input = jitteredGrid(n, seed, geoJitter);
+  const make = (extra: Partial<Options>) => new Tin({ ...input, strictMode: Tin.MODE_AUTO, ...extra });
+
+  it(
+    "strict を保ち、補完点を使わない結果より悪くならず、手間が上限を 1 以上は超えない",
+    () => {
+      const without = make({ supplementPairs: false });
+      without.updateTin();
+      const tin = make({});
+      tin.updateTin();
+      expect(tin.strict_status).toBe(without.strict_status);
+      expect(orientationFlips(tin)).toBeLessThanOrEqual(orientationFlips(without));
+      expect(intrusionFraction(tin, 0)).toBeLessThanOrEqual(intrusionFraction(without, 0) + 1e-12);
+      const diagnostics = tin.supplementDiagnostics;
+      if (diagnostics) expect(diagnostics.cost).toBeLessThanOrEqual(diagnostics.budget + 1);
+    },
+    REAL_DATA_TIMEOUT_MS * 2
+  );
+
+  // 時間は代表の 2 件だけ（全件は時間がかかり、基準が数十 ms の小さい入力は測定の揺れが大きい）
+  it.skipIf(![[31, 3], [21, 2]].some(([a, b]) => a === n && b === seed))(
+    "updateTin() の時間が、補完点なしの 3.5 倍以下",
+    () => {
+      const off = make({ supplementPairs: false });
+      const on = make({});
+      const best = (tin: Tin) => {
+        let fastest = Infinity;
+        for (let i = 0; i < 3; i++) {
+          const start = performance.now();
+          tin.updateTin();
+          fastest = Math.min(fastest, performance.now() - start);
+        }
+        return fastest;
+      };
+      const tOff = best(off);
+      const tOn = best(on);
+      expect(tOn / tOff).toBeLessThanOrEqual(3.5);
+    },
+    REAL_DATA_TIMEOUT_MS * 4
+  );
 });
 
 // 受け入れ条件 5: strict に戻せない地図は足さない
@@ -429,25 +499,24 @@ describe("Tin.setCompiled() で読んだ補完点", () => {
   });
 });
 
-// 受け入れ条件 13: loose 指定でも、補完点で地理側の向きの逆転が減る
-describe.each([
-  ["1932_nobeoka", 3],
-  ["tatebayashi_castle_akimoto", 0],
-  ["naramachi_yasui_bunko", 0]
-] as const)("loose 指定: %s", (name, limit) => {
-  it(
-    `地図面の三角網で地理側の向きが逆の三角形が ${limit} 以下（補完点なしでは 6・7・8）`,
-    () => {
-      const loose = cachedFixture(name, Tin.MODE_LOOSE);
-      const without = cachedFixture(name, Tin.MODE_LOOSE, { supplementPairs: false });
-      expect(loose.strict_status).toBe(Tin.STATUS_LOOSE);
-      expect(loose.supplementPairs.length).toBeGreaterThan(0);
-      expect(orientationFlips(without)).toBeGreaterThan(limit);
-      expect(orientationFlips(loose)).toBeLessThanOrEqual(limit);
-    },
-    REAL_DATA_TIMEOUT_MS
-  );
-});
+// loose 指定には補完点を足さない（MaplatTin#95）。出力は #91 と 1 ビットも変わらない
+describe.each(["1932_nobeoka", "tatebayashi_castle_akimoto", "naramachi_yasui_bunko", "miesan_ginza_map", "uno_bus_gtfs_error"])(
+  "loose 指定: %s",
+  (name) => {
+    it(
+      "補完点が 0 で、getCompiled() が #91 と一致する",
+      () => {
+        const tin = buildFixture(name, Tin.MODE_LOOSE);
+        expect(tin.strict_status).toBe(Tin.STATUS_LOOSE);
+        expect(tin.supplementPairs).toHaveLength(0);
+        expect(tin.supplementDiagnostics).toBeUndefined();
+        expect(tin.getCompiled().supplementPairs).toBeUndefined();
+        expect(digest(tin.getCompiled())).toBe(baseline.v3[`${name}:loose` as keyof typeof baseline.v3]);
+      },
+      REAL_DATA_TIMEOUT_MS
+    );
+  }
+);
 
 // 設計書 §10: サブマップ（bounds あり）。V3 は bounds を対応点の内外の検査にしか使わないので、
 // bounds の外へ出る補完点があっても害は無いはず。

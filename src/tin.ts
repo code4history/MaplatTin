@@ -91,6 +91,9 @@ interface BuildState {
 /** strict を壊した凸包の辺を外して組み直す回数の上限。 */
 const MAX_HULL_REFINEMENTS = 12;
 
+/** 補完点の組み直しが手間の上限を超えたことを知らせる（`buildWithSupplements` の中だけで投げて捕まえる）。 */
+const OUT_OF_BUDGET = Symbol("supplement pairs out of budget");
+
 /** 外した凸包の辺を戻して試す回数の上限。 */
 const MAX_HULL_RESTORE_TRIALS = 24;
 
@@ -423,11 +426,19 @@ export class Tin extends Transform {
    * 厳密なTINを計算します
    *
    * @param kinkLimit - forw / bakw それぞれで残す交差（kinks）の件数の上限
-   *   （同じ位置の交差を 1 件に数えた件数）。届いた時点で数え上げをやめます。
-   *   0 のときは交差を調べず、`strict_status` と `kinks` も変えません（重なりの解消だけを行い、
-   *   三角網の向きを読むための内部用）
+   *   （同じ位置の交差を 1 件に数えた件数）。届いた時点で数え上げをやめます
    */
   calculateStrictTin(kinkLimit: number = MAX_KINKS_PER_DIRECTION): void {
+    this.resolveStrictOverlaps();
+    this.detectStrictKinks(kinkLimit);
+  }
+
+  /**
+   * 順三角網から逆三角網を写し、重なりを辺の反転で解消する（`calculateStrictTin` の前半）。
+   * 交差の判定（`strict_status`・`kinks`）はしない。補完点の置き場所を測る試行は、三角網の向きを読むだけなので
+   * これだけを呼ぶ。
+   */
+  private resolveStrictOverlaps(): void {
     const bakTins = this.tins!.forw!.features.map((tri: Tri) =>
       counterTri(tri)
     );
@@ -455,9 +466,10 @@ export class Tin extends Transform {
       this.pointsSet?.edges || [],
       pointIndices,
     );
+  }
 
-    if (kinkLimit <= 0) return;
-
+  /** `calculateStrictTin` の後半: 両面の交差を数え、`strict_status` と `kinks` を決める。 */
+  private detectStrictKinks(kinkLimit: number): void {
     const kinks = ["forw", "bakw"].map((direction) => {
       const tins = this.tins![direction as keyof TinsBD]!.features.map(
         (tin: Tri) => tin.geometry!.coordinates[0],
@@ -961,8 +973,8 @@ export class Tin extends Transform {
    * 結果をそのまま返す。
    *
    * 補完点は rawPointsSet と allGcps と edgeNodes の末尾に、添字 `e{n}` で足す（必須エッジの中継点の
-   * 続き番号）。重心・扇形外挿の推定（pointsSetFC・convexBuf）には入れない。loose 指定では、内部で
-   * strict の手順を 1 回走らせて補完点を決め、それを足して loose で組む。
+   * 続き番号）。重心・扇形外挿の推定（pointsSetFC・convexBuf）には入れない。loose 指定には足さない
+   * （MaplatTin#95）。
    *
    * @param makeAttempt 点群ごとの探索の入れ物と strict の方式・「三角網の向きを読むだけ」（交差を調べない）を
    *   受け取り、`buildWithHull` に渡す試行を返す
@@ -977,16 +989,26 @@ export class Tin extends Transform {
       measureOnly: boolean,
     ) => (excludedHull: ReadonlySet<string>) => T,
   ): T {
-    const run = (mode: StrictMode): T => this.buildWithHull(mode, makeAttempt(new Map(), mode, false));
-    if (!this.useSupplementPairs || this.useV2Algorithm) return run(strict);
+    // 三角網を組んだ試行の数（補完点の手順に使ってよい手間の基準と、使った手間）
+    let attempts = 0;
+    const counted = (cache: SearchCache, mode: StrictMode, measureOnly: boolean) => {
+      const attempt = makeAttempt(cache, mode, measureOnly);
+      return (excludedHull: ReadonlySet<string>): T => {
+        attempts++;
+        return attempt(excludedHull);
+      };
+    };
+    const run = (mode: StrictMode): T => this.buildWithHull(mode, counted(new Map(), mode, false));
+    // loose 指定には足さない（strict の手順を先に走らせる分、時間が 4〜14 倍になる。MaplatTin#95）
+    if (!this.useSupplementPairs || this.useV2Algorithm || strict === Tin.MODE_LOOSE) return run(strict);
 
-    // 補完点を決める手順は strict で走らせる（loose 指定のときも）
-    const trialMode = strict === Tin.MODE_LOOSE ? Tin.MODE_STRICT : strict;
+    const trialMode = strict;
     const first = run(trialMode);
-    const looseRun = (): T => (strict === Tin.MODE_LOOSE ? run(strict) : first);
-    if (!first.boundary || this.strict_status !== Tin.STATUS_STRICT) return looseRun();
+    const baseCost = attempts;
+    let buildCost = 0;
+    if (!first.boundary || this.strict_status !== Tin.STATUS_STRICT) return first;
     const firstAnalysis = analyzeMesh(this.tins!.forw!, this.pointsSet!.forw.features, first.boundary.forwHull.all);
-    if (firstAnalysis.dropped.length === 0) return looseRun();
+    if (firstAnalysis.dropped.length === 0) return first;
 
     const edgeBase = this.edgeNodes!.length;
     const rawCount = rawPointsSet.forw.length;
@@ -1013,6 +1035,8 @@ export class Tin extends Transform {
     };
     const host: SupplementHost<T, { pairs: Position[][]; state: BuildState }> = {
       edgeBase,
+      baseCost,
+      buildCost: () => buildCost,
       snapshot: () => ({ pairs: current, state: this.captureBuild() }),
       restore: ({ pairs, state }) => {
         setPairs(pairs);
@@ -1032,10 +1056,23 @@ export class Tin extends Transform {
           this.restoreBuild(saved);
         }
       },
-      build: (pairs) => {
+      build: (pairs, maxAttempts) => {
         setPairs(pairs);
         const cache = measured && samePairs(measured.pairs, pairs) ? measured.cache : new Map();
-        const result = this.buildWithHull(trialMode, makeAttempt(cache, trialMode, false));
+        const before = attempts;
+        let result: T;
+        try {
+          result = this.buildWithHull(trialMode, (excludedHull) => {
+            // 手間の上限を超えたら、この組み直しは諦める（呼び出し側が状態を戻す）
+            if (attempts - before >= maxAttempts) throw OUT_OF_BUDGET;
+            return counted(cache, trialMode, false)(excludedHull);
+          });
+        } catch (error) {
+          if (error !== OUT_OF_BUDGET) throw error;
+          buildCost += attempts - before;
+          return undefined;
+        }
+        buildCost += attempts - before;
         if (!result.boundary || this.strict_status !== Tin.STATUS_STRICT) return undefined;
         return {
           result,
@@ -1046,10 +1083,6 @@ export class Tin extends Transform {
     const outcome = addSupplementPairs(host, { result: first, analysis: firstAnalysis });
     this.supplementRecords = outcome.records;
     this.lastSupplementDiagnostics = outcome.diagnostics;
-    if (strict === Tin.MODE_LOOSE) {
-      setPairs(outcome.pairs);
-      return run(strict);
-    }
     return outcome.result;
   }
 
@@ -1182,7 +1215,7 @@ export class Tin extends Transform {
     strict: StrictMode,
     boundary?: BoundaryCandidate,
     onlyDetectKinks = false,
-    skipKinks = false,
+    measureOnly = false,
   ): { forw: Feature<Point>[]; bakw: Feature<Point>[] } {
     // 補助頂点を生成する。
     const verticesList = {
@@ -1216,10 +1249,14 @@ export class Tin extends Transform {
       // auto は交差の有無しか使わない（あれば loose に切り替えて kinks を捨てる）
       // ので、1 件見つけた時点で数え上げをやめる。
       // onlyDetectKinks は、strict になるかどうかだけが要る試行（buildWithHull の途中の試行）。
-      // skipKinks は、三角網の向きを読むだけの試行（補完点の置き場所を測る）で、strict かどうかは要らない。
-      this.calculateStrictTin(
-        skipKinks ? 0 : strict === Tin.MODE_AUTO || onlyDetectKinks ? 1 : MAX_KINKS_PER_DIRECTION,
-      );
+      if (measureOnly) {
+        // 三角網の向きを読むだけの試行（補完点の置き場所を測る）。strict かどうかは要らないので交差を調べない
+        this.resolveStrictOverlaps();
+      } else {
+        this.calculateStrictTin(
+          strict === Tin.MODE_AUTO || onlyDetectKinks ? 1 : MAX_KINKS_PER_DIRECTION,
+        );
+      }
     }
 
     // loose では地理面で独立に三角網を作る。

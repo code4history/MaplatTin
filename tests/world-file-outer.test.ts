@@ -201,8 +201,8 @@ it("strict と loose は実際に使う三角網で余白を選ぶ", () => {
   });
 
   // 既定（補完点あり）: この入力は外れた凸包の辺が出て、補完点が付く。strict は strict のまま余白 0.15 を選び、
-  // 補完点を足した三角網では探索の時点の反転も 0 になる。loose も同じ補完点を使うので、strict と同じ余白 0.15 になる
-  // （strict と loose が違う余白を選ぶ差は、補完点が無いときの、地理面で独立に作る三角網との食い違いが元）
+  // 補完点を足した三角網では探索の時点の反転も 0 になる。loose には補完点を足さない（MaplatTin#95）ので、
+  // 指定なしと同じ
   const withPairs = new Tin({ points, strictMode: "strict", outerTransform: "worldFile", worldFile });
   withPairs.updateTin();
   expect(withPairs.strict_status).toBe("strict");
@@ -213,8 +213,9 @@ it("strict と loose は実際に使う三角網で余白を選ぶ", () => {
   const looseWithPairs = new Tin({ points, strictMode: "loose", outerTransform: "worldFile", worldFile });
   looseWithPairs.updateTin();
   expect(looseWithPairs.strict_status).toBe("loose");
+  expect(looseWithPairs.supplementPairs).toHaveLength(0);
   expect(looseWithPairs.boundaryDiagnostics).toMatchObject({
-    margin: 0.15, boundaryTriangleFlips: 0, outerTransform: "worldFile"
+    margin: 0.225, boundaryTriangleFlips: 0, outerTransform: "worldFile"
   });
 });
 

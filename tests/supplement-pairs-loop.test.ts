@@ -3,6 +3,8 @@ import type { Edge } from "@maplat/transform";
 import type { Position } from "geojson";
 import {
   addSupplementPairs,
+  SUPPLEMENT_BUDGET_FACTOR,
+  SUPPLEMENT_MEASURE_COST,
   fitToKernel,
   MAX_SUPPLEMENT_PAIR_ROUNDS,
   MAX_SUPPLEMENT_PAIRS,
@@ -29,14 +31,22 @@ function polygonAnalysis(n: number, radius = 100, offset = 0): MeshAnalysis {
 interface Trace {
   measures: Position[][][];
   builds: Position[][][];
+  /** build に渡された手間の上限（試行の数） */
+  limits: number[];
   restores: number;
 }
 
 /** 呼ばれた引数を記録する host。`next` が採否と、採用後の三角網（外れた辺）を決める。 */
-function fakeHost(next: (pairs: Position[][], builds: number) => MeshAnalysis | undefined, trace: Trace) {
+function fakeHost(
+  next: (pairs: Position[][], builds: number) => MeshAnalysis | undefined,
+  trace: Trace,
+  { baseCost = 1000, attemptsPerBuild = 1 } = {}
+) {
   const state = { pairs: [] as Position[][] };
   const host: SupplementHost<number, Position[][]> = {
     edgeBase: 100,
+    baseCost,
+    buildCost: () => trace.builds.length * attemptsPerBuild,
     snapshot: () => state.pairs,
     restore: (pairs) => {
       trace.restores++;
@@ -46,8 +56,9 @@ function fakeHost(next: (pairs: Position[][], builds: number) => MeshAnalysis | 
       trace.measures.push(pairs);
       return { points: [], triangles: [], majority: 1, hullEdges: [], dropped: [] };
     },
-    build: (pairs) => {
+    build: (pairs, maxAttempts) => {
       trace.builds.push(pairs);
+      trace.limits.push(maxAttempts);
       const analysis = next(pairs, trace.builds.length);
       if (!analysis) return undefined;
       state.pairs = pairs;
@@ -56,7 +67,7 @@ function fakeHost(next: (pairs: Position[][], builds: number) => MeshAnalysis | 
   };
   return host;
 }
-const newTrace = (): Trace => ({ measures: [], builds: [], restores: 0 });
+const newTrace = (): Trace => ({ measures: [], builds: [], limits: [], restores: 0 });
 const resolved = (): MeshAnalysis => ({ points: [], triangles: [], majority: 1, hullEdges: [], dropped: [] });
 
 describe("addSupplementPairs: 試行の繰り返し", () => {
@@ -210,7 +221,8 @@ describe("fitToKernel", () => {
     const results = [false, true].map((flip) => fitToKernel([ray], 0, () => analysisOf(flip)));
     expect(results.filter((fitted) => fitted === undefined)).toHaveLength(1);
     const fitted = results.find((r) => r !== undefined)!;
-    expect(Number.isFinite(fitted[0].height)).toBe(true);
+    expect(fitted.kept).toEqual([0]);
+    expect(Number.isFinite(fitted.rays[0].height)).toBe(true);
     expect(fitToKernel([ray], 0, () => undefined)).toBeUndefined();
   });
 
@@ -221,8 +233,37 @@ describe("fitToKernel", () => {
       calls++;
       return { points: [], triangles: [], majority: 1, hullEdges: [], dropped: [] };
     })!;
-    expect(fitted[0].height).toBeCloseTo(2, 12);
+    expect(fitted.rays[0].height).toBeCloseTo(2, 12);
+    expect(fitted.kept).toEqual([0]);
     expect(calls).toBe(2);
+  });
+
+  it("核が空の点だけを外して、残りで続ける（測り直す）", () => {
+    // e0 は核が空（上の「核が空」と同じ三角形）、e1 は三角形が無くて制約なし
+    const empty = (flip: boolean) => {
+      const forward = [[0, 0], [1, 0], [0, 1]];
+      const backward = [[0, 0], [0, 1], [1, 0]];
+      return [
+        { ids: ["e0", "p", "q"], paper: flip ? backward : forward, geo: [[0, 0], [0, 0], [1, 0]], sign: 1 },
+        { ids: ["e0", "q", "r"], paper: flip ? forward : backward, geo: [[0, 0], [0, -1], [1, -1]], sign: 1 }
+      ] as MeshAnalysis["triangles"];
+    };
+    const ray = (x: number) => ({ paper: [x, 0], foot: [0, 0], normal: [0, 1], height: 0, chord: 1, protrusion: 0.1 });
+    for (const flip of [false, true]) {
+      const seen: number[] = [];
+      const fitted = fitToKernel([ray(0), ray(1)], 0, (pairs) => {
+        seen.push(pairs.length);
+        // 2 点のうちに e0 の三角形があるときだけ、e0 の核が決まる（空か空でないかは flip で決まる）
+        return { points: [], triangles: pairs.length === 2 ? empty(flip) : [], majority: 1, hullEdges: [], dropped: [] };
+      });
+      if (seen.includes(1)) {
+        // e0 の核が空だったので外し、1 点で測り直した
+        expect(fitted!.kept).toEqual([1]);
+        expect(seen[0]).toBe(2);
+        return;
+      }
+    }
+    throw new Error("核が空になる向きが見つからなかった");
   });
 });
 
@@ -246,5 +287,48 @@ describe("supplementsTakeEffect", () => {
     expect(supplementsTakeEffect({ ...base, hullEdges: [], triangles: [tri(["0", "e5", "1"])] }, 5)).toBe(false);
     // 前の回に採用した点（番号が first 未満）は見ない
     expect(supplementsTakeEffect({ ...base, hullEdges: [], triangles: [] }, 6)).toBe(true);
+  });
+});
+
+describe("手間の上限（時間の保証）", () => {
+  it("まとめて試して不採用になると、手間が上限に届き、辺ごとの組み直しへ進まない（上限は最初の組み立て × 係数）", () => {
+    const trace = newTrace();
+    const outcome = addSupplementPairs(
+      fakeHost(() => undefined, trace, { baseCost: 1 }),
+      { result: 7, analysis: polygonAnalysis(6) }
+    );
+    expect(outcome.pairs).toHaveLength(0);
+    expect(outcome.result).toBe(7);
+    expect(outcome.diagnostics.budget).toBe(SUPPLEMENT_BUDGET_FACTOR * 1);
+    // 測る 2 回（0.4 ずつ）と、組み直し 1 回（上限 1 回の試行）で、上限に達する
+    expect(trace.measures).toHaveLength(2);
+    expect(trace.builds).toHaveLength(1);
+    expect(trace.limits[0]).toBe(1);
+    expect(outcome.diagnostics.cost).toBeLessThanOrEqual(outcome.diagnostics.budget + 1);
+    expect(2 * SUPPLEMENT_MEASURE_COST + 1).toBeGreaterThan(outcome.diagnostics.budget);
+  });
+
+  it("組み直しの試行の数に上限（残りの手間）が渡る。最初の組み立てが重いほど大きい", () => {
+    const trace = newTrace();
+    addSupplementPairs(fakeHost(() => undefined, trace, { baseCost: 10 }), {
+      result: 0,
+      analysis: polygonAnalysis(6)
+    });
+    expect(trace.limits[0]).toBe(Math.ceil(10 * SUPPLEMENT_BUDGET_FACTOR - 2 * SUPPLEMENT_MEASURE_COST));
+  });
+
+  it("上限に達しても、足した分だけは残り、状態を戻す", () => {
+    const trace = newTrace();
+    // 1 回目は採用（外れた辺が残る）、そのあとは手間が尽きる
+    const outcome = addSupplementPairs(
+      fakeHost((_, builds) => (builds === 1 ? polygonAnalysis(3, 150, 1) : undefined), trace, {
+        baseCost: 2,
+        attemptsPerBuild: 1
+      }),
+      { result: 0, analysis: polygonAnalysis(3) }
+    );
+    expect(outcome.pairs).toHaveLength(3);
+    expect(outcome.diagnostics.batches).toBe(1);
+    expect(trace.restores).toBeGreaterThanOrEqual(1);
   });
 });

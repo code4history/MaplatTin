@@ -1,5 +1,5 @@
 {
- "_comment": "#91（e6eda99）の getCompiled() の sha256（先頭 16 桁）。キーは「地図:strictMode」。supplementPairs:false と V2 が、この版から 1 ビットも変わらないことの基準。作り直すときは JSON.stringify(tin.getCompiled()) を sha256 する",
+ "_comment": "#91（e6eda99）の getCompiled() の sha256（先頭 16 桁）。キーは「地図:strictMode」（auto・strict・loose）。supplementPairs:false・loose・V2 が、この版から 1 ビットも変わらないことの基準。作り直すときは JSON.stringify(tin.getCompiled()) を sha256 する",
  "v3": {
   "tatebayashi_kaei_jokamachi:auto": "5aefd5d8af30b8cf",
   "tatebayashi_kaei_jokamachi:strict": "3a7fdca7e747a2a4",
@@ -16,7 +16,15 @@
   "naramachi_yasui_revised:auto": "75a029efe5aa3076",
   "naramachi_yasui_revised:strict": "038190fc9a3bbadd",
   "uno_bus_gtfs_error:auto": "d62e1c57c25186de",
-  "uno_bus_gtfs_error:strict": "254d22379ccc1d95"
+  "uno_bus_gtfs_error:strict": "254d22379ccc1d95",
+  "tatebayashi_kaei_jokamachi:loose": "2ac250fa11086edf",
+  "miesan_ginza_map:loose": "ec1a9f71ab2e59f6",
+  "fushimijo_maplat:loose": "def47f36e2ae9349",
+  "1932_nobeoka:loose": "3875fd226b52aaaf",
+  "tatebayashi_castle_akimoto:loose": "e40746e7afffe4de",
+  "naramachi_yasui_bunko:loose": "60d89f99f67eedee",
+  "naramachi_yasui_revised:loose": "60d89f99f67eedee",
+  "uno_bus_gtfs_error:loose": "dcfc884a4a854684"
  },
  "v2": {
   "tatebayashi_kaei_jokamachi:auto": "c2e1b7bce1492768",

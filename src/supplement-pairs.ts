@@ -18,6 +18,14 @@ import type { Edge, Tins } from "@maplat/transform";
 export const MAX_SUPPLEMENT_PAIR_ROUNDS = 4;
 /** 補完点の合計の上限。 */
 export const MAX_SUPPLEMENT_PAIRS = 32;
+/**
+ * 補完点の手順に使ってよい手間の上限（最初の三角網の組み立て 1 回分に対する倍数）。辺の近くに対応点が
+ * 並ぶ入力では、辺ごとの組み直しが膨らんで時間が桁違いになるので、ここで諦める（諦めたときは、補完点を
+ * 足す前の結果）。普通の入力は、まとめて試す 1 回（測る 2 回＋組む 1 回 = 約 1.8）で終わる。
+ */
+export const SUPPLEMENT_BUDGET_FACTOR = 1;
+/** 置き場所を測る試行 1 回の手間（組み立て 1 回を 1 とする。交差を調べず、探索の入れ物も使い回すので軽い）。 */
+export const SUPPLEMENT_MEASURE_COST = 0.4;
 /** 地理の面の高さを核の中に決め直す繰り返しの上限。 */
 export const MAX_KERNEL_FIT_ITERATIONS = 4;
 /** 紙の面で、弦の長さに対して外へ出す割合（弦の上のちょうどには置けない）。 */
@@ -56,6 +64,10 @@ export interface SupplementDiagnostics {
   rounds: number;
   /** 三角網を組んだ回数（測る試行と採否の試行の合計） */
   builds: number;
+  /** 使った手間（`measure` 1 回 = `SUPPLEMENT_MEASURE_COST`、`build` は組んだ試行の数） */
+  cost: number;
+  /** 手間の上限（最初の組み立ての手間 × `SUPPLEMENT_BUDGET_FACTOR`）。使った手間は、これに高々 1 を足した値まで */
+  budget: number;
   /** 外れた辺をまとめて試して採用した回数 */
   batches: number;
   /** 外れた辺ごとに試して採用した回数（1 点の案と複数点の案の合計） */
@@ -258,24 +270,29 @@ export function proposeSupplementCandidate(
  * 補完点の地理の位置を、紙の面でその点を囲む輪（その点を頂点にする三角形の対辺）の核の中に決め直す
  * （設計書 §2.3）。半直線 `foot + s·normal` の上で、輪の辺ごとの半平面の共通部分 `[lo, hi]` を求め、
  * 下限から少し外の高さを選ぶ。位置が変わると輪が変わるので、変わらなくなるまで（最大
- * `MAX_KERNEL_FIT_ITERATIONS` 回）繰り返す。核が空なら undefined。
+ * `MAX_KERNEL_FIT_ITERATIONS` 回）繰り返す。
+ *
+ * 核が空の点は、その点だけを外して、残りで続ける（1 点のために全部を捨てて、辺ごとの組み直しに回さない）。
+ * 外した点があれば輪が変わるので、測り直す。残りが無ければ undefined。
  *
  * @param rays 決め直す点（紙の面は固定）
  * @param firstNode 先頭の点の `edgeNodes` の位置（`"e{n}"` の n）
  * @param measure 採用済みの補完点に、この点を足して、凸包の辺を全部制約にした三角網を組み、読んだ結果を返す
+ * @returns 決まった点と、それが `rays` の何番目か
  */
 export function fitToKernel(
   rays: readonly SupplementRay[],
   firstNode: number,
   measure: (pairs: Position[][]) => MeshAnalysis | undefined,
   { lambda = SUPPLEMENT_LAMBDA, mu = SUPPLEMENT_MU } = {}
-): SupplementRay[] | undefined {
-  const current = rays.map((ray) => ({ ...ray }));
-  for (let iteration = 0; iteration < MAX_KERNEL_FIT_ITERATIONS; iteration++) {
-    const analysis = measure(current.map((ray) => [ray.paper, rayGeo(ray)]));
+): { rays: SupplementRay[]; kept: number[] } | undefined {
+  let current = rays.map((ray, index) => ({ ray: { ...ray }, index }));
+  for (let iteration = 0; iteration < MAX_KERNEL_FIT_ITERATIONS && current.length > 0; iteration++) {
+    const analysis = measure(current.map(({ ray }) => [ray.paper, rayGeo(ray)]));
     if (!analysis) return undefined;
     let changed = false;
-    for (const [k, ray] of current.entries()) {
+    const empty = new Set<number>();
+    for (const [k, { ray }] of current.entries()) {
       const id = `e${firstNode + k}`;
       let lo = -Infinity;
       let hi = Infinity;
@@ -306,7 +323,10 @@ export function fitToKernel(
         if (f1 * want > 0) lo = Math.max(lo, crossing);
         else hi = Math.min(hi, crossing);
       }
-      if (!(lo < hi)) return undefined;
+      if (!(lo < hi)) {
+        empty.add(k);
+        continue;
+      }
       const margin = Math.min(Math.max(lambda * Math.max(lo, ray.protrusion), mu * ray.chord), (hi - lo) / 2);
       const next = Math.max(lo, 0) + margin;
       const moved = Math.abs(next - ray.height) > 1e-9 * ray.chord;
@@ -315,9 +335,15 @@ export function fitToKernel(
         ray.height = next;
       }
     }
-    if (!changed) return current;
+    if (empty.size > 0) {
+      // 核が空の点を外す。残りの点の輪が変わるので、もう一度測る
+      current = current.filter((_, k) => !empty.has(k));
+      changed = true;
+    }
+    if (!changed) break;
   }
-  return current;
+  if (current.length === 0) return undefined;
+  return { rays: current.map(({ ray }) => ray), kept: current.map(({ index }) => index) };
 }
 
 /**
@@ -348,6 +374,10 @@ export function supplementsTakeEffect(analysis: MeshAnalysis, firstNode: number)
 export interface SupplementHost<T, H> {
   /** `edgeNodes` の、補完点を除いた数（最初の補完点の `node`） */
   edgeBase: number;
+  /** 最初の三角網（補完点を足す前）の組み立ての手間（三角網を組んだ試行の数）。手間の上限の基準 */
+  baseCost: number;
+  /** `build` に使った手間の合計（三角網を組んだ試行の数）。呼ぶたびに増える */
+  buildCost(): number;
   /** 今の三角網の状態と補完点の並びを控える */
   snapshot(): H;
   /** 控えた状態に戻す */
@@ -360,8 +390,9 @@ export interface SupplementHost<T, H> {
   /**
    * 補完点 `pairs`（採用済みを含む全部）で三角網を組み直し（凸包の辺を外して strict を探す）、strict に
    * なったときだけ、結果と読んだ三角網を返す。strict にならなければ undefined。
+   * 三角網を組む試行が `maxAttempts` 回を超えたら、そこで諦めて undefined を返す（手間の上限）。
    */
-  build(pairs: Position[][]): { result: T; analysis: MeshAnalysis } | undefined;
+  build(pairs: Position[][], maxAttempts: number): { result: T; analysis: MeshAnalysis } | undefined;
 }
 
 export interface SupplementOutcome<T> {
@@ -390,41 +421,50 @@ export function addSupplementPairs<T, H>(
   host: SupplementHost<T, H>,
   initial: { result: T; analysis: MeshAnalysis }
 ): SupplementOutcome<T> {
-  const diagnostics: SupplementDiagnostics = { rounds: 0, builds: 0, batches: 0, perEdge: 0, multiPoint: 0 };
+  const diagnostics: SupplementDiagnostics = { rounds: 0, builds: 0, cost: 0, budget: 0, batches: 0, perEdge: 0, multiPoint: 0 };
   let adopted: Position[][] = [];
   let records: SupplementPairRecord[] = [];
   let current = initial;
   let handle = host.snapshot();
   const tried = new Set<string>();
+  const budget = SUPPLEMENT_BUDGET_FACTOR * host.baseCost;
+  diagnostics.budget = budget;
+  const startCost = host.buildCost();
+  /** 手間の上限に達した（辺ごとの試行が膨らむ入力で、ここで諦める） */
+  let measures = 0;
+  const spent = () => measures * SUPPLEMENT_MEASURE_COST + host.buildCost() - startCost;
+  const exhausted = () => spent() >= budget;
 
   const measure = (pairs: Position[][]) => {
+    if (exhausted()) return undefined;
     diagnostics.builds++;
+    measures++;
     return host.measure(pairs);
   };
   const toPair = (ray: SupplementRay): Position[] => [ray.paper, rayGeo(ray)];
 
-  /** `rays` の地理の位置を核の中に決め、採用済みに足して組み直す。採用したら true（記録も足す）。 */
+  /** `owned` の点の地理の位置を核の中に決め（核が空の点は外す）、採用済みに足して組み直す。採用したら true。 */
   const tryAdd = (owned: { ray: SupplementRay; edge: [VertexId, VertexId] }[]): boolean => {
     if (owned.length === 0 || adopted.length + owned.length > MAX_SUPPLEMENT_PAIRS) return false;
     const first = host.edgeBase + adopted.length;
-    const fitted = fitToKernel(
+    const fit = fitToKernel(
       owned.map(({ ray }) => ray),
       first,
       (extra) => measure([...adopted, ...extra])
     );
-    if (!fitted) return false;
-    const all = [...adopted, ...fitted.map(toPair)];
+    if (!fit || exhausted()) return false;
+    const all = [...adopted, ...fit.rays.map(toPair)];
     diagnostics.builds++;
-    const built = host.build(all);
+    const built = host.build(all, Math.max(1, Math.ceil(budget - spent())));
     if (!built || !supplementsTakeEffect(built.analysis, first)) {
       host.restore(handle);
       return false;
     }
     records = records.concat(
-      fitted.map((ray, k) => ({
+      fit.rays.map((ray, k) => ({
         node: first + k,
         kind: "hullEdge" as const,
-        edge: owned[k].edge,
+        edge: owned[fit.kept[k]].edge,
         ...(ray.anchor === undefined ? {} : { anchor: ray.anchor })
       }))
     );
@@ -434,7 +474,7 @@ export function addSupplementPairs<T, H>(
     return true;
   };
 
-  for (let round = 1; round <= MAX_SUPPLEMENT_PAIR_ROUNDS; round++) {
+  for (let round = 1; round <= MAX_SUPPLEMENT_PAIR_ROUNDS && !exhausted(); round++) {
     const { analysis } = current;
     const candidates: SupplementCandidate[] = [];
     for (const edge of analysis.dropped) {
@@ -449,7 +489,7 @@ export function addSupplementPairs<T, H>(
     if (candidates.length === 0) break;
     diagnostics.rounds = round;
 
-    // 1. まとめて試す（外れた辺ごとに 1 点）
+    // 1. まとめて試す（外れた辺ごとに 1 点。核が空の点は外す）
     const own = (candidate: SupplementCandidate, variant: SupplementRay[]) =>
       variant.map((ray) => ({ ray, edge: candidate.edge }));
     if (tryAdd(candidates.flatMap((candidate) => own(candidate, candidate.variants[0])))) {
@@ -457,9 +497,10 @@ export function addSupplementPairs<T, H>(
       continue;
     }
 
-    // 2. だめなら辺ごとに、1 点の案・複数点の案の順に試す
+    // 2. だめなら辺ごとに、1 点の案・複数点の案の順に試す（三角網を組む回数の上限まで）
     for (const candidate of candidates) {
       for (const [v, variant] of candidate.variants.entries()) {
+        if (exhausted()) break;
         if (!tryAdd(own(candidate, variant))) continue;
         diagnostics.perEdge++;
         if (v > 0) diagnostics.multiPoint++;
@@ -469,5 +510,6 @@ export function addSupplementPairs<T, H>(
   }
 
   host.restore(handle);
+  diagnostics.cost = spent();
   return { pairs: adopted, records, result: current.result, diagnostics };
 }
