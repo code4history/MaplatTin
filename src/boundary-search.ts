@@ -4,7 +4,7 @@ import type { Edge, Tins } from "@maplat/transform";
 import { orient2d } from "robust-predicates";
 import type { BoundaryVerticesParams } from "./boundary-vertices.ts";
 import { buildConstrainedTin } from "./constrained-tin.ts";
-import { sharedHullEdges } from "./hull-edges.ts";
+import { convexHullEdges, hullEdgeKey } from "./hull-edges.ts";
 import type { VertexPosition } from "./types/tin.ts";
 import { counterPoint, createPoint } from "./vertexutils.ts";
 
@@ -40,6 +40,11 @@ export interface BoundaryCandidate {
   hasMapBoundary: boolean;
   /** 両面で外周の辺を三角網の境界として確保できたか。 */
   hasBoundary: boolean;
+  /**
+   * 地図面の凸包の辺。`all` は凸包の辺の全部、`applied` は制約にできたもの
+   * （外す指定・必須エッジとの衝突で、`all` より少ないことがある）。
+   */
+  forwHull: { all: Edge[]; applied: Edge[] };
 }
 
 /**
@@ -108,7 +113,8 @@ export function searchBoundary(
   worldFile?: {
     orientation: -1 | 1;
     accept: (candidate: BoundaryCandidate) => boolean;
-  }
+  },
+  excludedHull: ReadonlySet<string> = new Set()
 ): BoundaryCandidate | undefined {
   const { minx, maxx, miny, maxy, centroid } = params;
   const width = maxx - minx;
@@ -122,18 +128,15 @@ export function searchBoundary(
     groups[b].push(edgeGroup);
     if (b < gcpCount) edgeGroup++;
   }
-  // 凸包の辺は面ごとに作り、両面で凸包の辺になるものだけを制約にする。
-  // 凸包は GCP と必須エッジの中継点（内側の点）の全体で取り、中継点が GCP の凸包の外に出る
-  // 場合も必須エッジが凸包の辺をまたがないようにする。
+  // 凸包の辺は面ごとに作り、全部を制約にする。凸包は GCP と必須エッジの中継点（内側の点）の
+  // 全体で取り、中継点が GCP の凸包の外に出る場合も必須エッジが凸包の辺をまたがないようにする。
+  // 地図面の凸包の辺のうち excludedHull に鍵があるものは外す（strict を壊す辺を呼び出し側が特定する）。
   const interiorCoordinates = (features: Feature<Point>[]) =>
     features.slice(0, interiorCount).map(({ geometry }) => geometry.coordinates);
-  const interior = {
-    forw: interiorCoordinates(points.forw),
-    bakw: interiorCoordinates(points.bakw)
-  };
+  const forwHullAll = convexHullEdges(interiorCoordinates(points.forw));
   const hulls = {
-    forw: sharedHullEdges(interior.forw, interior.bakw),
-    bakw: sharedHullEdges(interior.bakw, interior.forw)
+    forw: forwHullAll.filter((edge) => !excludedHull.has(hullEdgeKey(edge))),
+    bakw: convexHullEdges(interiorCoordinates(points.bakw))
   };
   const boundaryGroup = [0];
   const groupsOf = (index: number) =>
@@ -218,7 +221,8 @@ export function searchBoundary(
           fromMap.remaining + fromGeographic.remaining
       },
       hasMapBoundary: fromMap.hasBoundary,
-      hasBoundary: fromMap.hasBoundary && fromGeographic.hasBoundary
+      hasBoundary: fromMap.hasBoundary && fromGeographic.hasBoundary,
+      forwHull: { all: forwHullAll, applied: fromMap.hull }
     };
 
     if (worldFile) {

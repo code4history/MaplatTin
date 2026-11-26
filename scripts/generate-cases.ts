@@ -9,7 +9,13 @@
  *   変換不可の点は除外するため、実際のケース数は 81 以下になる場合がある。
  *
  * Usage:
- *   npx tsx scripts/generate-cases.ts
+ *   node scripts/generate-cases.ts [--v3-only] [key ...]
+ *   （Node 24 以降。それ以前は npx tsx scripts/generate-cases.ts ...）
+ *
+ *   --v3-only  v3 のケースだけを書く（v2 は既存のまま）。
+ *   key        作り直す地図の key。省略時は全部。
+ *
+ * 入力は tests/compiled/{key}_{ver}.json。先に scripts/generate-compiled.ts で compiled を作り直すこと。
  */
 
 import fs from "node:fs";
@@ -32,7 +38,10 @@ const MAPS = [
   "1932_nobeoka_sub0",
 ] as const;
 
-const VERS = ["v2", "v3"] as const;
+const args = process.argv.slice(2);
+const v3Only = args.includes("--v3-only");
+const onlyKeys = args.filter((arg) => !arg.startsWith("--"));
+const VERS = v3Only ? (["v3"] as const) : (["v2", "v3"] as const);
 
 const outDir = path.join(root, "tests", "cases");
 fs.mkdirSync(outDir, { recursive: true });
@@ -61,6 +70,7 @@ function samplingOrigin(compiled: Compiled): [number, number] {
 }
 
 for (const key of MAPS) {
+  if (onlyKeys.length > 0 && !onlyKeys.includes(key)) continue;
   console.log(`\n── ${key} ──`);
   for (const ver of VERS) {
     const compiledPath = path.join(root, "tests", "compiled", `${key}_${ver}.json`);

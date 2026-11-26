@@ -62,6 +62,8 @@ export function buildConstrainedTin(
   tin: FeatureCollection<Polygon>;
   remaining: number;
   hasBoundary: boolean;
+  /** 制約にできた凸包の辺 */
+  hull: Edge[];
 } {
   if (!edges) edges = [];
   if (typeof points !== "object" || points.type !== "FeatureCollection") {
@@ -75,6 +77,7 @@ export function buildConstrainedTin(
   let del = Delaunator.from(coordinates);
   let remaining = 0;
   let outside: Set<number> | undefined;
+  const acceptedHull: Edge[] = [];
   if (del.triangles.length !== 0 && (edges.length !== 0 || forbidden)) {
     let con = new EdgeBound(del);
     try {
@@ -83,11 +86,10 @@ export function buildConstrainedTin(
       if (!forbidden?.allowUnusableBoundary) throw error;
       // 補助頂点を加える前に検査済みの必須エッジがここで張れなければ、
       // この面の余白候補は使えない（例えば補助頂点が必須エッジに重なる）。
-      return { tin: featureCollection([]), remaining: 0, hasBoundary: false };
+      return { tin: featureCollection([]), remaining: 0, hasBoundary: false, hull: [] };
     }
     // 凸包の辺を制約にする。必須エッジが辺の途中の点に当たるなど、両立しない辺は外し、
     // それまでに張れた辺だけで三角網を組み直す（失敗した制約は三角網を途中まで変えてしまうため）。
-    const acceptedHull: Edge[] = [];
     for (const hullEdge of forbidden?.hull ?? []) {
       try {
         con.constrainOne(hullEdge[0], hullEdge[1]);
@@ -142,7 +144,7 @@ export function buildConstrainedTin(
       return polygon([coords], properties);
     })
   );
-  return { tin, remaining, hasBoundary: outside !== undefined };
+  return { tin, remaining, hasBoundary: outside !== undefined, hull: acceptedHull };
 }
 
 /**

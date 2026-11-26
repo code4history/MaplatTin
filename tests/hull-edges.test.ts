@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Position } from "geojson";
 import { featureCollection, point } from "@turf/turf";
-import { convexHullEdges, sharedHullEdges } from "../src/hull-edges.ts";
+import { convexHullEdges, hullEdgeKey } from "../src/hull-edges.ts";
 import { buildConstrainedTin } from "../src/constrained-tin.ts";
 import type { Edge } from "@maplat/transform";
 
@@ -31,13 +31,10 @@ describe("convexHullEdges", () => {
   });
 });
 
-describe("sharedHullEdges", () => {
-  it("もう一方の面で凸包の辺にならない辺（内側へ凹む辺）を外す", () => {
-    const forw: Position[] = [[0, 0], [10, 0], [10, 10], [0, 10], [5, 5]];
-    // 地理面では点 4 が点 0–1 の辺の外へ出て、辺 0–1 が凸包の辺でなくなる
-    const bakw: Position[] = [[0, 0], [10, 0], [10, 10], [0, 10], [5, -3]];
-    expect(sorted(sharedHullEdges(forw, forw))).toEqual(sorted([[0, 1], [1, 2], [2, 3], [3, 0]]));
-    expect(sorted(sharedHullEdges(forw, bakw))).toEqual(sorted([[1, 2], [2, 3], [3, 0]]));
+describe("hullEdgeKey", () => {
+  it("辺の向きによらない鍵になる", () => {
+    expect(hullEdgeKey([3, 12])).toBe(hullEdgeKey([12, 3]));
+    expect(hullEdgeKey([3, 12])).not.toBe(hullEdgeKey([3, 13]));
   });
 });
 
@@ -62,13 +59,21 @@ describe("buildConstrainedTin の凸包の辺", () => {
     for (const [a, b] of hull) expect(hasEdge(tin, a, b)).toBe(true);
   });
 
+  it("制約にできた凸包の辺を返す", () => {
+    const hull: Edge[] = [[0, 1], [1, 2], [2, 3], [3, 0]];
+    const result = buildConstrainedTin(fc, [], "target", { groupsOf: () => [], planes: [], hull });
+    expect(sorted(result.hull)).toEqual(sorted(hull));
+  });
+
   it("制約にできない凸包の辺（存在しない点）は外し、ほかの辺は制約にする", () => {
     const hull: Edge[] = [[0, 99], [0, 1], [1, 2], [2, 3], [3, 0]];
-    const { tin } = buildConstrainedTin(fc, [], "target", {
+    const result = buildConstrainedTin(fc, [], "target", {
       groupsOf: () => [],
       planes: [],
       hull
     });
+    const { tin } = result;
     for (const [a, b] of hull.slice(1)) expect(hasEdge(tin, a, b)).toBe(true);
+    expect(sorted(result.hull)).toEqual(sorted(hull.slice(1)));
   });
 });

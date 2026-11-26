@@ -500,7 +500,16 @@ function calculateVerticesCore(
 
     if (!forwEdge) continue;
     // 境界の方向にある点を両側の区分で選ぶと、同じ位置の頂点ができる。1 つにまとめる。
-    if (edgeVertices.some((v) => v.forw[0] === forwEdge![0] && v.forw[1] === forwEdge![1])) continue;
+    // 隅の方向が区分の境界にちょうど一致するときは、四隅の頂点とも重なるので、隅とも比べる。
+    const [fx, fy] = forwEdge;
+    const tolerance = 1e-9 * Math.max(maxx - minx, maxy - miny);
+    if (
+      [...cornerVertices, ...edgeVertices].some(
+        (v) =>
+          Math.abs(v.forw[0] - fx) <= tolerance &&
+          Math.abs(v.forw[1] - fy) <= tolerance,
+      )
+    ) continue;
     if (project) {
       edgeVertices.push({ forw: forwEdge, bakw: project(forwEdge) });
       continue;

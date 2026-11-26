@@ -147,10 +147,14 @@ independently in the map and geographic planes. Its type is `BoundaryDiagnostics
 | `outerTransform` | The method selected for a world file request, `"worldFile"` or `"extrapolate"`. |
 | `fallbackReason` | `"boundaryFlips"` when no world file candidate passed and Tin rebuilt with extrapolation. |
 
-V3 constrains the edges of the convex hull of the GCPs (including GCPs lying on a hull side, between
-neighbouring points) in both planes, so triangles containing an auxiliary vertex do not cut into the hull.
-Only edges that are also hull edges in the other plane are constrained (a hull edge that dents inward in the
-other plane cannot be kept by a triangulation shared between the planes). The fan center is the centroid of the
+V3 first constrains every edge of the convex hull of the GCPs and the points on constrained edges (between
+neighbouring points, including GCPs lying on a hull side) in both planes, so triangles containing an
+auxiliary vertex do not cut into the hull. If that breaks `strict` (the triangulation copied to the
+geographic plane overlaps itself), only the hull edges involved in the overlap are dropped and the
+triangulation is rebuilt, repeating until `strict` holds or no more edges are involved; dropped edges that
+`strict` tolerates are restored one by one. `strict` takes priority over the hull edges: where the convex hull
+of the two planes disagree, a part of an auxiliary-vertex triangle may remain inside the hull (a small
+fraction of the hull area in the bundled data, see the CHANGELOG). The fan center is the centroid of the
 GCPs itself, as in V2.
 
 For extrapolation, V3 tries margins of 10%, 15%, 22.5%, 34%, and 50% in order. It takes the first

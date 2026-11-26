@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { booleanPointInPolygon, polygon } from "@turf/turf";
-import { Tin, type Options } from "../src/index.ts";
+import { readFileSync } from "node:fs";
+import { Tin, type Compiled, type Options } from "../src/index.ts";
+import { REAL_DATA_TIMEOUT_MS } from "./timeouts.ts";
+import { intrusionFraction } from "./hull-intrusion.ts";
 
 // 紙 2048 画素四方の EPSG:4326 の等間隔図（東経 125〜150 度・北緯 25〜50 度）。
 // 対称な格子の GCP を置き、補助頂点の三角形が凸包に食い込まないこと（凸包の辺の制約）と、
@@ -98,4 +101,110 @@ describe.each(GRIDS)("対称な格子 $name", ({ n, points }) => {
       }
     });
   });
+});
+
+// ─── 緯線がわずかに曲がる格子 ────────────────────────────────────────────────
+// 地理側の緯度に k·u²（u は格子の左右方向の位置 -1〜1）を足す。k=0.001 度は約 0.08 画素で、
+// 地図面の凸包の辺が地理面ではわずかに外へ出る（凸包の辺にならない）。この程度の食い違いで
+// 凸包の辺を制約から外すと、補助頂点の三角形が凸包に食い込む。
+function bentGrid(n: number, lo: number, hi: number, k: number): NonNullable<Options["points"]> {
+  const values = Array.from({ length: n }, (_, i) => lo + ((hi - lo) * i) / (n - 1));
+  return values.flatMap((y) =>
+    values.map((x) => {
+      const u = (x - (lo + hi) / 2) / ((hi - lo) / 2);
+      const [lon, lat] = pixelToLonLat([x, y]);
+      return [[x, y], merc([lon, lat + k * u * u])] as [number[], number[]];
+    })
+  );
+}
+
+describe.each([
+  { n: 3, lo: W * 0.35, hi: W * 0.65 },
+  { n: 5, lo: W * 0.2, hi: W * 0.8 }
+])("緯線が曲がる $n×$n の格子", ({ n, lo, hi }) => {
+  describe.each([0.001, 0.0122, 0.1, -0.0122])("k=%s", (k) => {
+    it.each(MODES)("strictMode=%s: GCP だけの三角形が埋め尽くし、食い込みが 0", (mode) => {
+      const tin = build(bentGrid(n, lo, hi, k), mode);
+      expect(tin.strict_status).toBe(mode === Tin.MODE_LOOSE ? Tin.STATUS_LOOSE : Tin.STATUS_STRICT);
+      const gcpOnly = tin.tins!.forw!.features.filter(({ properties }) => {
+        const { a, b, c } = properties!;
+        return [a, b, c].every(({ index }) => typeof index === "number");
+      });
+      expect(gcpOnly).toHaveLength(2 * (n - 1) ** 2);
+      // 地図面の凸包の内側は、GCP だけの三角形で埋まる。strict は地理面の三角網を地図面から写すので、
+      // 地理面の凸包（緯線が曲がると写した三角網の外周とは一致しない）での食い込みは loose だけ確かめる。
+      expect(intrusionFraction(tin, 0)).toBeLessThan(1e-9);
+      if (mode === Tin.MODE_LOOSE) expect(intrusionFraction(tin, 1)).toBeLessThan(1e-9);
+    });
+  });
+});
+
+// ─── 隅の方向が 10° の区分の境界に一致する矩形 ───────────────────────────────
+// 四隅・中心・四分点の 9 点。隅の方向（atan(幅/高さ) が 10° の倍数）を通る区分の補助頂点が、
+// 隅の頂点と同じ位置になる（重複すると反転が大量に出て、strict が loose に落ちる）。
+describe.each([50, 40, 60, 30])("隅の方向が %s° の矩形", (deg) => {
+  it("補助頂点が隅と重複せず、strict のまま反転が 0", () => {
+    const h = 1000;
+    const w = h * Math.tan((deg * Math.PI) / 180);
+    const points = [
+      [0, 0], [w, 0], [w, h], [0, h], [w / 2, h / 2],
+      [w * 0.75, h * 0.25], [w * 0.25, h * 0.75], [w * 0.75, h * 0.75], [w * 0.25, h * 0.25]
+    ].map(([x, y]) => [[x, y], [x, -y]] as [number[], number[]]);
+    const tin = new Tin({ wh: [w, h], points, strictMode: Tin.MODE_AUTO });
+    tin.updateTin();
+    const vertices = tin.getCompiled().vertices_points.map(([v]) => v);
+    const duplicates = vertices.filter((v, i) =>
+      vertices.some((u, j) => j < i && Math.abs(u[0] - v[0]) < 1e-6 && Math.abs(u[1] - v[1]) < 1e-6)
+    );
+    expect(duplicates).toHaveLength(0);
+    expect(tin.strict_status).toBe(Tin.STATUS_STRICT);
+    expect(tin.boundaryDiagnostics).toMatchObject({ boundaryTriangleFlips: 0, remainingForbiddenTriangles: 0 });
+  });
+});
+
+// ─── 実データ: strict を保ったまま食い込みを減らす ──────────────────────────
+// 食い込み = 補助頂点を含む三角形が凸包の内側に入る面積 / 凸包の面積（地図面。auto の strict の三角網）。
+// 凸包の辺を全部制約にして組み、strict を壊す辺だけを外す。割合の上限は実測（括弧内は凸包の辺を
+// 制約にしなかった版の割合）に少し余裕を持たせたもの。
+interface MapFixture {
+  width: number;
+  height: number;
+  gcps?: Options["points"];
+  edges?: Options["edges"];
+  vertexMode?: Options["vertexMode"];
+  compiled?: Compiled;
+}
+function buildFixture(name: string, strictMode: Options["strictMode"]): Tin {
+  const map: MapFixture = JSON.parse(readFileSync(new URL(`./maps/${name}.json`, import.meta.url), "utf8"));
+  const compiled = map.compiled;
+  const tin = new Tin({
+    wh: compiled?.wh ?? [map.width, map.height],
+    vertexMode: map.vertexMode ?? compiled?.vertexMode,
+    strictMode,
+    yaxisMode: compiled?.yaxisMode,
+    points: map.gcps ?? compiled?.points,
+    edges: map.edges ?? compiled?.edges
+  });
+  tin.updateTin();
+  return tin;
+}
+
+describe.each([
+  // [地図, strict の判定, 食い込みの上限]
+  ["tatebayashi_kaei_jokamachi", Tin.STATUS_STRICT, 0.0005], // 0.04%（10.19%）全部の辺を制約にできる
+  ["miesan_ginza_map", Tin.STATUS_STRICT, 0.001], // 0.05%（6.30%）1 本外す
+  ["fushimijo_maplat", Tin.STATUS_STRICT, 0.0001], // 0.0003%（16.09%）
+  ["1932_nobeoka", Tin.STATUS_STRICT, 0.045], // 3.80%（10.94%）
+  ["tatebayashi_castle_akimoto", Tin.STATUS_STRICT, 0.055], // 4.98%（9.33%）
+  ["naramachi_yasui_bunko", Tin.STATUS_STRICT, 0.04] // 3.61%（5.59%。base は strict_error）
+] as const)("%s", (name, status, limit) => {
+  it(
+    `auto は ${status} のまま、食い込みが ${(limit * 100).toFixed(2)}% 以下`,
+    () => {
+      const tin = buildFixture(name, Tin.MODE_AUTO);
+      expect(tin.strict_status).toBe(status);
+      expect(intrusionFraction(tin, 0)).toBeLessThanOrEqual(limit);
+    },
+    REAL_DATA_TIMEOUT_MS
+  );
 });

@@ -58,29 +58,7 @@ export function convexHullEdges(coordinates: readonly Position[]): Edge[] {
   return edges;
 }
 
-/**
- * `coordinates` の面の凸包の辺のうち、もう一方の面（`otherCoordinates`、同じ添字の点）でも
- * 凸包の辺になるものだけを返す（もう一方の面で、辺を通る直線の片側にすべての点が並ぶもの）。
- *
- * 地図面の凸包の辺が地理面で内側へ凹む箇所では、その辺を制約にすると、strict で地理面へ写した
- * 三角形どうしが重なる。そのような辺は、両面で同じ三角網を使う限り張れないので制約にしない。
- */
-export function sharedHullEdges(
-  coordinates: readonly Position[],
-  otherCoordinates: readonly Position[]
-): Edge[] {
-  const supports = ([i, j]: Edge): boolean => {
-    const [ax, ay] = otherCoordinates[i];
-    const [bx, by] = otherCoordinates[j];
-    if (ax === bx && ay === by) return false;
-    let side = 0;
-    for (const [x, y] of otherCoordinates) {
-      const s = Math.sign(orient2d(ax, ay, bx, by, x, y));
-      if (s === 0) continue;
-      if (side === 0) side = s;
-      else if (s !== side) return false;
-    }
-    return true;
-  };
-  return convexHullEdges(coordinates).filter(supports);
+/** 凸包の辺の鍵（向きによらない）。外す辺の集合に使う。 */
+export function hullEdgeKey([a, b]: Edge): string {
+  return a < b ? `${a}-${b}` : `${b}-${a}`;
 }

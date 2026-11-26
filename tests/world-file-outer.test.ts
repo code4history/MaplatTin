@@ -182,9 +182,9 @@ it("world file 外周で係数の欠落・不正・鏡像と V2 の指定を拒�
 
 it("strict と loose は実際に使う三角網で余白を選ぶ", () => {
   const points: PointSet[] = [
-    [[0, 0], [2, -15]], [[100, 0], [100, 4]],
-    [[100, 100], [85, -90]], [[0, 100], [-13, -94]],
-    [[28, 49], [44, -45]], [[81, 82], [97, -66]], [[70, 73], [56, -82]]
+    [[0, 0], [-6, 10]], [[100, 0], [110, -18]],
+    [[100, 100], [98, -78]], [[0, 100], [-5, -93]],
+    [[78, 20], [81, -4]], [[40, 31], [31, -7]], [[54, 45], [66, -38]]
   ];
   const strictTin = new Tin({ points, strictMode: "strict", outerTransform: "worldFile", worldFile });
   strictTin.updateTin();
@@ -200,20 +200,22 @@ it("strict と loose は実際に使う三角網で余白を選ぶ", () => {
   });
 });
 
-// 余白の探索は 50% までなので、扇形に落ちる = 50% でも B が成立しないことになる。
+// 凸包の辺を制約にすると、補助頂点を含む三角形の反転が減り、auto と loose でも 50% の余白で B が成立する
+// （以前は成立せず扇形に落ちた。扇形に落ちる経路は、下の translatedPoints(70) の試験で確かめる）。
 it.each(["auto", "loose"] as const)(
-  "奈良町八水文庫図の %s は 50% でも world file 外周が成立せず扇形に落ちる",
+  "奈良町八水文庫図の %s は 50% の余白で world file 外周を成立させる",
   (strictMode) => {
     const tin = new Tin({ ...naramachiOptions, strictMode, outerTransform: "worldFile", worldFile: naramachiModel });
     tin.updateTin();
     expect(tin.boundaryDiagnostics).toMatchObject({
+      margin: 0.5,
       requestedOuterTransform: "worldFile",
-      outerTransform: "extrapolate",
-      fallbackReason: "boundaryFlips"
+      outerTransform: "worldFile"
     });
+    expect(tin.boundaryDiagnostics?.fallbackReason).toBeUndefined();
     const compiled = tin.getCompiled();
-    expect(compiled).toHaveProperty("outerTransform", "extrapolate");
-    expect(compiled).not.toHaveProperty("worldFile");
+    expect(compiled).toHaveProperty("outerTransform", "worldFile");
+    expect(compiled).toHaveProperty("worldFile", naramachiModel);
   },
   REAL_DATA_TIMEOUT_MS
 );

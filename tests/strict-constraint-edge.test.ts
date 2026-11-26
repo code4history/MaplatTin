@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
-import { featureCollection, point, polygon } from "@turf/turf";
-import { counterTri, transformArr } from "@maplat/transform";
+import { featureCollection, polygon } from "@turf/turf";
+import { counterTri } from "@maplat/transform";
 import type { PropertyTriKey, Tins, Tri } from "@maplat/transform";
 import type { Position } from "geojson";
 import { Options, Tin } from "../src/index.ts";
@@ -106,14 +106,23 @@ describe("strict mode keeps constrained edges (with edge intermediate nodes)", {
 //
 // 制約エッジが TIN の辺として保たれていれば、その辺上の点は TIN の区分アフィン
 // 変換によって対応する bakw 側の線分上へ正確に写る。
-// （2.00704 以降は重み補正は無いが、辺上の検査は補間関数そのもの
-//   （transformArr）で行う。）
+// （2.00704 以降は重み補正は無いが、辺上の検査は補間そのもので行う。）
 
-/** 制約エッジの中点を forw TIN で変換し、bakw 線分の中点からのずれを返す */
+/**
+ * 制約エッジの中点を、そのエッジを辺に持つ三角形の補間で変換し、bakw 線分の中点からのずれを返す。
+ * エッジが三角網の辺でなければ Infinity。
+ *
+ * 中点を TIN 全体の `transformArr` で変換すると、同じ必須エッジの中継点が一直線に並ぶ面積ほぼ 0 の
+ * 細長い三角形（禁止制約で解消しきれないもの）が辺のすぐ隣にあるとき、浮動小数点の丸めで中点が隣の
+ * 細長い三角形に入り、補間が大きく外れる。エッジが辺として保たれているかを確かめるには、エッジに接する
+ * 三角形で補間する。
+ */
 function edgeMidpointDeviations(tin: Tin): number[] {
   const features = tin.pointsSet!.forw.features;
+  const triangles = tin.tins!.forw!.features;
   return tin.pointsSet!.edges.map((edge) => {
     const [start, end] = [edge[0], edge[1]].map((position) => ({
+      index: features[position].properties!.target.index as number | string,
       forw: features[position].geometry!.coordinates as Position,
       bakw: features[position].properties!.target.geom as Position,
     }));
@@ -125,7 +134,19 @@ function edgeMidpointDeviations(tin: Tin): number[] {
       (start.bakw[0] + end.bakw[0]) / 2,
       (start.bakw[1] + end.bakw[1]) / 2,
     ];
-    const actual = transformArr(point(midForw), tin.tins!.forw!) as Position;
+    const triangle = triangles.find((tri) => {
+      const indices = (["a", "b", "c"] as PropertyTriKey[]).map((key) => tri.properties![key].index);
+      return indices.includes(start.index) && indices.includes(end.index);
+    });
+    if (!triangle) return Infinity;
+    // 三角形の重心座標で補間する
+    const [p, q, r] = triangle.geometry!.coordinates[0] as Position[];
+    const geoms = (["a", "b", "c"] as PropertyTriKey[]).map((key) => triangle.properties![key].geom as Position);
+    const det = (q[1] - r[1]) * (p[0] - r[0]) + (r[0] - q[0]) * (p[1] - r[1]);
+    const l1 = ((q[1] - r[1]) * (midForw[0] - r[0]) + (r[0] - q[0]) * (midForw[1] - r[1])) / det;
+    const l2 = ((r[1] - p[1]) * (midForw[0] - r[0]) + (p[0] - r[0]) * (midForw[1] - r[1])) / det;
+    const l3 = 1 - l1 - l2;
+    const actual = [0, 1].map((k) => l1 * geoms[0][k] + l2 * geoms[1][k] + l3 * geoms[2][k]);
     return Math.hypot(actual[0] - expectedBakw[0], actual[1] - expectedBakw[1]);
   });
 }
