@@ -1,9 +1,14 @@
 import { Feature, Point, Position } from 'geojson';
 import { Transform, CompiledLegacy, CompiledTransformData, Edge, EdgeSet, EdgeSetLegacy, PointSet, StrictMode, VertexMode, WorldFile, YaxisMode } from '@maplat/transform';
 import { BoundaryDiagnostics } from "./boundary-search.js";
+import { SupplementDiagnostics, SupplementPair, SupplementPairRecord } from "./supplement-pairs.js";
 import { PointsSetBD } from "./types/tin.js";
 export declare const FORMAT_VERSION_V2 = 2.00704;
 export declare const FORMAT_VERSION_V3 = 3.00001;
+/** 補完点の一覧を持つ compiled（Transform の型には無い項目。読み手は無視してよい）。 */
+export type CompiledWithSupplement = CompiledTransformData & {
+    supplementPairs?: SupplementPairRecord[];
+};
 /**
  * Tinクラスの初期化オプション
  */
@@ -24,6 +29,11 @@ export interface Options {
     outerTransform?: "extrapolate" | "worldFile";
     /** 四辺形の外側に使う world file。`outerTransform: "worldFile"` のとき必須。 */
     worldFile?: WorldFile;
+    /**
+     * V3 だけ。strict のために制約から外した凸包の辺に、システムが補完点（supplementPairs）を足す。
+     * 既定は true。false にすると足さない（#91 と同じ結果）。
+     */
+    supplementPairs?: boolean;
 }
 /**
  * Tin (Triangulated Irregular Network) クラス
@@ -34,11 +44,22 @@ export declare class Tin extends Transform {
     priority: number;
     pointsSet: PointsSetBD | undefined;
     useV2Algorithm: boolean;
+    /** V3 で補完点を足すか（`Options#supplementPairs`）。 */
+    useSupplementPairs: boolean;
+    private supplementRecords;
+    private lastSupplementDiagnostics?;
     private lastBoundaryDiagnostics?;
     private requestedWorldFile?;
     private compiledOuter?;
     /** 現在の三角網を V3 で生成したときの外周の診断。 */
     get boundaryDiagnostics(): BoundaryDiagnostics | undefined;
+    /**
+     * システムが足した補完点の一覧（今の三角網のもの）。座標は内部の座標（`edgeNodes` と同じ）。
+     * 人間の対応点（`points`）には入らない。`updateTin()` のたびに、対応点だけから作り直される。
+     */
+    get supplementPairs(): SupplementPair[];
+    /** 直近の `updateTin()` の補完の手順の診断（足す手順に入らなかったときは undefined）。 */
+    get supplementDiagnostics(): SupplementDiagnostics | undefined;
     /**
      * Tinクラスのインスタンスを生成します
      * @param options - 初期化オプション
@@ -65,7 +86,7 @@ export declare class Tin extends Transform {
     /**
      * 現在の設定を永続化可能な形式にコンパイルします
      */
-    getCompiled(): CompiledTransformData;
+    getCompiled(): CompiledWithSupplement;
     /** コンパイルされた設定を基底クラスで復元し、外周方式を次の生成にも引き継ぐ。 */
     setCompiled(compiled: CompiledTransformData | CompiledLegacy): void;
     /**
@@ -84,7 +105,9 @@ export declare class Tin extends Transform {
      * 厳密なTINを計算します
      *
      * @param kinkLimit - forw / bakw それぞれで残す交差（kinks）の件数の上限
-     *   （同じ位置の交差を 1 件に数えた件数）。届いた時点で数え上げをやめます
+     *   （同じ位置の交差を 1 件に数えた件数）。届いた時点で数え上げをやめます。
+     *   0 のときは交差を調べず、`strict_status` と `kinks` も変えません（重なりの解消だけを行い、
+     *   三角網の向きを読むための内部用）
      */
     calculateStrictTin(kinkLimit?: number): void;
     /**
@@ -108,6 +131,19 @@ export declare class Tin extends Transform {
      * {@link updateTinAsync} を利用してください。
      */
     updateTin(): void;
+    /**
+     * `buildWithHull` で三角網を組み、strict のために制約から外した凸包の辺があれば、システムが補完点を
+     * 足して組み直す（#89）。外れた辺が無いとき、補完点を使わない指定のとき、V2 のときは、`buildWithHull` の
+     * 結果をそのまま返す。
+     *
+     * 補完点は rawPointsSet と allGcps と edgeNodes の末尾に、添字 `e{n}` で足す（必須エッジの中継点の
+     * 続き番号）。重心・扇形外挿の推定（pointsSetFC・convexBuf）には入れない。loose 指定では、内部で
+     * strict の手順を 1 回走らせて補完点を決め、それを足して loose で組む。
+     *
+     * @param makeAttempt 点群ごとの探索の入れ物と strict の方式・「三角網の向きを読むだけ」（交差を調べない）を
+     *   受け取り、`buildWithHull` に渡す試行を返す
+     */
+    private buildWithSupplements;
     /**
      * 凸包の辺を全部制約にして三角網を組み、strict を壊したときは、壊した原因の凸包の辺だけを外して
      * 組み直す。strict に戻るか、外す辺が無くなるまで繰り返し（strict を壊さない範囲で、なるべく多くの
