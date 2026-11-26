@@ -101,10 +101,51 @@ function reduceSamples(samples: SamplePair[]): [number, number] {
   return [minRatio, Math.atan2(sumSin, sumCos)];
 }
 
+/**
+ * 扇形外挿の縮尺と回転を、重心から遠い凸包の点の最小二乗で決める（V3 の plain だけ）。
+ *
+ * 従来の `reduceSamples` は、縮尺を凸包の点の比の最小値、回転を重みなしの平均で決める。重心に近い凸包の点
+ * には、GCP の打ち誤差が「誤差 ÷ 重心からの距離」の割合で乗り、最小値はその極値を拾う。拾った縮尺は紙の隅
+ * まで同じ割合で効くので、扇形の外側で増幅される（誤差 3 画素の GCP 24 組で、外側の最大が 106 km）。
+ *
+ * ここでは、重心からの紙の距離が最遠の点の `FAN_FIT_FAR_RATIO` 倍以上の凸包の点だけを使い、重心を固定した
+ * 相似 `F ≈ z·B` を最小二乗で当てはめる。`F`・`B` は重心からの紙・地理の差で、実部を y・虚部を x に取る
+ * 複素数（向きの基準は `atan2(Δx, Δy)` に合わせる）。`z = Σ F·conj(B) / Σ |B|²` で、縮尺は `|z|`、回転は
+ * `arg z`。重みが `|B|²` になるので、近い点の誤差は効きにくい。
+ *
+ * 遠い点が `FAN_FIT_MIN_POINTS` 点に満たないとき（GCP が 4〜6 組の図など）は、凸包の全点で同じ最小二乗を
+ * 当てはめる。
+ */
+const FAN_FIT_FAR_RATIO = 0.6;
+const FAN_FIT_MIN_POINTS = 3;
+
+function fitSimilarity(samples: SamplePair[]): [number, number] {
+  let re = 0;
+  let im = 0;
+  let norm = 0;
+  samples.forEach(({ forw, bakw }) => {
+    // F = Δy + iΔx、B = Δy + iΔx（collectSamples で bakw の y は反転済み）
+    re += forw[1] * bakw[1] + forw[0] * bakw[0];
+    im += forw[0] * bakw[1] - forw[1] * bakw[0];
+    norm += bakw[0] * bakw[0] + bakw[1] * bakw[1];
+  });
+  if (!(norm > 0)) return [1, 0];
+  const scale = Math.hypot(re, im) / norm;
+  return scale > 0 ? [scale, Math.atan2(im, re)] : [1, 0];
+}
+
+function reduceSamplesFar(samples: SamplePair[]): [number, number] {
+  const distance = (s: SamplePair) => Math.hypot(s.forw[0], s.forw[1]);
+  const farthest = Math.max(...samples.map(distance));
+  const far = samples.filter((s) => distance(s) >= FAN_FIT_FAR_RATIO * farthest);
+  return fitSimilarity(far.length >= FAN_FIT_MIN_POINTS ? far : samples);
+}
+
 function buildVertexRatio(
   convexBuf: Record<string, ConvexEntry>,
   centroid: { forw: Position; bakw: Position },
   mode: "plain" | "birdeye",
+  fit = false,
 ): Array<[number, number]> {
   const { perQuad, aggregate } = collectSamples(convexBuf, centroid);
   const hasAllQuadrants = perQuad.every((samples) => samples.length > 0);
@@ -113,7 +154,9 @@ function buildVertexRatio(
     ? (hasAllQuadrants ? perQuad : [aggregate])
     : [aggregate];
 
-  const vertexRatio = groups.map((samples) => reduceSamples(samples));
+  // fit は plain の V3 だけ。birdeye の象限ごとの推定と V2 は従来の最小値（既存の地図の結果を変えない）。
+  const reduce = fit && mode === "plain" ? reduceSamplesFar : reduceSamples;
+  const vertexRatio = groups.map((samples) => reduce(samples));
 
   if (vertexRatio.length === 1) {
     return [vertexRatio[0], vertexRatio[0], vertexRatio[0], vertexRatio[0]];
@@ -327,8 +370,10 @@ function checkAndAdjustVerticesN(
  * ## Algorithm
  *
  * ### Phase 1 – Ratios
- * Compute per-quadrant (birdeye) or aggregate (plain) [minScale, avgRotation]
- * ratios from the convex hull of all GCPs.
+ * Compute per-quadrant (birdeye) or aggregate (plain) [scale, rotation]
+ * ratios from the convex hull of all GCPs.  V2 and birdeye use [minScale,
+ * avgRotation]; V3 plain fits a centroid-fixed similarity to the hull points far
+ * from the centroid (see `reduceSamplesFar`).
  *
  * ### Phase 2 – 4 bbox corners
  * Each bbox corner's bakw position is extrapolated using the ratio for its
@@ -364,7 +409,7 @@ function calculateVerticesCore(
   const { convexBuf, centroid, allGcps, minx, maxx, miny, maxy } = params;
 
   // ── Phase 1 ───────────────────────────────────────────────────────────────
-  const cornerRatios = project ? undefined : buildVertexRatio(convexBuf, centroid, mode);
+  const cornerRatios = project ? undefined : buildVertexRatio(convexBuf, centroid, mode, withEdgeVertices);
 
   // ── Phase 2: 4 bbox corner vertices ───────────────────────────────────────
   const bboxCornerForws: Position[] = [

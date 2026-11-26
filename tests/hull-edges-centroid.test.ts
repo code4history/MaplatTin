@@ -194,8 +194,8 @@ describe.each([
   ["tatebayashi_kaei_jokamachi", Tin.STATUS_STRICT, 0.0005], // 0.04%（10.19%）全部の辺を制約にできる
   ["miesan_ginza_map", Tin.STATUS_STRICT, 0.001], // 0.05%（6.30%）1 本外す
   ["fushimijo_maplat", Tin.STATUS_STRICT, 0.0001], // 0.0003%（16.09%）
-  ["1932_nobeoka", Tin.STATUS_STRICT, 0.045], // 3.80%（10.94%）
-  ["tatebayashi_castle_akimoto", Tin.STATUS_STRICT, 0.055], // 4.98%（9.33%）
+  ["1932_nobeoka", Tin.STATUS_STRICT, 0.08], // 7.53%（10.94%）。扇形外挿を遠い点の最小二乗にしたので、外す辺が 2 → 3 本（3.80%）
+  ["tatebayashi_castle_akimoto", Tin.STATUS_STRICT, 0.055], // 4.89%（9.33%）。扇形外挿の変更前は 4.98%
   ["naramachi_yasui_bunko", Tin.STATUS_STRICT, 0.04], // 3.61%（5.59%。base は strict_error）
   // strict に戻せない地図は、凸包の辺を全部制約にした三角網を採る（外して得るものが無い）。16.26%→0.04%
   ["uno_bus_gtfs_error", Tin.STATUS_LOOSE, 0.0005]

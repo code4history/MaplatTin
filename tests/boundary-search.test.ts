@@ -100,7 +100,7 @@ it.each([
   ["1932_nobeoka", true, 0.1, [0, 0], 18],
   ["fushimijo_maplat", false, 0.1, [0, 0], 0],
   ["miesan_ginza_map", false, 0.1, [0, 0], 0],
-  ["tatebayashi_castle_akimoto", false, 0.15, [0, 0], 0],
+  ["tatebayashi_castle_akimoto", false, 0.225, [0, 0], 0],
   ["tatebayashi_kaei_jokamachi", false, 0.1, [0, 0], 0],
   ["naramachi_yasui_bunko", false, 0.1, [0, 0], 19],
   ["naramachi_yasui_revised", false, 0.1, [0, 0], 19]
@@ -192,8 +192,8 @@ it("strict でも診断は探索の時点の両面の値を返す（実際の三
   // 補助頂点を含む三角形の反転が、探索の時点（地図面と地理面の三角網を独立に作る）では 1 件あるが、
   // strict で地理面の三角網を地図面から写すと無くなる合成の配置
   const points: Options["points"] = [
-    [[0, 0], [-6, -3]], [[100, 0], [81, -16]], [[100, 100], [118, -92]], [[0, 100], [-20, -98]],
-    [[61, 35], [37, -47]], [[93, 24], [89, -19]], [[13, 93], [3, -106]]
+    [[0, 0], [4, 1]], [[100, 0], [83, -9]], [[100, 100], [113, -92]], [[0, 100], [-14, -97]],
+    [[61, 35], [41, -46]], [[93, 24], [90, -8]], [[13, 93], [15, -100]]
   ];
   const tin = new Tin({ wh: [100, 100], strictMode: Tin.MODE_STRICT, points });
   tin.updateTin();
