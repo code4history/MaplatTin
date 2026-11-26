@@ -19,8 +19,8 @@ importers:
   .:
     dependencies:
       '@maplat/transform':
-        specifier: ^1.1.0
-        version: 1.1.0
+        specifier: ^1.1.1-rc.1
+        version: 1.1.1-rc.1
       '@turf/turf':
         specifier: ^7.4.0
         version: 7.4.0
@@ -447,8 +447,8 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@maplat/transform@1.1.0':
-    resolution: {integrity: sha512-oBfH0vSJQx+xsVUE/tFI42JCSrXMKjFcoKbbN4yG2Cv5M2gaOhQyzn9ZO8RZFcQ18Do0c7WWpFbx72R+IhWeZw==}
+  '@maplat/transform@1.1.1-rc.1':
+    resolution: {integrity: sha512-YgW8kdDqBIw5u3bnsBbOf1ebakld3fPCQR+xtqubC5oEaj1q0QRUV6sNt00NdF6+MEkHAONXHAIbjAWiOuWMVg==}
     engines: {node: '>=20', pnpm: '>=9'}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
@@ -2231,9 +2231,10 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@maplat/transform@1.1.0':
+  '@maplat/transform@1.1.1-rc.1':
     dependencies:
       '@turf/turf': 7.4.0
+      '@types/geojson': 7946.0.16
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true

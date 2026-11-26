@@ -2,7 +2,7 @@
 
 このプロジェクトの主な変更を記録します。版数は [Semantic Versioning](https://semver.org/) に従います。
 
-## [Unreleased]
+## [1.1.2-rc.1] - 2026-11-26
 
 ### Fixed
 - dist の型定義が参照する `geojson` の型が `hoist: false` の利用者で解決できない不具合を直した（`@types/geojson` を dependencies へ移動）(#76)
