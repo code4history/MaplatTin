@@ -911,30 +911,73 @@ export class Tin extends Transform {
       : calculatePlainVertices;
     let boundary: BoundaryCandidate | undefined;
     let verticesList: { forw: Feature<Point>[]; bakw: Feature<Point>[] };
+    let cornerRing = false;
     if (isV3) {
-      ({ boundary, verticesList } = this.buildWithSupplements(strict, rawPointsSet, allGcps, (cache, mode, measureOnly) =>
-        (excludedHull) => {
-          const found = searchBoundary(
-            boundaryParams,
-            calculateVertices,
-            rawPointsSet,
-            this.points.length,
-            undefined,
-            excludedHull,
-            cache,
-          );
-          return {
-            boundary: found,
-            verticesList: this.buildTin(
+      const buildV3 = (vertices: typeof calculateVertices) =>
+        this.buildWithSupplements(strict, rawPointsSet, allGcps, (cache, mode, measureOnly) =>
+          (excludedHull) => {
+            const found = searchBoundary(
+              boundaryParams,
+              vertices,
               rawPointsSet,
-              found?.vertices ?? calculateVertices(boundaryParams, false),
-              mode,
-              found,
-              excludedHull.size > 0,
-              measureOnly,
-            ),
-          };
-        }));
+              this.points.length,
+              undefined,
+              excludedHull,
+              cache,
+            );
+            return {
+              boundary: found,
+              verticesList: this.buildTin(
+                rawPointsSet,
+                found?.vertices ?? calculateVertices(boundaryParams, false),
+                mode,
+                found,
+                excludedHull.size > 0,
+                measureOnly,
+              ),
+            };
+          });
+      ({ boundary, verticesList } = buildV3(calculateVertices));
+
+      // strict（auto なら strict を試す）で strict にならないとき、補助頂点を V2 と同じ四隅だけにして
+      // 組み直す。36 区分の補助頂点は、紙の面と地理の面で凸包の形が食い違う所（打ち誤差のある GCP が凸包の
+      // 頂点に来る）で、外挿した位置が内側の三角形と重なり、辺の反転で直せないことがある（MaplatTin#98）。
+      // 四隅だけなら、V2 が strict になる入力は strict になる。組み直しても strict にならないときは、
+      // 最初の結果（36 区分）に戻す
+      if (
+        (strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO) &&
+        !this.isStrict()
+      ) {
+        const kept = {
+          build: this.captureBuild(),
+          boundary,
+          verticesList,
+          supplementRecords: this.supplementRecords,
+          supplementDiagnostics: this.lastSupplementDiagnostics,
+          rawCount: rawPointsSet.forw.length,
+          gcpCount: allGcps.length,
+          edgeNodeCount: this.edgeNodes!.length,
+        };
+        const corners: typeof calculateVertices = (params) => calculateVertices(params, false);
+        let retried: ReturnType<typeof buildV3> | undefined;
+        try {
+          retried = buildV3(corners);
+        } catch {
+          // 四隅での組み直しが失敗しても、最初の結果は有効なので、それを返す
+        }
+        if (retried && this.isStrict()) {
+          ({ boundary, verticesList } = retried);
+          cornerRing = true;
+        } else {
+          rawPointsSet.forw.length = kept.rawCount;
+          rawPointsSet.bakw.length = kept.rawCount;
+          allGcps.length = kept.gcpCount;
+          this.edgeNodes!.length = kept.edgeNodeCount;
+          this.restoreBuild(kept.build);
+          this.supplementRecords = kept.supplementRecords;
+          this.lastSupplementDiagnostics = kept.supplementDiagnostics;
+        }
+      }
     } else {
       verticesList = this.buildTin(
         rawPointsSet,
@@ -956,7 +999,9 @@ export class Tin extends Transform {
     // updateTin() 直後の transform() が TypeError になる。{} の .forw は undefined なので
     // 旧版でも純アフィンになる。新 Transform はこの値を読まない。
     this.pointsWeightBuffer = {};
-    this.lastBoundaryDiagnostics = boundary?.diagnostics;
+    this.lastBoundaryDiagnostics = boundary && cornerRing
+      ? { ...boundary.diagnostics, cornerRing: true }
+      : boundary?.diagnostics;
     if (worldFile && this.lastBoundaryDiagnostics) {
       this.lastBoundaryDiagnostics = {
         ...this.lastBoundaryDiagnostics,
@@ -1188,6 +1233,11 @@ export class Tin extends Transform {
       if (bare.strict) return adopt(bare);
     }
     return adopt(first);
+  }
+
+  /** 今の三角網が strict か（組み立ての途中で `strict_status` が変わるので、型の絞り込みを避けて読む）。 */
+  private isStrict(): boolean {
+    return this.strict_status === Tin.STATUS_STRICT;
   }
 
   /** 三角網を組んだ結果の状態（試行ごとに控え、採用する試行の状態に戻す）。 */

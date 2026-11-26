@@ -134,7 +134,7 @@ Array of boundary vertices that form the outer hull of the TIN. These correspond
 | Version | Count |
 |---------|-------|
 | V2 (any mode) | Always **4 points** |
-| V3 (any mode) | **Up to 36 points** (4 corners + edge vertices from 10° angular bins) |
+| V3 (any mode) | **Up to 36 points** (4 corners + edge vertices from 10° angular bins). **4 points** when `strict` was reachable only with the corner vertices of V2 (`boundaryDiagnostics.cornerRing`) |
 
 V3 uses `withEdgeVertices=true` for both `plain` and `birdeye` modes. The difference between the
 two modes is how the 4 corners are computed (single aggregate ratio vs per-quadrant ratios) — the

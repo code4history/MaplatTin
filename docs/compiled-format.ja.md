@@ -129,7 +129,7 @@ TIN の外周を構成する境界頂点の一覧。三角形インデックス�
 | バージョン | 点数 |
 |-----------|------|
 | V2（`plain` / `birdeye` 問わず） | 常に **4 点** |
-| V3（`plain` / `birdeye` 問わず） | **最大 36 点**（4 隅 + 10° 単位の角度ビンからの辺頂点） |
+| V3（`plain` / `birdeye` 問わず） | **最大 36 点**（4 隅 + 10° 単位の角度ビンからの辺頂点）。V2 と同じ 4 隅だけにしたときだけ `strict` になる入力は **4 点**（`boundaryDiagnostics.cornerRing`） |
 
 V3 は plain/birdeye を問わず `withEdgeVertices=true` で計算される。plain と birdeye の違いは
 4 隅の計算方法（単一集計 vs 四象限ごとの比率）であり、辺頂点の追加有無は変わらない。
