@@ -146,7 +146,7 @@ independently in the map and geographic planes. Its type is `BoundaryDiagnostics
 | `requestedOuterTransform` | `"worldFile"` when a world file boundary was requested. |
 | `outerTransform` | The method selected for a world file request, `"worldFile"` or `"extrapolate"`. |
 | `fallbackReason` | `"boundaryFlips"` when no world file candidate passed and Tin rebuilt with extrapolation. |
-| `cornerRing` | `true` only when the 36-bin auxiliary vertices could not give `strict` (or `auto`'s strict attempt) and Tin rebuilt with the four corner vertices of V2 instead, which did. Absent otherwise. |
+| `ringRescue` | Present only when the 36-bin auxiliary vertices did not give `strict` (nor `auto`'s strict attempt) and Tin repaired the ring: `"thinned"` drops only the auxiliary vertices (and their neighbouring bins) that break `strict`; `"corners"` keeps only the four corner vertices, with V3's scale/rotation estimate. Absent otherwise. |
 
 V3 first constrains every edge of the convex hull of the GCPs and the points on constrained edges (between
 neighbouring points, including GCPs lying on a hull side) in both planes, so triangles containing an

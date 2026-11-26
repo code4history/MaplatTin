@@ -236,7 +236,8 @@ it.each(["auto", "loose"] as const)(
     expect(compiled).toHaveProperty("outerTransform", "worldFile");
     expect(compiled).toHaveProperty("worldFile", naramachiModel);
   },
-  REAL_DATA_TIMEOUT_MS
+  // strict にならない入力は、補助頂点の手当て（#98）を試す分、時間がかかる（手元で 4〜8 秒）
+  REAL_DATA_TIMEOUT_MS * 3
 );
 
 it("奈良町八水文庫図の strict は 50% の余白で world file 外周を成立させる", () => {
@@ -250,7 +251,7 @@ it("奈良町八水文庫図の strict は 50% の余白で world file 外周を
   const compiled = tin.getCompiled();
   expect(compiled).toHaveProperty("outerTransform", "worldFile");
   expect(compiled).toHaveProperty("worldFile", naramachiModel);
-}, REAL_DATA_TIMEOUT_MS);
+}, REAL_DATA_TIMEOUT_MS * 3);
 
 it("内側の交差は B を降格させず、strict と auto の逆変換規則を保つ", () => {
   const points: PointSet[] = [
