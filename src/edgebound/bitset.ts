@@ -12,6 +12,17 @@ abstract class BitSet {
     this.bs = bs;
   }
 
+  /** Copy of the underlying bits (for restoring the set later with {@link load}). */
+  copyBits(): BitSet["bs"] {
+    return this.bs.slice();
+  }
+
+  /** Replace the contents with bits taken by {@link copyBits} from a set of the same length. */
+  load(bits: BitSet["bs"]): this {
+    (this.bs as Uint8Array).set(bits as Uint8Array);
+    return this;
+  }
+
   /**
    * Add a number to the set.
    *

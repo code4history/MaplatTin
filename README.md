@@ -152,7 +152,8 @@ neighbouring points, including GCPs lying on a hull side) in both planes, so tri
 auxiliary vertex do not cut into the hull. If that breaks `strict` (the triangulation copied to the
 geographic plane overlaps itself), only the hull edges involved in the overlap are dropped and the
 triangulation is rebuilt, repeating until `strict` holds or no more edges are involved; dropped edges that
-`strict` tolerates are restored one by one. `strict` takes priority over the hull edges: where the convex hull
+`strict` tolerates are restored one by one. If `strict` cannot be restored, the triangulation with every hull
+edge constrained is used (dropping edges gains nothing). `loose` is not rebuilt. `strict` takes priority over the hull edges: where the convex hull
 of the two planes disagree, a part of an auxiliary-vertex triangle may remain inside the hull (a small
 fraction of the hull area in the bundled data, see the CHANGELOG). The fan center is the centroid of the
 GCPs itself, as in V2.

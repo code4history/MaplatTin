@@ -48,6 +48,7 @@ import {
   countBoundaryFlips,
   searchBoundary,
   type BoundaryCandidate,
+  type SearchCache,
   type BoundaryDiagnostics,
 } from "./boundary-search.ts";
 import {
@@ -68,6 +69,14 @@ import type { PointsSetBD, VertexPosition } from "./types/tin.ts";
 type RawPointsSet = { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
 type CompiledOuter = Pick<CompiledWorldFileOuter, "outerTransform" | "worldFile" | "vertices_points"> |
   { outerTransform: "extrapolate" };
+
+/** 三角網を組んだ結果の状態。 */
+interface BuildState {
+  tins: Tin["tins"];
+  pointsSet: Tin["pointsSet"];
+  strict_status: Tin["strict_status"];
+  kinks: Tin["kinks"];
+}
 
 /** strict を壊した凸包の辺を外して組み直す回数の上限。 */
 const MAX_HULL_REFINEMENTS = 12;
@@ -780,7 +789,8 @@ export class Tin extends Transform {
       // world file 自体は反転前の係数を保存する。
       const follow = this.yaxisMode === Tin.YAXIS_FOLLOW;
       const orientation = follow ? 1 : -1;
-      const boundary = this.buildWithHull(strict, (excludedHull) => searchBoundary(
+      const cache: SearchCache = new Map();
+      const { boundary } = this.buildWithHull(strict, (excludedHull) => ({ boundary: searchBoundary(
         boundaryParams,
         (params) => calculateWorldFileVertices(params, (xy) => {
           const [x, y] = worldFileToCrs(worldFile, xy);
@@ -792,7 +802,7 @@ export class Tin extends Transform {
           orientation,
           accept: (candidate) => {
             if (!candidate.hasMapBoundary) return false;
-            this.buildTin(rawPointsSet, candidate.vertices, strict, candidate);
+            this.buildTin(rawPointsSet, candidate.vertices, strict, candidate, excludedHull.size > 0);
             // auto の切り替えと strict の重なり解消を経て、採用した三角網で判定する。
             return (this.strict_status !== Tin.STATUS_LOOSE || candidate.hasBoundary) &&
               countBoundaryFlips(this.tins!.forw!, orientation) === 0 &&
@@ -800,7 +810,8 @@ export class Tin extends Transform {
           },
         },
         excludedHull,
-      ));
+        cache,
+      ) }));
       if (boundary) {
         this.compiledOuter = {
           outerTransform: "worldFile",
@@ -827,27 +838,32 @@ export class Tin extends Transform {
     const calculateVertices = this.vertexMode === Tin.VERTEX_BIRDEYE
       ? calculateBirdeyeVertices
       : calculatePlainVertices;
-    let verticesList!: { forw: Feature<Point>[]; bakw: Feature<Point>[] };
-    const boundary = isV3
-      ? this.buildWithHull(strict, (excludedHull) => {
-          const found = searchBoundary(
-            boundaryParams,
-            calculateVertices,
-            rawPointsSet,
-            this.points.length,
-            undefined,
-            excludedHull,
-          );
-          verticesList = this.buildTin(
+    let boundary: BoundaryCandidate | undefined;
+    let verticesList: { forw: Feature<Point>[]; bakw: Feature<Point>[] };
+    if (isV3) {
+      const cache: SearchCache = new Map();
+      ({ boundary, verticesList } = this.buildWithHull(strict, (excludedHull) => {
+        const found = searchBoundary(
+          boundaryParams,
+          calculateVertices,
+          rawPointsSet,
+          this.points.length,
+          undefined,
+          excludedHull,
+          cache,
+        );
+        return {
+          boundary: found,
+          verticesList: this.buildTin(
             rawPointsSet,
             found?.vertices ?? calculateVertices(boundaryParams, false),
             strict,
             found,
-          );
-          return found;
-        })
-      : undefined;
-    if (!isV3) {
+            excludedHull.size > 0,
+          ),
+        };
+      }));
+    } else {
       verticesList = this.buildTin(
         rawPointsSet,
         calculateVertices(boundaryParams, false),
@@ -881,86 +897,124 @@ export class Tin extends Transform {
 
   /**
    * 凸包の辺を全部制約にして三角網を組み、strict を壊したときは、壊した原因の凸包の辺だけを外して
-   * 組み直す。strict に戻るか、外す辺が無くなるまで繰り返す（strict を壊さない範囲で、なるべく多くの
-   * 凸包の辺を制約にする）。外せるだけ外しても戻らず、凸包の辺を全部外すと strict になるときは、
-   * 全部外した三角網を採る。
+   * 組み直す。strict に戻るか、外す辺が無くなるまで繰り返し（strict を壊さない範囲で、なるべく多くの
+   * 凸包の辺を制約にする）、戻ったら、外した辺を 1 本ずつ制約に戻して strict を保てるか試す。
    *
-   * strict でも auto でもない（loose の）ときは組み直さない。
+   * strict に戻らないときは、外して得るものが無いので、凸包の辺を全部制約にした最初の三角網を採る。
+   * 凸包の辺を全部外した三角網が strict になるときだけは、そちらを採る。
    *
-   * @param attempt 外す辺の鍵を受け取り、外周を探して `this.tins` を組み、探索の結果を返す
+   * 返す結果と `this` の状態（三角網・点群・strict の判定・交差）は、必ず同じ試行から来る。試行の結果は
+   * 控えておき、採用する試行の状態を戻す（失敗した試行の状態を残さない）。同じ外す指定の試行は
+   * 繰り返さない。strict でも auto でもない（loose の）ときは組み直さない。
+   *
+   * 外す辺がある試行（最初の試行以外）は、strict になるかどうかだけが要る（採用されるのは、交差が無い
+   * strict の試行か、最初の試行だけ）ので、交差の数え上げは 1 件で止める（`buildTin` の onlyDetectKinks）。
+   *
+   * @param attempt 外す辺の鍵を受け取り、外周を探して `this.tins` などを組み、探索の結果を返す
    */
-  private buildWithHull(
+  private buildWithHull<T extends { boundary?: BoundaryCandidate }>(
     strict: StrictMode,
-    attempt: (excludedHull: ReadonlySet<string>) => BoundaryCandidate | undefined,
-  ): BoundaryCandidate | undefined {
-    const isStrict = () => this.strict_status === Tin.STATUS_STRICT;
-    const excluded = new Set<string>();
-    let result = attempt(excluded);
-    const wantsStrict = strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO;
-    if (!wantsStrict || !result || isStrict()) return result;
+    attempt: (excludedHull: ReadonlySet<string>) => T,
+  ): T {
+    interface Entry {
+      value: T;
+      strict: boolean;
+      /** strict になった試行と、最初の試行だけ控える */
+      state?: BuildState;
+    }
+    const entries = new Map<string, Entry>();
+    let live: Entry | undefined; // this に状態がある試行
+    const keyOf = (excluded: ReadonlySet<string>) => [...excluded].sort().join(",");
+    const run = (excluded: ReadonlySet<string>, keepState = false): Entry => {
+      const key = keyOf(excluded);
+      const known = entries.get(key);
+      if (known) return known;
+      const value = attempt(excluded);
+      const entry: Entry = {
+        value,
+        strict: value.boundary !== undefined && this.strict_status === Tin.STATUS_STRICT,
+      };
+      if (entry.strict || keepState) entry.state = this.captureBuild();
+      entries.set(key, entry);
+      live = entry;
+      return entry;
+    };
+    /** 採用する試行の状態を this に戻して、その結果を返す。 */
+    const adopt = (entry: Entry): T => {
+      if (live !== entry) this.restoreBuild(entry.state!);
+      live = entry;
+      return entry.value;
+    };
 
-    const everyHullEdge = new Set(result.forwHull.all.map(hullEdgeKey));
-    for (let i = 0; i < MAX_HULL_REFINEMENTS; i++) {
-      const pointIndices = this.pointsSet!.forw.features.map(
+    const first = run(new Set(), true);
+    const wantsStrict = strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO;
+    if (!wantsStrict || !first.value.boundary || first.strict) return first.value;
+
+    const everyHullEdge = new Set(first.value.boundary.forwHull.all.map(hullEdgeKey));
+    const pointIndices = () =>
+      this.pointsSet!.forw.features.map(
         (feature: Feature<Point>) => feature.properties!.target.index as number | string,
       );
+
+    // 1. 壊した原因の凸包の辺を外していき、strict に戻す
+    const excluded = new Set<string>();
+    let current = first;
+    let recovered: Entry | undefined;
+    for (let i = 0; i < MAX_HULL_REFINEMENTS; i++) {
       const culprits = findHullCulprits(
         this.tins!.forw!,
-        result.forwHull.applied,
-        pointIndices,
+        current.value.boundary!.forwHull.applied,
+        pointIndices(),
       ).filter((edge) => !excluded.has(hullEdgeKey(edge)));
       if (culprits.length === 0) break;
       for (const edge of culprits) excluded.add(hullEdgeKey(edge));
-      const next = attempt(excluded);
-      if (!next) return this.restoreAfterFailure(attempt, excluded, result);
-      result = next;
-      if (isStrict()) return this.restoreHullEdges(attempt, excluded, result);
-    }
-
-    if (excluded.size < everyHullEdge.size) {
-      const bare = attempt(everyHullEdge);
-      if (bare && isStrict()) return bare;
-      return this.restoreAfterFailure(attempt, excluded, result);
-    }
-    return result;
-  }
-
-  /**
-   * strict に戻した状態から、外した凸包の辺を 1 本ずつ制約に戻して試し、strict を保てる辺は戻す。
-   * 原因の辺の特定は粗い（接する三角形の単位）ので、外しすぎた辺を取り戻す。
-   * 最後に試した組み方が採用した外す辺の指定と違うときは、採用した指定で組み直す。
-   */
-  private restoreHullEdges(
-    attempt: (excludedHull: ReadonlySet<string>) => BoundaryCandidate | undefined,
-    excluded: Set<string>,
-    strictResult: BoundaryCandidate,
-  ): BoundaryCandidate {
-    let result = strictResult;
-    // this.tins が採用した外す辺の指定の三角網でなくなったとき true
-    let stale = false;
-    for (const key of [...excluded].slice(0, MAX_HULL_RESTORE_TRIALS)) {
-      const trial = new Set(excluded);
-      trial.delete(key);
-      const next = attempt(trial);
-      if (next && this.strict_status === Tin.STATUS_STRICT) {
-        excluded.delete(key);
-        result = next;
-        stale = false;
-      } else {
-        stale = true;
+      current = run(excluded);
+      if (!current.value.boundary) break;
+      if (current.strict) {
+        recovered = current;
+        break;
       }
     }
-    if (stale) result = attempt(excluded) ?? result;
-    return result;
+
+    // 2. strict に戻ったら、外した辺を 1 本ずつ戻して、strict を保てる辺は制約に戻す
+    if (recovered) {
+      let best = recovered;
+      for (const key of [...excluded].slice(0, MAX_HULL_RESTORE_TRIALS)) {
+        const trial = new Set(excluded);
+        trial.delete(key);
+        const entry = run(trial);
+        if (entry.strict) {
+          excluded.delete(key);
+          best = entry;
+        }
+      }
+      return adopt(best);
+    }
+
+    // 3. 戻らないとき: 凸包の辺を全部外すと strict になるならそれを採り、ならなければ最初の三角網に戻す
+    if (excluded.size < everyHullEdge.size) {
+      const bare = run(everyHullEdge);
+      if (bare.strict) return adopt(bare);
+    }
+    return adopt(first);
   }
 
-  /** 試した三角網を捨て、外す辺の指定を元に戻して組み直す。 */
-  private restoreAfterFailure(
-    attempt: (excludedHull: ReadonlySet<string>) => BoundaryCandidate | undefined,
-    excluded: ReadonlySet<string>,
-    fallback: BoundaryCandidate,
-  ): BoundaryCandidate {
-    return attempt(excluded) ?? fallback;
+  /** 三角網を組んだ結果の状態（試行ごとに控え、採用する試行の状態に戻す）。 */
+  private captureBuild(): BuildState {
+    return {
+      tins: this.tins,
+      pointsSet: this.pointsSet,
+      strict_status: this.strict_status,
+      kinks: this.kinks,
+    };
+  }
+
+  private restoreBuild(state: BuildState): void {
+    this.tins = state.tins;
+    this.pointsSet = state.pointsSet;
+    this.strict_status = state.strict_status;
+    if (state.kinks) this.kinks = state.kinks;
+    else delete this.kinks;
   }
 
   /** 補助頂点を含め、strictMode に従って実際に使う両方向の三角網を組む。 */
@@ -969,6 +1023,7 @@ export class Tin extends Transform {
     verticesSet: VertexPosition[],
     strict: StrictMode,
     boundary?: BoundaryCandidate,
+    onlyDetectKinks = false,
   ): { forw: Feature<Point>[]; bakw: Feature<Point>[] } {
     // 補助頂点を生成する。
     const verticesList = {
@@ -1001,8 +1056,9 @@ export class Tin extends Transform {
     if (strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO) {
       // auto は交差の有無しか使わない（あれば loose に切り替えて kinks を捨てる）
       // ので、1 件見つけた時点で数え上げをやめる。
+      // onlyDetectKinks は、strict になるかどうかだけが要る試行（buildWithHull の途中の試行）。
       this.calculateStrictTin(
-        strict === Tin.MODE_AUTO ? 1 : MAX_KINKS_PER_DIRECTION,
+        strict === Tin.MODE_AUTO || onlyDetectKinks ? 1 : MAX_KINKS_PER_DIRECTION,
       );
     }
 

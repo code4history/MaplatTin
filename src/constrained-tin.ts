@@ -1,8 +1,8 @@
 import { featureCollection, polygon } from "@turf/turf";
 import type { FeatureCollection, Point, Polygon } from "geojson";
 import Delaunator from "delaunator";
-import { Constrain as EdgeBound } from "./edgebound/index.ts";
-import { nextEdge } from "./edgebound/base.ts";
+import { Constrain as EdgeBound, type ConstrainSnapshot } from "./edgebound/index.ts";
+import { nextEdge, type DelaunatorLike } from "./edgebound/base.ts";
 import type { Edge } from "@maplat/transform";
 import type { TriangleProperties } from "./types/tin.ts";
 
@@ -52,12 +52,22 @@ interface ForbiddenGroups {
   allowUnusableBoundary?: boolean;
 }
 
+/**
+ * 必須エッジを張った後の三角網の状態を、同じ点群・同じ必須エッジでの呼び出しの間で使い回す入れ物。
+ * 外す凸包の辺だけを変えて組み直すとき、点群の三角分割と必須エッジの制約（時間の大半）を繰り返さない。
+ * 使い回しても結果は変わらない（控えた状態から続きを張るのと、最初から張るのは同じ操作の列）。
+ */
+export interface ConstrainedTinReuse {
+  snapshot?: ConstrainSnapshot;
+}
+
 /** 制約付き三角分割を作り、指定された群の禁止制約と残数を求める。 */
 export function buildConstrainedTin(
   points: FeatureCollection<Point>,
   edges: Edge[],
   z: string,
-  forbidden?: ForbiddenGroups
+  forbidden?: ForbiddenGroups,
+  reuse?: ConstrainedTinReuse
 ): {
   tin: FeatureCollection<Polygon>;
   remaining: number;
@@ -74,29 +84,44 @@ export function buildConstrainedTin(
   const coordinates = points.features.map(
     (point) => point.geometry!.coordinates
   );
-  let del = Delaunator.from(coordinates);
+  // 必須エッジを張った状態から始める。入れ物に控えがあればそれを復元する。
+  let con: EdgeBound | undefined = reuse?.snapshot
+    ? EdgeBound.restore(reuse.snapshot)
+    : undefined;
+  const delaunay = con ? undefined : Delaunator.from(coordinates);
+  let del: DelaunatorLike = con ? con.del : delaunay!;
   let remaining = 0;
   let outside: Set<number> | undefined;
   const acceptedHull: Edge[] = [];
   if (del.triangles.length !== 0 && (edges.length !== 0 || forbidden)) {
-    let con = new EdgeBound(del);
-    try {
-      con.constrainAll(edges);
-    } catch (error) {
-      if (!forbidden?.allowUnusableBoundary) throw error;
-      // 補助頂点を加える前に検査済みの必須エッジがここで張れなければ、
-      // この面の余白候補は使えない（例えば補助頂点が必須エッジに重なる）。
-      return { tin: featureCollection([]), remaining: 0, hasBoundary: false, hull: [] };
+    if (!con) {
+      con = new EdgeBound(del);
+      try {
+        con.constrainAll(edges);
+      } catch (error) {
+        if (!forbidden?.allowUnusableBoundary) throw error;
+        // 補助頂点を加える前に検査済みの必須エッジがここで張れなければ、
+        // この面の余白候補は使えない（例えば補助頂点が必須エッジに重なる）。
+        return { tin: featureCollection([]), remaining: 0, hasBoundary: false, hull: [] };
+      }
+      if (reuse) reuse.snapshot = con.snapshot();
     }
+    // 必須エッジだけを張った状態から、受け入れた凸包の辺までを張り直す。
+    // 失敗した制約は三角網を途中まで変えてしまうので、控えから組み直す。
+    const base = forbidden ? (reuse?.snapshot ?? con.snapshot()) : undefined;
+    const rebuild = (hullEdges: Edge[]): EdgeBound => {
+      const rebuilt = EdgeBound.restore(base!);
+      rebuilt.constrainAll(hullEdges);
+      return rebuilt;
+    };
     // 凸包の辺を制約にする。必須エッジが辺の途中の点に当たるなど、両立しない辺は外し、
-    // それまでに張れた辺だけで三角網を組み直す（失敗した制約は三角網を途中まで変えてしまうため）。
+    // それまでに張れた辺だけで三角網を組み直す。
     for (const hullEdge of forbidden?.hull ?? []) {
       try {
         con.constrainOne(hullEdge[0], hullEdge[1]);
         acceptedHull.push(hullEdge);
       } catch {
-        del = Delaunator.from(coordinates);
-        con = new EdgeBound(del, [...edges, ...acceptedHull]);
+        con = rebuild(acceptedHull);
       }
     }
     if (forbidden?.boundary) {
@@ -104,8 +129,7 @@ export function buildConstrainedTin(
       if (!outside) {
         // 外周の適用に失敗した候補も最少反転の選択肢に残す。
         // 必須エッジと凸包の辺を保つため、外周を適用する前の三角網を組み直す。
-        del = Delaunator.from(coordinates);
-        con = new EdgeBound(del, [...edges, ...acceptedHull]);
+        con = rebuild(acceptedHull);
       }
     }
     if (forbidden) {
@@ -116,6 +140,7 @@ export function buildConstrainedTin(
       // 外周は制約エッジなので反転をまたがない。外側の三角形はすべて補助頂点群に属する。
       remaining -= outside?.size ?? 0;
     }
+    del = con.del;
   }
 
   const tris = [];

@@ -3,7 +3,7 @@ import type { Feature, Point, Position } from "geojson";
 import type { Edge, Tins } from "@maplat/transform";
 import { orient2d } from "robust-predicates";
 import type { BoundaryVerticesParams } from "./boundary-vertices.ts";
-import { buildConstrainedTin } from "./constrained-tin.ts";
+import { buildConstrainedTin, type ConstrainedTinReuse } from "./constrained-tin.ts";
 import { convexHullEdges, hullEdgeKey } from "./hull-edges.ts";
 import type { VertexPosition } from "./types/tin.ts";
 import { counterPoint, createPoint } from "./vertexutils.ts";
@@ -102,6 +102,24 @@ function isStarShaped(
   return Math.abs(total - turn) < 1e-6;
 }
 
+/**
+ * 外す凸包の辺だけを変えて `searchBoundary` を繰り返すときに、結果が変わらない計算を使い回す入れ物。
+ * 同じ点群・同じ外周の方式での呼び出しにだけ使う。余白ごとに、補助頂点の位置・地理面の三角網
+ * （凸包の辺は地理面で独立に決まり、外す指定は地図面の凸包の辺にだけ効く）・地図面の必須エッジを
+ * 張った状態を控える。
+ */
+export type SearchCache = Map<
+  number,
+  {
+    vertices?: VertexPosition[];
+    geographic?: {
+      built: ReturnType<typeof buildConstrainedTin>;
+      flips: number;
+    };
+    forwReuse: ConstrainedTinReuse;
+  }
+>;
+
 export function searchBoundary(
   params: BoundaryVerticesParams,
   calculateVertices: (
@@ -114,7 +132,8 @@ export function searchBoundary(
     orientation: -1 | 1;
     accept: (candidate: BoundaryCandidate) => boolean;
   },
-  excludedHull: ReadonlySet<string> = new Set()
+  excludedHull: ReadonlySet<string> = new Set(),
+  cache?: SearchCache
 ): BoundaryCandidate | undefined {
   const { minx, maxx, miny, maxy, centroid } = params;
   const width = maxx - minx;
@@ -144,16 +163,20 @@ export function searchBoundary(
 
   let best: BoundaryCandidate | undefined;
   for (const margin of MARGINS) {
-    const vertices = calculateVertices(
-      {
-        ...params,
-        minx: minx - margin * width,
-        maxx: maxx + margin * width,
-        miny: miny - margin * height,
-        maxy: maxy + margin * height
-      },
-      true
-    );
+    const reuse = cache?.get(margin) ?? { forwReuse: {} };
+    cache?.set(margin, reuse);
+    const vertices =
+      reuse.vertices ??
+      (reuse.vertices = calculateVertices(
+        {
+          ...params,
+          minx: minx - margin * width,
+          maxx: maxx + margin * width,
+          miny: miny - margin * height,
+          maxy: maxy + margin * height
+        },
+        true
+      ));
     if (
       worldFile &&
       (vertices.length < 4 || !vertices.every(({ bakw }) => bakw.every(Number.isFinite)))
@@ -196,20 +219,33 @@ export function searchBoundary(
         ])
       : undefined;
     const forbidden = { groupsOf, planes, boundary, allowUnusableBoundary: worldFile !== undefined };
-    const fromMap = buildConstrainedTin(forw, points.edges, "target", {
-      ...forbidden,
-      hull: hulls.forw
-    });
-    const fromGeographic = buildConstrainedTin(bakw, points.edges, "target", {
-      ...forbidden,
-      hull: hulls.bakw
-    });
-    const forwTin = fromMap.tin as Tins;
-    const bakwTin = fromGeographic.tin as Tins;
     const expectedOrientation = worldFile?.orientation ?? -1;
+    const fromMap = buildConstrainedTin(
+      forw,
+      points.edges,
+      "target",
+      { ...forbidden, hull: hulls.forw },
+      reuse.forwReuse
+    );
+    // 地理面の三角網は、外す凸包の辺（地図面の凸包の辺）に依らないので、2 回目からは使い回す。
+    // 下流で三角形の並びを入れ替える（rotateVerticesTriangle）ので、配列は複製して渡す。
+    const geographic =
+      reuse.geographic ??
+      (reuse.geographic = (() => {
+        const built = buildConstrainedTin(bakw, points.edges, "target", {
+          ...forbidden,
+          hull: hulls.bakw
+        });
+        return { built, flips: countBoundaryFlips(built.tin as Tins, expectedOrientation) };
+      })());
+    const fromGeographic = geographic.built;
+    const forwTin = fromMap.tin as Tins;
+    const bakwTin = {
+      ...fromGeographic.tin,
+      features: [...fromGeographic.tin.features]
+    } as Tins;
     const boundaryTriangleFlips =
-      countBoundaryFlips(forwTin, expectedOrientation) +
-      countBoundaryFlips(bakwTin, expectedOrientation);
+      countBoundaryFlips(forwTin, expectedOrientation) + geographic.flips;
     const candidate: BoundaryCandidate = {
       vertices,
       forw: forwTin,
