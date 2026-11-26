@@ -16,6 +16,11 @@ export interface BoundaryDiagnostics {
     readonly boundaryTriangleFlips: number;
     /** 同じ群の点だけででき、辺反転で解消できなかった三角形の数。 */
     readonly remainingForbiddenTriangles: number;
+    /**
+     * strict にするために、補助頂点を V2 と同じ四隅だけにして組み直した。36 区分の補助頂点では strict に
+     * ならず、四隅だけでは strict になるときだけ true（そうでなければ項目ごと無い）。
+     */
+    readonly cornerRing?: true;
     /** world file 外周を指定した場合の要求方式。 */
     readonly requestedOuterTransform?: "worldFile";
     /** world file 外周を指定した場合に、実際に採用した方式。 */

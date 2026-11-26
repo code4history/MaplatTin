@@ -168,6 +168,8 @@ export declare class Tin extends Transform {
      * @param attempt 外す辺の鍵を受け取り、外周を探して `this.tins` などを組み、探索の結果を返す
      */
     private buildWithHull;
+    /** 今の三角網が strict か（組み立ての途中で `strict_status` が変わるので、型の絞り込みを避けて読む）。 */
+    private isStrict;
     /** 三角網を組んだ結果の状態（試行ごとに控え、採用する試行の状態に戻す）。 */
     private captureBuild;
     private restoreBuild;
