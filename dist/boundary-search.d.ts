@@ -17,10 +17,11 @@ export interface BoundaryDiagnostics {
     /** 同じ群の点だけででき、辺反転で解消できなかった三角形の数。 */
     readonly remainingForbiddenTriangles: number;
     /**
-     * strict にするために、補助頂点を V2 と同じ四隅だけにして組み直した。36 区分の補助頂点では strict に
-     * ならず、四隅だけでは strict になるときだけ true（そうでなければ項目ごと無い）。
+     * strict にならなかったので、補助頂点の輪を手当てして strict にした。`"thinned"` は strict を壊す
+     * 補助頂点（と両隣の区分）だけを外した輪、`"corners"` は四隅だけの輪（縮尺と回転の推定は V3 のまま）。
+     * 手当てをしていなければ項目ごと無い。
      */
-    readonly cornerRing?: true;
+    readonly ringRescue?: "thinned" | "corners";
     /** world file 外周を指定した場合の要求方式。 */
     readonly requestedOuterTransform?: "worldFile";
     /** world file 外周を指定した場合に、実際に採用した方式。 */
