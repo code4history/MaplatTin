@@ -49,6 +49,19 @@ export type RatioEstimator = "min" | "farLsq";
 /** 重心から見た紙の位置の区分の番号（10° ごと、0〜35）。 */
 export declare function ringBinOf(forw: Position, centroidForw: Position): number;
 /**
+ * 線分 a-b と線分 c-d の交点を、turf の `lineIntersect(lineString([a, b]), lineString([c, d]))` が最初に
+ * 返す交点と、座標が 1 ビットも違わないように求める（交わらなければ null）。
+ *
+ * turf は GeoJSON の地物を作り、掃引線法で交差を調べる。2 本の線分だけなら、その中身は次のとおり。
+ * 左端（x が小さい方。x が同じなら y が小さい方）が先の線分を seg2、後の線分を seg1 として、
+ * 後の左端の時点で先の線分がまだ続いていれば、`orient2d`（厳密な述語）で両側にあるかを調べ、
+ * 交点を `x1 + uA * (x2 - x1)` で求める。ここではその手順をスカラーで再現する。
+ *
+ * 2 本の線分の端点どうしで x が一致するとき（端点を共有するときを含む）と、線分の長さが 0 のときは、
+ * turf のイベントの並べ方が入力の順に依るため、再現せずに turf を呼ぶ。
+ */
+export declare function firstSegmentIntersection(a: Position, b: Position, c: Position, d: Position): Position | null;
+/**
  * Calculate boundary vertices in plain mode.
  *
  * @param params - Input parameters including GCPs, centroid, and bounding box.

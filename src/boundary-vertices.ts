@@ -1,5 +1,6 @@
 import { lineString, lineIntersect } from "@turf/turf";
 import type { Position } from "geojson";
+import { orient2d } from "robust-predicates";
 import type { VertexPosition } from "./types/tin.ts";
 
 interface ConvexEntry {
@@ -353,6 +354,79 @@ function findRayBboxIntersection(
 }
 
 /**
+ * 線分 a-b と線分 c-d の交点を、turf の `lineIntersect(lineString([a, b]), lineString([c, d]))` が最初に
+ * 返す交点と、座標が 1 ビットも違わないように求める（交わらなければ null）。
+ *
+ * turf は GeoJSON の地物を作り、掃引線法で交差を調べる。2 本の線分だけなら、その中身は次のとおり。
+ * 左端（x が小さい方。x が同じなら y が小さい方）が先の線分を seg2、後の線分を seg1 として、
+ * 後の左端の時点で先の線分がまだ続いていれば、`orient2d`（厳密な述語）で両側にあるかを調べ、
+ * 交点を `x1 + uA * (x2 - x1)` で求める。ここではその手順をスカラーで再現する。
+ *
+ * 2 本の線分の端点どうしで x が一致するとき（端点を共有するときを含む）と、線分の長さが 0 のときは、
+ * turf のイベントの並べ方が入力の順に依るため、再現せずに turf を呼ぶ。
+ */
+export function firstSegmentIntersection(
+  a: Position,
+  b: Position,
+  c: Position,
+  d: Position,
+): Position | null {
+  const ax = a[0], ay = a[1], bx = b[0], by = b[1];
+  const cx = c[0], cy = c[1], dx = d[0], dy = d[1];
+  if (
+    !(
+      Number.isFinite(ax) && Number.isFinite(ay) &&
+      Number.isFinite(bx) && Number.isFinite(by) &&
+      Number.isFinite(cx) && Number.isFinite(cy) &&
+      Number.isFinite(dx) && Number.isFinite(dy)
+    ) ||
+    ax === cx || ax === dx || bx === cx || bx === dx ||
+    (ax === bx && ay === by) ||
+    (cx === dx && cy === dy)
+  ) {
+    const found = lineIntersect(lineString([a, b]), lineString([c, d]));
+    return found.features.length > 0 && found.features[0].geometry
+      ? found.features[0].geometry.coordinates
+      : null;
+  }
+  // 各線分の左端（l）と右端（r）
+  const abSwap = ax > bx || (ax === bx && ay > by);
+  const l1x = abSwap ? bx : ax, l1y = abSwap ? by : ay;
+  const r1x = abSwap ? ax : bx, r1y = abSwap ? ay : by;
+  const cdSwap = cx > dx || (cx === dx && cy > dy);
+  const l2x = cdSwap ? dx : cx, l2y = cdSwap ? dy : cy;
+  const r2x = cdSwap ? cx : dx, r2y = cdSwap ? cy : dy;
+
+  // seg2: 左端が先の線分（掃引線の上にすでにある）、seg1: 後の線分
+  let x1: number, y1: number, x2: number, y2: number;
+  let x3: number, y3: number, x4: number, y4: number;
+  if (l1x < l2x) {
+    if (r1x < l2x) return null;
+    x1 = l2x; y1 = l2y; x2 = r2x; y2 = r2y;
+    x3 = l1x; y3 = l1y; x4 = r1x; y4 = r1y;
+  } else {
+    if (r2x < l1x) return null;
+    x1 = l1x; y1 = l1y; x2 = r1x; y2 = r1y;
+    x3 = l2x; y3 = l2y; x4 = r2x; y4 = r2y;
+  }
+
+  const score1 = orient2d(x1, y1, x2, y2, x3, y3);
+  const score2 = orient2d(x1, y1, x2, y2, x4, y4);
+  if ((score1 > 0 && score2 > 0) || (score1 < 0 && score2 < 0)) return null;
+
+  const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+  const numeA = (x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3);
+  const numeB = (x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3);
+  if (denom === 0) return null;
+  const uA = numeA / denom;
+  const uB = numeB / denom;
+  if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1) {
+    return [x1 + uA * (x2 - x1), y1 + uA * (y2 - y1)];
+  }
+  return null;
+}
+
+/**
  * Expand N boundary vertices radially from `centroid.bakw` so that every point
  * in `allPoints` has its bakw position enclosed inside the polygon formed by
  * `vertices`.
@@ -372,19 +446,21 @@ function checkAndAdjustVerticesN(
   for (const node of allPoints) {
     for (let i = 0; i < N; i++) {
       const j = (i + 1) % N;
-      const side = lineString([vertices[i].bakw, vertices[j].bakw]);
-      const line = lineString([centroid.bakw, node.bakw]);
-      const intersect = lineIntersect(side, line);
+      const intersectPt = firstSegmentIntersection(
+        vertices[i].bakw,
+        vertices[j].bakw,
+        centroid.bakw,
+        node.bakw,
+      );
 
-      if (intersect.features.length > 0 && intersect.features[0].geometry) {
-        const intersectPt = intersect.features[0];
+      if (intersectPt) {
         const distance = Math.sqrt(
           Math.pow(node.bakw[0] - centroid.bakw[0], 2) +
             Math.pow(node.bakw[1] - centroid.bakw[1], 2),
         );
         const intDistance = Math.sqrt(
-          Math.pow(intersectPt.geometry.coordinates[0] - centroid.bakw[0], 2) +
-            Math.pow(intersectPt.geometry.coordinates[1] - centroid.bakw[1], 2),
+          Math.pow(intersectPt[0] - centroid.bakw[0], 2) +
+            Math.pow(intersectPt[1] - centroid.bakw[1], 2),
         );
         const ratio = distance / intDistance;
         if (ratio > expandRatio[i]) expandRatio[i] = ratio;
