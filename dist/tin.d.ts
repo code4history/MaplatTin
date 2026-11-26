@@ -105,11 +105,17 @@ export declare class Tin extends Transform {
      * 厳密なTINを計算します
      *
      * @param kinkLimit - forw / bakw それぞれで残す交差（kinks）の件数の上限
-     *   （同じ位置の交差を 1 件に数えた件数）。届いた時点で数え上げをやめます。
-     *   0 のときは交差を調べず、`strict_status` と `kinks` も変えません（重なりの解消だけを行い、
-     *   三角網の向きを読むための内部用）
+     *   （同じ位置の交差を 1 件に数えた件数）。届いた時点で数え上げをやめます
      */
     calculateStrictTin(kinkLimit?: number): void;
+    /**
+     * 順三角網から逆三角網を写し、重なりを辺の反転で解消する（`calculateStrictTin` の前半）。
+     * 交差の判定（`strict_status`・`kinks`）はしない。補完点の置き場所を測る試行は、三角網の向きを読むだけなので
+     * これだけを呼ぶ。
+     */
+    private resolveStrictOverlaps;
+    /** `calculateStrictTin` の後半: 両面の交差を数え、`strict_status` と `kinks` を決める。 */
+    private detectStrictKinks;
     /**
      * 点群セットを生成します。
     * GCP と中間エッジノードを GeoJSON Point に変換し、後続の三角分割に備えます。
@@ -137,8 +143,8 @@ export declare class Tin extends Transform {
      * 結果をそのまま返す。
      *
      * 補完点は rawPointsSet と allGcps と edgeNodes の末尾に、添字 `e{n}` で足す（必須エッジの中継点の
-     * 続き番号）。重心・扇形外挿の推定（pointsSetFC・convexBuf）には入れない。loose 指定では、内部で
-     * strict の手順を 1 回走らせて補完点を決め、それを足して loose で組む。
+     * 続き番号）。重心・扇形外挿の推定（pointsSetFC・convexBuf）には入れない。loose 指定には足さない
+     * （MaplatTin#95）。
      *
      * @param makeAttempt 点群ごとの探索の入れ物と strict の方式・「三角網の向きを読むだけ」（交差を調べない）を
      *   受け取り、`buildWithHull` に渡す試行を返す
