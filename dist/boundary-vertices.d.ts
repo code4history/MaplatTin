@@ -29,6 +29,13 @@ export interface BoundaryVerticesParams {
     maxy: number;
 }
 /**
+ * 扇形外挿の縮尺と回転の推定方法。
+ *
+ * - `"min"`: 従来。縮尺は凸包の点の比の最小値、回転は重みなしの平均。V2・birdeye・world file 外周が使う。
+ * - `"farLsq"`: 重心から遠い凸包の点の最小二乗（V3 の plain）。当てはまりが悪いときは `"min"` に戻る。
+ */
+export type RatioEstimator = "min" | "farLsq";
+/**
  * Calculate boundary vertices in plain mode.
  *
  * @param params - Input parameters including GCPs, centroid, and bounding box.
@@ -37,6 +44,8 @@ export interface BoundaryVerticesParams {
  *   When false (V2 format), returns only the 4 bbox corners.
  *
  * Plain mode uses a single aggregate [scale, rotation] ratio from all GCPs.
+ * V3 estimates it by a least-squares fit to the hull points far from the
+ * centroid; V2 keeps the minimum-ratio estimate.
  */
 export declare function calculatePlainVertices(params: BoundaryVerticesParams, v3?: boolean): VertexPosition[];
 /**
