@@ -194,6 +194,19 @@ describe("points on constrained edges map onto the corresponding segment", { tim
   });
 
   it.each([
+    ["strict"],
+    ["auto"]
+  ] as const)("uno_bus_gtfs_error (%s): 中点がずれる辺は 5 本以下で、ずれは辺の長さの 37% 以下", (mode) => {
+    // 元から strict_error のデータ。strict に戻せないので、凸包の辺を全部制約にした三角網を採る。
+    // その副作用で、中点がずれる必須エッジが base の 2 本から 5 本に増える。最大のずれ（110 m・辺の
+    // 長さの 36%）は base と同じ。
+    const tin = buildTin("uno_bus_gtfs_error", mode);
+    const deviating = edgeMidpointDeviations(tin).filter((d) => d.ratio > 1e-6);
+    expect(deviating.length).toBeLessThanOrEqual(5);
+    expect(Math.max(0, ...deviating.map((d) => d.ratio))).toBeLessThanOrEqual(0.37);
+  });
+
+  it.each([
     // [モード, ずれる辺の数の上限, ずれの割合の上限]
     ["strict", 0, 0],
     ["auto", 0, 0],
