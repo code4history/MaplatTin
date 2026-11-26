@@ -124,27 +124,31 @@ export declare function proposeSupplementCandidate(analysis: MeshAnalysis, [i, j
  * 補完点の地理の位置を、紙の面でその点を囲む輪（その点を頂点にする三角形の対辺）の核の中に決め直す
  * （設計書 §2.3）。半直線 `foot + s·normal` の上で、輪の辺ごとの半平面の共通部分 `[lo, hi]` を求め、
  * 下限から少し外の高さを選ぶ。位置が変わると輪が変わるので、変わらなくなるまで（最大
- * `MAX_KERNEL_FIT_ITERATIONS` 回）繰り返す。
+ * `maxIterations` 回、既定は `MAX_KERNEL_FIT_ITERATIONS`）繰り返す。`maxIterations: 1` なら、1 回測って
+ * 高さを決めるだけ（確かめの測り直しをしない。決めた高さで組んで通れば、それで足りる）。
  *
  * 核が空の点は、その点だけを外して、残りで続ける（1 点のために全部を捨てて、辺ごとの組み直しに回さない）。
- * 外した点があれば輪が変わるので、測り直す。残りが無ければ undefined。
+ * 外した点があれば輪が変わるので、続きがあれば測り直す。残りが無ければ undefined。
  *
  * @param rays 決め直す点（紙の面は固定）
  * @param firstNode 先頭の点の `edgeNodes` の位置（`"e{n}"` の n）
  * @param measure 採用済みの補完点に、この点を足して、凸包の辺を全部制約にした三角網を組み、読んだ結果を返す
  * @returns 決まった点と、それが `rays` の何番目か
  */
-export declare function fitToKernel(rays: readonly SupplementRay[], firstNode: number, measure: (pairs: Position[][]) => MeshAnalysis | undefined, { lambda, mu }?: {
+export declare function fitToKernel(rays: readonly SupplementRay[], firstNode: number, measure: (pairs: Position[][]) => MeshAnalysis | undefined, { lambda, mu, maxIterations }?: {
     lambda?: number | undefined;
     mu?: number | undefined;
+    maxIterations?: number | undefined;
 }): {
     rays: SupplementRay[];
     kept: number[];
 } | undefined;
 /**
- * 足した補完点（`firstNode` 以降の "e{n}"）が全部効いているか: 紙の面の凸包の頂点で、その点に付く
- * 凸包の辺が全部、三角網の辺になっている。
+ * 足した補完点（`firstNode` 以降の "e{n}"）のうち、効いていないものの `edgeNodes` の位置。
+ * 効いている = 紙の面の凸包の頂点で、その点に付く凸包の辺が全部、三角網の辺になっている。
  */
+export declare function ineffectiveSupplements(analysis: MeshAnalysis, firstNode: number): Set<number>;
+/** 足した補完点が全部効いているか（`ineffectiveSupplements` が空）。 */
 export declare function supplementsTakeEffect(analysis: MeshAnalysis, firstNode: number): boolean;
 /** 呼び出し側（Tin）が持つ、三角網の組み立てと状態の保存。 */
 export interface SupplementHost<T, H> {
