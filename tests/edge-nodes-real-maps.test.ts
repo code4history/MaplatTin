@@ -100,7 +100,19 @@ describe("実地図 48 通り: master と出力が変わらない", { timeout: 6
   });
 
   it.each(jobs.map((j) => [j.name, j] as const))("%s: getCompiled() と edgeNodes が一致", (_name, job) => {
-    expect(build(job)).toEqual(expected[job.name]);
+    const actual = build(job);
+    const want = expected[job.name];
+    // 1 月トレイン（jan27/*）は v3 の getCompiled() の出力を意図して変える（禁止制約・外側の変換など）。
+    // fixture の compiled の値は master 時点のものなので、トレインの積み上げでは v3 の compiled は比べない。
+    // v2 の compiled と、全 48 通りの edgeNodes（この変更が守る範囲）は比べる。
+    if (job.name.endsWith("/v3")) {
+      expect({ edgeNodes: actual.edgeNodes, edgeNodesCount: actual.edgeNodesCount }).toEqual({
+        edgeNodes: want.edgeNodes,
+        edgeNodesCount: want.edgeNodesCount,
+      });
+    } else {
+      expect(actual).toEqual(want);
+    }
   });
 
   it("折れ点つきの辺を持つ地図は、中継点が実際に作られている", () => {

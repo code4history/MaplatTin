@@ -4,7 +4,18 @@
 
 ## [Unreleased]
 
+### Added
+- 制約付き三角網（`Constrain`）に `forbidGroupTriangles(groupsOf, planes?)` を足した。同じ群（四辺形の補助頂点の全体・必須エッジごとの端点と中継点など）に属する点だけでできた三角形を、制約でない辺の反転で解消する（禁止制約）。反転は、反転後の三角形がすべての面で三角網と同じ向きの、面積 0 でない三角形になるときだけ行い、反転した辺は制約として扱う。
+
+- V3 の生成時に採用した余白、補助頂点の三角形の反転数、禁止制約の残数を `Tin.boundaryDiagnostics` で参照できるようにした (#82)
+  - Added `Tin.boundaryDiagnostics` for the selected V3 margin, boundary triangle flips, and remaining forbidden triangles (#82)
+
+### Changed
+- V3 は GCP の外接矩形に 10〜50% の余白を試し、地図面・地理面の三角網に補助頂点と必須エッジの禁止制約を適用する (#82)
+  - V3 tries margins of 10–50% around the GCP bounding box and applies the auxiliary vertex and constrained edge group rules to triangulations in both planes (#82)
+
 ### Fixed
+- V3 の補助頂点が GCP や必須エッジの中継点と同じ位置になり、Delaunator がその点を三角網から落として `updateTin()` が `Invalid edge ... is not part of the triangulation` で失敗することがあったのを直した。GCP の外接矩形の高さや幅が 0 のとき、余白を広げた矩形からの補助頂点の位置が内点に一致することがあった。補助頂点は内点・他の補助頂点と位置が重なるものを除いて作るようにした
 - 必須エッジの中継点を、両面の折れ線の累積長比が厳密一致するときだけまとめていたのを直した。`Math.sqrt` と加算・除算の丸めで対応する折れ点どうしの比が数 ULP ずれると中継点が 2 件作られて点が重なり、`updateTin()` が `Invalid edge ... is not part of the triangulation` で失敗することがあった。比の差が `256 * Number.EPSILON` 以内の折れ点は最も近いもの 1 つと組み合わせて 1 つの中継点にまとめ、両側を対応確定にして重複を作らせない。相手面の端点（GCP の位置）とは組み合わせず、端点付近の内点と GCP が重なるのを防ぐ。中継点の並び替えの同値時の比較も安定するようにした。中継点の生成は `src/edge-nodes.ts` の `interpolateEdgeNodes` に切り出した
 - 必須エッジの折れ点の比の突き合わせで、座標が大きく辺が短いとき（地理面 1.5e7 付近・辺 30 px 以内など）に中継点が重なって `updateTin()` が失敗するのを直した（#106）。許容幅を `256 * Number.EPSILON` の固定値から、折れ線ごとの `256 * Number.EPSILON + 4 * (ulp(紙面の最大絶対座標) / 紙面の折れ線の全長 + ulp(地理面の最大絶対座標) / 地理面の折れ線の全長)` にした（座標の量子化によるずれを覆う。係数 4 は実測で決めた）。片方の面の折れ線が極端に短いときにもう片方の別の折れ点までまとめないよう、許容幅には上限 `MAX_RATIO_MATCH_TOLERANCE = 1e-9` を置いた。あわせて、突き合わせを比の順序を保つ最大の対応づけ（比の差の合計が最小）にして、許容幅内に折れ点が複数あっても地理面の折れ線が逆戻りしないようにした。許容幅内の対応づけで余った折れ点が、相手面の折れ点と許容幅内で一致するときは、同じ位置とみなして中継点を作らない（従来も比が厳密に同じときは黙って作られなかったのを、許容幅内まで広げて明文化した）。重ならない通常の入力では出力は変わらない（実地図 48 通り＝tests/maps の GCP つき 5 件と tests/compiled の points を持つ 19 件を、それぞれ v2・v3 のアルゴリズムで組んだ `getCompiled()` と `edgeNodes` が、従来の実装の値とバイト一致することを `tests/edge-nodes-real-maps.test.ts` で固定した）
 - dist の型定義が参照する `geojson` の型が `hoist: false` の利用者で解決できない不具合を直した（`@types/geojson` を dependencies へ移動）(#76)

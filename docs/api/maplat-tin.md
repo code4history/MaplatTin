@@ -20,6 +20,12 @@
 
 Either `bounds` or `wh` must be specified.
 
+## Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `boundaryDiagnostics` | `BoundaryDiagnostics \| undefined` | Read-only diagnostics from the last V3 build for the current mesh. See [V3 boundary diagnostics](../../README.md#v3-boundary-diagnostics). |
+
 ## Methods
 
 | Method | Description |
