@@ -76,7 +76,11 @@ import {
 } from "./supplement-pairs.ts";
 import type { SearchIndex } from "./searchutils.ts";
 import type { PointsSetBD, VertexPosition } from "./types/tin.ts";
+import { interpolateEdgeNodes, type EdgeNodeItem } from "./edge-nodes.ts";
 import { meshFromCompiled, type ImportFailure, type MeshModel } from "./incremental/model.ts";
+import { applyToInputs, applyToMesh, type TinInputs } from "./incremental/apply.ts";
+import type { EdgeId, PointId } from "./incremental/mesh.ts";
+import type { TinEdit, TinPatch, TinPatchFallback } from "./incremental/types.ts";
 
 type RawPointsSet = { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
 /** 補完点の一覧を持つ compiled（Transform の型には無い項目。読み手は無視してよい）。 */
@@ -126,8 +130,6 @@ const OUT_OF_BUDGET = Symbol("supplement pairs out of budget");
 /** 外した凸包の辺を戻して試す回数の上限。 */
 const MAX_HULL_RESTORE_TRIALS = 24;
 
-type EdgeSegmentItem = [Position, number, number, number, string?];
-type EdgeNodeItem = [Position, Position, number];
 
 /**
  * Tinクラスの初期化オプション
@@ -185,17 +187,155 @@ export class Tin extends Transform {
   private mesh?: MeshModel;
   private meshFailure?: ImportFailure;
 
+  /** 対応点・必須エッジの id（`points`・`edges` の並び）。undefined は、配列の添字が id。 */
+  private pointIds?: PointId[];
+  private edgeIds?: EdgeId[];
+  /** `applyEdits` で進む版の番号。`setPoints` などで入力を入れ直すと 0 に戻る。 */
+  private editRevision = 0;
+  /** 網が、`tins`・`points`・`edges` より先に進んでいる（局所更新を当てた後、まだ書き戻していない）。 */
+  private meshAhead = false;
+  /** 補助頂点・重心が最新でない（局所更新を当てた後、清書か帯の差し替えをするまで）。 */
+  private bandStale = false;
+
   /**
    * 局所更新の網（今の三角網を取り込んだもの）。スイッチが切れている・三角網が無い・取り込めない網
    * （loose・V2 など。理由は `incrementalFailure`）のときは undefined。
    */
   get incrementalMesh(): MeshModel | undefined {
-    return this.tins ? this.mesh : undefined;
+    return this.mesh;
   }
 
   /** 局所更新の網へ取り込めなかった理由（取り込めた・スイッチが切れているときは undefined）。 */
   get incrementalFailure(): ImportFailure | undefined {
-    return this.tins ? this.meshFailure : undefined;
+    return this.meshFailure;
+  }
+
+  /** `applyEdits` の版の番号。次の `applyEdits` に、前提として渡す。 */
+  get revision(): number {
+    return this.editRevision;
+  }
+
+  /** 網と、網から決まる状態を捨てる（入力や設定を入れ直したとき）。 */
+  private dropMesh(): void {
+    this.mesh = undefined;
+    this.meshFailure = undefined;
+    this.meshAhead = false;
+    this.bandStale = false;
+    this.editRevision = 0;
+  }
+
+  /**
+   * 局所更新を当てた網を、`points`・`edges`・`tins` などへ書き戻す（`transform()`・`getCompiled()` の前に
+   * 自動で呼ばれる。全体を作り直すので、編集のたびには呼ばないこと。表示は `TinPatch` で足りる）。
+   */
+  private syncFromMesh(): void {
+    if (!this.meshAhead || !this.mesh) return;
+    const model = this.mesh;
+    const compiled = model.toCompiled();
+    const inputs = model.inputs();
+    const { xy, wh } = this;
+    // Transform の読み込み経路で、三角網・索引・重心・補助頂点の扇形を作り直す
+    super.setCompiled(compiled);
+    Object.assign(this, { xy, wh });
+    delete this.kinks;
+    this.pointsSet = undefined;
+    this.pointIds = inputs.pointIds;
+    this.edgeIds = inputs.edgeIds;
+    this.supplementRecords = (compiled.supplementPairs ?? []).map((record) => ({
+      ...record,
+      edge: [...record.edge] as SupplementPairRecord["edge"],
+    }));
+    this.pointsWeightBuffer = {};
+    this.meshAhead = false;
+  }
+
+  /** 今の入力（対応点・必須エッジ。内部の座標系）と、その id の並び。 */
+  private currentInputs(): TinInputs {
+    if (this.meshAhead && this.mesh) return this.mesh.inputs();
+    return {
+      points: this.points,
+      edges: this.edges ?? [],
+      pointIds: this.pointIds ?? this.points.map((_, i) => i),
+      edgeIds: this.edgeIds ?? (this.edges ?? []).map((_, i) => i),
+    };
+  }
+
+  /**
+   * 編集を当てる（MaplatTin#100 の第 2 段 a）。局所で済めば、網の差分を返す（`mode: "local"`）。済まなければ、
+   * 編集を入力に当てて全部組み直し、その結果を返す（`mode: "full"`。理由は `fallbackReason`）。
+   *
+   * - `edits` は、全部が当たるか、全部組み直しか、のどちらか（一部だけ当たった網を返さない）。
+   * - `baseRevision` が今の版（`revision`）と合わなければ、何も変えずに `"revisionMismatch"` を返す。
+   *   呼び出し側は、最新の入力を `setPoints`・`setEdges` で入れ直して、`updateTin()` すること。
+   * - 当てられない編集（id が無い・既に使われている・座標が有限でない）は、何も変えずに例外を投げる。
+   * - 全部組み直しが例外を投げる入力（必須エッジが交差する・点が一直線、など）では、`updateTin()` と同じ
+   *   例外を投げる。入力は編集の後の状態になり、三角網は無い。
+   * - 局所で済むのは、スイッチ（`Options#incremental`）が入っていて、strict・strict_error の V3 の網で、
+   *   帯（補助頂点・重心）を更新しなくてよい内側の編集だけ。
+   * - 座標は、`setPoints` に渡すのと同じ、外の座標系（差分の座標は、compiled と同じ内部の座標系）。
+   */
+  applyEdits(edits: TinEdit[], baseRevision?: number): TinPatch {
+    if (baseRevision !== undefined && baseRevision !== this.editRevision) {
+      return {
+        revision: this.editRevision,
+        mode: "full",
+        fallbackReason: "revisionMismatch",
+        strict_status: this.strict_status!,
+        boundaryStale: this.bandStale,
+      };
+    }
+    const follow = this.yaxisMode === Tin.YAXIS_FOLLOW;
+    // 編集を入力に当てる（当てられない編集は、ここで例外になり、何も変わらない）
+    const next = applyToInputs(this.currentInputs(), edits, follow);
+
+    let reason: TinPatchFallback = "noMesh";
+    if (this.mesh) {
+      // サブマップで、点が範囲の多角形の外へ出る・外に足される編集は、全部組み直しへ落とす（同じ例外を返す）
+      const bp = this.bounds ? this.boundsPolygon : undefined;
+      if (bp && !next.points.every((p) => booleanPointInPolygon(p[0] as Position, bp))) {
+        reason = "unsupported";
+      } else {
+        const applied = applyToMesh(this.mesh, edits, follow);
+        if (applied.ok) {
+          this.meshAhead = true;
+          this.bandStale = true;
+          this.tins = undefined;
+          this.indexedTins = undefined;
+          this.pointsSet = undefined;
+          delete this.kinks;
+          this.strict_status = applied.patch.strict_status;
+          this.editRevision++;
+          return { revision: this.editRevision, mode: "local", boundaryStale: true, ...applied.patch };
+        }
+        reason = applied.reason;
+      }
+    }
+    // 全部組み直し。網は途中まで変わっていることがあるので、捨てる
+    const revision = this.editRevision + 1;
+    this.mesh = undefined;
+    this.meshAhead = false;
+    this.points = next.points;
+    this.edges = next.edges;
+    this.edgeNodes = undefined;
+    this.pointIds = next.pointIds;
+    this.edgeIds = next.edgeIds;
+    this.tins = undefined;
+    this.indexedTins = undefined;
+    this.editRevision = revision;
+    this.updateTin();
+    return {
+      revision,
+      mode: "full",
+      fallbackReason: reason,
+      strict_status: this.strict_status!,
+      boundaryStale: false,
+    };
+  }
+
+  /** 紙の面と地理面の間で座標を変換する。局所更新を当てた後は、網から三角網を作り直してから変換する。 */
+  override transform(apoint: number[], backward?: boolean, ignoreBounds?: boolean): number[] | false {
+    this.syncFromMesh();
+    return super.transform(apoint, backward, ignoreBounds);
   }
 
   /** 現在の三角網を V3 で生成したときの外周の診断。 */
@@ -270,6 +410,7 @@ export class Tin extends Transform {
    * 指定した点群に合わせて内部のTINキャッシュをリセットします。
    */
   setPoints(points: PointSet[]): void {
+    this.syncFromMesh();
     if (this.yaxisMode === Tin.YAXIS_FOLLOW) {
       points = points.map((point) => [
         point[0],
@@ -277,6 +418,8 @@ export class Tin extends Transform {
       ]);
     }
     this.points = points;
+    this.pointIds = undefined;
+    this.dropMesh();
     this.tins = undefined;
     this.indexedTins = undefined;
   }
@@ -286,7 +429,10 @@ export class Tin extends Transform {
    * 制約線を正規化した上で、依存するキャッシュをリセットします。
    */
   setEdges(edges: EdgeSet[] | EdgeSetLegacy[] = []): void {
+    this.syncFromMesh();
     this.edges = normalizeEdges(edges);
+    this.edgeIds = undefined;
+    this.dropMesh();
     this.edgeNodes = undefined;
     this.tins = undefined;
     this.indexedTins = undefined;
@@ -296,6 +442,7 @@ export class Tin extends Transform {
    * 境界ポリゴンを設定します
    */
   setBounds(bounds: Position[]): void {
+    this.retireMesh();
     this.bounds = bounds;
 
     let minx = bounds[0][0];
@@ -322,10 +469,20 @@ export class Tin extends Transform {
     this.indexedTins = undefined;
   }
 
+  /** 設定を変える前に、局所更新を当てた網を入力へ書き戻して、網を捨てる（id の並びと版は保つ）。 */
+  private retireMesh(): void {
+    this.syncFromMesh();
+    this.mesh = undefined;
+    this.meshFailure = undefined;
+    this.bandStale = false;
+  }
+
   /**
    * 現在の設定を永続化可能な形式にコンパイルします
    */
   getCompiled(): CompiledWithSupplement {
+    // 局所更新を当てた後は、網から書き出す（番号の振り直しは、ここで 1 回だけ）
+    if (this.meshAhead && this.mesh) return this.mesh.toCompiled();
     const compiled = {} as CompiledWithSupplement;
     compiled.version = this.useV2Algorithm ? FORMAT_VERSION_V2 : FORMAT_VERSION_V3;
     compiled.points = this.points;
@@ -425,6 +582,9 @@ export class Tin extends Transform {
       throw new Error("V2 では world file 外周を使えません");
     }
     const replacesWorldFile = this.outerTransform === "worldFile" || outer?.outerTransform === "worldFile";
+    this.dropMesh();
+    this.pointIds = undefined;
+    this.edgeIds = undefined;
     super.setCompiled(compiled);
     this.supplementRecords = ((compiled as CompiledWithSupplement).supplementPairs ?? []).map((record) => ({
       ...record,
@@ -432,8 +592,6 @@ export class Tin extends Transform {
     }));
     this.lastSupplementDiagnostics = undefined;
     if (replacesWorldFile) this.stateTriangle = undefined;
-    this.mesh = undefined;
-    this.meshFailure = undefined;
     this.requestedWorldFile = undefined;
     this.compiledOuter = undefined;
     if (outer?.outerTransform === "worldFile") {
@@ -453,6 +611,7 @@ export class Tin extends Transform {
    * 幅と高さを設定します
    */
   setWh(wh?: number[]): void {
+    this.retireMesh();
     this.wh = wh || [100, 100]; // デフォルト値を設定
     this.xy = [0, 0];
     this.bounds = undefined;
@@ -465,6 +624,7 @@ export class Tin extends Transform {
    * 頂点モードを設定します
    */
   setVertexMode(mode: VertexMode): void {
+    this.retireMesh();
     this.vertexMode = mode;
     this.tins = undefined;
     this.indexedTins = undefined;
@@ -474,6 +634,7 @@ export class Tin extends Transform {
    * 厳密性モードを設定します
    */
   setStrictMode(mode: StrictMode): void {
+    this.retireMesh();
     this.strictMode = mode;
     this.tins = undefined;
     this.indexedTins = undefined;
@@ -596,91 +757,9 @@ export class Tin extends Transform {
       mercNodes.unshift(this.points[edge[0]][1]);
       mercNodes.push(this.points[edge[1]][1]);
 
-      // Calculate edge segments
-      const segments = [illstNodes, mercNodes].map((nodes: Position[]): EdgeSegmentItem[] => {
-        const lengths = nodes.map((node: Position, index: number, arr: Position[]) => {
-          if (index === 0) return 0;
-          const prev = arr[index - 1];
-          return Math.sqrt(
-            Math.pow(node[0] - prev[0], 2) + Math.pow(node[1] - prev[1], 2),
-          );
-        });
-
-        const accumLengths = lengths.reduce((acc: number[], len: number, idx: number) => {
-          if (idx === 0) return [0];
-          acc.push(acc[idx - 1] + len);
-          return acc;
-        }, [] as number[]);
-
-        return accumLengths.map((accum: number, idx: number, arr: number[]): EdgeSegmentItem => {
-          const ratio = accum / arr[arr.length - 1];
-          return [nodes[idx], lengths[idx], accumLengths[idx], ratio];
-        });
-      });
-
-      // Generate edge nodes
-      segments
-        .map((segment: EdgeSegmentItem[], idx: number) => {
-          const otherSegment = segments[idx ? 0 : 1];
-          return segment
-            .filter((item: EdgeSegmentItem, index: number) => {
-              return !(
-                index === 0 ||
-                index === segment.length - 1 ||
-                item[4] === "handled"
-              );
-            })
-            .flatMap((item: EdgeSegmentItem): EdgeNodeItem[] => {
-              const node = item[0];
-              const ratio = item[3];
-
-              const counterpart = otherSegment.reduce(
-                (prev: EdgeSegmentItem[] | undefined, curr: EdgeSegmentItem, currIdx: number, arr: EdgeSegmentItem[]) => {
-                  if (prev) return prev;
-                  const nextItem = arr[currIdx + 1];
-                  if (curr[3] === ratio) {
-                    curr[4] = "handled";
-                    return [curr];
-                  }
-                  if (
-                    curr[3] < ratio && nextItem &&
-                    nextItem[3] > ratio
-                  ) {
-                    return [curr, nextItem];
-                  }
-                  return undefined;
-                },
-                undefined as EdgeSegmentItem[] | undefined,
-              );
-
-              if (counterpart && counterpart.length === 1) {
-                return idx === 0
-                  ? [[node, counterpart[0][0], ratio]]
-                  : [[counterpart[0][0], node, ratio]];
-              }
-
-              if (counterpart && counterpart.length === 2) {
-                const curr = counterpart[0];
-                const next = counterpart[1];
-                const ratioInSegment = (ratio - (curr[3] as number)) /
-                  ((next[3] as number) - (curr[3] as number));
-                const interpNode: Position = [
-                  (next[0][0] - curr[0][0]) *
-                  ratioInSegment + curr[0][0],
-                  (next[0][1] - curr[0][1]) *
-                  ratioInSegment + curr[0][1],
-                ];
-                return idx === 0
-                  ? [[node, interpNode, ratio]]
-                  : [[interpNode, node, ratio]];
-              }
-
-              return [];
-            });
-        })
-        .reduce((prev: EdgeNodeItem[], curr: EdgeNodeItem[]) => prev.concat(curr), [])
-        .sort((a: EdgeNodeItem, b: EdgeNodeItem) => a[2] < b[2] ? -1 : 1)
-        .map((item: EdgeNodeItem, index: number, arr: EdgeNodeItem[]) => {
+      // 両面の折れ線を累積長の比で突き合わせて、中継点を作る
+      interpolateEdgeNodes(illstNodes, mercNodes)
+        .forEach((item: EdgeNodeItem, index: number, arr: EdgeNodeItem[]) => {
           this.edgeNodes![edgeNodeIndex] = [
             item[0],
             item[1],
@@ -777,12 +856,26 @@ export class Tin extends Transform {
    * {@link updateTinAsync} を利用してください。
    */
   updateTin(): void {
+    // 局所更新を当てた網があれば、その入力（対応点・必須エッジ）から組み直す（清書）
+    if (this.meshAhead && this.mesh) {
+      const inputs = this.mesh.inputs();
+      this.points = inputs.points;
+      this.edges = inputs.edges;
+      this.pointIds = inputs.pointIds;
+      this.edgeIds = inputs.edgeIds;
+      this.edgeNodes = undefined;
+    }
     this.mesh = undefined;
     this.meshFailure = undefined;
+    this.meshAhead = false;
+    this.bandStale = false;
     this.rebuildAll();
     // 局所更新のスイッチが入っているときだけ、採用した三角網を取り込む（三角網そのものは変えない）
     if (this.incremental) {
-      const imported = meshFromCompiled(this.getCompiled(), this.pointsSet!.edges as Edge[]);
+      const imported = meshFromCompiled(this.getCompiled(), this.pointsSet!.edges as Edge[], {
+        points: this.pointIds,
+        edges: this.edgeIds,
+      });
       if ("model" in imported) this.mesh = imported.model;
       else this.meshFailure = imported.reason;
     }

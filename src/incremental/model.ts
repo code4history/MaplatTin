@@ -8,6 +8,7 @@ import type { Position } from "geojson";
 import type { Edge, EdgeSet, PointSet } from "@maplat/transform";
 import { orient2d } from "robust-predicates";
 import { convexHullEdges } from "../hull-edges.ts";
+import { BandStats } from "./band.ts";
 import type { SupplementPairRecord } from "../supplement-pairs.ts";
 import type { CompiledWithSupplement } from "../tin.ts";
 import {
@@ -90,6 +91,41 @@ export class MeshModel {
   ring: number[] = [];
   /** 扇形の中心（最後に帯を作ったときの値。world file 外周では持たない） */
   centroid?: { forw: Position; bakw: Position };
+  /** 補完点の鍵の続き番号 */
+  nextSupplement = 0;
+  private bandStats?: BandStats | null;
+
+  /**
+   * 帯（補助頂点・重心）を更新しなくてよいかを判定するための量（設計書 §6.3）。最初に要るときに 1 回だけ作る。
+   * 判定できない網（world file 外周・補助頂点の輪が閉じなかった網）では null。
+   */
+  band(): BandStats | null {
+    if (this.bandStats === undefined) this.bandStats = BandStats.of(this);
+    return this.bandStats;
+  }
+
+  /** 対応点と必須エッジ（`setPoints`・`setEdges` に入れる形。座標は内部の座標系）と、その id の並び。 */
+  inputs(): {
+    points: PointSet[];
+    edges: EdgeSet[];
+    pointIds: PointId[];
+    edgeIds: EdgeId[];
+  } {
+    const at = (vertex: number) => this.mesh.vertices.get(vertex)!;
+    const index = new Map(this.gcps.map((vertex, i) => [vertex, i]));
+    return {
+      points: this.gcps.map((vertex) => [at(vertex).forw, at(vertex).bakw]),
+      edges: this.edges.map((edge) => [
+        edge.forwNodes,
+        edge.bakwNodes,
+        [index.get(edge.start)!, index.get(edge.end)!]
+      ]),
+      pointIds: this.gcps.map(
+        (vertex) => (at(vertex).ref as { id: PointId }).id
+      ),
+      edgeIds: this.edges.map((edge) => edge.id)
+    };
+  }
 
   readonly mesh: IncrementalMesh;
   private readonly context: MeshContext;
@@ -216,10 +252,12 @@ export class MeshModel {
  *
  * @param compiled 全部組み直した結果
  * @param segments 必須エッジの区間（`pointsSet.edges`。点群の配列位置の組。対応点が先、その後ろに中継点と補完点）
+ * @param ids 対応点・必須エッジの id（compiled の並び）。省略時は、配列の添字を id にする
  */
 export function meshFromCompiled(
   compiled: CompiledWithSupplement,
-  segments: readonly Edge[]
+  segments: readonly Edge[],
+  ids: { points?: readonly PointId[]; edges?: readonly EdgeId[] } = {}
 ): { model: MeshModel } | { reason: ImportFailure } {
   if (compiled.version !== undefined && compiled.version < 3)
     return { reason: "v2" };
@@ -284,15 +322,16 @@ export function meshFromCompiled(
   // 頂点表。対応点 → 中継点・補完点 → 補助頂点の順に入れる
   const byIndex = new Map<VertexIndex, number>();
   points.forEach(([forw, bakw], i) => {
-    const vertex = mesh.addVertex({ kind: "gcp", id: i }, forw, bakw);
+    const id = ids.points?.[i] ?? i;
+    const vertex = mesh.addVertex({ kind: "gcp", id }, forw, bakw);
     model.gcps.push(vertex);
-    model.pointVertex.set(i, vertex);
+    model.pointVertex.set(id, vertex);
     byIndex.set(i, vertex);
   });
   const sourceEdges = compiled.edges ?? [];
   model.edges = sourceEdges.map(
-    ([forwNodes, bakwNodes, [start, end]], id): MeshEdge => ({
-      id,
+    ([forwNodes, bakwNodes, [start, end]], i): MeshEdge => ({
+      id: ids.edges?.[i] ?? i,
       start: byIndex.get(start)!,
       end: byIndex.get(end)!,
       forwNodes,
@@ -314,7 +353,6 @@ export function meshFromCompiled(
     }
     if (current !== model.edges.length) return { reason: "inconsistent" };
   }
-  let supplementCount = 0;
   nodes.forEach(([forw, bakw], n) => {
     const owner = nodeOwner.get(n);
     let vertex: number;
@@ -329,7 +367,7 @@ export function meshFromCompiled(
       edge.nodes.push(vertex);
     } else {
       vertex = mesh.addVertex(
-        { kind: "supplement", key: `s${supplementCount++}` },
+        { kind: "supplement", key: `s${model.nextSupplement++}` },
         forw,
         bakw
       );

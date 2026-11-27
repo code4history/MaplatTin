@@ -5,9 +5,12 @@ import {
   EDGE_HULL,
   EDGE_PROTECT,
   EDGE_REQUIRED,
+  insertEdge,
   insertPoint,
   movePoint,
+  removeEdge,
   removePoint,
+  replaceEdgeNodes,
   Tin,
   type EditResult,
   type IncrementalMesh,
@@ -23,8 +26,8 @@ import { REAL_DATA_TIMEOUT_MS } from "../timeouts.ts";
 // T3: 局所の判定（S1 と S2）を、今の交差の数え上げ（findIntersectionsUpTo）と突き合わせる。
 // T4: 局所で済まない編集は失敗を返し、網は変わらない（その後も編集できる。全部組み直しの結果を取り込み直せる）。
 //
-// 第 1 週に入っているのは、凸包の内側の対応点の追加・削除・移動（地理面だけの移動を含む）。
-// 重なりの解消・禁止制約の局所の解消・磨き・中継点のある必須エッジの端点の移動は第 2 週。
+// 編集の種類: 対応点の追加・削除・移動（必須エッジの端点・地理面だけの移動を含む）、必須エッジの追加・削除、
+// 折れ点の差し替え。帯（補助頂点・重心）を更新しなくてよい条件（§6.3）を満たさない編集は "unsupported"。
 
 const TIMEOUT = REAL_DATA_TIMEOUT_MS * 6;
 
@@ -101,6 +104,17 @@ function expectInvariant(model: MeshModel, initial: { forwArea: number; forbidde
   expect(Math.abs(audit.forwArea - initial.forwArea) / initial.forwArea, label).toBeLessThan(1e-9);
   // 点が網から消えていない
   for (const vertex of model.gcps) expect(mesh.byVertex.get(vertex)!.size, label).toBeGreaterThan(0);
+  // S3: 必須エッジの全部の区間が、網の辺にあり、required の印が付いている
+  for (const edge of model.edges) {
+    const chain = [edge.start, ...edge.nodes, edge.end];
+    for (let i = 0; i + 1 < chain.length; i++) {
+      expect(mesh.hasEdge(chain[i], chain[i + 1]), label).toBe(true);
+      expect(mesh.flagsOf(chain[i], chain[i + 1]) & EDGE_REQUIRED, label).toBe(EDGE_REQUIRED);
+    }
+    edge.nodes.forEach((vertex, order) =>
+      expect(mesh.vertices.get(vertex)!.ref, label).toEqual({ kind: "edgeNode", edge: edge.id, order })
+    );
+  }
   return audit;
 }
 
@@ -108,6 +122,8 @@ interface Summary {
   tried: Record<string, number>;
   done: Record<string, number>;
   failed: Record<string, number>;
+  failedBy: Record<string, Record<string, number>>;
+  flips: { overlap: number; forbidden: number; polish: number };
   grown: number;
   times: number[];
   samples: { edit: number; nonDelaunay: number; protect: number; triangles: number }[];
@@ -119,13 +135,39 @@ function runEdits(model: MeshModel, edits: number, seed: number, sweepEvery: num
   const rnd = random(seed);
   const first = mesh.audit();
   const initial = { forwArea: first.forwArea, forbidden: first.forbiddenBoundary + first.forbiddenEdge };
-  const summary: Summary = { tried: {}, done: {}, failed: {}, grown: 0, times: [], samples: [] };
+  const summary: Summary = {
+    tried: {}, done: {}, failed: {}, failedBy: {}, flips: { overlap: 0, forbidden: 0, polish: 0 }, grown: 0, times: [], samples: []
+  };
   const xs = model.gcps.map((v) => mesh.vertices.get(v)!.forw[0]);
   const ys = model.gcps.map((v) => mesh.vertices.get(v)!.forw[1]);
   const box = { minx: Math.min(...xs), maxx: Math.max(...xs), miny: Math.min(...ys), maxy: Math.max(...ys) };
   const span = Math.hypot(box.maxx - box.minx, box.maxy - box.miny);
   let nextId = 1_000_000;
+  let nextEdge = 2_000_000;
   const added: number[] = [];
+  const position = (vertex: number) => mesh.vertices.get(vertex)!;
+  const idOf = (vertex: number) => (position(vertex).ref as { id: number }).id;
+  /** 対応点の、網の上での隣の対応点 */
+  const neighbors = (vertex: number): number[] => {
+    const out = new Set<number>();
+    for (const t of mesh.byVertex.get(vertex)!) {
+      for (const v of mesh.triangles.get(t)!) if (v !== vertex && position(v).ref.kind === "gcp") out.add(v);
+    }
+    return [...out];
+  };
+  /** 折れ点を 1 つ（線分の中ほどから、少し横へずらした位置） */
+  const bend = (a: Position, b: Position, t: number, offset: number): Position => [
+    a[0] + (b[0] - a[0]) * t - (b[1] - a[1]) * offset,
+    a[1] + (b[1] - a[1]) * t + (b[0] - a[0]) * offset
+  ];
+  const nodesFor = (start: number, end: number): [Position[], Position[]] => {
+    const kind = Math.floor(rnd() * 4);
+    if (kind === 0) return [[], []];
+    const forw = bend(position(start).forw, position(end).forw, 0.3 + rnd() * 0.4, (rnd() - 0.5) * 0.2);
+    const bakw = bend(position(start).bakw, position(end).bakw, 0.3 + rnd() * 0.4, (rnd() - 0.5) * 0.2);
+    // 片方の面だけの折れ点・両面の折れ点
+    return kind === 1 ? [[forw], []] : kind === 2 ? [[], [bakw]] : [[forw], [bakw]];
+  };
   let vertices = model.gcps.length;
   const pick = () => {
     const vertex = model.gcps[Math.floor(rnd() * model.gcps.length)];
@@ -138,7 +180,9 @@ function runEdits(model: MeshModel, edits: number, seed: number, sweepEvery: num
   };
   sample(0);
   for (let n = 1; n <= edits; n++) {
-    const kind = (["move", "move", "moveBakw", "insert", "remove"] as const)[Math.floor(rnd() * 5)];
+    const kind = (["move", "move", "moveBakw", "insert", "remove", "addEdge", "removeEdge", "replaceNodes"] as const)[
+      Math.floor(rnd() * 8)
+    ];
     let result: EditResult;
     const before = mesh.triangles.size;
     const start = performance.now();
@@ -160,6 +204,27 @@ function runEdits(model: MeshModel, edits: number, seed: number, sweepEvery: num
       result = insertPoint(model, nextId, forw, [bakw[0] + (rnd() - 0.5) * 6, bakw[1] + (rnd() - 0.5) * 6]);
       if (result.ok) added.push(nextId);
       nextId++;
+    } else if (kind === "addEdge") {
+      // 隣の対応点（辺が既にある）か、隣の隣の対応点（三角形を横切る）へ、必須エッジを足す
+      const start = model.gcps[Math.floor(rnd() * model.gcps.length)];
+      const near = neighbors(start);
+      if (near.length === 0) continue;
+      let end = near[Math.floor(rnd() * near.length)];
+      if (rnd() < 0.5) {
+        const far = neighbors(end).filter((v) => v !== start);
+        if (far.length > 0) end = far[Math.floor(rnd() * far.length)];
+      }
+      if (mesh.flagsOf(start, end) & EDGE_REQUIRED) continue;
+      const [forwNodes, bakwNodes] = nodesFor(start, end);
+      result = insertEdge(model, nextEdge++, idOf(start), idOf(end), forwNodes, bakwNodes);
+    } else if (kind === "removeEdge") {
+      if (model.edges.length === 0) continue;
+      result = removeEdge(model, model.edges[Math.floor(rnd() * model.edges.length)].id);
+    } else if (kind === "replaceNodes") {
+      if (model.edges.length === 0) continue;
+      const edge = model.edges[Math.floor(rnd() * model.edges.length)];
+      const [forwNodes, bakwNodes] = nodesFor(edge.start, edge.end);
+      result = replaceEdgeNodes(model, edge.id, forwNodes, bakwNodes);
     } else {
       // 足した点があれば、半分はそれを消す（もとの点は、必須エッジの端点が多く、消せないことが多い）
       const id = added.length > 0 && rnd() < 0.5 ? added.splice(Math.floor(rnd() * added.length), 1)[0] : pick();
@@ -172,16 +237,24 @@ function runEdits(model: MeshModel, edits: number, seed: number, sweepEvery: num
       summary.done[kind] = (summary.done[kind] ?? 0) + 1;
       summary.grown += result.grown;
       summary.times.push(elapsed);
+      summary.flips.overlap += result.flips.overlap;
+      summary.flips.forbidden += result.flips.forbidden;
+      summary.flips.polish += result.flips.polish;
       if (kind === "insert") vertices++;
       if (kind === "remove") vertices--;
       // 差分の帳簿: 消えた三角形と増えた三角形の数が、頂点の増減と合う
-      const delta = kind === "insert" ? 2 : kind === "remove" ? -2 : 0;
+      // （必須エッジの編集は、中継点が増減するので、頂点の差分から数える）
+      const delta = 2 * (result.vertices.added.length - result.vertices.removed.length);
+      if (kind === "insert") expect(delta, label).toBe(2);
+      if (kind === "remove") expect(delta, label).toBe(-2);
+      if (kind === "move" || kind === "moveBakw") expect(result.vertices.moved.length, label).toBe(1);
       expect(result.added.length - result.removed.length, label).toBe(delta);
       expect(mesh.triangles.size - before, label).toBe(delta);
       for (const id of result.added) expect(mesh.triangles.has(id), label).toBe(true);
       for (const id of result.removed) expect(mesh.triangles.has(id), label).toBe(false);
     } else {
       summary.failed[result.reason] = (summary.failed[result.reason] ?? 0) + 1;
+      (summary.failedBy[kind] ??= {})[result.reason] = (summary.failedBy[kind]?.[result.reason] ?? 0) + 1;
       // 失敗した編集は、網を変えない
       expect(mesh.triangles.size, label).toBe(before);
     }
@@ -198,6 +271,7 @@ function report(name: string, summary: Summary) {
   const sorted = [...summary.times].sort((a, b) => a - b);
   console.info(
     `[T1] ${name}: 試行 ${JSON.stringify(summary.tried)} 成功 ${JSON.stringify(summary.done)} 失敗 ${JSON.stringify(summary.failed)}` +
+      `\n  種類ごとの失敗 ${JSON.stringify(summary.failedBy)} 反転 ${JSON.stringify(summary.flips)}` +
       ` 広げた回数の合計 ${summary.grown} 時間の中央値 ${sorted[Math.floor(sorted.length / 2)]?.toFixed(3)} ms 最大 ${sorted.at(-1)?.toFixed(3)} ms\n` +
       summary.samples.map((s) => `  編集 ${s.edit}: Delaunay でない辺 ${s.nonDelaunay} protect ${s.protect} 三角形 ${s.triangles}`).join("\n")
   );
@@ -216,7 +290,9 @@ describe("T1: 内側の編集を 200 回重ねる（清書なし・毎回、全�
       const done = Object.values(summary.done).reduce((a, b) => a + b, 0);
       // 編集の大半が局所で済んでいること（済まない編集は、全部組み直しへ落とす。第 2 週）
       expect(done).toBeGreaterThan(100);
-      for (const kind of ["move", "moveBakw", "insert", "remove"]) expect(summary.done[kind] ?? 0).toBeGreaterThan(0);
+      for (const kind of ["move", "moveBakw", "insert", "remove", "addEdge", "removeEdge", "replaceNodes"]) {
+        expect(summary.done[kind] ?? 0, kind).toBeGreaterThan(0);
+      }
       // 編集を重ねた網を書き出して、読み直せる（番号の振り直し）
       const compiled = model.toCompiled();
       expect(compiled.strict_status).toBe("strict");
@@ -230,6 +306,20 @@ describe("T1: 内側の編集を 200 回重ねる（清書なし・毎回、全�
         worst = Math.max(worst, Math.hypot(out[0] - bakw[0], out[1] - bakw[1]));
       }
       expect(worst).toBeLessThan(1e-6);
+      // 同じ入力を全部組み直す。必須エッジの中継点（両面の折れ線の突き合わせ）は、1 ビットも違わない
+      const inputs = model.inputs();
+      const full = new Tin({ ...mapOptions(name, "strict"), points: inputs.points, edges: inputs.edges });
+      let fullStatus: string;
+      try {
+        full.updateTin();
+        fullStatus = full.strict_status!;
+        const nodes = model.edges.reduce((sum, edge) => sum + edge.nodes.length, 0);
+        expect(compiled.edgeNodes!.slice(0, nodes)).toEqual(full.getCompiled().edgeNodes!.slice(0, nodes));
+      } catch (error) {
+        fullStatus = `例外（${error instanceof Error ? error.message : String(error)}）`;
+      }
+      // E1: 局所更新の網は strict。全部組み直しのほうが悪い場合は、記録だけする
+      console.info(`[T2] ${name}: 200 回の後、局所更新は strict・同じ入力の全部組み直しは ${fullStatus}`);
     }, TIMEOUT);
   }
 });

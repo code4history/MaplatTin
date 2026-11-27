@@ -36,9 +36,16 @@ export type {
 } from "./incremental/mesh.ts";
 export { MeshModel, meshFromCompiled } from "./incremental/model.ts";
 export type { ImportFailure, MeshEdge, MeshSupplement } from "./incremental/model.ts";
-export { insertPoint, movePoint, removePoint } from "./incremental/edits.ts";
-export type { EditFailure, EditResult } from "./incremental/edits.ts";
-export type { TinEdit, TinPatch } from "./incremental/types.ts";
+export {
+  insertEdge,
+  insertPoint,
+  movePoint,
+  removeEdge,
+  removePoint,
+  replaceEdgeNodes,
+} from "./incremental/edits.ts";
+export type { EditFailure, EditResult, VertexChanges } from "./incremental/edits.ts";
+export type { TinEdit, TinPatch, TinPatchFallback } from "./incremental/types.ts";
 
 // Utility function exports
 export { default as constrainedTin } from "./constrained-tin.ts";
