@@ -57,8 +57,11 @@ import {
   calculateBirdeyeVertices,
   calculatePlainVertices,
   calculateWorldFileVertices,
+  ringBinOf,
   type BoundaryVerticesParams,
+  type RingOptions,
 } from "./boundary-vertices.ts";
+import { findRingCulprits } from "./ring-culprits.ts";
 import { findIntersectionsUpTo, MAX_KINKS_PER_DIRECTION } from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
@@ -92,6 +95,31 @@ interface BuildState {
 
 /** strict を壊した凸包の辺を外して組み直す回数の上限。 */
 const MAX_HULL_REFINEMENTS = 12;
+/** strict にならないとき、strict を壊す補助頂点を外して組み直す回数の上限（MaplatTin#98）。 */
+const MAX_RING_ROUNDS = 4;
+/** 補助頂点を外すとき、壊す補助頂点の両隣の区分もまとめて外す数（回数を減らす）。 */
+const RING_SPREAD = 1;
+/** 補助頂点の手当ての探索（第 1 段の各回と第 2 段）に使ってよい手間（三角網を組んだ試行の数）の上限。最初の組み立ての試行数の何倍か。 */
+const RING_RESCUE_BUDGET = 4;
+/** strict になった後に、外した区分を戻す試行を含めた手間の上限（最初の組み立ての試行数の何倍か）。 */
+const RING_RESTORE_BUDGET = 8;
+/** 外す区分がこの数以上（輪の 2/3）になったら、第 1 段の残りの回を飛ばして四隅だけにする。 */
+const RING_GIVE_UP_BINS = 24;
+
+/** 区分の番号（0〜35、輪になっている）の集合を、連続するかたまりに分ける。 */
+function clustersOf(bins: ReadonlySet<number>): number[][] {
+  if (bins.size === 0) return [];
+  if (bins.size >= 36) return [[...bins].sort((a, b) => a - b)];
+  // かたまりの先頭（前の区分が無い区分）から順に伸ばす
+  const clusters: number[][] = [];
+  for (let bin = 0; bin < 36; bin++) {
+    if (!bins.has(bin) || bins.has((bin + 35) % 36)) continue;
+    const cluster = [bin];
+    for (let next = (bin + 1) % 36; bins.has(next); next = (next + 1) % 36) cluster.push(next);
+    clusters.push(cluster);
+  }
+  return clusters;
+}
 
 /** 補完点の組み直しが手間の上限を超えたことを知らせる（`buildWithSupplements` の中だけで投げて捕まえる）。 */
 const OUT_OF_BUDGET = Symbol("supplement pairs out of budget");
@@ -140,6 +168,8 @@ export class Tin extends Transform {
   private supplementRecords: SupplementPairRecord[] = [];
   private lastSupplementDiagnostics?: SupplementDiagnostics;
   private lastBoundaryDiagnostics?: BoundaryDiagnostics;
+  /** `updateTin()` の中で三角網を組んだ試行の数（補助頂点の手当ての手間の上限に使う）。 */
+  private attemptTotal = 0;
   private requestedWorldFile?: WorldFile;
   private compiledOuter?: CompiledOuter;
 
@@ -640,6 +670,7 @@ export class Tin extends Transform {
     this.lastBoundaryDiagnostics = undefined;
     // 補完点は保存しない入力。前回の結果は読まず、人間の対応点だけから毎回作り直す
     this.supplementRecords = [];
+    this.attemptTotal = 0;
     this.lastSupplementDiagnostics = undefined;
     let strict = this.strictMode;
     if (strict !== Tin.MODE_STRICT && strict !== Tin.MODE_LOOSE) {
@@ -771,35 +802,156 @@ export class Tin extends Transform {
       maxy,
     };
 
+    // strict にならないときの補助頂点の手当て（MaplatTin#98）。strict または auto で、最初の組み立てで外周が
+    // 成立したのに strict にならないときだけ、strict を壊す補助頂点（地理面で内側の三角形と重なる、向きが
+    // 逆になる）だけを外して組み直し（第 1 段。外す区分は両隣もまとめる）、strict になったら、外した区分を
+    // かたまりごとに 1 回ずつ戻して、strict を保てるかを試す。第 1 段で救えないときは、補助頂点を四隅だけにして
+    // 組み直す（第 2 段。縮尺と回転の推定は V3 のまま）。どちらも strict になったときだけ採り、ならなければ
+    // 最初の結果へ状態ごと戻す。外周が成立しなかった（boundary が無い）ときは、手当てをしない（world file
+    // 外周が成立しなくて扇形へ落ちる入力を、四隅だけの world file 外周に変えない）。
+    //
+    // 手間の上限（三角網を組んだ試行の数）は、最初の組み立ての試行数 `firstCost` の倍数で置く。探索（第 1 段の
+    // 各回と第 2 段）は `RING_RESCUE_BUDGET` 倍まで（第 2 段の 1 回分は取っておく）、外した区分を戻す試行は
+    // `RING_RESTORE_BUDGET` 倍まで。外す区分が輪の大半になったら、残りの回を飛ばして第 2 段へ進む。上限は試行を
+    // 始める前にだけ見るので、上限に届いたら次の試行を始めないという意味で、最後の 1 試行の分は超えることがある。
+    const wantsStrict = strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO;
+    const rescue = <T extends { boundary?: BoundaryCandidate }>(
+      first: T,
+      firstCost: number,
+      build: (ring: RingOptions) => T,
+    ): { result: T; kind?: "thinned" | "corners" } => {
+      if (!wantsStrict || this.isStrict() || !first.boundary) return { result: first };
+      // 状態（三角網・点群・補完点・必須エッジの中継点）の控え。採る試行へ戻す
+      const snapshot = () => ({
+        build: this.captureBuild(),
+        raw: [rawPointsSet.forw.slice(), rawPointsSet.bakw.slice()],
+        gcps: allGcps.slice(),
+        edgeNodes: this.edgeNodes!.slice(),
+        supplementRecords: this.supplementRecords,
+        supplementDiagnostics: this.lastSupplementDiagnostics,
+      });
+      const apply = (state: ReturnType<typeof snapshot>) => {
+        rawPointsSet.forw.splice(0, rawPointsSet.forw.length, ...state.raw[0]);
+        rawPointsSet.bakw.splice(0, rawPointsSet.bakw.length, ...state.raw[1]);
+        allGcps.splice(0, allGcps.length, ...state.gcps);
+        this.edgeNodes!.splice(0, this.edgeNodes!.length, ...state.edgeNodes);
+        this.restoreBuild(state.build);
+        this.supplementRecords = state.supplementRecords;
+        this.lastSupplementDiagnostics = state.supplementDiagnostics;
+      };
+      const kept = snapshot();
+      const start = this.attemptTotal;
+      const used = () => this.attemptTotal - start;
+      const isCorner = (forw: Position, ring: Position[]) => {
+        const xs = ring.map(([x]) => x);
+        const ys = ring.map(([, y]) => y);
+        return (forw[0] === Math.min(...xs) || forw[0] === Math.max(...xs)) &&
+          (forw[1] === Math.min(...ys) || forw[1] === Math.max(...ys));
+      };
+      /** 三角網を組む。`this` は組んだ三角網の状態になる。 */
+      const attempt = (ring: RingOptions) => {
+        // 前の試行が足した補完点・中継点は、次の試行の入力に混ぜない（最初の状態の点群から組む）
+        rawPointsSet.forw.splice(0, rawPointsSet.forw.length, ...kept.raw[0]);
+        rawPointsSet.bakw.splice(0, rawPointsSet.bakw.length, ...kept.raw[1]);
+        allGcps.splice(0, allGcps.length, ...kept.gcps);
+        this.edgeNodes!.splice(0, this.edgeNodes!.length, ...kept.edgeNodes);
+        this.supplementRecords = [];
+        this.lastSupplementDiagnostics = undefined;
+        const built = build(ring);
+        return { built, strict: built.boundary !== undefined && this.isStrict() };
+      };
+      const skip = new Set<number>();
+      // 最初の輪で、外せる補助頂点（四隅以外）のある区分
+      const ringVertices = first.boundary.vertices.map(({ forw }) => forw);
+      const removable = new Set(
+        ringVertices.filter((forw) => !isCorner(forw, ringVertices)).map((forw) => ringBinOf(forw, centCalc.forw)),
+      );
+      try {
+        let current: T = first;
+        for (let round = 0; round < MAX_RING_ROUNDS; round++) {
+          if (used() + firstCost >= RING_RESCUE_BUDGET * firstCost) break;
+          const ring = current.boundary!.vertices.map(({ forw }) => forw);
+          const before = skip.size;
+          for (const forw of findRingCulprits(this.tins!.forw!)) {
+            if (isCorner(forw, ring)) continue;
+            const bin = ringBinOf(forw, centCalc.forw);
+            for (let d = -RING_SPREAD; d <= RING_SPREAD; d++) skip.add((bin + d + 36) % 36);
+          }
+          if (skip.size === before) break;
+          // 外す区分が輪の大半になったら、四隅だけにする
+          if (skip.size >= RING_GIVE_UP_BINS) break;
+          const tried = attempt({ skipBins: new Set(skip) });
+          // 外して外周が成立しなくなったら、打ち切る（四隅だけの外周も試さない）
+          if (!tried.built.boundary) {
+            apply(kept);
+            return { result: first };
+          }
+          if (tried.strict) {
+            let best = { result: tried.built, state: snapshot() };
+            // 外した区分を、かたまりごとに 1 回ずつ戻して、strict を保てるかを試す
+            for (const cluster of clustersOf(skip)) {
+              if (!cluster.some((bin) => removable.has(bin))) continue;
+              if (used() >= RING_RESTORE_BUDGET * firstCost) break;
+              const rest = new Set([...skip].filter((bin) => !cluster.includes(bin)));
+              const retried = attempt({ skipBins: rest });
+              if (retried.strict) {
+                for (const bin of cluster) skip.delete(bin);
+                best = { result: retried.built, state: snapshot() };
+              }
+            }
+            apply(best.state);
+            return { result: best.result, kind: "thinned" };
+          }
+          // strict にならなかった組み立ての三角網で、次の回の原因を探す（`this` はその状態にある）
+          current = tried.built;
+        }
+        if (used() < RING_RESCUE_BUDGET * firstCost) {
+          const tried = attempt({ cornersOnly: true });
+          if (tried.strict) return { result: tried.built, kind: "corners" };
+        }
+      } catch {
+        // 手当ての組み直しが失敗しても、最初の結果は有効なので、それを返す
+      }
+      apply(kept);
+      return { result: first };
+    };
+
     if (worldFile) {
       this.stateTriangle = undefined;
       // follow では、GCP と同様に外部 CRS の Y を反転して三角網に入れる。
       // world file 自体は反転前の係数を保存する。
       const follow = this.yaxisMode === Tin.YAXIS_FOLLOW;
       const orientation = follow ? 1 : -1;
-      const { boundary } = this.buildWithSupplements(strict, rawPointsSet, allGcps, (cache, mode, measureOnly) =>
-        (excludedHull) => ({ boundary: searchBoundary(
-          boundaryParams,
-          (params) => calculateWorldFileVertices(params, (xy) => {
-            const [x, y] = worldFileToCrs(worldFile, xy);
-            return [x, follow ? -y : y];
-          }),
-          rawPointsSet,
-          this.points.length,
-          {
-            orientation,
-            accept: (candidate) => {
-              if (!candidate.hasMapBoundary) return false;
-              this.buildTin(rawPointsSet, candidate.vertices, mode, candidate, excludedHull.size > 0, measureOnly);
-              // auto の切り替えと strict の重なり解消を経て、採用した三角網で判定する。
-              return (this.strict_status !== Tin.STATUS_LOOSE || candidate.hasBoundary) &&
-                countBoundaryFlips(this.tins!.forw!, orientation) === 0 &&
-                countBoundaryFlips(this.tins!.bakw!, orientation) === 0;
+      const buildWorldFile = (ring?: RingOptions) =>
+        this.buildWithSupplements(strict, rawPointsSet, allGcps, (cache, mode, measureOnly) =>
+          (excludedHull) => ({ boundary: searchBoundary(
+            ring ? { ...boundaryParams, ring } : boundaryParams,
+            (params) => calculateWorldFileVertices(params, (xy) => {
+              const [x, y] = worldFileToCrs(worldFile, xy);
+              return [x, follow ? -y : y];
+            }),
+            rawPointsSet,
+            this.points.length,
+            {
+              orientation,
+              accept: (candidate) => {
+                if (!candidate.hasMapBoundary) return false;
+                this.buildTin(rawPointsSet, candidate.vertices, mode, candidate, excludedHull.size > 0, measureOnly);
+                // auto の切り替えと strict の重なり解消を経て、採用した三角網で判定する。
+                return (this.strict_status !== Tin.STATUS_LOOSE || candidate.hasBoundary) &&
+                  countBoundaryFlips(this.tins!.forw!, orientation) === 0 &&
+                  countBoundaryFlips(this.tins!.bakw!, orientation) === 0;
+              },
             },
-          },
-          excludedHull,
-          cache,
-        ) }));
+            excludedHull,
+            cache,
+          ) }));
+      const worldStart = this.attemptTotal;
+      const worldFirst = buildWorldFile();
+      const worldCost = this.attemptTotal - worldStart;
+      // world file 外周でも、strict にならないときは補助頂点を手当てする。外すのは world file の輪の一部で、
+      // `vertices_points` には、採用した輪の補助頂点を全部書く
+      const { result: { boundary }, kind: worldRescue } = rescue(worldFirst, worldCost, buildWorldFile);
       if (boundary) {
         this.compiledOuter = {
           outerTransform: "worldFile",
@@ -813,6 +965,7 @@ export class Tin extends Transform {
         Object.assign(this, { centroid, xy, wh, kinks });
         this.lastBoundaryDiagnostics = {
           ...boundary.diagnostics,
+          ...(worldRescue ? { ringRescue: worldRescue } : {}),
           requestedOuterTransform: "worldFile",
           outerTransform: "worldFile",
         };
@@ -828,30 +981,39 @@ export class Tin extends Transform {
       : calculatePlainVertices;
     let boundary: BoundaryCandidate | undefined;
     let verticesList: { forw: Feature<Point>[]; bakw: Feature<Point>[] };
+    let ringRescue: "thinned" | "corners" | undefined;
     if (isV3) {
-      ({ boundary, verticesList } = this.buildWithSupplements(strict, rawPointsSet, allGcps, (cache, mode, measureOnly) =>
-        (excludedHull) => {
-          const found = searchBoundary(
-            boundaryParams,
-            calculateVertices,
-            rawPointsSet,
-            this.points.length,
-            undefined,
-            excludedHull,
-            cache,
-          );
-          return {
-            boundary: found,
-            verticesList: this.buildTin(
+      const buildV3 = (ring?: RingOptions) =>
+        this.buildWithSupplements(strict, rawPointsSet, allGcps, (cache, mode, measureOnly) =>
+          (excludedHull) => {
+            const params = ring ? { ...boundaryParams, ring } : boundaryParams;
+            const found = searchBoundary(
+              params,
+              calculateVertices,
               rawPointsSet,
-              found?.vertices ?? calculateVertices(boundaryParams, false),
-              mode,
-              found,
-              excludedHull.size > 0,
-              measureOnly,
-            ),
-          };
-        }));
+              this.points.length,
+              undefined,
+              excludedHull,
+              cache,
+            );
+            return {
+              boundary: found,
+              verticesList: this.buildTin(
+                rawPointsSet,
+                found?.vertices ?? calculateVertices(params, false),
+                mode,
+                found,
+                excludedHull.size > 0,
+                measureOnly,
+              ),
+            };
+          });
+      // 扇形に落ちた入力では、world file 外周の試行は数えず、この最初の組み立ての試行数を基準にする
+      const v3Start = this.attemptTotal;
+      const v3First = buildV3();
+      const rescued = rescue(v3First, this.attemptTotal - v3Start, buildV3);
+      ({ boundary, verticesList } = rescued.result);
+      ringRescue = rescued.kind;
     } else {
       verticesList = this.buildTin(
         rawPointsSet,
@@ -873,7 +1035,9 @@ export class Tin extends Transform {
     // updateTin() 直後の transform() が TypeError になる。{} の .forw は undefined なので
     // 旧版でも純アフィンになる。新 Transform はこの値を読まない。
     this.pointsWeightBuffer = {};
-    this.lastBoundaryDiagnostics = boundary?.diagnostics;
+    this.lastBoundaryDiagnostics = boundary && ringRescue
+      ? { ...boundary.diagnostics, ringRescue }
+      : boundary?.diagnostics;
     if (worldFile && this.lastBoundaryDiagnostics) {
       this.lastBoundaryDiagnostics = {
         ...this.lastBoundaryDiagnostics,
@@ -912,6 +1076,7 @@ export class Tin extends Transform {
       const attempt = makeAttempt(cache, mode, measureOnly);
       return (excludedHull: ReadonlySet<string>): T => {
         attempts++;
+        this.attemptTotal++;
         return attempt(excludedHull);
       };
     };
@@ -1105,6 +1270,11 @@ export class Tin extends Transform {
       if (bare.strict) return adopt(bare);
     }
     return adopt(first);
+  }
+
+  /** 今の三角網が strict か（組み立ての途中で `strict_status` が変わるので、型の絞り込みを避けて読む）。 */
+  private isStrict(): boolean {
+    return this.strict_status === Tin.STATUS_STRICT;
   }
 
   /** 三角網を組んだ結果の状態（試行ごとに控え、採用する試行の状態に戻す）。 */

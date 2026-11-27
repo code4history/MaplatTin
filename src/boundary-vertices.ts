@@ -24,6 +24,18 @@ export interface BoundaryVerticesParams {
   maxx: number;
   miny: number;
   maxy: number;
+  /**
+   * 補助頂点の輪の手当て（strict にならないときだけ使う。MaplatTin#98）。省略すると 36 区分の全部。
+   * `skipBins` の区分（重心から見た紙の角度を 10° ごとに区切った番号）の補助頂点は作らない。
+   * `cornersOnly` は四隅だけにする（縮尺と回転の推定は変えない）。
+   */
+  ring?: RingOptions;
+}
+
+/** 補助頂点の輪の手当て。 */
+export interface RingOptions {
+  skipBins?: ReadonlySet<number>;
+  cornersOnly?: boolean;
 }
 
 /** 10° の区分の境界の方向にある点とみなす角度の許容（度）。 */
@@ -285,6 +297,11 @@ function findRayQuadIntersection(
   return bestPoint;
 }
 
+/** 重心から見た紙の位置の区分の番号（10° ごと、0〜35）。 */
+export function ringBinOf(forw: Position, centroidForw: Position): number {
+  return Math.floor(toAngleDeg360(forw, centroidForw) / 10) % 36;
+}
+
 /** Convert a forw position to [0, 360) degrees using the atan2(Δx, Δy) convention. */
 function toAngleDeg360(pos: Position, centroid: Position): number {
   const rawRad = Math.atan2(pos[0] - centroid[0], pos[1] - centroid[1]);
@@ -463,7 +480,7 @@ function calculateVerticesCore(
   // Expand corners to enclose all GCPs + edge nodes in bakw space
   if (!project) checkAndAdjustVerticesN(cornerVertices, allGcps, centroid);
 
-  if (!withEdgeVertices) return cornerVertices;
+  if (!withEdgeVertices || params.ring?.cornersOnly) return cornerVertices;
 
   // ── Phase 3 prep: interpolation data from adjusted corners ────────────────
   //
@@ -540,7 +557,7 @@ function calculateVerticesCore(
   const edgeVertices: VertexPosition[] = [];
 
   for (let bin = 0; bin < 36; bin++) {
-    if (cornerBins.has(bin)) continue;
+    if (cornerBins.has(bin) || params.ring?.skipBins?.has(bin)) continue;
 
     const binStart = bin * 10;
     // 区分は半開区間 [binStart, binStart+10) だが、区分の境界の方向（例: 真東の 90°）にある点は

@@ -221,23 +221,29 @@ it("strict と loose は実際に使う三角網で余白を選ぶ", () => {
 
 // 凸包の辺を制約にすると、補助頂点を含む三角形の反転が減り、auto と loose でも 50% の余白で B が成立する
 // （以前は成立せず扇形に落ちた。扇形に落ちる経路は、下の translatedPoints(70) の試験で確かめる）。
-it.each(["auto", "loose"] as const)(
-  "奈良町八水文庫図の %s は 50% の余白で world file 外周を成立させる",
-  (strictMode) => {
-    const tin = new Tin({ ...naramachiOptions, strictMode, outerTransform: "worldFile", worldFile: naramachiModel });
-    tin.updateTin();
-    expect(tin.boundaryDiagnostics).toMatchObject({
-      margin: 0.5,
-      requestedOuterTransform: "worldFile",
-      outerTransform: "worldFile"
-    });
-    expect(tin.boundaryDiagnostics?.fallbackReason).toBeUndefined();
-    const compiled = tin.getCompiled();
-    expect(compiled).toHaveProperty("outerTransform", "worldFile");
-    expect(compiled).toHaveProperty("worldFile", naramachiModel);
-  },
-  REAL_DATA_TIMEOUT_MS
-);
+// auto は strict を試すので、strict にならないときの補助頂点の手当て（#98）を試す分、時間がかかる（手元で 3〜5 秒）。
+// loose は手当てをしない。
+function expectNaramachiOuter(strictMode: "auto" | "loose") {
+  const tin = new Tin({ ...naramachiOptions, strictMode, outerTransform: "worldFile", worldFile: naramachiModel });
+  tin.updateTin();
+  expect(tin.boundaryDiagnostics).toMatchObject({
+    margin: 0.5,
+    requestedOuterTransform: "worldFile",
+    outerTransform: "worldFile"
+  });
+  expect(tin.boundaryDiagnostics?.fallbackReason).toBeUndefined();
+  const compiled = tin.getCompiled();
+  expect(compiled).toHaveProperty("outerTransform", "worldFile");
+  expect(compiled).toHaveProperty("worldFile", naramachiModel);
+}
+
+it("奈良町八水文庫図の auto は 50% の余白で world file 外周を成立させる", () => {
+  expectNaramachiOuter("auto");
+}, REAL_DATA_TIMEOUT_MS * 3);
+
+it("奈良町八水文庫図の loose は 50% の余白で world file 外周を成立させる", () => {
+  expectNaramachiOuter("loose");
+}, REAL_DATA_TIMEOUT_MS);
 
 it("奈良町八水文庫図の strict は 50% の余白で world file 外周を成立させる", () => {
   const tin = new Tin({ ...naramachiOptions, strictMode: "strict", outerTransform: "worldFile", worldFile: naramachiModel });
@@ -250,7 +256,12 @@ it("奈良町八水文庫図の strict は 50% の余白で world file 外周を
   const compiled = tin.getCompiled();
   expect(compiled).toHaveProperty("outerTransform", "worldFile");
   expect(compiled).toHaveProperty("worldFile", naramachiModel);
-}, REAL_DATA_TIMEOUT_MS);
+  // strict にならない（#94 と同じ）。補助頂点の手当てを試して救えないので、元の結果に戻る。外して外周が
+  // 成立しなくなった時点で諦めるので、三角網を組む試行は 13（最初の組み立ては 4）。この数で遅い退行に気づく
+  expect(tin.strict_status).toBe(Tin.STATUS_ERROR);
+  expect(compiled.vertices_points).toHaveLength(36);
+  expect((tin as unknown as { attemptTotal: number }).attemptTotal).toBeLessThanOrEqual(16);
+}, REAL_DATA_TIMEOUT_MS * 3);
 
 it("内側の交差は B を降格させず、strict と auto の逆変換規則を保つ", () => {
   const points: PointSet[] = [

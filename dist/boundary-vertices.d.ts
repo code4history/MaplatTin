@@ -27,6 +27,17 @@ export interface BoundaryVerticesParams {
     maxx: number;
     miny: number;
     maxy: number;
+    /**
+     * 補助頂点の輪の手当て（strict にならないときだけ使う。MaplatTin#98）。省略すると 36 区分の全部。
+     * `skipBins` の区分（重心から見た紙の角度を 10° ごとに区切った番号）の補助頂点は作らない。
+     * `cornersOnly` は四隅だけにする（縮尺と回転の推定は変えない）。
+     */
+    ring?: RingOptions;
+}
+/** 補助頂点の輪の手当て。 */
+export interface RingOptions {
+    skipBins?: ReadonlySet<number>;
+    cornersOnly?: boolean;
 }
 /**
  * 扇形外挿の縮尺と回転の推定方法。
@@ -35,6 +46,8 @@ export interface BoundaryVerticesParams {
  * - `"farLsq"`: 重心から遠い凸包の点の最小二乗（V3 の plain）。当てはまりが悪いときは `"min"` に戻る。
  */
 export type RatioEstimator = "min" | "farLsq";
+/** 重心から見た紙の位置の区分の番号（10° ごと、0〜35）。 */
+export declare function ringBinOf(forw: Position, centroidForw: Position): number;
 /**
  * Calculate boundary vertices in plain mode.
  *

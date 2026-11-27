@@ -180,6 +180,7 @@ V3 の余白を小さい順に試し、実際に使う三角網で、補助頂�
 | `requestedOuterTransform` | world file 外周を指定したときの `"worldFile"`。 |
 | `outerTransform` | world file 外周を指定したときに実際に採用した `"worldFile"` または `"extrapolate"`。 |
 | `fallbackReason` | world file 外周が成立せず扇形で作り直したときの `"boundaryFlips"`。 |
+| `ringRescue` | 36 区分の補助頂点では `strict`（`auto` の strict の試行）にならず、輪を手当てして `strict` にしたときだけある。`"thinned"` は strict を壊す補助頂点（と両隣の区分）だけを外した輪、`"corners"` は四隅だけの輪（縮尺と回転の推定は V3 のまま）。そうでなければ項目ごと無い。 |
 
 扇形外挿の余白は 10%、15%、22.5%、34%、50% の順に試し、補助頂点の三角形の反転が 0 で、
 重心からの扇形が両面で星形になる最初の余白を採用します。どの余白も合格しない場合は、
