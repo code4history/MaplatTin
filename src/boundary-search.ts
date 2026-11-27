@@ -120,6 +120,33 @@ export type SearchCache = Map<
   }
 >;
 
+/**
+ * 補助頂点のうち、内点（GCP・中継点）や先に残した補助頂点と同じ位置のものを除く。
+ * 同じ位置の点は Delaunator が三角網から落とすため、落ちた側が必須エッジの端点だと
+ * `Invalid edge ... is not part of the triangulation` になる。GCP の外接矩形の高さや幅が
+ * 0 のとき、余白を広げた矩形からの補助頂点の位置が内点に一致することがある。
+ * 両面（`forw` と `bakw`）のどちらかで一致すれば除く。
+ */
+function withoutCoincidentVertices(
+  vertices: VertexPosition[],
+  points: { forw: Feature<Point>[]; bakw: Feature<Point>[] }
+): VertexPosition[] {
+  const usedForw = new Set(
+    points.forw.map(({ geometry }) => String(geometry!.coordinates))
+  );
+  const usedBakw = new Set(
+    points.bakw.map(({ geometry }) => String(geometry!.coordinates))
+  );
+  return vertices.filter(({ forw, bakw }) => {
+    const keyForw = String(forw);
+    const keyBakw = String(bakw);
+    if (usedForw.has(keyForw) || usedBakw.has(keyBakw)) return false;
+    usedForw.add(keyForw);
+    usedBakw.add(keyBakw);
+    return true;
+  });
+}
+
 export function searchBoundary(
   params: BoundaryVerticesParams,
   calculateVertices: (
@@ -167,15 +194,18 @@ export function searchBoundary(
     cache?.set(margin, reuse);
     const vertices =
       reuse.vertices ??
-      (reuse.vertices = calculateVertices(
-        {
-          ...params,
-          minx: minx - margin * width,
-          maxx: maxx + margin * width,
-          miny: miny - margin * height,
-          maxy: maxy + margin * height
-        },
-        true
+      (reuse.vertices = withoutCoincidentVertices(
+        calculateVertices(
+          {
+            ...params,
+            minx: minx - margin * width,
+            maxx: maxx + margin * width,
+            miny: miny - margin * height,
+            maxy: maxy + margin * height
+          },
+          true
+        ),
+        points
       ));
     if (
       worldFile &&
