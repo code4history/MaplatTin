@@ -8,7 +8,7 @@ import { convexHullEdges, hullEdgeKey } from "./hull-edges.ts";
 import type { VertexPosition } from "./types/tin.ts";
 import { counterPoint, createPoint } from "./vertexutils.ts";
 
-const MARGINS = [0.1, 0.15, 0.225, 0.34, 0.5] as const;
+export const MARGINS = [0.1, 0.15, 0.225, 0.34, 0.5] as const;
 
 /** V3 の境界生成時の診断。件数は地図面と地理面の三角網の合計。 */
 export interface BoundaryDiagnostics {
@@ -88,7 +88,7 @@ export function countBoundaryFlips(tin: Tins, expectedOrientation: -1 | 1 = -1):
   return count;
 }
 
-function isStarShaped(
+export function isStarShaped(
   points: Position[],
   center: Position,
   direction: number

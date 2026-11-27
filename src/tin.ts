@@ -12,6 +12,7 @@ import {
   polygon,
 } from "@turf/turf";
 import type { Feature, Point, Position } from "geojson";
+import { orient2d } from "robust-predicates";
 import {
   counterTri,
   normalizeEdges,
@@ -36,6 +37,7 @@ import type {
   PointSet,
   PropertyTriKey,
   StrictMode,
+  StrictStatus,
   Tins,
   TinsBD,
   Tri,
@@ -46,6 +48,8 @@ import type {
 import constrainedTin from "./constrained-tin.ts";
 import {
   countBoundaryFlips,
+  isStarShaped,
+  MARGINS,
   searchBoundary,
   type BoundaryCandidate,
   type SearchCache,
@@ -65,7 +69,15 @@ import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
 import { findHullCulprits } from "./hull-culprits.ts";
-import { hullEdgeKey } from "./hull-edges.ts";
+import { convexHullEdges, hullEdgeKey } from "./hull-edges.ts";
+import {
+  buildMeshFromTins,
+  cloneBuildMesh,
+  countBadBandTriangles,
+  replaceBand,
+  tinsFromMesh,
+  type BuildMesh,
+} from "./incremental/rebuild.ts";
 import {
   addSupplementPairs,
   analyzeMesh,
@@ -76,12 +88,107 @@ import {
 } from "./supplement-pairs.ts";
 import type { SearchIndex } from "./searchutils.ts";
 import type { PointsSetBD, VertexPosition } from "./types/tin.ts";
+import { interpolateEdgeNodes, type EdgeNodeItem } from "./edge-nodes.ts";
+import { meshFromCompiled, type ImportFailure, type MeshModel } from "./incremental/model.ts";
+import { applyToInputs, applyToMesh, type TinInputs } from "./incremental/apply.ts";
+import type { EdgeId, PointId } from "./incremental/mesh.ts";
+import type { TinEdit, TinPatch, TinPatchFallback } from "./incremental/types.ts";
 
 type RawPointsSet = { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
 /** 補完点の一覧を持つ compiled（Transform の型には無い項目。読み手は無視してよい）。 */
-export type CompiledWithSupplement = CompiledTransformData & { supplementPairs?: SupplementPairRecord[] };
+export type CompiledWithSupplement = CompiledTransformData & {
+  supplementPairs?: SupplementPairRecord[];
+  /**
+   * 無ければ、全部組み直し（清書）の産物。`"incremental"` は、局所更新の網をそのまま保存した特例
+   * （同じ対応点から全部を組み直すと、同じ三角網にならない。MaplatTin#100・設計書 §9.5）。
+   * 読み手（MaplatTransform・MaplatCore）は無視してよい。
+   */
+  meshOrigin?: "incremental";
+};
+
+/** `Tin#restoreMesh` が網を戻せなかった理由。 */
+export type RestoreFailure =
+  | ImportFailure
+  /** 局所更新のスイッチ（`Options#incremental`）が切れている */
+  | "disabled"
+  /** 渡された対応点・必須エッジが、compiled と合わない */
+  | "inputMismatch"
+  /** compiled の中継点・補完点が、対応点と必須エッジから作り直したものと合わない */
+  | "edgeNodes"
+  /** ok でない三角形がある（S1） */
+  | "notStrict"
+  /** 網の外周が、両面で単純な 1 本の輪でない（S2） */
+  | "boundary"
+  /** 必須エッジが、網の辺に無い（S3） */
+  | "requiredEdge"
+  /** 補助頂点 3 点だけの三角形がある */
+  | "forbidden"
+  /** 補助頂点の扇形の角度が、補助頂点と重心から計算し直した値と合わない */
+  | "verticesParams";
+
+/** 局所更新の網を保存してよいかの証拠（設計書 §9.5 の条件 (a)(b) と、診断 (d)）。 */
+export interface IncrementalEvidence {
+  /** 条件を全部満たす（`compiled` を、特例として保存してよい） */
+  eligible: boolean;
+  /** 満たさなかった条件（`eligible` が true なら空） */
+  failed: (
+    | "noMesh"
+    | "boundaryStale"
+    | "badTriangles"
+    | "meshShape"
+    | "boundary"
+    | "requiredEdge"
+    | "boundaryOnlyTriangles"
+    | "gcpRoundTrip"
+    | "sweepKinks"
+  )[];
+  /** (a) 帯（補助頂点・重心）が最新か */
+  boundaryFresh: boolean;
+  /** (a) S1: ok でない三角形の数（網の全部を数え直した値。0 が条件） */
+  badTriangles: number;
+  /** (a) S1: 紙の面で折り返している内側の辺の数（0 が条件） */
+  forwFolds: number;
+  /** (a) 網の形: 3 つ以上の三角形に属する辺の数（0 が条件）と、索引が三角形の表と一致するか */
+  nonManifoldEdges: number;
+  indexMatches: boolean;
+  /** (a) S2: 網の外周が、両面で単純な 1 本の輪か */
+  boundarySimple: boolean;
+  /** (a) S3: 網の辺に無い必須エッジの区間の数（0 が条件） */
+  missingRequiredEdges: number;
+  /** (a) S4: 補助頂点 3 点だけの三角形の数（0 が条件） */
+  boundaryOnlyTriangles: number;
+  /** (a)(d) 同じ必須エッジの点だけの三角形の数（残っていても保存はする） */
+  remainingForbiddenTriangles: number;
+  /** (b) 書き出した compiled を Transform で読み直したときの、対応点の往復の誤差の最大（紙 → 地理・地理 → 紙） */
+  gcpRoundTrip: { forward: number; backward: number };
+  /** (b)(d) 書き出した網へ、今の交差の数え上げを 1 件まで走らせた結果（両面の合計。0 が条件） */
+  sweepKinks: number;
+  /** (d) 最後の全部組み直し・復元から重ねた、局所更新の回数 */
+  editsSinceRebuild: number;
+  /** (d) 同じ入力を全部組み直したときの状態と交差の件数（呼び出し側が渡した値） */
+  rebuildStatus?: StrictStatus;
+  rebuildKinks?: number;
+  /** 特例として保存する compiled（`meshOrigin: "incremental"` つき）。`eligible` のときだけ */
+  compiled?: CompiledWithSupplement;
+}
 type CompiledOuter = Pick<CompiledWorldFileOuter, "outerTransform" | "worldFile" | "vertices_points"> |
   { outerTransform: "extrapolate" };
+
+/** `incrementalRebuild` を入れた `updateTin()` の、試行の内訳。 */
+export interface RebuildDiagnostics {
+  /** 今の手順（全部を組む）で組んだ試行の数 */
+  fullAttempts: number;
+  /** 帯の差し替えで済ませた試行の数 */
+  localAttempts: number;
+  /** 帯の差し替えが成り立たず、今の手順で組み直した試行の数（fullAttempts に含む） */
+  localFailures: number;
+  /** 帯の差し替えの試行に使った時間（ミリ秒） */
+  localMs: number;
+  /** 採用した三角網が、帯の差し替えの結果か */
+  adoptedLocal: boolean;
+  /** 採用した局所の結果が、今の交差の数え上げと食い違ったので、今の手順だけで組み直した */
+  fellBack: boolean;
+}
 
 /** 三角網を組んだ結果の状態。 */
 interface BuildState {
@@ -122,11 +229,15 @@ function clustersOf(bins: ReadonlySet<number>): number[][] {
 /** 補完点の組み直しが手間の上限を超えたことを知らせる（`buildWithSupplements` の中だけで投げて捕まえる）。 */
 const OUT_OF_BUDGET = Symbol("supplement pairs out of budget");
 
+/** 局所の試行で、周りの組み直しで直す、ok でない三角形の数の上限。 */
+const MAX_HEAL_TRIANGLES = 32;
+
+/** 特例の保存の条件: 書き出した compiled での、対応点の往復の誤差の上限（地理面はメートル、紙の面は画素）。 */
+const GCP_ROUND_TRIP_LIMIT = 1e-6;
+
 /** 外した凸包の辺を戻して試す回数の上限。 */
 const MAX_HULL_RESTORE_TRIALS = 24;
 
-type EdgeSegmentItem = [Position, number, number, number, string?];
-type EdgeNodeItem = [Position, Position, number];
 
 /**
  * Tinクラスの初期化オプション
@@ -153,6 +264,25 @@ export interface Options {
    * 既定は true。false にすると足さない（#91 と同じ結果）。
    */
   supplementPairs?: boolean;
+  /**
+   * 局所更新（MaplatTin#100）のスイッチ。既定は false で、何も変わらない。true にすると、`updateTin()` の
+   * 後に、採用した三角網を局所更新の網（`Tin#incrementalMesh`）へ取り込む。`updateTin()` の結果
+   * （`getCompiled()`）は、どちらでも同じ。
+   */
+  incremental?: boolean;
+  /**
+   * `updateTin()` の中の組み直しの繰り返し（strict を壊す凸包の辺を外す・補完点を足す・strict を壊す補助頂点を
+   * 外す）を、網への局所の操作に置き換える（MaplatTin#100 の第 1 段 b）。既定は false で、何も変わらない。
+   * true にすると、最初の 1 回だけ今の手順で組み、2 回目からの試行は、帯（補助頂点を含む三角形）だけを
+   * 差し替える。strict になる結果だけを採るので、strict の判定は悪くならないが、三角形の集合は、切った
+   * ときと同じとは限らない。world file 外周・loose 指定・V2 では、切ったときと同じ。
+   */
+  incrementalRebuild?: boolean;
+  /**
+   * `applyEdits` で、帯（補助頂点・重心）に触れる編集も、帯の差し替えで局所に当てる（MaplatTin#100 の
+   * 第 1 段 b の帯の差し替え）。既定は false で、帯に触れる編集は全部組み直しへ落ちる。
+   */
+  incrementalBand?: boolean;
 }
 
 /**
@@ -173,6 +303,196 @@ export class Tin extends Transform {
   private attemptTotal = 0;
   private requestedWorldFile?: WorldFile;
   private compiledOuter?: CompiledOuter;
+  /** 局所更新のスイッチ（`Options#incremental`）。 */
+  incremental: boolean;
+  /** 組み直しの繰り返しを局所の操作に置き換えるスイッチ（`Options#incrementalRebuild`）。 */
+  incrementalRebuild: boolean;
+  /** 帯に触れる編集を局所に当てるスイッチ（`Options#incrementalBand`）。 */
+  incrementalBand: boolean;
+  /** 局所の試行で作った三角網（採用したら、地理面の三角網を足して、交差の数え上げで確かめる）。 */
+  private localTins = new WeakSet<object>();
+  /** 局所の試行の結果が、今の交差の数え上げと食い違ったので、今の手順だけで組み直している。 */
+  private localRebuildDisabled = false;
+  private lastRebuildDiagnostics?: RebuildDiagnostics;
+
+  /** 直近の `updateTin()` の、試行の内訳（`incrementalRebuild` を入れたときだけ）。 */
+  get rebuildDiagnostics(): RebuildDiagnostics | undefined {
+    return this.tins ? this.lastRebuildDiagnostics : undefined;
+  }
+  private mesh?: MeshModel;
+  private meshFailure?: ImportFailure;
+
+  /** 対応点・必須エッジの id（`points`・`edges` の並び）。undefined は、配列の添字が id。 */
+  private pointIds?: PointId[];
+  private edgeIds?: EdgeId[];
+  /** `applyEdits` で進む版の番号。`setPoints` などで入力を入れ直すと 0 に戻る。 */
+  private editRevision = 0;
+  /** 網が、`tins`・`points`・`edges` より先に進んでいる（局所更新を当てた後、まだ書き戻していない）。 */
+  private meshAhead = false;
+  /** 補助頂点・重心が最新でない（局所更新を当てた後、清書か帯の差し替えをするまで）。 */
+  private bandStale = false;
+  /** 今の三角網が、局所更新の網をそのまま保存した特例（`meshOrigin: "incremental"`）から来ているか。 */
+  private originIncremental = false;
+  /** 最後の全部組み直し・復元から重ねた、局所更新の回数。 */
+  private localEdits = 0;
+
+  /**
+   * 今の三角網の出どころ。`"incremental"` は、局所更新の網をそのまま保存した特例（読み込んだ compiled に
+   * 印があった）。全部組み直す（`updateTin()`）と、印は外れる。
+   */
+  get meshOrigin(): "incremental" | undefined {
+    return this.originIncremental ? "incremental" : undefined;
+  }
+
+  /**
+   * 局所更新の網（今の三角網を取り込んだもの）。スイッチが切れている・三角網が無い・取り込めない網
+   * （loose・V2 など。理由は `incrementalFailure`）のときは undefined。
+   */
+  get incrementalMesh(): MeshModel | undefined {
+    return this.mesh;
+  }
+
+  /** 局所更新の網へ取り込めなかった理由（取り込めた・スイッチが切れているときは undefined）。 */
+  get incrementalFailure(): ImportFailure | undefined {
+    return this.meshFailure;
+  }
+
+  /** `applyEdits` の版の番号。次の `applyEdits` に、前提として渡す。 */
+  get revision(): number {
+    return this.editRevision;
+  }
+
+  /** 網と、網から決まる状態を捨てる（入力や設定を入れ直したとき）。 */
+  private dropMesh(): void {
+    this.mesh = undefined;
+    this.meshFailure = undefined;
+    this.meshAhead = false;
+    this.bandStale = false;
+    this.editRevision = 0;
+    this.localEdits = 0;
+  }
+
+  /**
+   * 局所更新を当てた網を、`points`・`edges`・`tins` などへ書き戻す（`transform()`・`getCompiled()` の前に
+   * 自動で呼ばれる。全体を作り直すので、編集のたびには呼ばないこと。表示は `TinPatch` で足りる）。
+   */
+  private syncFromMesh(): void {
+    if (!this.meshAhead || !this.mesh) return;
+    const model = this.mesh;
+    const compiled = model.toCompiled();
+    const inputs = model.inputs();
+    const { xy, wh } = this;
+    // Transform の読み込み経路で、三角網・索引・重心・補助頂点の扇形を作り直す
+    super.setCompiled(compiled);
+    Object.assign(this, { xy, wh });
+    delete this.kinks;
+    this.pointsSet = undefined;
+    this.pointIds = inputs.pointIds;
+    this.edgeIds = inputs.edgeIds;
+    this.supplementRecords = (compiled.supplementPairs ?? []).map((record) => ({
+      ...record,
+      edge: [...record.edge] as SupplementPairRecord["edge"],
+    }));
+    this.pointsWeightBuffer = {};
+    // world file 外周の補助頂点は、Tin が別に持っている（getCompiled() が、ここから書く）。帯を差し替えた網の
+    // 補助頂点に合わせる（古いままだと、三角形の b{n} と vertices_points が、別の帯から来ることになる）
+    if (this.compiledOuter?.outerTransform === "worldFile") {
+      this.compiledOuter = { ...this.compiledOuter, vertices_points: compiled.vertices_points };
+    }
+    this.meshAhead = false;
+  }
+
+  /** 今の入力（対応点・必須エッジ。内部の座標系）と、その id の並び。 */
+  private currentInputs(): TinInputs {
+    if (this.meshAhead && this.mesh) return this.mesh.inputs();
+    return {
+      points: this.points,
+      edges: this.edges ?? [],
+      pointIds: this.pointIds ?? this.points.map((_, i) => i),
+      edgeIds: this.edgeIds ?? (this.edges ?? []).map((_, i) => i),
+    };
+  }
+
+  /**
+   * 編集を当てる（MaplatTin#100 の第 2 段 a）。局所で済めば、網の差分を返す（`mode: "local"`）。済まなければ、
+   * 編集を入力に当てて全部組み直し、その結果を返す（`mode: "full"`。理由は `fallbackReason`）。
+   *
+   * - `edits` は、全部が当たるか、全部組み直しか、のどちらか（一部だけ当たった網を返さない）。
+   * - `baseRevision` が今の版（`revision`）と合わなければ、何も変えずに `"revisionMismatch"` を返す。
+   *   呼び出し側は、最新の入力を `setPoints`・`setEdges` で入れ直して、`updateTin()` すること。
+   * - 当てられない編集（id が無い・既に使われている・座標が有限でない）は、何も変えずに例外を投げる。
+   * - 全部組み直しが例外を投げる入力（必須エッジが交差する・点が一直線、など）では、`updateTin()` と同じ
+   *   例外を投げる。入力は編集の後の状態になり、三角網は無い。
+   * - 局所で済むのは、スイッチ（`Options#incremental`）が入っていて、strict・strict_error の V3 の網で、
+   *   帯（補助頂点・重心）を更新しなくてよい内側の編集だけ。
+   * - 座標は、`setPoints` に渡すのと同じ、外の座標系（差分の座標は、compiled と同じ内部の座標系）。
+   */
+  applyEdits(edits: TinEdit[], baseRevision?: number): TinPatch {
+    if (baseRevision !== undefined && baseRevision !== this.editRevision) {
+      return {
+        revision: this.editRevision,
+        mode: "full",
+        fallbackReason: "revisionMismatch",
+        strict_status: this.strict_status!,
+        boundaryStale: this.bandStale,
+      };
+    }
+    const follow = this.yaxisMode === Tin.YAXIS_FOLLOW;
+    // 編集を入力に当てる（当てられない編集は、ここで例外になり、何も変わらない）
+    const next = applyToInputs(this.currentInputs(), edits, follow);
+
+    let reason: TinPatchFallback = "noMesh";
+    if (this.mesh) {
+      // サブマップで、点が範囲の多角形の外へ出る・外に足される編集は、全部組み直しへ落とす（同じ例外を返す）
+      const bp = this.bounds ? this.boundsPolygon : undefined;
+      if (bp && !next.points.every((p) => booleanPointInPolygon(p[0] as Position, bp))) {
+        reason = "unsupported";
+      } else {
+        const applied = applyToMesh(
+          this.mesh,
+          edits,
+          follow,
+          this.incrementalBand ? { vertexMode: this.vertexMode } : undefined,
+        );
+        if (applied.ok) {
+          // 帯を差し替えたら最新。差し替えていなければ、前のまま（最新でない）
+          // world file 外周の網の補助頂点は、world file から直接決まり、内側の点に依らないので、古くならない
+          this.afterLocalEdit(
+            applied.patch.strict_status,
+            applied.refreshed || this.mesh.isWorldFile ? false : true,
+          );
+          return { revision: this.editRevision, mode: "local", boundaryStale: this.bandStale, ...applied.patch };
+        }
+        reason = applied.reason;
+      }
+    }
+    // 全部組み直し。網は途中まで変わっていることがあるので、捨てる
+    const revision = this.editRevision + 1;
+    this.mesh = undefined;
+    this.meshAhead = false;
+    this.points = next.points;
+    this.edges = next.edges;
+    this.edgeNodes = undefined;
+    this.pointIds = next.pointIds;
+    this.edgeIds = next.edgeIds;
+    this.tins = undefined;
+    this.indexedTins = undefined;
+    this.editRevision = revision;
+    this.updateTin();
+    return {
+      revision,
+      mode: "full",
+      fallbackReason: reason,
+      strict_status: this.strict_status!,
+      boundaryStale: false,
+    };
+  }
+
+  /** 紙の面と地理面の間で座標を変換する。局所更新を当てた後は、網から三角網を作り直してから変換する。 */
+  override transform(apoint: number[], backward?: boolean, ignoreBounds?: boolean): number[] | false {
+    this.syncFromMesh();
+    return super.transform(apoint, backward, ignoreBounds);
+  }
 
   /** 現在の三角網を V3 で生成したときの外周の診断。 */
   get boundaryDiagnostics(): BoundaryDiagnostics | undefined {
@@ -218,6 +538,9 @@ export class Tin extends Transform {
     this.stateFull = options.stateFull || false;
     this.useV2Algorithm = options.useV2Algorithm ?? false;
     this.useSupplementPairs = options.supplementPairs ?? true;
+    this.incremental = options.incremental ?? false;
+    this.incrementalRebuild = options.incrementalRebuild ?? false;
+    this.incrementalBand = options.incrementalBand ?? false;
     if (options.outerTransform === "worldFile") {
       if (this.useV2Algorithm) throw new Error("V2 では world file 外周を使えません");
       if (!options.worldFile) throw new Error("worldFile が必要です");
@@ -245,6 +568,7 @@ export class Tin extends Transform {
    * 指定した点群に合わせて内部のTINキャッシュをリセットします。
    */
   setPoints(points: PointSet[]): void {
+    this.syncFromMesh();
     if (this.yaxisMode === Tin.YAXIS_FOLLOW) {
       points = points.map((point) => [
         point[0],
@@ -252,6 +576,10 @@ export class Tin extends Transform {
       ]);
     }
     this.points = points;
+    this.pointIds = undefined;
+    // 対応点を入れ直したら、局所更新の網をそのまま保存した特例ではない
+    this.originIncremental = false;
+    this.dropMesh();
     this.tins = undefined;
     this.indexedTins = undefined;
   }
@@ -261,7 +589,10 @@ export class Tin extends Transform {
    * 制約線を正規化した上で、依存するキャッシュをリセットします。
    */
   setEdges(edges: EdgeSet[] | EdgeSetLegacy[] = []): void {
+    this.syncFromMesh();
     this.edges = normalizeEdges(edges);
+    this.edgeIds = undefined;
+    this.dropMesh();
     this.edgeNodes = undefined;
     this.tins = undefined;
     this.indexedTins = undefined;
@@ -271,6 +602,7 @@ export class Tin extends Transform {
    * 境界ポリゴンを設定します
    */
   setBounds(bounds: Position[]): void {
+    this.retireMesh();
     this.bounds = bounds;
 
     let minx = bounds[0][0];
@@ -297,10 +629,24 @@ export class Tin extends Transform {
     this.indexedTins = undefined;
   }
 
+  /** 設定を変える前に、局所更新を当てた網を入力へ書き戻して、網を捨てる（id の並びと版は保つ）。 */
+  private retireMesh(): void {
+    this.syncFromMesh();
+    this.mesh = undefined;
+    this.meshFailure = undefined;
+    this.bandStale = false;
+  }
+
   /**
    * 現在の設定を永続化可能な形式にコンパイルします
    */
   getCompiled(): CompiledWithSupplement {
+    // 局所更新を当てた後は、網から書き出す（番号の振り直しは、ここで 1 回だけ）
+    if (this.meshAhead && this.mesh) {
+      const fromMesh = this.mesh.toCompiled();
+      if (this.originIncremental) fromMesh.meshOrigin = "incremental";
+      return fromMesh;
+    }
     const compiled = {} as CompiledWithSupplement;
     compiled.version = this.useV2Algorithm ? FORMAT_VERSION_V2 : FORMAT_VERSION_V3;
     compiled.points = this.points;
@@ -390,6 +736,8 @@ export class Tin extends Transform {
     if (this.compiledOuter?.outerTransform === "extrapolate") {
       Object.assign(compiled, this.compiledOuter);
     }
+    // 局所更新の網をそのまま保存した特例の印は、全部組み直すまで引き継ぐ
+    if (this.originIncremental) compiled.meshOrigin = "incremental";
     return compiled;
   }
 
@@ -400,6 +748,9 @@ export class Tin extends Transform {
       throw new Error("V2 では world file 外周を使えません");
     }
     const replacesWorldFile = this.outerTransform === "worldFile" || outer?.outerTransform === "worldFile";
+    this.dropMesh();
+    this.pointIds = undefined;
+    this.edgeIds = undefined;
     super.setCompiled(compiled);
     this.supplementRecords = ((compiled as CompiledWithSupplement).supplementPairs ?? []).map((record) => ({
       ...record,
@@ -420,12 +771,234 @@ export class Tin extends Transform {
       this.compiledOuter = { outerTransform: "extrapolate" };
     }
     this.lastBoundaryDiagnostics = undefined;
+    this.originIncremental = (compiled as CompiledWithSupplement).meshOrigin === "incremental";
+  }
+
+  /**
+   * 保存した compiled から、三角網と局所更新の網を戻す（MaplatTin#100。設計書 §9.5 (c)）。三角形分割はしない。
+   *
+   * 局所更新の網をそのまま保存した特例（`meshOrigin: "incremental"`）の地図は、`updateTin()` で開くと、
+   * 清書と同じ strict_error に戻る。この口で開けば、保存した strict な網から、局所更新を続けられる。
+   * 印の無い（全部組み直しの）compiled も、同じように戻せる（`updateTin()` を待たずに編集を始められる）。
+   *
+   * 戻すのは、対応点・必須エッジ・中継点と補完点（中継点がどの必須エッジの何番目か）・三角形・補助頂点・
+   * 重心・補助頂点の扇形。凸包の辺の印は、内側の点の紙の面の凸包の辺のうち、網の辺にあるものに付け直す。
+   * 戻した網で、S1（全部の三角形が ok）・S2（外周が両面で単純）・S3（必須エッジが全部ある）と、
+   * 補助頂点 3 点だけの三角形が無いことを、全部を数えて確かめる。
+   *
+   * 失敗したとき（理由を返す）は、`setCompiled(compiled)` をした状態（変換はできる）で、網は持たない。
+   * 印（`meshOrigin`）は外れる。`strict_status` は、次の 3 通り:
+   * - compiled が strict と名乗っていて、網を調べて strict でないと分かったとき（`"notStrict"`・`"boundary"`）は、
+   *   strict_error になる（逆変換は断られる。交差の一覧 `kinks` は持たない）
+   * - compiled が strict と名乗っていて、ほかの理由で断ったときは、未確定（undefined）になる
+   * - compiled が strict_error・loose と名乗っていたときは、その値のまま残る
+   *
+   * スイッチが切れている（`"disabled"`）ときは、`setCompiled(compiled)` と同じ（印も `strict_status` も compiled のまま）。
+   * `"v2"`（読む前に断る）のときは、状態に触らない。
+   * 呼び出し側は、対応点と必須エッジを入れ直して `updateTin()` すること。
+   *
+   * @param compiled 保存した compiled（座標は内部の座標系。follow では地理面の Y が反転済み）
+   * @param inputs 呼び出し側が持つ対応点・必須エッジ（`setPoints`・`setEdges` に渡すのと同じ、外の座標系）。
+   *   渡すと、compiled と合うかを確かめる（follow の反転は、ここで掛ける。呼び出し側で compiled と直接比べないこと）
+   */
+  restoreMesh(
+    compiled: CompiledWithSupplement,
+    inputs?: { points?: PointSet[]; edges?: EdgeSet[] | EdgeSetLegacy[] },
+  ): { ok: true } | { ok: false; reason: RestoreFailure } {
+    const fail = (reason: RestoreFailure) => {
+      // 断った compiled の印を、引き継がない（スイッチが切れているときは、setCompiled と同じ）。
+      // compiled が strict と名乗っていたときは、その判定も引き継がない:
+      // - 網を調べて strict でないと分かったとき（"notStrict"・"boundary"）は、strict_error にする
+      //   （未確定のままだと、逆変換が通り、getCompiled() を Transform で読み直すと strict として扱われる）
+      // - ほかの理由で断ったときは、未確定（undefined）にする
+      // strict_error・loose は、compiled の値のまま残す（Transform が逆変換を断る歯止めを、外さない）
+      if (reason !== "disabled") {
+        this.originIncremental = false;
+        if (this.strict_status === Tin.STATUS_STRICT) {
+          this.strict_status = reason === "notStrict" || reason === "boundary" ? Tin.STATUS_ERROR : undefined;
+        }
+      }
+      return { ok: false as const, reason };
+    };
+    // この Tin で読めない組み合わせ（V2 の Tin に world file 外周）は、読む前に断る。状態には触らない
+    if (this.useV2Algorithm && (compiled as { outerTransform?: string }).outerTransform === "worldFile") {
+      return { ok: false, reason: "v2" };
+    }
+    try {
+      this.setCompiled(compiled);
+    } catch {
+      // 三角形が無い頂点を指しているなど、Transform が読めない compiled
+      this.tins = undefined;
+      this.indexedTins = undefined;
+      return fail("inconsistent");
+    }
+    if (!this.incremental) return fail("disabled");
+    const follow = this.yaxisMode === Tin.YAXIS_FOLLOW;
+    if (inputs?.points) {
+      const same = inputs.points.length === this.points.length && inputs.points.every(([forw, bakw], i) => {
+        const [f, b] = this.points[i];
+        return forw[0] === f[0] && forw[1] === f[1] && bakw[0] === b[0] && (follow ? -1 * bakw[1] : bakw[1]) === b[1];
+      });
+      if (!same) return fail("inputMismatch");
+    }
+    if (inputs?.edges && JSON.stringify(normalizeEdges(inputs.edges)) !== JSON.stringify(this.edges ?? [])) {
+      return fail("inputMismatch");
+    }
+    // 中継点がどの必須エッジの何番目かは、対応点と必須エッジから、全部組み直しと同じ計算で引き直す。
+    // 作り直した中継点が compiled と 1 ビットでも違えば、compiled が外で書き換えられている
+    const saved = (this.edgeNodes ?? []) as PointSet[];
+    let segments: Edge[];
+    try {
+      segments = this.generatePointsSet().edges;
+    } catch {
+      this.edgeNodes = saved;
+      return fail("inconsistent");
+    }
+    const generated = (this.edgeNodes ?? []) as PointSet[];
+    this.edgeNodes = saved;
+    const sameNodes = generated.length + this.supplementRecords.length === saved.length &&
+      generated.every((node, i) => node.every((position, k) => position[0] === saved[i][k][0] && position[1] === saved[i][k][1]));
+    if (!sameNodes) return fail("edgeNodes");
+    const imported = meshFromCompiled(compiled, segments);
+    if (!("model" in imported)) return fail(imported.reason);
+    const { model } = imported;
+    const audit = model.mesh.audit();
+    // 網の形: 辺が 3 つ以上の三角形に属さない（三角形が重なっていない）・全部の頂点が三角形を持つ
+    if (audit.nonManifoldEdges > 0 || audit.orphanVertices > 0 || !audit.indexMatches) return fail("inconsistent");
+    // S1: 両面の向きの積と、紙の面の折り返し（両面で一緒に裏返った三角形は、積では見えない）
+    if (audit.bad.length > 0 || audit.forwFolds > 0) return fail("notStrict");
+    if (!audit.boundarySimple) return fail("boundary");
+    if (audit.missingRequired > 0) return fail("requiredEdge");
+    if (audit.forbiddenBoundary > 0) return fail("forbidden");
+    // 網の補助頂点・重心と、compiled の扇形の角度が、同じ帯から来ていること
+    const params = model.verticesParams();
+    const savedParams = (compiled as { vertices_params?: number[][] }).vertices_params;
+    if (params && JSON.stringify(params) !== JSON.stringify(savedParams)) return fail("verticesParams");
+    // world file 外周の補助頂点の地理面の位置は、world file の値そのもの
+    if (model.worldFileMismatches() > 0) return fail("inconsistent");
+    this.mesh = model;
+    this.meshFailure = undefined;
+    return { ok: true };
+  }
+
+  /**
+   * 帯（補助頂点・重心）を、今の内側の点から作り直す（保存の直前に、帯を最新にするために呼ぶ。設計書 §9.5 (a)）。
+   * スイッチ `incrementalBand` が要る。成り立てば差分を返し、成り立たなければ（スイッチが切れている・網が無い・
+   * どの余白でも strict な帯にならない）何も変えずに undefined を返す。
+   */
+  refreshBand(): TinPatch | undefined {
+    if (!this.mesh || !this.incrementalBand) return undefined;
+    const applied = applyToMesh(this.mesh, [], this.yaxisMode === Tin.YAXIS_FOLLOW, { vertexMode: this.vertexMode }, true);
+    if (!applied.ok) return undefined;
+    this.afterLocalEdit(applied.patch.strict_status, false);
+    return { revision: this.editRevision, mode: "local", boundaryStale: false, ...applied.patch };
+  }
+
+  /** 局所更新を当てた後の、Tin の状態の更新。 */
+  private afterLocalEdit(status: StrictStatus, stale: boolean): void {
+    this.meshAhead = true;
+    this.bandStale = stale;
+    this.tins = undefined;
+    this.indexedTins = undefined;
+    this.pointsSet = undefined;
+    delete this.kinks;
+    this.strict_status = status;
+    this.editRevision++;
+    this.localEdits++;
+  }
+
+  /**
+   * 局所更新の網を、そのまま保存してよいかの証拠を集める（設計書 §9.5 の条件 (a)(b) と診断 (d)）。
+   * 清書（別のインスタンスでの全部組み直し）が strict にならず、この網が strict のときに使う。
+   *
+   * 網の全部を数え直し（差分管理の値を信用しない）、書き出した compiled を Transform で読み直して対応点の往復を
+   * 確かめ、今の交差の数え上げを両面で 1 件まで走らせる。全体を回るので、保存のときだけ呼ぶこと。網は変えない。
+   * 帯が最新でないと条件を満たさないので、先に `refreshBand()` を呼ぶ。
+   *
+   * @param rebuild 同じ入力を全部組み直したときの状態と交差の件数（診断に写すだけ）
+   */
+  collectIncrementalEvidence(rebuild?: { status: StrictStatus; kinks: number }): IncrementalEvidence {
+    const evidence: IncrementalEvidence = {
+      eligible: false,
+      failed: [],
+      boundaryFresh: !this.bandStale,
+      badTriangles: 0,
+      forwFolds: 0,
+      nonManifoldEdges: 0,
+      indexMatches: false,
+      boundarySimple: false,
+      missingRequiredEdges: 0,
+      boundaryOnlyTriangles: 0,
+      remainingForbiddenTriangles: 0,
+      gcpRoundTrip: { forward: Infinity, backward: Infinity },
+      sweepKinks: 0,
+      editsSinceRebuild: this.localEdits,
+      ...(rebuild ? { rebuildStatus: rebuild.status, rebuildKinks: rebuild.kinks } : {}),
+    };
+    const model = this.mesh;
+    if (!model) {
+      evidence.failed.push("noMesh");
+      return evidence;
+    }
+    const { mesh } = model;
+    const audit = mesh.audit();
+    evidence.badTriangles = audit.bad.length;
+    evidence.forwFolds = audit.forwFolds;
+    evidence.nonManifoldEdges = audit.nonManifoldEdges;
+    evidence.indexMatches = audit.indexMatches && audit.badMatches && audit.orphanVertices === 0;
+    // world file 外周では、補助頂点の地理面の位置が world file の値と違えば、外周は成り立っていない
+    evidence.boundarySimple = audit.boundarySimple && model.worldFileMismatches() === 0;
+    evidence.missingRequiredEdges = audit.missingRequired;
+    evidence.boundaryOnlyTriangles = audit.forbiddenBoundary;
+    evidence.remainingForbiddenTriangles = audit.forbiddenEdge;
+    const compiled: CompiledWithSupplement = { ...model.toCompiled(), strict_status: "strict", meshOrigin: "incremental" };
+    // (b) 書き出した compiled を読み直して、全部の対応点が往復する
+    const reader = new Transform();
+    try {
+      reader.setCompiled(JSON.parse(JSON.stringify(compiled)));
+      let forward = 0;
+      let backward = 0;
+      // compiled の座標は内部の座標系、transform() の入出力は外の座標系（follow では地理面の Y が逆）
+      const follow = compiled.yaxisMode === Tin.YAXIS_FOLLOW;
+      for (const [forw, internal] of compiled.points) {
+        const bakw = follow ? [internal[0], -1 * internal[1]] : internal;
+        const geo = reader.transform(forw, false);
+        const paper = reader.transform(bakw, true);
+        forward = Math.max(forward, geo ? Math.hypot(geo[0] - bakw[0], geo[1] - bakw[1]) : Infinity);
+        backward = Math.max(backward, paper ? Math.hypot(paper[0] - forw[0], paper[1] - forw[1]) : Infinity);
+      }
+      evidence.gcpRoundTrip = { forward, backward };
+    } catch {
+      // 読めなければ、往復の誤差は Infinity のまま
+    }
+    // (b) 今の交差の数え上げ（素の float64）と、局所の判定（厳密な述語）の突き合わせ
+    for (const plane of ["forw", "bakw"] as const) {
+      const rings = [...mesh.triangles.values()].map((triangle) => {
+        const p = triangle.map((vertex) => mesh.vertices.get(vertex)![plane]);
+        return [...p, p[0]];
+      });
+      evidence.sweepKinks += findIntersectionsUpTo(rings, 1).length;
+    }
+    if (!evidence.boundaryFresh) evidence.failed.push("boundaryStale");
+    if (evidence.badTriangles > 0 || evidence.forwFolds > 0) evidence.failed.push("badTriangles");
+    if (evidence.nonManifoldEdges > 0 || !evidence.indexMatches) evidence.failed.push("meshShape");
+    if (!evidence.boundarySimple) evidence.failed.push("boundary");
+    if (evidence.missingRequiredEdges > 0) evidence.failed.push("requiredEdge");
+    if (evidence.boundaryOnlyTriangles > 0) evidence.failed.push("boundaryOnlyTriangles");
+    if (!(evidence.gcpRoundTrip.forward <= GCP_ROUND_TRIP_LIMIT && evidence.gcpRoundTrip.backward <= GCP_ROUND_TRIP_LIMIT)) {
+      evidence.failed.push("gcpRoundTrip");
+    }
+    if (evidence.sweepKinks > 0) evidence.failed.push("sweepKinks");
+    evidence.eligible = evidence.failed.length === 0;
+    if (evidence.eligible) evidence.compiled = compiled;
+    return evidence;
   }
 
   /**
    * 幅と高さを設定します
    */
   setWh(wh?: number[]): void {
+    this.retireMesh();
     this.wh = wh || [100, 100]; // デフォルト値を設定
     this.xy = [0, 0];
     this.bounds = undefined;
@@ -438,6 +1011,7 @@ export class Tin extends Transform {
    * 頂点モードを設定します
    */
   setVertexMode(mode: VertexMode): void {
+    this.retireMesh();
     this.vertexMode = mode;
     this.tins = undefined;
     this.indexedTins = undefined;
@@ -447,6 +1021,7 @@ export class Tin extends Transform {
    * 厳密性モードを設定します
    */
   setStrictMode(mode: StrictMode): void {
+    this.retireMesh();
     this.strictMode = mode;
     this.tins = undefined;
     this.indexedTins = undefined;
@@ -569,91 +1144,9 @@ export class Tin extends Transform {
       mercNodes.unshift(this.points[edge[0]][1]);
       mercNodes.push(this.points[edge[1]][1]);
 
-      // Calculate edge segments
-      const segments = [illstNodes, mercNodes].map((nodes: Position[]): EdgeSegmentItem[] => {
-        const lengths = nodes.map((node: Position, index: number, arr: Position[]) => {
-          if (index === 0) return 0;
-          const prev = arr[index - 1];
-          return Math.sqrt(
-            Math.pow(node[0] - prev[0], 2) + Math.pow(node[1] - prev[1], 2),
-          );
-        });
-
-        const accumLengths = lengths.reduce((acc: number[], len: number, idx: number) => {
-          if (idx === 0) return [0];
-          acc.push(acc[idx - 1] + len);
-          return acc;
-        }, [] as number[]);
-
-        return accumLengths.map((accum: number, idx: number, arr: number[]): EdgeSegmentItem => {
-          const ratio = accum / arr[arr.length - 1];
-          return [nodes[idx], lengths[idx], accumLengths[idx], ratio];
-        });
-      });
-
-      // Generate edge nodes
-      segments
-        .map((segment: EdgeSegmentItem[], idx: number) => {
-          const otherSegment = segments[idx ? 0 : 1];
-          return segment
-            .filter((item: EdgeSegmentItem, index: number) => {
-              return !(
-                index === 0 ||
-                index === segment.length - 1 ||
-                item[4] === "handled"
-              );
-            })
-            .flatMap((item: EdgeSegmentItem): EdgeNodeItem[] => {
-              const node = item[0];
-              const ratio = item[3];
-
-              const counterpart = otherSegment.reduce(
-                (prev: EdgeSegmentItem[] | undefined, curr: EdgeSegmentItem, currIdx: number, arr: EdgeSegmentItem[]) => {
-                  if (prev) return prev;
-                  const nextItem = arr[currIdx + 1];
-                  if (curr[3] === ratio) {
-                    curr[4] = "handled";
-                    return [curr];
-                  }
-                  if (
-                    curr[3] < ratio && nextItem &&
-                    nextItem[3] > ratio
-                  ) {
-                    return [curr, nextItem];
-                  }
-                  return undefined;
-                },
-                undefined as EdgeSegmentItem[] | undefined,
-              );
-
-              if (counterpart && counterpart.length === 1) {
-                return idx === 0
-                  ? [[node, counterpart[0][0], ratio]]
-                  : [[counterpart[0][0], node, ratio]];
-              }
-
-              if (counterpart && counterpart.length === 2) {
-                const curr = counterpart[0];
-                const next = counterpart[1];
-                const ratioInSegment = (ratio - (curr[3] as number)) /
-                  ((next[3] as number) - (curr[3] as number));
-                const interpNode: Position = [
-                  (next[0][0] - curr[0][0]) *
-                  ratioInSegment + curr[0][0],
-                  (next[0][1] - curr[0][1]) *
-                  ratioInSegment + curr[0][1],
-                ];
-                return idx === 0
-                  ? [[node, interpNode, ratio]]
-                  : [[interpNode, node, ratio]];
-              }
-
-              return [];
-            });
-        })
-        .reduce((prev: EdgeNodeItem[], curr: EdgeNodeItem[]) => prev.concat(curr), [])
-        .sort((a: EdgeNodeItem, b: EdgeNodeItem) => a[2] < b[2] ? -1 : 1)
-        .map((item: EdgeNodeItem, index: number, arr: EdgeNodeItem[]) => {
+      // 両面の折れ線を累積長の比で突き合わせて、中継点を作る
+      interpolateEdgeNodes(illstNodes, mercNodes)
+        .forEach((item: EdgeNodeItem, index: number, arr: EdgeNodeItem[]) => {
           this.edgeNodes![edgeNodeIndex] = [
             item[0],
             item[1],
@@ -750,6 +1243,36 @@ export class Tin extends Transform {
    * {@link updateTinAsync} を利用してください。
    */
   updateTin(): void {
+    // 局所更新を当てた網があれば、その入力（対応点・必須エッジ）から組み直す（清書）
+    if (this.meshAhead && this.mesh) {
+      const inputs = this.mesh.inputs();
+      this.points = inputs.points;
+      this.edges = inputs.edges;
+      this.pointIds = inputs.pointIds;
+      this.edgeIds = inputs.edgeIds;
+      this.edgeNodes = undefined;
+    }
+    this.mesh = undefined;
+    this.meshFailure = undefined;
+    this.meshAhead = false;
+    this.bandStale = false;
+    this.rebuildAll();
+    // 局所更新のスイッチが入っているときだけ、採用した三角網を取り込む（三角網そのものは変えない）
+    if (this.incremental) {
+      const imported = meshFromCompiled(this.getCompiled(), this.pointsSet!.edges as Edge[], {
+        points: this.pointIds,
+        edges: this.edgeIds,
+      });
+      if ("model" in imported) this.mesh = imported.model;
+      else this.meshFailure = imported.reason;
+    }
+  }
+
+  /** 三角網を最初から全部組む（`updateTin()` の本体）。 */
+  private rebuildAll(): void {
+    // 全部を組み直した三角網は、局所更新の網をそのまま保存した特例ではない
+    this.originIncremental = false;
+    this.localEdits = 0;
     this.lastBoundaryDiagnostics = undefined;
     // 補完点は保存しない入力。前回の結果は読まず、人間の対応点だけから毎回作り直す
     this.supplementRecords = [];
@@ -997,43 +1520,201 @@ export class Tin extends Transform {
       return { result: first };
     };
 
+    // 組み直しの繰り返しを局所の操作に置き換える（スイッチ incrementalRebuild）。最初の 1 回だけ今の手順で組み、
+    // その網を取り込む。2 回目からの試行は、取り込んだ網を複製して、帯だけを差し替える
+    // （扇形の外挿でも、world file 外周でも同じ。world file 外周から扇形へ落ちたときは、網を取り込み直す）
+    const useLocal = this.incrementalRebuild && !this.localRebuildDisabled && wantsStrict;
+    const stats: RebuildDiagnostics = {
+      fullAttempts: 0, localAttempts: 0, localFailures: 0, localMs: 0, adoptedLocal: false,
+      fellBack: this.localRebuildDisabled,
+    };
+    this.lastRebuildDiagnostics = this.incrementalRebuild ? stats : undefined;
+    let base: BuildMesh | undefined;
+    const baseCount = rawPointsSet.forw.length;
+    /** 帯の差し替えで試行を作る。成り立たなければ undefined（今の手順で組む）。 */
+    const localAttempt = (
+      ring: RingOptions | undefined,
+      excludedHull: ReadonlySet<string>,
+      cache: SearchCache,
+      /** 補助頂点の計算（扇形の外挿か、world file 外周か） */
+      calculate: (params: BoundaryVerticesParams, v3: boolean) => VertexPosition[],
+      /** world file 外周: 補助頂点を含む三角形に、ok でないものが 1 つも無い余白だけを採る（今の accept と同じ） */
+      worldFileOuter: boolean,
+    ): { boundary: BoundaryCandidate; verticesList: { forw: Feature<Point>[]; bakw: Feature<Point>[] } } | undefined => {
+      const params = ring ? { ...boundaryParams, ring } : boundaryParams;
+      const width = maxx - minx;
+      const height = maxy - miny;
+      const hullAll = convexHullEdges(rawPointsSet.forw.map(({ geometry }) => geometry.coordinates));
+      const hull = hullAll.filter((edge) => !excludedHull.has(hullEdgeKey(edge)));
+
+      const addPoints = rawPointsSet.forw.slice(baseCount).map((feature) => ({
+        index: feature.properties!.target.index as string,
+        forw: feature.geometry.coordinates,
+        bakw: feature.properties!.target.geom as Position,
+      }));
+      let best: { build: BuildMesh; vertices: VertexPosition[]; margin: number; flips: number; applied: Edge[] } | undefined;
+      for (const margin of MARGINS) {
+        const reuse = cache.get(margin) ?? { forwReuse: {} };
+        cache.set(margin, reuse);
+        const vertices = reuse.vertices ?? (reuse.vertices = calculate({
+          ...params,
+          minx: minx - margin * width,
+          maxx: maxx + margin * width,
+          miny: miny - margin * height,
+          maxy: maxy + margin * height,
+        }, true));
+        if (worldFileOuter) {
+          if (vertices.length < 4 || !vertices.every(({ bakw }) => bakw.every(Number.isFinite))) continue;
+        } else if (
+          // 扇形の境界には、地図面で時計回り、地理面で反時計回りの星形が必要（searchBoundary と同じ）
+          !isStarShaped(vertices.map((v) => v.forw), centCalc.forw, -1) ||
+          !isStarShaped(vertices.map((v) => v.bakw), centCalc.bakw, 1)
+        ) continue;
+        const build = cloneBuildMesh(base!);
+        // 今の手順と同じ順で作る: 紙の面の制約付き三角網（制約から外れた凸包の辺は、外接円の条件で反転する）
+        // → 重なりの解消（ok でない三角形を、辺の反転と、周りの組み直しで直す）
+        const replaced = replaceBand(build, { vertices, addPoints, hull, forwOnly: true });
+        if (!replaced.ok) continue;
+        build.mesh.repairBad();
+        // 反転で直らない所は、周りを組み直す
+        // （ok でない三角形が多い網は、もともと strict にならない網。手間を掛けない）
+        if (build.mesh.bad.size > 0 && build.mesh.bad.size <= MAX_HEAL_TRIANGLES) build.mesh.healBad();
+        const flips = countBadBandTriangles(build);
+        if (worldFileOuter && flips > 0) continue;
+        if (!best || flips < best.flips) best = { build, vertices, margin, flips, applied: replaced.applied };
+        if (flips === 0) break;
+      }
+      if (!best) return undefined;
+      const verticesList = {
+        forw: best.vertices.map(({ forw, bakw }, i) => createPoint(forw, bakw, `b${i}`)),
+        bakw: [] as Feature<Point>[],
+      };
+      verticesList.bakw = verticesList.forw.map(counterPoint);
+      this.pointsSet = {
+        forw: featureCollection([...rawPointsSet.forw, ...verticesList.forw]),
+        bakw: featureCollection([...rawPointsSet.bakw, ...verticesList.bakw]),
+        edges: rawPointsSet.edges,
+      };
+      const forw = rotateVerticesTriangle(tinsFromMesh(best.build));
+      this.tins = { forw };
+      this.localTins.add(this.tins);
+      this.strict_status = best.build.mesh.isStrict() ? Tin.STATUS_STRICT : Tin.STATUS_ERROR;
+      delete this.kinks;
+      const { mesh } = best.build;
+      return {
+        boundary: {
+          vertices: best.vertices,
+          forw,
+          bakw: forw,
+          diagnostics: {
+            margin: best.margin,
+            boundaryTriangleFlips: best.flips,
+            remainingForbiddenTriangles: mesh.forbiddenBoundary + mesh.forbiddenEdge,
+          },
+          hasMapBoundary: true,
+          hasBoundary: true,
+          forwHull: { all: hullAll, applied: best.applied },
+        },
+        verticesList,
+      };
+    };
+    /**
+     * 採用した三角網が局所の試行の結果なら、地理面の三角網を写して、今の交差の数え上げで確かめる。
+     * 局所の判定（三角形ごとの向きと、外周の単純さ）と食い違ったら、今の手順だけで組み直して false を返す。
+     */
+    const verifyAdopted = (sigma: -1 | 1): boolean => {
+      if (!this.localTins.has(this.tins!)) return true;
+      stats.adoptedLocal = true;
+      this.tins!.bakw = featureCollection(this.tins!.forw!.features.map((tri: Tri) => counterTri(tri)));
+      // 向きが逆・面積 0 の三角形が無いこと（交差の数え上げは、面積 0 の三角形を拾わないことがある）と、交差が無いこと
+      const oriented = this.tins!.forw!.features.every((tri: Tri) => {
+        const { a, b, c } = tri.properties!;
+        const [p, q, r] = tri.geometry!.coordinates[0];
+        return Math.sign(orient2d(p[0], p[1], q[0], q[1], r[0], r[1])) *
+          Math.sign(orient2d(a.geom[0], a.geom[1], b.geom[0], b.geom[1], c.geom[0], c.geom[1])) === sigma;
+      });
+      const clean = oriented && (["forw", "bakw"] as const).every((direction) =>
+        findIntersectionsUpTo(
+          this.tins![direction]!.features.map((tri: Tri) => tri.geometry!.coordinates[0]),
+          1,
+        ).length === 0
+      );
+      if (clean && this.isStrict()) return true;
+      this.localRebuildDisabled = true;
+      try {
+        this.rebuildAll();
+      } finally {
+        this.localRebuildDisabled = false;
+      }
+      return false;
+    };
+
     if (worldFile) {
       this.stateTriangle = undefined;
       // follow では、GCP と同様に外部 CRS の Y を反転して三角網に入れる。
       // world file 自体は反転前の係数を保存する。
       const follow = this.yaxisMode === Tin.YAXIS_FOLLOW;
       const orientation = follow ? 1 : -1;
+      const project = (xy: Position): Position => {
+        const [x, y] = worldFileToCrs(worldFile, xy);
+        return [x, follow ? -y : y];
+      };
+      const calculateWorld = (params: BoundaryVerticesParams) => calculateWorldFileVertices(params, project);
       const buildWorldFile = (ring?: RingOptions) =>
         this.buildWithSupplements(strict, rawPointsSet, allGcps, (cache, mode, measureOnly) =>
-          (excludedHull) => ({ boundary: searchBoundary(
-            ring ? { ...boundaryParams, ring } : boundaryParams,
-            (params) => calculateWorldFileVertices(params, (xy) => {
-              const [x, y] = worldFileToCrs(worldFile, xy);
-              return [x, follow ? -y : y];
-            }),
-            rawPointsSet,
-            this.points.length,
-            {
-              orientation,
-              accept: (candidate) => {
-                if (!candidate.hasMapBoundary) return false;
-                this.buildTin(rawPointsSet, candidate.vertices, mode, candidate, excludedHull.size > 0, measureOnly);
-                // auto の切り替えと strict の重なり解消を経て、採用した三角網で判定する。
-                return (this.strict_status !== Tin.STATUS_LOOSE || candidate.hasBoundary) &&
-                  countBoundaryFlips(this.tins!.forw!, orientation) === 0 &&
-                  countBoundaryFlips(this.tins!.bakw!, orientation) === 0;
+          (excludedHull) => {
+            if (base) {
+              const started = performance.now();
+              const local = localAttempt(ring, excludedHull, cache, calculateWorld, true);
+              stats.localMs += performance.now() - started;
+              if (local) {
+                stats.localAttempts++;
+                return { boundary: local.boundary as BoundaryCandidate | undefined };
+              }
+              stats.localFailures++;
+            }
+            stats.fullAttempts++;
+            return { boundary: searchBoundary(
+              ring ? { ...boundaryParams, ring } : boundaryParams,
+              calculateWorld,
+              rawPointsSet,
+              this.points.length,
+              {
+                orientation,
+                accept: (candidate) => {
+                  if (!candidate.hasMapBoundary) return false;
+                  // 最初の試行で、両面で輪が閉じたら、重なりを解消する前の紙の面の三角網を取り込む
+                  // （buildTin は、この三角網をその場で書き換える）
+                  if (
+                    useLocal && !base && !ring && !measureOnly && excludedHull.size === 0 &&
+                    rawPointsSet.forw.length === baseCount && candidate.hasBoundary
+                  ) {
+                    base = buildMeshFromTins(
+                      [...rawPointsSet.forw, ...candidate.vertices.map(({ forw, bakw }, i) => createPoint(forw, bakw, `b${i}`))],
+                      candidate.forw, rawPointsSet.edges, this.points.length, orientation,
+                    );
+                  }
+                  this.buildTin(rawPointsSet, candidate.vertices, mode, candidate, excludedHull.size > 0, measureOnly);
+                  // auto の切り替えと strict の重なり解消を経て、採用した三角網で判定する。
+                  return (this.strict_status !== Tin.STATUS_LOOSE || candidate.hasBoundary) &&
+                    countBoundaryFlips(this.tins!.forw!, orientation) === 0 &&
+                    countBoundaryFlips(this.tins!.bakw!, orientation) === 0;
+                },
               },
-            },
-            excludedHull,
-            cache,
-          ) }));
+              excludedHull,
+              cache,
+            ) };
+          });
       const worldStart = this.attemptTotal;
       const worldFirst = buildWorldFile();
       const worldCost = this.attemptTotal - worldStart;
       // world file 外周でも、strict にならないときは補助頂点を手当てする。外すのは world file の輪の一部で、
       // `vertices_points` には、採用した輪の補助頂点を全部書く
       const { result: { boundary }, kind: worldRescue } = rescue(worldFirst, worldCost, buildWorldFile);
+      // 扇形へ落ちるときは、扇形の最初の試行で、網を取り込み直す
+      base = undefined;
       if (boundary) {
+        if (!verifyAdopted(orientation)) return;
         this.compiledOuter = {
           outerTransform: "worldFile",
           worldFile,
@@ -1067,6 +1748,17 @@ export class Tin extends Transform {
       const buildV3 = (ring?: RingOptions) =>
         this.buildWithSupplements(strict, rawPointsSet, allGcps, (cache, mode, measureOnly) =>
           (excludedHull) => {
+            if (base) {
+              const started = performance.now();
+              const local = localAttempt(ring, excludedHull, cache, calculateVertices, false);
+              stats.localMs += performance.now() - started;
+              if (local) {
+                stats.localAttempts++;
+                return local;
+              }
+              stats.localFailures++;
+            }
+            stats.fullAttempts++;
             const params = ring ? { ...boundaryParams, ring } : boundaryParams;
             const found = searchBoundary(
               params,
@@ -1077,7 +1769,18 @@ export class Tin extends Transform {
               excludedHull,
               cache,
             );
-            return {
+            // 最初の試行（凸包の辺を全部制約にした・補完点なし・輪を間引かない）で、両面で輪が閉じたら、
+            // 重なりを解消する前の紙の面の三角網を取り込む（buildTin は、この三角網をその場で書き換える）
+            if (
+              useLocal && !base && !ring && !measureOnly && excludedHull.size === 0 &&
+              rawPointsSet.forw.length === baseCount && found?.hasBoundary
+            ) {
+              base = buildMeshFromTins(
+                [...rawPointsSet.forw, ...found.vertices.map(({ forw, bakw }, i) => createPoint(forw, bakw, `b${i}`))],
+                found.forw, rawPointsSet.edges, this.points.length, -1,
+              );
+            }
+            const result = {
               boundary: found,
               verticesList: this.buildTin(
                 rawPointsSet,
@@ -1088,6 +1791,7 @@ export class Tin extends Transform {
                 measureOnly,
               ),
             };
+            return result;
           });
       // 扇形に落ちた入力では、world file 外周の試行は数えず、この最初の組み立ての試行数を基準にする
       const v3Start = this.attemptTotal;
@@ -1095,6 +1799,7 @@ export class Tin extends Transform {
       const rescued = rescue(v3First, this.attemptTotal - v3Start, buildV3);
       ({ boundary, verticesList } = rescued.result);
       ringRescue = rescued.kind;
+      if (!verifyAdopted(-1)) return;
     } else {
       verticesList = this.buildTin(
         rawPointsSet,

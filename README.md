@@ -201,6 +201,52 @@ the reported diagnostics come from the extrapolation search.
 `getCompiled()` omits these diagnostics. The property is `undefined` for V2
 and after loading a compiled TIN.
 
+### Incremental updates (off by default)
+
+Editing one GCP normally rebuilds the whole triangulation in `updateTin()`. The incremental
+update (MaplatTin #100) replaces only the part of the mesh an edit affects, while keeping the
+`strict` guarantee: a replacement is accepted only if every new triangle keeps the same
+orientation on both planes. It is meant for editors (MaplatEditor); **every switch is off by
+default and nothing changes unless you turn one on.**
+
+| Option (`new Tin({...})`) | Default | What it turns on |
+| --- | --- | --- |
+| `incremental` | `false` | After `updateTin()`, keeps the adopted mesh (`tin.incrementalMesh`) so that `applyEdits()` can apply interior edits locally. Without it, `applyEdits()` always rebuilds. |
+| `incrementalBand` | `false` | `applyEdits()` also applies edits that touch the band (auxiliary vertices and centroid) locally, by replacing the band afterwards. Needs `incremental`. Also required by `refreshBand()`. |
+| `incrementalRebuild` | `false` | Inside `updateTin()`, replaces the rebuild loops (dropping hull edges, supplement pairs, thinning the ring) with local band replacements. Much faster on large maps; the result is strict whenever the current procedure's is, but the triangle set can differ. Independent of the other two. |
+
+```ts
+const tin = new Tin({ points, edges, wh, incremental: true, incrementalBand: true });
+tin.updateTin();
+
+// Apply edits. Coordinates use the same system as setPoints(); ids are array indices at first.
+const patch = tin.applyEdits([{ type: "movePoint", id: 12, bakw: [x, y] }], tin.revision);
+if (patch.mode === "local") {
+  // patch.movedVertices / addedTriangles / removedTriangles ... describe what changed
+} else {
+  // "full": everything was rebuilt (patch.fallbackReason says why); read tin.getCompiled()
+}
+```
+
+- `applyEdits(edits, baseRevision?)` accepts `addPoint`, `removePoint`, `movePoint`, `addEdge`,
+  `removeEdge` and `replaceEdgeNodes`. It either applies all edits locally or rebuilds everything;
+  it throws (changing nothing) on unknown ids, and returns `fallbackReason: "revisionMismatch"`
+  (changing nothing) when `baseRevision` is stale. If the full rebuild itself throws (required
+  edges that cross, collinear points, ...), `applyEdits()` throws the same error; the input is
+  then the edited one and there is no triangulation, as after a failed `updateTin()`.
+- After local edits, `getCompiled()` and `transform()` return the up-to-date state; `updateTin()`
+  rebuilds everything from the edited input.
+- **Saving a locally updated mesh as-is.** A full rebuild of the edited input can fail to be
+  strict while the locally updated mesh is strict. In that case call `tin.refreshBand()`, then
+  `tin.collectIncrementalEvidence()`; if `evidence.eligible`, save `evidence.compiled`, which
+  carries `meshOrigin: "incremental"`. Open such data with `tin.restoreMesh(compiled)` instead
+  of `updateTin()` (a rebuild would lose strictness), on a `Tin` created with
+  `incremental: true` (otherwise `restoreMesh()` returns `"disabled"`). `tin.meshOrigin` tells whether the current
+  mesh comes from such data. If a full rebuild is strict, just save its compiled data.
+
+See [`docs/api/`](docs/api/) for the signatures and
+[`docs/compiled-format.md`](docs/compiled-format.md) for `meshOrigin`.
+
 ### API reference
 
 - **API signatures** (release-dependent): see [`docs/api/`](docs/api/)

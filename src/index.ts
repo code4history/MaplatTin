@@ -7,7 +7,13 @@
 
 // Main class exports
 export { Tin } from "./tin.ts";
-export type { CompiledWithSupplement, Options } from "./tin.ts";
+export type {
+  CompiledWithSupplement,
+  IncrementalEvidence,
+  Options,
+  RebuildDiagnostics,
+  RestoreFailure,
+} from "./tin.ts";
 export type {
   SupplementDiagnostics,
   SupplementPair,
@@ -15,6 +21,37 @@ export type {
 } from "./supplement-pairs.ts";
 export type { BoundaryDiagnostics } from "./boundary-search.ts";
 export { Tin as default } from "./tin.ts";
+
+// 局所更新（MaplatTin#100）
+export {
+  BOUNDARY_GROUP,
+  EDGE_HULL,
+  EDGE_PROTECT,
+  EDGE_REQUIRED,
+  IncrementalMesh,
+} from "./incremental/mesh.ts";
+export type {
+  EdgeId,
+  MeshAudit,
+  MeshVertex,
+  PointId,
+  ReplaceEdit,
+  ReplaceFailure,
+  ReplaceResult,
+  VertexRef,
+} from "./incremental/mesh.ts";
+export { MeshModel, meshFromCompiled } from "./incremental/model.ts";
+export type { ImportFailure, MeshEdge, MeshSupplement } from "./incremental/model.ts";
+export {
+  insertEdge,
+  insertPoint,
+  movePoint,
+  removeEdge,
+  removePoint,
+  replaceEdgeNodes,
+} from "./incremental/edits.ts";
+export type { EditFailure, EditResult, VertexChanges } from "./incremental/edits.ts";
+export type { TinEdit, TinPatch, TinPatchFallback } from "./incremental/types.ts";
 
 // Utility function exports
 export { default as constrainedTin } from "./constrained-tin.ts";
