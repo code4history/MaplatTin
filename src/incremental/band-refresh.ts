@@ -1,0 +1,171 @@
+/**
+ * 帯（補助頂点・重心）を、今の内側の点から作り直す（MaplatTin#100 の第 1 段 b。設計書 §6.2）。
+ *
+ * 補助頂点の位置は、今の `updateTin()` と同じ式（`calculateVertices`）で計算し直す。計算に要る量
+ * （重心・両面の凸包の頂点・全部の点・対応点の外接矩形）は、網の頂点表から取る（対応点だけの三角網を
+ * 組み直さない）。地理面の重心は、重心を含む網の三角形で写す。
+ */
+import type { Position } from "geojson";
+import type { VertexMode } from "@maplat/transform";
+import { MARGINS, isStarShaped } from "../boundary-search.ts";
+import {
+  calculateBirdeyeVertices,
+  calculatePlainVertices,
+  calculateWorldFileVertices,
+  ringBinOf,
+  type BoundaryVerticesParams,
+  type RingOptions
+} from "../boundary-vertices.ts";
+import { convexHullEdges } from "../hull-edges.ts";
+import { locate } from "./edits.ts";
+import type { VertexRef } from "./mesh.ts";
+import type { MeshModel } from "./model.ts";
+import { replaceBand } from "./rebuild.ts";
+
+export type BandRefresh =
+  | {
+      ok: true;
+      /** 消えた三角形・増えた三角形の id */
+      removed: number[];
+      added: number[];
+      /** 消えた補助頂点の指し方と、増えた補助頂点の id */
+      removedVertices: VertexRef[];
+      addedVertices: number[];
+      /** 採った余白 */
+      margin: number;
+    }
+  | { ok: false; reason: "bandNotAnnulus" | "bandFailed" };
+
+/**
+ * 帯を差し替える。余白を小さい順に試し、差し替えが成り立った（新しい三角形が全部 okNew・外周が両面で単純・
+ * 禁止制約が増えない）最初の余白を採る。どの余白でも成り立たなければ、網を変えずに失敗を返す。
+ */
+export function refreshBand(model: MeshModel, vertexMode: VertexMode | undefined): BandRefresh {
+  const { mesh } = model;
+  // world file 外周の網は、補助頂点の地理面の位置を、world file から直接決める（扇形の中心を持たない）
+  const project = model.worldFileProjection();
+  if (!model.centroid && !project) return { ok: false, reason: "bandNotAnnulus" };
+  const at = (vertex: number) => mesh.vertices.get(vertex)!;
+  const supplements = new Set(model.supplements.map(({ vertex }) => vertex));
+  const interior = [...model.gcps, ...model.nodeOrder()];
+  // 重心・凸包・扇形外挿の推定は、対応点と必須エッジの中継点だけで行う（補完点を入れない）
+  const counted = interior.filter((vertex) => !supplements.has(vertex));
+  if (counted.length < 3) return { ok: false, reason: "bandFailed" };
+
+  // 重心（紙の面は算術平均。地理面は、重心を含む網の三角形で写す）
+  let sx = 0,
+    sy = 0;
+  for (const vertex of counted) {
+    sx += at(vertex).forw[0];
+    sy += at(vertex).forw[1];
+  }
+  const forw: Position = [sx / counted.length, sy / counted.length];
+  const hint = mesh.triangles.keys().next().value;
+  const found = hint === undefined ? undefined : locate(mesh, forw, hint);
+  if (!found) return { ok: false, reason: "bandFailed" };
+  const [A, B, C] = mesh.triangles.get(found.triangle)!.map(at);
+  const d = (B.forw[0] - A.forw[0]) * (C.forw[1] - A.forw[1]) - (C.forw[0] - A.forw[0]) * (B.forw[1] - A.forw[1]);
+  if (d === 0) return { ok: false, reason: "bandFailed" };
+  const u = ((forw[0] - A.forw[0]) * (C.forw[1] - A.forw[1]) - (C.forw[0] - A.forw[0]) * (forw[1] - A.forw[1])) / d;
+  const w = ((B.forw[0] - A.forw[0]) * (forw[1] - A.forw[1]) - (forw[0] - A.forw[0]) * (B.forw[1] - A.forw[1])) / d;
+  const centroid = {
+    forw,
+    bakw: [
+      A.bakw[0] + u * (B.bakw[0] - A.bakw[0]) + w * (C.bakw[0] - A.bakw[0]),
+      A.bakw[1] + u * (B.bakw[1] - A.bakw[1]) + w * (C.bakw[1] - A.bakw[1])
+    ] as Position
+  };
+  // 今の輪の区分を数えるときの中心（world file 外周では、内側の点の算術平均）
+  const previous = model.centroid?.forw ?? forw;
+
+  // 両面の凸包の頂点（相手の面の位置は、頂点表から引く）
+  const convexBuf: BoundaryVerticesParams["convexBuf"] = {};
+  for (const plane of ["forw", "bakw"] as const) {
+    for (const [a] of convexHullEdges(counted.map((vertex) => at(vertex)[plane]))) {
+      const vertex = at(counted[a]);
+      convexBuf[`${vertex.forw[0]}:${vertex.forw[1]}`] = { forw: vertex.forw, bakw: vertex.bakw };
+    }
+  }
+  const xs = model.gcps.map((vertex) => at(vertex).forw[0]);
+  const ys = model.gcps.map((vertex) => at(vertex).forw[1]);
+  const minx = Math.min(...xs),
+    maxx = Math.max(...xs),
+    miny = Math.min(...ys),
+    maxy = Math.max(...ys);
+  const params: BoundaryVerticesParams = {
+    convexBuf,
+    centroid,
+    allGcps: interior.map((vertex) => ({ forw: at(vertex).forw, bakw: at(vertex).bakw })),
+    minx,
+    maxx,
+    miny,
+    maxy
+  };
+  const calculate = project
+    ? (input: BoundaryVerticesParams) => calculateWorldFileVertices(input, project)
+    : vertexMode === "birdeye"
+      ? calculateBirdeyeVertices
+      : calculatePlainVertices;
+  // 今の輪の間引き方（strict を壊す補助頂点を外した区分・四隅だけの輪。MaplatTin#98）を引き継ぐ。
+  // 補助頂点の無い区分を、外す区分とみなす（四隅の区分は、指定しても外れない）
+  const present = new Set(model.ring.map((vertex) => ringBinOf(at(vertex).forw, previous)));
+  const skipBins = new Set<number>();
+  for (let bin = 0; bin < 36; bin++) if (!present.has(bin)) skipBins.add(bin);
+  // 36 頂点そろっている輪は、間引いていない。world file 外周の網は、輪を作ったときの中心を持たないので、
+  // 編集の後の中心で区分を数えると、区分の境の近くの補助頂点が隣の区分に入り、空いた区分を「外した区分」と
+  // 見誤ることがある（そろっている輪では、引き継がない）
+  const inherited: RingOptions | undefined =
+    model.ring.length <= 4
+      ? { cornersOnly: true }
+      : skipBins.size > 0 && model.ring.length < 36
+        ? { skipBins }
+        : undefined;
+  // 間引いた輪で成り立たなければ、36 区分の全部の輪も試す
+  const rings: (RingOptions | undefined)[] = inherited ? [inherited, undefined] : [undefined];
+  const hull = convexHullEdges(interior.map((vertex) => at(vertex).forw));
+  const removedVertices = model.ring.map((vertex) => at(vertex).ref);
+  const width = maxx - minx,
+    height = maxy - miny;
+  let reason: "bandNotAnnulus" | "bandFailed" = "bandFailed";
+  for (const ring of rings) for (const margin of MARGINS) {
+    const vertices = calculate(
+      {
+        ...params,
+        ...(ring ? { ring } : {}),
+        minx: minx - margin * width,
+        maxx: maxx + margin * width,
+        miny: miny - margin * height,
+        maxy: maxy + margin * height
+      },
+      true
+    );
+    if (vertices.length < 4 || !vertices.every(({ bakw }) => bakw.every(Number.isFinite))) continue;
+    // 扇形の境界には、地図面で時計回り、地理面で反時計回りの星形が必要（world file 外周では要らない）
+    if (
+      !project &&
+      (!isStarShaped(vertices.map((v) => v.forw), centroid.forw, -1) ||
+        !isStarShaped(vertices.map((v) => v.bakw), centroid.bakw, 1))
+    )
+      continue;
+    const build = { mesh, indexOf: new Map<number, number | string>(), interior, ring: model.ring };
+    const replaced = replaceBand(build, { vertices, hull });
+    if (!replaced.ok) {
+      // 輪が閉じていない網は、余白を変えても同じ
+      if (replaced.reason === "bandNotAnnulus") return { ok: false, reason: "bandNotAnnulus" };
+      reason = "bandFailed";
+      continue;
+    }
+    model.ring = build.ring;
+    if (!project) model.centroid = centroid;
+    model.resetBand();
+    return {
+      ok: true,
+      removed: replaced.removed,
+      added: replaced.added,
+      removedVertices,
+      addedVertices: build.ring,
+      margin
+    };
+  }
+  return { ok: false, reason };
+}

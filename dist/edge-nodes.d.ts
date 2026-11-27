@@ -66,7 +66,7 @@ export declare function edgeNodeMatchTolerance(illstNodes: Position[], mercNodes
  * 作ると、ほぼ同じ位置の中継点が 2 つでき、三角網から外れて構築に失敗するため。許容幅には上限
  * （{@link MAX_RATIO_MATCH_TOLERANCE}）があるので、はっきり別の折れ点をこの経路で消すことはない。
  *
- * `Tin#generatePointsSet` がこの関数を使う。
+ * `Tin#generatePointsSet`（全部組み直し）と、局所更新（必須エッジの端点・折れ点の編集）が、同じ関数を使う。
  *
  * @param illstNodes 紙の面の折れ線（始点・折れ点・終点）
  * @param mercNodes 地理面の折れ線（始点・折れ点・終点）

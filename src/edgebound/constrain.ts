@@ -25,12 +25,21 @@ export interface ConstrainSnapshot {
   vertMap: Uint32Array;
   flips: ReturnType<BitSet["copyBits"]>;
   consd: ReturnType<BitSet["copyBits"]>;
+  /** 全部の辺の Delaunay 性の掃除（{@link Constrain.delaunify} の最初の 1 回）が済んでいるか。 */
+  cleaned: boolean;
 }
 
 export class Constrain extends Base {
   vertMap: Uint32Array;
   flips: BitSet;
   consd: BitSet;
+  /**
+   * 全部の辺を調べる掃除（{@link delaunify} の最初の 1 回）が済んでいるか。済んだ後は、
+   * 反転で触った辺（`flips` の印がある辺）だけを調べれば Delaunay 性が保たれる。
+   * 掃除は制約を 1 本張るとき（`delaunify(true)`）にしか走らないので、制約を 1 本も張っていない網や、
+   * 張った制約がすべて初めからある辺だった網は、まだ済んでいない。
+   */
+  cleaned = false;
 
   /**
    * Create a Constrain instance.
@@ -95,6 +104,7 @@ export class Constrain extends Base {
       vertMap: this.vertMap.slice(),
       flips: this.flips.copyBits(),
       consd: this.consd.copyBits(),
+      cleaned: this.cleaned,
     };
   }
 
@@ -109,6 +119,7 @@ export class Constrain extends Base {
     constrain.vertMap.set(snapshot.vertMap);
     constrain.flips.load(snapshot.flips);
     constrain.consd.load(snapshot.consd);
+    constrain.cleaned = snapshot.cleaned;
     return constrain;
   }
 
@@ -327,6 +338,11 @@ export class Constrain extends Base {
 
   /**
    * Fix the Delaunay condition.
+   *
+   * 最初の 1 回（`deep` で、まだ掃除が済んでいないとき）だけは、制約でない全部の辺を調べる。
+   * Delaunator の外接円の判定は浮動小数点なので、厳密な述語での掃除を 1 回は通すため。
+   * その後は、反転で触った辺（`flips` の印がある辺）だけを調べる。掃除の後に Delaunay でなくなりうるのは、
+   * 反転で触った辺とその周りだけで、{@link flipDiagonal} はそこに印を付けるから、結果は変わらない。
    */
   delaunify(deep = false): this {
     const { halfedges } = this.del;
@@ -335,10 +351,13 @@ export class Constrain extends Base {
     const len = halfedges.length;
 
     let flipped: number;
+    // 全部の辺を調べるのは、掃除が済んでいない網の 1 周目だけ。済んだ網と、2 周目以降は印のある辺だけでよい。
+    // deep でない呼び出しは、従来どおり全部の辺を 1 周調べる
+    let all = !(deep && this.cleaned);
     do {
       flipped = 0;
       for (let edg = 0; edg < len; edg++) {
-        if (consd.has(edg)) {
+        if (consd.has(edg) || (!all && !flips.has(edg))) {
           continue;
         }
         flips.delete(edg);
@@ -354,7 +373,10 @@ export class Constrain extends Base {
           flipped++;
         }
       }
+      all = false;
     } while (deep && flipped > 0);
+    // 反転が無くなるまで調べ終えたとき（deep）だけ、掃除が済んだ扱いにする
+    if (deep) this.cleaned = true;
 
     return this;
   }

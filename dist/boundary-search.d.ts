@@ -1,8 +1,9 @@
-import { Feature, Point } from 'geojson';
+import { Feature, Point, Position } from 'geojson';
 import { Edge, Tins } from '@maplat/transform';
 import { BoundaryVerticesParams } from "./boundary-vertices.js";
 import { buildConstrainedTin, ConstrainedTinReuse } from "./constrained-tin.js";
 import { VertexPosition } from "./types/tin.js";
+export declare const MARGINS: readonly [0.1, 0.15, 0.225, 0.34, 0.5];
 /** V3 の境界生成時の診断。件数は地図面と地理面の三角網の合計。 */
 export interface BoundaryDiagnostics {
     /** GCP の外接矩形の幅・高さに対する、各辺に加えた余白の割合。 */
@@ -60,6 +61,7 @@ export declare function isBetterBoundaryCandidate(a: {
     diagnostics: Pick<BoundaryDiagnostics, "boundaryTriangleFlips">;
 } | undefined): boolean;
 export declare function countBoundaryFlips(tin: Tins, expectedOrientation?: -1 | 1): number;
+export declare function isStarShaped(points: Position[], center: Position, direction: number): boolean;
 /**
  * 外す凸包の辺だけを変えて `searchBoundary` を繰り返すときに、結果が変わらない計算を使い回す入れ物。
  * 同じ点群・同じ外周の方式での呼び出しにだけ使う。余白ごとに、補助頂点の位置・地理面の三角網

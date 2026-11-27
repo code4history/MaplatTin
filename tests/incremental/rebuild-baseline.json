@@ -1,0 +1,156 @@
+{
+  "1932_nobeoka|strict": {
+    "status": "strict",
+    "forw": 1.5158531288030163e-17,
+    "bakw": 0.026300221277990404,
+    "supplements": 4,
+    "ring": 36
+  },
+  "1932_nobeoka|auto": {
+    "status": "strict",
+    "forw": 1.5158531288030163e-17,
+    "bakw": 0.026300221277990404,
+    "supplements": 4,
+    "ring": 36
+  },
+  "fushimijo_maplat|strict": {
+    "status": "strict",
+    "forw": 1.688778267629182e-18,
+    "bakw": 0,
+    "supplements": 1,
+    "ring": 36
+  },
+  "fushimijo_maplat|auto": {
+    "status": "strict",
+    "forw": 1.688778267629182e-18,
+    "bakw": 0,
+    "supplements": 1,
+    "ring": 36
+  },
+  "kaisei_hiroshima_jissoku_sub1|strict": {
+    "status": "strict",
+    "forw": 0,
+    "bakw": 0.10869496820234095,
+    "supplements": 2,
+    "ring": 29
+  },
+  "kaisei_hiroshima_jissoku_sub1|auto": {
+    "status": "strict",
+    "forw": 0,
+    "bakw": 0.10869496820234095,
+    "supplements": 2,
+    "ring": 29
+  },
+  "miesan_ginza_map|strict": {
+    "status": "strict",
+    "forw": 0,
+    "bakw": 0,
+    "supplements": 3,
+    "ring": 36
+  },
+  "miesan_ginza_map|auto": {
+    "status": "strict",
+    "forw": 0,
+    "bakw": 0,
+    "supplements": 3,
+    "ring": 36
+  },
+  "naramachi_yasui_bunko|strict": {
+    "status": "strict",
+    "forw": 3.8130203456848136e-18,
+    "bakw": 0.06767452709768537,
+    "supplements": 6,
+    "ring": 36
+  },
+  "naramachi_yasui_bunko|auto": {
+    "status": "strict",
+    "forw": 3.8130203456848136e-18,
+    "bakw": 0.06767452709768537,
+    "supplements": 6,
+    "ring": 36
+  },
+  "naramachi_yasui_bunko_core|strict": {
+    "status": "strict",
+    "forw": 5.0844596294226154e-18,
+    "bakw": 0.028511977765771898,
+    "supplements": 6,
+    "ring": 29
+  },
+  "naramachi_yasui_bunko_core|auto": {
+    "status": "strict",
+    "forw": 5.0844596294226154e-18,
+    "bakw": 0.028511977765771898,
+    "supplements": 6,
+    "ring": 29
+  },
+  "naramachi_yasui_revised|strict": {
+    "status": "strict",
+    "forw": 3.8130203456848136e-18,
+    "bakw": 0.06767452709768537,
+    "supplements": 6,
+    "ring": 36
+  },
+  "naramachi_yasui_revised|auto": {
+    "status": "strict",
+    "forw": 3.8130203456848136e-18,
+    "bakw": 0.06767452709768537,
+    "supplements": 6,
+    "ring": 36
+  },
+  "tatebayashi_castle_akimoto|strict": {
+    "status": "strict",
+    "forw": 6.963487672070276e-19,
+    "bakw": 0.0075949697008434805,
+    "supplements": 4,
+    "ring": 36
+  },
+  "tatebayashi_castle_akimoto|auto": {
+    "status": "strict",
+    "forw": 6.963487672070276e-19,
+    "bakw": 0.0075949697008434805,
+    "supplements": 4,
+    "ring": 36
+  },
+  "tatebayashi_kaei_jokamachi|strict": {
+    "status": "strict",
+    "forw": 5.763770841647134e-18,
+    "bakw": 0.0053630257562236805,
+    "supplements": 2,
+    "ring": 36
+  },
+  "tatebayashi_kaei_jokamachi|auto": {
+    "status": "strict",
+    "forw": 5.763770841647134e-18,
+    "bakw": 0.0053630257562236805,
+    "supplements": 2,
+    "ring": 36
+  },
+  "uno_bus_gtfs_error|strict": {
+    "status": "strict_error",
+    "forw": 0.00036276174967360126,
+    "bakw": 0.2079557545057667,
+    "supplements": 0,
+    "ring": 36
+  },
+  "uno_bus_gtfs_error|auto": {
+    "status": "loose",
+    "forw": 0.00036276174967360126,
+    "bakw": 0,
+    "supplements": 0,
+    "ring": 36
+  },
+  "uno_bus_gtfs_loose|strict": {
+    "status": "strict_error",
+    "forw": 0.00036276174967360126,
+    "bakw": 0.2079557545057667,
+    "supplements": 0,
+    "ring": 36
+  },
+  "uno_bus_gtfs_loose|auto": {
+    "status": "loose",
+    "forw": 0.00036276174967360126,
+    "bakw": 0,
+    "supplements": 0,
+    "ring": 36
+  }
+}

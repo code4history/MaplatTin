@@ -189,6 +189,51 @@ world file 外周を指定して扇形に切り替わった場合は、作り直
 `getCompiled()` は診断を出力しません。V2 と、compiled を読み込んだ直後のプロパティは
 `undefined` です。
 
+### 局所更新（既定は切）
+
+対応点を 1 つ編集すると、通常は `updateTin()` が三角網の全部を組み直します。局所更新（MaplatTin #100）は、
+編集が影響する範囲だけを差し替えます。`strict` の保証は保ったままです（新しい三角形が全部、両面で同じ向きに
+なる差し替えだけを採ります）。編集ツール（MaplatEditor）向けの機能で、**スイッチはどれも既定で切れており、
+入れない限り何も変わりません。**
+
+| オプション（`new Tin({...})`） | 既定 | 入れたときの動き |
+| --- | --- | --- |
+| `incremental` | `false` | `updateTin()` の後に、採用した網（`tin.incrementalMesh`）を持ち続け、`applyEdits()` が内側の編集を局所に当てます。切れていれば、`applyEdits()` は常に全部組み直します。 |
+| `incrementalBand` | `false` | `applyEdits()` が、帯（補助頂点・重心）に触れる編集も、帯を差し替えて局所に当てます。`incremental` が要ります。`refreshBand()` にも要ります。 |
+| `incrementalRebuild` | `false` | `updateTin()` の中の組み直しの繰り返し（凸包の辺を外す・補完点・輪の間引き）を、帯の差し替えに置き換えます。大きな地図で大幅に速くなります。今の手順が strict になる地図は strict になりますが、三角形の集合は同じとは限りません。ほかの 2 つとは独立です。 |
+
+```ts
+const tin = new Tin({ points, edges, wh, incremental: true, incrementalBand: true });
+tin.updateTin();
+
+// 編集を当てる。座標は setPoints() と同じ座標系。id は、最初は配列の添字
+const patch = tin.applyEdits([{ type: "movePoint", id: 12, bakw: [x, y] }], tin.revision);
+if (patch.mode === "local") {
+  // patch.movedVertices・addedTriangles・removedTriangles などが、変わった所
+} else {
+  // "full": 全部を組み直した（理由は patch.fallbackReason）。tin.getCompiled() を読み直す
+}
+```
+
+- `applyEdits(edits, baseRevision?)` が受け付ける編集は、`addPoint`・`removePoint`・`movePoint`・`addEdge`・
+  `removeEdge`・`replaceEdgeNodes` です。全部の編集を局所に当てるか、全部を組み直すかの、どちらかです。
+  id が無い編集などは、何も変えずに例外を投げます。`baseRevision` が古ければ、何も変えずに
+  `fallbackReason: "revisionMismatch"` を返します。全部組み直しが例外を投げる入力（必須エッジが交差する・
+  点が一直線に並ぶ、など）では、`applyEdits()` も同じ例外を投げます。このとき、入力は編集した後の状態で、
+  三角網はありません（`updateTin()` が失敗した後と同じです）。
+- 局所更新の後の `getCompiled()`・`transform()` は、最新の状態を返します。`updateTin()` は、編集した後の入力から
+  全部を組み直します。
+- **局所更新の網を、そのまま保存する。** 編集した後の入力を全部組み直すと strict にならないのに、局所更新の網は
+  strict、ということがあります。そのときは `tin.refreshBand()` の後に `tin.collectIncrementalEvidence()` を呼び、
+  `evidence.eligible` なら `evidence.compiled`（`meshOrigin: "incremental"` つき）を保存します。そのデータは、
+  `updateTin()` ではなく `tin.restoreMesh(compiled)` で開きます（組み直すと strict を失います）。
+  `incremental: true` で作った `Tin` で開いてください（そうでなければ、`restoreMesh()` は `"disabled"` を返します）。今の三角網が
+  そういうデータから来ているかは、`tin.meshOrigin` で分かります。全部組み直しが strict なら、その compiled を
+  そのまま保存してください。
+
+シグネチャは [`docs/api/`](docs/api/)、`meshOrigin` は [`docs/compiled-format.ja.md`](docs/compiled-format.ja.md)
+を見てください。
+
 ### API リファレンス
 
 - **API シグネチャ**（リリース依存）: [`docs/api/`](docs/api/) を参照

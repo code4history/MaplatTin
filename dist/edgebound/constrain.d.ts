@@ -12,11 +12,20 @@ export interface ConstrainSnapshot {
     vertMap: Uint32Array;
     flips: ReturnType<BitSet["copyBits"]>;
     consd: ReturnType<BitSet["copyBits"]>;
+    /** 全部の辺の Delaunay 性の掃除（{@link Constrain.delaunify} の最初の 1 回）が済んでいるか。 */
+    cleaned: boolean;
 }
 export declare class Constrain extends Base {
     vertMap: Uint32Array;
     flips: BitSet;
     consd: BitSet;
+    /**
+     * 全部の辺を調べる掃除（{@link delaunify} の最初の 1 回）が済んでいるか。済んだ後は、
+     * 反転で触った辺（`flips` の印がある辺）だけを調べれば Delaunay 性が保たれる。
+     * 掃除は制約を 1 本張るとき（`delaunify(true)`）にしか走らないので、制約を 1 本も張っていない網や、
+     * 張った制約がすべて初めからある辺だった網は、まだ済んでいない。
+     */
+    cleaned: boolean;
     /**
      * Create a Constrain instance.
      *
@@ -55,6 +64,11 @@ export declare class Constrain extends Base {
     private assertVertex;
     /**
      * Fix the Delaunay condition.
+     *
+     * 最初の 1 回（`deep` で、まだ掃除が済んでいないとき）だけは、制約でない全部の辺を調べる。
+     * Delaunator の外接円の判定は浮動小数点なので、厳密な述語での掃除を 1 回は通すため。
+     * その後は、反転で触った辺（`flips` の印がある辺）だけを調べる。掃除の後に Delaunay でなくなりうるのは、
+     * 反転で触った辺とその周りだけで、{@link flipDiagonal} はそこに印を付けるから、結果は変わらない。
      */
     delaunify(deep?: boolean): this;
     /**

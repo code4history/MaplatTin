@@ -1,0 +1,112 @@
+{
+  "1932_nobeoka|strict": {
+    "digest": "c58f3ec7fd36b041",
+    "status": "strict",
+    "triangles": 964
+  },
+  "1932_nobeoka|auto": {
+    "digest": "7b7fb3bdd2504d1e",
+    "status": "strict",
+    "triangles": 964
+  },
+  "fushimijo_maplat|strict": {
+    "digest": "59454c860c5f8a18",
+    "status": "strict",
+    "triangles": 1048
+  },
+  "fushimijo_maplat|auto": {
+    "digest": "b1f0a47f78a010a1",
+    "status": "strict",
+    "triangles": 1048
+  },
+  "kaisei_hiroshima_jissoku_sub1|strict": {
+    "digest": "776ac9696ec63388",
+    "status": "strict",
+    "triangles": 119
+  },
+  "kaisei_hiroshima_jissoku_sub1|auto": {
+    "digest": "e1f484b56938bfd7",
+    "status": "strict",
+    "triangles": 119
+  },
+  "miesan_ginza_map|strict": {
+    "digest": "16a9307b2df59fcc",
+    "status": "strict",
+    "triangles": 960
+  },
+  "miesan_ginza_map|auto": {
+    "digest": "5f8901f09cfe5fef",
+    "status": "strict",
+    "triangles": 960
+  },
+  "naramachi_yasui_bunko|strict": {
+    "digest": "28a64104223b8403",
+    "status": "strict",
+    "triangles": 3942
+  },
+  "naramachi_yasui_bunko|auto": {
+    "digest": "724b3ad641037c58",
+    "status": "strict",
+    "triangles": 3942
+  },
+  "naramachi_yasui_bunko_core|strict": {
+    "digest": "472986d0f4d9ac79",
+    "status": "strict",
+    "triangles": 4287
+  },
+  "naramachi_yasui_bunko_core|auto": {
+    "digest": "4232662ba90afa3c",
+    "status": "strict",
+    "triangles": 4287
+  },
+  "naramachi_yasui_revised|strict": {
+    "digest": "28a64104223b8403",
+    "status": "strict",
+    "triangles": 3942
+  },
+  "naramachi_yasui_revised|auto": {
+    "digest": "724b3ad641037c58",
+    "status": "strict",
+    "triangles": 3942
+  },
+  "tatebayashi_castle_akimoto|strict": {
+    "digest": "c9261f4ab4678e4d",
+    "status": "strict",
+    "triangles": 2112
+  },
+  "tatebayashi_castle_akimoto|auto": {
+    "digest": "09ecdad9a23716ed",
+    "status": "strict",
+    "triangles": 2112
+  },
+  "tatebayashi_kaei_jokamachi|strict": {
+    "digest": "3d2065cc2e7fd486",
+    "status": "strict",
+    "triangles": 1602
+  },
+  "tatebayashi_kaei_jokamachi|auto": {
+    "digest": "592c86678bd0711c",
+    "status": "strict",
+    "triangles": 1602
+  },
+  "uno_bus_gtfs_error|strict": {
+    "digest": "254d22379ccc1d95",
+    "status": "strict_error",
+    "triangles": 2108
+  },
+  "uno_bus_gtfs_error|auto": {
+    "digest": "d62e1c57c25186de",
+    "status": "loose",
+    "triangles": 2108
+  },
+  "uno_bus_gtfs_loose|strict": {
+    "digest": "254d22379ccc1d95",
+    "status": "strict_error",
+    "triangles": 2108
+  },
+  "uno_bus_gtfs_loose|auto": {
+    "digest": "d62e1c57c25186de",
+    "status": "loose",
+    "triangles": 2108
+  }
+}

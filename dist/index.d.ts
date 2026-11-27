@@ -5,10 +5,17 @@
  * Provides TIN generation with constrained edges for map transformation.
  */
 export { Tin } from "./tin.js";
-export type { CompiledWithSupplement, Options } from "./tin.js";
+export type { CompiledWithSupplement, IncrementalEvidence, Options, RebuildDiagnostics, RestoreFailure, } from "./tin.js";
 export type { SupplementDiagnostics, SupplementPair, SupplementPairRecord, } from "./supplement-pairs.js";
 export type { BoundaryDiagnostics } from "./boundary-search.js";
 export { Tin as default } from "./tin.js";
+export { BOUNDARY_GROUP, EDGE_HULL, EDGE_PROTECT, EDGE_REQUIRED, IncrementalMesh, } from "./incremental/mesh.js";
+export type { EdgeId, MeshAudit, MeshVertex, PointId, ReplaceEdit, ReplaceFailure, ReplaceResult, VertexRef, } from "./incremental/mesh.js";
+export { MeshModel, meshFromCompiled } from "./incremental/model.js";
+export type { ImportFailure, MeshEdge, MeshSupplement } from "./incremental/model.js";
+export { insertEdge, insertPoint, movePoint, removeEdge, removePoint, replaceEdgeNodes, } from "./incremental/edits.js";
+export type { EditFailure, EditResult, VertexChanges } from "./incremental/edits.js";
+export type { TinEdit, TinPatch, TinPatchFallback } from "./incremental/types.js";
 export { default as constrainedTin } from "./constrained-tin.js";
 export { default as findIntersections } from "./kinks.js";
 export { insertSearchIndex } from "./searchutils.js";
