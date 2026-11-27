@@ -89,6 +89,25 @@ export interface ReplaceEdit {
   release?: readonly (readonly [number, number])[];
   /** 差し替えの後の磨き（§5.3）をしない */
   noPolish?: boolean;
+  /**
+   * 新しい網の外周の輪（頂点の id の列。`add` に入れた新しい補助頂点）。帯の差し替えで使う。
+   * `remove` に入れた頂点を持つ古い外周の辺の代わりに、この輪が網の外周になる。
+   */
+  outerRing?: readonly number[];
+  /** `outerRing` が、網の外周の全部を置き換える（古い外周の頂点を全部 `remove` に入れてある） */
+  replacesWholeBoundary?: boolean;
+  /** 張れたら張る辺（凸包の辺）。ほかの制約と両立しなければ外す */
+  soft?: readonly (readonly [number, number, number])[];
+  /** okNew でない三角形・禁止制約の増加が残っても採る（全部組み直しの中の試行だけ。編集では使わない） */
+  allowBad?: boolean;
+  /** 範囲の大きさの上限（20%）を見ない（帯の差し替え） */
+  unlimited?: boolean;
+  /**
+   * 紙の面だけで組む（全部組み直しの中の試行だけ）。地理面の向きを見ずに、紙の面の制約付き Delaunay を作る
+   * （重なりの解消をしない・磨きは紙の面の外接円の条件だけで反転する）。今の手順の「紙の面で三角網を組み、
+   * その後で重なりを解消する」の前半に当たる。`allowBad` を含む。
+   */
+  forwOnly?: boolean;
 }
 
 export type ReplaceResult =
@@ -96,6 +115,8 @@ export type ReplaceResult =
       ok: true;
       removed: number[];
       added: number[];
+      /** 張れた「張れたら張る辺」 */
+      soft: [number, number][];
       /** 重なりの解消・禁止制約の解消・磨きで反転した辺の数 */
       flips: { overlap: number; forbidden: number; polish: number };
     }
@@ -130,6 +151,30 @@ export const copyPosition = (position: Position): Position => [
   position[0],
   position[1]
 ];
+
+/** 頂点の列が、単純な多角形か（隣でない辺は触れもしない・隣の辺は折り返して重ならない）。 */
+export function isSimpleRing(p: readonly Position[]): boolean {
+  const n = p.length;
+  if (n < 3) return false;
+  for (let i = 0; i < n; i++) {
+    const a = p[i],
+      b = p[(i + 1) % n];
+    const c = p[(i + 2) % n];
+    if (
+      sign2(a, b, c) === 0 &&
+      (a[0] - b[0]) * (c[0] - b[0]) + (a[1] - b[1]) * (c[1] - b[1]) > 0
+    )
+      return false;
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue;
+      const d = p[j],
+        e = p[(j + 1) % n];
+      if (intersectSegments(a[0], a[1], b[0], b[1], d[0], d[1], e[0], e[1]))
+        return false;
+    }
+  }
+  return true;
+}
 
 const KEY_BASE = 2 ** 26;
 
@@ -476,25 +521,47 @@ export class IncrementalMesh {
       reason
     });
     // 0. 大きすぎる範囲は、組み直す前に諦める
-    if (range.size > this.triangles.size * MAX_REPLACE_FRACTION)
+    if (
+      !edit.unlimited &&
+      range.size > this.triangles.size * MAX_REPLACE_FRACTION
+    )
       return fail("tooLarge");
 
-    // 1. 輪（動かす前の座標で取る）
-    const ring = this.ringOf(range);
-    if (!ring) return fail("notDisk");
-    const n = ring.length;
-    const onRing = new Set(ring);
+    // 1. 範囲の外周の、固定する有向の辺（範囲の内側が、紙の面で正の向きの側。動かす前の座標で取る）。
+    // 範囲の外の三角形と共有する辺と、網の外周の辺のうち、端点が消えないもの。消える頂点（古い補助頂点）を
+    // 持つ網の外周の辺は、固定しない（新しい外周の輪 outerRing に置き換わる）。
+    const removed = new Set(edit.remove ?? []);
+    const fixed: [number, number][] = [];
+    const fixedVertices = new Set<number>();
+    // 固定する辺のうち、網の外周の辺の数
+    let fixedOuter = 0;
+    for (const id of range) {
+      const tri = this.positive(id);
+      if (!tri) return fail("notDisk");
+      for (let i = 0; i < 3; i++) {
+        const u = tri[i],
+          v = tri[(i + 1) % 3];
+        const owners = this.byEdge.get(edgeKey(u, v))!;
+        if (owners.length > 2) return fail("notDisk");
+        if (owners.length === 2 && range.has(owners[0]) && range.has(owners[1]))
+          continue;
+        if (owners.length === 1 && (removed.has(u) || removed.has(v))) continue;
+        if (owners.length === 1) fixedOuter++;
+        fixed.push([u, v]);
+        fixedVertices.add(u).add(v);
+      }
+    }
+    if (fixed.length < 3) return fail("notDisk");
 
     // 2. 内側の点
-    const removed = new Set(edit.remove ?? []);
     const inner = new Set<number>(edit.add ?? []);
     for (const id of range) {
       for (const v of this.triangles.get(id)!) {
-        if (!onRing.has(v) && !removed.has(v)) inner.add(v);
+        if (!fixedVertices.has(v) && !removed.has(v)) inner.add(v);
       }
     }
     for (const v of removed) {
-      if (onRing.has(v)) return fail("notDisk");
+      if (fixedVertices.has(v)) return fail("notDisk");
       for (const t of this.byVertex.get(v)!) {
         if (!range.has(t)) return fail("notDisk");
       }
@@ -507,17 +574,34 @@ export class IncrementalMesh {
       const vertex = this.vertices.get(id)!;
       return moved ? { ...vertex, ...moved } : vertex;
     };
+    // 新しい外周の輪（S2）: 両面とも単純な多角形であること
+    const outerRing = edit.outerRing;
+    if (outerRing) {
+      if (outerRing.some((v) => !inner.has(v))) return fail("boundary");
+      for (const plane of ["forw", "bakw"] as const) {
+        if (!isSimpleRing(outerRing.map((v) => at(v)[plane])))
+          return fail("boundary");
+      }
+    }
 
-    // 3. 輪と内側の点だけで三角形分割し、制約を張る
-    const ids = [...ring, ...inner];
+    // 3. 固定する辺の頂点と内側の点だけで三角形分割し、制約を張る
+    const ids = [...fixedVertices, ...inner];
     const local = new Map(ids.map((v, i) => [v, i]));
     const ringKeys = new Set<number>();
-    for (let i = 0; i < n; i++)
-      ringKeys.add(edgeKey(ring[i], ring[(i + 1) % n]));
-    const constraints: [number, number][] = ring.map((_, i) => [
-      i,
-      (i + 1) % n
-    ]);
+    const constraints: [number, number][] = [];
+    for (const [u, v] of fixed) {
+      ringKeys.add(edgeKey(u, v));
+      constraints.push([local.get(u)!, local.get(v)!]);
+    }
+    const outerKeys = new Set<number>();
+    if (outerRing) {
+      for (let i = 0; i < outerRing.length; i++) {
+        const u = outerRing[i],
+          v = outerRing[(i + 1) % outerRing.length];
+        outerKeys.add(edgeKey(u, v));
+        constraints.push([local.get(u)!, local.get(v)!]);
+      }
+    }
     // R の中にある required・hull の辺（protect は張らない。§5.2）と、新しく張る辺
     const kept = new Map<number, [number, number]>();
     const interiorKeys = new Set<number>();
@@ -541,16 +625,45 @@ export class IncrementalMesh {
     }
     for (const [u, v] of edit.constrain ?? []) {
       if (!local.has(u) || !local.has(v)) return fail("constraint");
-      if (!ringKeys.has(edgeKey(u, v))) kept.set(edgeKey(u, v), [u, v]);
+      const key = edgeKey(u, v);
+      if (!ringKeys.has(key) && !outerKeys.has(key)) kept.set(key, [u, v]);
     }
     for (const [u, v] of kept.values())
       constraints.push([local.get(u)!, local.get(v)!]);
 
     let del: Constrain["del"];
+    // 張れたら張る辺（凸包の辺）。両立しない辺は外し、それまでに張れた辺だけで組み直す
+    const acceptedSoft: [number, number, number][] = [];
     try {
       const delaunay = Delaunator.from(ids.map((v) => at(v).forw));
       if (delaunay.triangles.length === 0) return fail("constraint");
-      del = new Constrain(delaunay, constraints).del;
+      let con = new Constrain(delaunay, constraints);
+      const soft = (edit.soft ?? []).filter(
+        ([u, v]) =>
+          local.has(u) &&
+          local.has(v) &&
+          !ringKeys.has(edgeKey(u, v)) &&
+          !outerKeys.has(edgeKey(u, v)) &&
+          !kept.has(edgeKey(u, v))
+      );
+      if (soft.length > 0) {
+        const base = con.snapshot();
+        for (const item of soft) {
+          try {
+            con.constrainOne(local.get(item[0])!, local.get(item[1])!);
+            acceptedSoft.push([item[0], item[1], item[2]]);
+          } catch {
+            con = Constrain.restore(base);
+            con.constrainAll(
+              acceptedSoft.map(([u, v]): [number, number] => [
+                local.get(u)!,
+                local.get(v)!
+              ])
+            );
+          }
+        }
+      }
+      del = con.del;
     } catch {
       return fail("constraint");
     }
@@ -558,7 +671,7 @@ export class IncrementalMesh {
     const count = triangles.length / 3;
     const coord = (i: number): Position => at(ids[i]).forw;
 
-    // 4. R' を位相的に取り出す（輪の辺を越えずにたどれる三角形）
+    // 4. R' を位相的に取り出す（固定する辺・新しい外周の輪を越えずにたどれる三角形）
     // 局所の網の向きは、面積が最大の三角形で 1 回だけ決める（Delaunator の出力は向きがそろっている）
     let localSign = 0;
     let largest = 0;
@@ -580,17 +693,20 @@ export class IncrementalMesh {
     for (let e = 0; e < triangles.length; e++) {
       halfedgeOf.set(triangles[e] * ids.length + triangles[nextEdge(e)], e);
     }
-    // 輪の辺 a → b の、内側の三角形の半辺。局所の網が正の向きなら a → b、逆なら b → a
+    // 固定する辺 a → b の、内側の三角形の半辺。局所の網が正の向きなら a → b、逆なら b → a
     const ringHalfedges = new Set<number>();
-    for (let i = 0; i < n; i++) {
-      const a = i,
-        b = (i + 1) % n;
+    for (const [u, v] of fixed) {
+      const a = local.get(u)!,
+        b = local.get(v)!;
       const e = halfedgeOf.get(
         localSign > 0 ? a * ids.length + b : b * ids.length + a
       );
       if (e === undefined) return fail("pointOutside");
       ringHalfedges.add(e);
     }
+    const isOuter = (e: number): boolean =>
+      outerKeys.size > 0 &&
+      outerKeys.has(edgeKey(ids[triangles[e]], ids[triangles[nextEdge(e)]]));
     const picked = new Set<number>();
     const queue: number[] = [];
     for (const e of ringHalfedges) {
@@ -602,9 +718,9 @@ export class IncrementalMesh {
     }
     for (let i = 0; i < queue.length; i++) {
       for (let e = queue[i] * 3; e < queue[i] * 3 + 3; e++) {
-        if (ringHalfedges.has(e)) continue;
+        if (ringHalfedges.has(e) || isOuter(e)) continue;
         const adj = halfedges[e];
-        // 輪以外の所で、局所の網の外周や、輪の外側へ漏れていない
+        // 固定する辺・外周の輪以外の所で、局所の網の外周や、固定する辺の外側へ漏れていない
         if (adj === -1 || ringHalfedges.has(adj)) return fail("pointOutside");
         const t = Math.floor(adj / 3);
         if (!picked.has(t)) {
@@ -613,11 +729,17 @@ export class IncrementalMesh {
         }
       }
     }
-    // 輪の辺の、内側でない側の三角形は、R' に入っていない
+    // 固定する辺の、内側でない側の三角形は、R' に入っていない（両側とも範囲の内側の辺を除く）
     for (const e of ringHalfedges) {
       const adj = halfedges[e];
-      if (adj !== -1 && picked.has(Math.floor(adj / 3)))
+      if (adj !== -1 && !ringHalfedges.has(adj) && picked.has(Math.floor(adj / 3)))
         return fail("pointOutside");
+    }
+    // 新しい外周の輪の辺は、片側だけが R'
+    for (let e = 0; e < triangles.length; e++) {
+      if (!isOuter(e) || !picked.has(Math.floor(e / 3))) continue;
+      const adj = halfedges[e];
+      if (adj !== -1 && picked.has(Math.floor(adj / 3))) return fail("boundary");
     }
     const fresh: Triangle[] = [];
     const used = new Set<number>();
@@ -629,7 +751,6 @@ export class IncrementalMesh {
       fresh.push(localSign === this.forwSign ? [a, b, c] : [a, c, b]);
     }
     for (const v of inner) if (!used.has(v)) return fail("pointOutside");
-    if (fresh.length !== n - 2 + 2 * inner.size) return fail("count");
     // 張った辺（必須エッジ・凸包の辺）が、R' の辺にある（S3）
     const freshKeys = new Set<number>();
     for (const [a, b, c] of fresh) {
@@ -637,22 +758,37 @@ export class IncrementalMesh {
     }
     for (const key of kept.keys())
       if (!freshKeys.has(key)) return fail("constraint");
+    for (const key of outerKeys)
+      if (!freshKeys.has(key)) return fail("boundary");
 
     // 5. 新しい三角形が全部 okNew か（S1）。だめなら、R' の中で重なりを解消する
-    const locked = new Set([...ringKeys, ...kept.keys()]);
+    const softKeys = acceptedSoft
+      .map(([u, v]) => edgeKey(u, v))
+      .filter((key) => freshKeys.has(key));
+    const locked = new Set([
+      ...ringKeys,
+      ...outerKeys,
+      ...kept.keys(),
+      ...softKeys
+    ]);
     const patch = new Patch(fresh);
     const good = (t: Triangle): boolean =>
       sign2(at(t[0]).forw, at(t[1]).forw, at(t[2]).forw) === this.forwSign &&
       this.okNew(t[0], t[1], t[2], at);
     const violates = (t: Triangle): boolean =>
       this.forbiddenGroup(t[0], t[1], t[2]) !== undefined;
-    const overlapFlips = patch.repair(
-      (t) => !this.okNew(t[0], t[1], t[2], at),
-      (_before, after) => (after.every(good) ? [] : undefined),
-      locked
-    );
+    const allowBad = edit.allowBad || edit.forwOnly;
+    const overlapFlips = edit.forwOnly
+      ? 0
+      : patch.repair(
+          (t) => !this.okNew(t[0], t[1], t[2], at),
+          (_before, after) => (after.every(good) ? [] : undefined),
+          locked
+        );
     // 紙の面の向き（裏返りが無いこと）も、積ではなく直接見る
-    for (const t of patch.triangles) if (!good(t)) return fail("notStrict");
+    if (!allowBad) {
+      for (const t of patch.triangles) if (!good(t)) return fail("notStrict");
+    }
 
     // 6. 禁止制約の三角形が増えていないか（S4。群の表を引いて数える）。増えたら、違反の三角形の所だけ直す
     let before = 0;
@@ -677,12 +813,14 @@ export class IncrementalMesh {
         locked,
         () => countViolations() <= before
       );
-      if (countViolations() > before) return fail("forbidden");
+      if (countViolations() > before && !allowBad)
+        return fail("forbidden");
     }
     fresh.splice(0, fresh.length, ...patch.triangles);
 
-    // 7. 外周 ∂M（S2）。∂M の辺は三角形 1 つにしか属さないので、R の中にあれば必ず輪 ∂R の辺である。
-    // 輪の辺と輪の頂点の座標は変えないので、円板の差し替えでは ∂M は変わらず、boundarySimple も変わらない。
+    // 7. 外周 ∂M（S2）。∂M の辺は三角形 1 つにしか属さないので、R の中にあれば必ず固定する辺である。
+    // 固定する辺と、その頂点の座標は変えないので、∂M は変わらず、boundarySimple も変わらない。
+    // 外周の輪を作り直す差し替え（outerRing）では、新しい輪が両面で単純なことを、手順 2 で確かめてある。
 
     // 8. 差し替える
     for (const [v, position] of edit.move ?? []) {
@@ -703,12 +841,24 @@ export class IncrementalMesh {
       if (!removed.has(u) && !removed.has(v))
         this.clearFlag(u, v, EDGE_REQUIRED);
     }
-    for (const [u, v, flag] of edit.constrain ?? []) this.setFlag(u, v, flag);
+    for (const [u, v, flag] of edit.constrain ?? []) {
+      if (flag) this.setFlag(u, v, flag);
+    }
+    for (const [u, v, flag] of acceptedSoft) {
+      if (flag && this.hasEdge(u, v)) this.setFlag(u, v, flag);
+    }
     for (const key of protectedKeys) {
       if (this.byEdge.has(key))
         this.edgeFlags.set(key, (this.edgeFlags.get(key) ?? 0) | EDGE_PROTECT);
     }
     for (const v of removed) this.dropVertex(v);
+    // 新しい輪が両面で単純なことは、手順 2 で確かめてある。古い外周の辺が残る差し替えだけ、数え直す
+    if (outerRing) {
+      this.boundarySimple =
+        fixedOuter === 0 && edit.replacesWholeBoundary
+          ? true
+          : this.computeBoundarySimple();
+    }
     this.revision++;
 
     // 9. 磨き（§5.3）: 輪の辺を、上限つきで Delaunay に近づける。R の外の三角形を置き換えるので、同じ帳簿に入れる
@@ -716,16 +866,19 @@ export class IncrementalMesh {
     const born = new Set(addedIds);
     let polishFlips = 0;
     if (!edit.noPolish) {
-      const seeds: [number, number][] = ring.map((v, i) => [
-        v,
-        ring[(i + 1) % n]
-      ]);
-      polishFlips = this.polish(seeds, POLISH_FACTOR * n, gone, born);
+      polishFlips = this.polish(
+        fixed,
+        POLISH_FACTOR * fixed.length,
+        gone,
+        born,
+        edit.forwOnly
+      );
     }
     return {
       ok: true,
       removed: [...gone],
       added: [...born],
+      soft: acceptedSoft.map(([u, v]): [number, number] => [u, v]),
       flips: {
         overlap: overlapFlips,
         forbidden: forbiddenFlips,
@@ -742,7 +895,8 @@ export class IncrementalMesh {
     u: number,
     v: number,
     gone?: Set<number>,
-    born?: Set<number>
+    born?: Set<number>,
+    forwOnly = false
   ): [number, number][] | undefined {
     const owners = this.byEdge.get(edgeKey(u, v));
     if (!owners || owners.length !== 2) return undefined;
@@ -766,7 +920,7 @@ export class IncrementalMesh {
     const at = this.vertexAt;
     for (const [x, y, z] of next) {
       if (sign2(at(x).forw, at(y).forw, at(z).forw) <= 0) return undefined;
-      if (!this.okNew(x, y, z)) return undefined;
+      if (!forwOnly && !this.okNew(x, y, z)) return undefined;
     }
     const violations = (list: Triangle[]) =>
       list.filter(([x, y, z]) => this.forbiddenGroup(x, y, z) !== undefined)
@@ -802,7 +956,8 @@ export class IncrementalMesh {
     seeds: readonly (readonly [number, number])[],
     limit: number,
     gone?: Set<number>,
-    born?: Set<number>
+    born?: Set<number>,
+    forwOnly = false
   ): number {
     const queue: (readonly [number, number])[] = [...seeds];
     let flips = 0;
@@ -822,7 +977,7 @@ export class IncrementalMesh {
         0
       )
         continue;
-      const around = this.flipEdge(u, v, gone, born);
+      const around = this.flipEdge(u, v, gone, born, forwOnly);
       if (!around) continue;
       flips++;
       queue.push(...around);
@@ -877,32 +1032,116 @@ export class IncrementalMesh {
   computeBoundarySimple(): boolean {
     const ring = this.boundaryRing();
     if (!ring) return false;
-    const n = ring.length;
-    for (const plane of ["forw", "bakw"] as const) {
-      const p = ring.map((v) => this.vertices.get(v)![plane]);
-      for (let i = 0; i < n; i++) {
-        const a = p[i],
-          b = p[(i + 1) % n];
-        // 隣の辺（頂点 b を共有）: 折り返して重なっていない
-        const c = p[(i + 2) % n];
-        if (
-          sign2(a, b, c) === 0 &&
-          (a[0] - b[0]) * (c[0] - b[0]) + (a[1] - b[1]) * (c[1] - b[1]) > 0
-        )
-          return false;
-        // 隣でない辺: 触れもしない
-        for (let j = i + 2; j < n; j++) {
-          if (i === 0 && j === n - 1) continue;
-          const d = p[j],
-            e = p[(j + 1) % n];
-          if (
-            intersectSegments(a[0], a[1], b[0], b[1], d[0], d[1], e[0], e[1])
-          )
-            return false;
+    return (["forw", "bakw"] as const).every((plane) =>
+      isSimpleRing(ring.map((v) => this.vertices.get(v)![plane]))
+    );
+  }
+
+  /**
+   * 網を複製する（全部組み直しの中の試行で、もとの網を保つために使う）。
+   *
+   * @param shareVertices 頂点の表の中身（座標・群）を、もとの網と共有する。複製した網で、今ある頂点を
+   *   動かさない・群を変えないとき（頂点の追加と削除・三角形の差し替えだけのとき）に限る
+   */
+  clone(shareVertices = false): IncrementalMesh {
+    const copy = new IncrementalMesh(this.sigma, this.forwSign);
+    for (const [id, vertex] of this.vertices) {
+      copy.vertices.set(
+        id,
+        shareVertices
+          ? vertex
+          : {
+              ref: vertex.ref,
+              forw: copyPosition(vertex.forw),
+              bakw: copyPosition(vertex.bakw),
+              groups: [...vertex.groups]
+            }
+      );
+    }
+    // 三角形の頂点の配列は、作った後に書き換えないので、共有する
+    for (const [id, triangle] of this.triangles)
+      copy.triangles.set(id, triangle);
+    for (const [id, owners] of this.byVertex)
+      copy.byVertex.set(id, new Set(owners));
+    for (const [key, owners] of this.byEdge) copy.byEdge.set(key, [...owners]);
+    for (const [key, flags] of this.edgeFlags) copy.edgeFlags.set(key, flags);
+    for (const id of this.bad) copy.bad.add(id);
+    copy.boundarySimple = this.boundarySimple;
+    copy.forbiddenBoundary = this.forbiddenBoundary;
+    copy.forbiddenEdge = this.forbiddenEdge;
+    copy.revision = this.revision;
+    copy.nextVertex = this.nextVertex;
+    copy.nextTriangle = this.nextTriangle;
+    return copy;
+  }
+
+  /**
+   * ok でない三角形を、その周りの組み直しで直す（辺の反転で直らなかったもの）。ok でない三角形を、頂点で
+   * つながるかたまりに分け、かたまりごとに、周りを 1 周ずつ広げた範囲を差し替える（全部が okNew になる
+   * 差し替えだけを採る）。
+   *
+   * @returns 直せなかった、ok でない三角形の数
+   */
+  healBad(maxGrow = 3): number {
+    const seen = new Set<number>();
+    for (const start of [...this.bad]) {
+      if (seen.has(start) || !this.bad.has(start)) continue;
+      // 頂点でつながる、ok でない三角形のかたまり
+      const cluster = new Set([start]);
+      const queue = [start];
+      for (let i = 0; i < queue.length; i++) {
+        for (const v of this.triangles.get(queue[i])!) {
+          for (const t of this.byVertex.get(v)!) {
+            if (this.bad.has(t) && !cluster.has(t)) {
+              cluster.add(t);
+              queue.push(t);
+            }
+          }
         }
       }
+      for (const t of cluster) seen.add(t);
+      let range: Set<number> = cluster;
+      for (let grown = 0; grown < maxGrow; grown++) {
+        range = this.grow(range);
+        const result = this.replace(range);
+        if (result.ok) break;
+        if (result.reason === "tooLarge") break;
+      }
     }
-    return true;
+    return this.bad.size;
+  }
+
+  /**
+   * ok でない三角形を、その辺の反転で直す（重なりの解消。網の全体ではなく、ok でない三角形の所だけ）。
+   * 必須エッジは反転しない。凸包の辺は反転してよい（今の `resolveOverlaps` と同じ扱い）。
+   *
+   * @returns 反転した辺の数
+   */
+  repairBad(): number {
+    let flips = 0;
+    // 1 周ごとに、ok でない三角形を順に見る。反転が起きなくなるまで（上限は 4 周）
+    for (let round = 0; round < 4 && this.bad.size > 0; round++) {
+      let progressed = false;
+      for (const id of [...this.bad]) {
+        const tri = this.bad.has(id) ? this.triangles.get(id) : undefined;
+        if (!tri) continue;
+        for (let k = 0; k < 3; k++) {
+          const u = tri[k],
+            v = tri[(k + 1) % 3];
+          if ((this.edgeFlags.get(edgeKey(u, v)) ?? 0) & EDGE_REQUIRED) continue;
+          if (this.flipEdge(u, v)) {
+            // 反転した辺が凸包の辺だったら、もう網の辺ではないので、印を消す
+            this.edgeFlags.delete(edgeKey(u, v));
+            progressed = true;
+            flips++;
+            break;
+          }
+        }
+      }
+      if (!progressed) break;
+    }
+    if (flips > 0) this.revision++;
+    return flips;
   }
 
   // ── 全部の数え直し（試験用。製品のコードは呼ばない） ──

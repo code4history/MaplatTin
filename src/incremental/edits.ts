@@ -194,6 +194,28 @@ export function crossed(
   return out;
 }
 
+/** 編集の関数に共通の指定。 */
+export interface EditOptions {
+  /**
+   * 帯を更新しなくてよい条件（§6.3）を見ない。当てた後に、呼び出し側が帯を差し替えること
+   * （`refreshBand`）。帯に触れる編集を、「点の編集」と「帯の差し替え」の 2 回の差し替えで当てるときに使う。
+   */
+  force?: boolean;
+}
+
+/** 帯を更新しなくてよい編集かを判定する。よければ、当てた後に呼ぶ関数を返す。 */
+function bandGate(
+  model: MeshModel,
+  changes: readonly BandChange[],
+  options?: EditOptions
+): (() => void) | undefined {
+  if (options?.force) return () => model.resetBand();
+  const band = model.band();
+  const totals = band?.keeps(model, changes);
+  if (!band || !totals) return undefined;
+  return () => band.commit(totals);
+}
+
 /** 範囲を差し替える。成り立たなければ 1 周ずつ広げる。 */
 function update(
   mesh: IncrementalMesh,
@@ -246,7 +268,8 @@ interface EdgeSpec {
 function reshape(
   model: MeshModel,
   specs: EdgeSpec[],
-  move?: { vertex: number; forw: Position; bakw: Position }
+  move?: { vertex: number; forw: Position; bakw: Position },
+  options?: EditOptions
 ): EditResult {
   const { mesh } = model;
   const at = (vertex: number) =>
@@ -338,9 +361,8 @@ function reshape(
   }
 
   // 帯を更新しなくてよい編集か（C1〜C7）
-  const band = model.band();
-  const totals = band?.keeps(model, changes);
-  if (!band || !totals) return fail("unsupported");
+  const commitBand = bandGate(model, changes, options);
+  if (!commitBand) return fail("unsupported");
 
   // 頂点と群を用意する（失敗したら戻す）
   const removedRefs = removed.map((vertex) => mesh.vertices.get(vertex)!.ref);
@@ -409,7 +431,7 @@ function reshape(
     }
     return result;
   }
-  band.commit(totals);
+  commitBand();
   for (const spec of specs) {
     const { edge } = spec;
     if (spec.drop) {
@@ -440,7 +462,8 @@ function reshape(
 export function movePoint(
   model: MeshModel,
   id: PointId,
-  to: { forw?: Position; bakw?: Position }
+  to: { forw?: Position; bakw?: Position },
+  options?: EditOptions
 ): EditResult {
   const { mesh } = model;
   const vertex = model.pointVertex.get(id);
@@ -463,11 +486,12 @@ export function movePoint(
       })
     );
   if (specs.length === 0 && samePosition(forw, current.forw)) {
-    const band = model.band();
-    const totals = band?.keeps(model, [
-      { vertex, to: { forw, bakw }, gcp: true, counted: true }
-    ]);
-    if (!band || !totals) return fail("unsupported");
+    const commitBand = bandGate(
+      model,
+      [{ vertex, to: { forw, bakw }, gcp: true, counted: true }],
+      options
+    );
+    if (!commitBand) return fail("unsupported");
     const star = mesh.star(vertex);
     if (star.size === 0) return fail("unsupported");
     const at = (v: number) =>
@@ -478,7 +502,7 @@ export function movePoint(
     });
     if (keeps) {
       mesh.relocate(vertex, forw, bakw);
-      band.commit(totals);
+      commitBand();
       return {
         ok: true,
         mode: "moved",
@@ -491,7 +515,7 @@ export function movePoint(
       };
     }
   }
-  return reshape(model, specs, { vertex, forw, bakw });
+  return reshape(model, specs, { vertex, forw, bakw }, options);
 }
 
 /** 対応点を足す。R0 は、点の空洞。 */
@@ -500,17 +524,19 @@ export function insertPoint(
   id: PointId,
   forw: Position,
   bakw: Position,
-  position?: number
+  position?: number,
+  options?: EditOptions
 ): EditResult {
   const { mesh } = model;
   if (model.pointVertex.has(id)) return fail("idInUse");
   const hint = mesh.triangles.keys().next().value;
   if (hint === undefined) return fail("unsupported");
-  const band = model.band();
-  const totals = band?.keeps(model, [
-    { to: { forw, bakw }, gcp: true, counted: true }
-  ]);
-  if (!band || !totals) return fail("unsupported");
+  const commitBand = bandGate(
+    model,
+    [{ to: { forw, bakw }, gcp: true, counted: true }],
+    options
+  );
+  if (!commitBand) return fail("unsupported");
   const found = locate(mesh, forw, hint);
   if (!found) return fail("pointOutside");
   const corners = mesh.triangles.get(found.triangle)!;
@@ -527,14 +553,18 @@ export function insertPoint(
     mesh.dropVertex(vertex);
     return result;
   }
-  band.commit(totals);
+  commitBand();
   model.gcps.splice(position ?? model.gcps.length, 0, vertex);
   model.pointVertex.set(id, vertex);
   return result;
 }
 
 /** 対応点を消す。R0 は、点の星。必須エッジの端点は、先に必須エッジを外すこと。 */
-export function removePoint(model: MeshModel, id: PointId): EditResult {
+export function removePoint(
+  model: MeshModel,
+  id: PointId,
+  options?: EditOptions
+): EditResult {
   const { mesh } = model;
   const vertex = model.pointVertex.get(id);
   if (vertex === undefined) return fail("unknownPoint");
@@ -547,9 +577,12 @@ export function removePoint(model: MeshModel, id: PointId): EditResult {
     )
   )
     return fail("unsupported");
-  const band = model.band();
-  const totals = band?.keeps(model, [{ vertex, gcp: true, counted: true }]);
-  if (!band || !totals) return fail("unsupported");
+  const commitBand = bandGate(
+    model,
+    [{ vertex, gcp: true, counted: true }],
+    options
+  );
+  if (!commitBand) return fail("unsupported");
   const star = mesh.star(vertex);
   if (star.size === 0) return fail("unsupported");
   const ref = mesh.vertices.get(vertex)!.ref;
@@ -560,7 +593,7 @@ export function removePoint(model: MeshModel, id: PointId): EditResult {
     { added: [], removed: [ref], moved: [] }
   );
   if (!result.ok) return result;
-  band.commit(totals);
+  commitBand();
   model.gcps.splice(model.gcps.indexOf(vertex), 1);
   model.pointVertex.delete(id);
   return result;
@@ -577,7 +610,8 @@ export function insertEdge(
   end: PointId,
   forwNodes: Position[] = [],
   bakwNodes: Position[] = [],
-  position?: number
+  position?: number,
+  options?: EditOptions
 ): EditResult {
   if (model.edges.some((edge) => edge.id === id)) return fail("idInUse");
   const from = model.pointVertex.get(start);
@@ -587,20 +621,30 @@ export function insertEdge(
   const edge: MeshEdge = {
     id, start: from, end: to, forwNodes: forwNodes.map(copyPosition), bakwNodes: bakwNodes.map(copyPosition), nodes: []
   };
-  const result = reshape(model, [
-    { edge, fresh: true, drop: false, forwNodes, bakwNodes }
-  ]);
+  const result = reshape(
+    model,
+    [{ edge, fresh: true, drop: false, forwNodes, bakwNodes }],
+    undefined,
+    options
+  );
   if (result.ok) model.edges.splice(position ?? model.edges.length, 0, edge);
   return result;
 }
 
 /** 必須エッジを外す。中継点は消える。R0 は、中継点の星（直線なら、辺の両側の 2 つの三角形）。 */
-export function removeEdge(model: MeshModel, id: EdgeId): EditResult {
+export function removeEdge(
+  model: MeshModel,
+  id: EdgeId,
+  options?: EditOptions
+): EditResult {
   const edge = model.edges.find((item) => item.id === id);
   if (!edge) return fail("unknownEdge");
-  const result = reshape(model, [
-    { edge, fresh: false, drop: true, forwNodes: [], bakwNodes: [] }
-  ]);
+  const result = reshape(
+    model,
+    [{ edge, fresh: false, drop: true, forwNodes: [], bakwNodes: [] }],
+    undefined,
+    options
+  );
   if (result.ok) model.edges.splice(model.edges.indexOf(edge), 1);
   return result;
 }
@@ -610,11 +654,15 @@ export function replaceEdgeNodes(
   model: MeshModel,
   id: EdgeId,
   forwNodes: Position[],
-  bakwNodes: Position[]
+  bakwNodes: Position[],
+  options?: EditOptions
 ): EditResult {
   const edge = model.edges.find((item) => item.id === id);
   if (!edge) return fail("unknownEdge");
-  return reshape(model, [
-    { edge, fresh: false, drop: false, forwNodes, bakwNodes }
-  ]);
+  return reshape(
+    model,
+    [{ edge, fresh: false, drop: false, forwNodes, bakwNodes }],
+    undefined,
+    options
+  );
 }

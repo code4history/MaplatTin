@@ -7,7 +7,7 @@
 
 // Main class exports
 export { Tin } from "./tin.ts";
-export type { CompiledWithSupplement, Options } from "./tin.ts";
+export type { CompiledWithSupplement, Options, RebuildDiagnostics } from "./tin.ts";
 export type {
   SupplementDiagnostics,
   SupplementPair,

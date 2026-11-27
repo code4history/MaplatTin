@@ -341,3 +341,161 @@ describe("applyEdits", () => {
 function applyLocally(tin: Tin, model: MeshModel, edit: TinEdit) {
   return applyToMesh(model, [edit], tin.yaxisMode === "follow");
 }
+
+describe("applyEdits: 帯に触れる編集（スイッチ incrementalBand）", () => {
+  it("凸包の頂点の削除・凸包の外への追加・凸包の頂点の移動を、帯の差し替えで局所に当てる", () => {
+    const options = mapOptions("fushimijo_maplat", "strict");
+    const tin = new Tin({ ...options, incremental: true, incrementalBand: true });
+    tin.updateTin();
+    const display = new DisplayMesh();
+    display.reset(tin.incrementalMesh!);
+    // 凸包の頂点（紙の面で x が最大の点）
+    const xs = options.points!.map(([forw]) => forw[0]);
+    const corner = xs.indexOf(Math.max(...xs));
+    const [cornerForw, cornerBakw] = options.points![corner];
+    const before = tin.getCompiled();
+    const expectBand = (patch: TinPatch) => {
+      expect(patch).toMatchObject({ mode: "local", strict_status: "strict", boundaryStale: false });
+      // 帯を差し替えたときは、重心と補助頂点の扇形の値が入る
+      expect(patch.centroid).toBeDefined();
+      expect(patch.verticesParams).toHaveLength(2);
+      display.apply(patch);
+      const model = tin.incrementalMesh!;
+      display.expectSame(model);
+      const compiled = tin.getCompiled();
+      expect(patch.centroid).toEqual({ forw: compiled.centroid_point![0], bakw: compiled.centroid_point![1] });
+      expect(patch.verticesParams).toEqual(compiled.vertices_params);
+      expect(compiled.vertices_points).toEqual(model.ring.map((v) => [model.mesh.vertices.get(v)!.forw, model.mesh.vertices.get(v)!.bakw]));
+      expect(model.mesh.audit()).toMatchObject({
+        bad: [], badMatches: true, indexMatches: true, nonManifoldEdges: 0, boundarySimple: true, missingRequired: 0, forbiddenBoundary: 0
+      });
+      return compiled;
+    };
+    // 1. 凸包の頂点を消す
+    const removed = expectBand(tin.applyEdits([{ type: "removePoint", id: corner }], 0));
+    expect(removed.points).toHaveLength(options.points!.length - 1);
+    expect(removed.centroid_point).not.toEqual(before.centroid_point);
+    // 2. 同じ位置（今は凸包の外）に、新しい id で足す
+    const added = expectBand(tin.applyEdits([{ type: "addPoint", id: 7_000, forw: cornerForw, bakw: cornerBakw }], 1));
+    expect(added.points.at(-1)).toEqual([cornerForw, cornerBakw]);
+    // 3. 凸包の頂点を、内へ動かす
+    const center = added.centroid_point!;
+    expectBand(
+      tin.applyEdits(
+        [{
+          type: "movePoint", id: 7_000,
+          forw: [cornerForw[0] + (center[0][0] - cornerForw[0]) * 0.05, cornerForw[1] + (center[0][1] - cornerForw[1]) * 0.05],
+          bakw: [cornerBakw[0] + (center[1][0] - cornerBakw[0]) * 0.05, cornerBakw[1] + (center[1][1] - cornerBakw[1]) * 0.05]
+        }],
+        2
+      )
+    );
+    // 書き出した compiled を読み直して、GCP が往復する
+    const reader = new Tin();
+    reader.setCompiled(JSON.parse(JSON.stringify(tin.getCompiled())));
+    for (const [forw, bakw] of tin.getCompiled().points) {
+      const out = reader.transform(forw, false) as Position;
+      expect(Math.hypot(out[0] - bakw[0], out[1] - bakw[1])).toBeLessThan(1e-6);
+    }
+    // 清書は、同じ入力を新しい Tin で組んだ結果と同じ
+    const expected = rebuilt(options, tin);
+    tin.updateTin();
+    expect(JSON.stringify(tin.getCompiled())).toBe(JSON.stringify(expected));
+  }, TIMEOUT);
+
+  it("乱数の編集 150 回（凸包の外・凸包の頂点を含む）: 差分だけで表示用の網を最新にでき、strict を保つ", () => {
+    for (const name of ["fushimijo_maplat", "tatebayashi_kaei_jokamachi"]) {
+      const options = mapOptions(name, "strict");
+      const tin = new Tin({ ...options, incremental: true, incrementalBand: true });
+      tin.updateTin();
+      const display = new DisplayMesh();
+      display.reset(tin.incrementalMesh!);
+      const rnd = random(11);
+      const counts = { local: 0, band: 0, full: 0 };
+      const reasons: Record<string, number> = {};
+      let nextPoint = 50_000;
+      for (let n = 0; n < 150; n++) {
+        const model = tin.incrementalMesh;
+        if (!model) break;
+        const inputs = model.inputs();
+        const xs = inputs.points.map(([forw]) => forw[0]);
+        const ys = inputs.points.map(([forw]) => forw[1]);
+        const [minx, maxx, miny, maxy] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+        const at = Math.floor(rnd() * inputs.points.length);
+        const [forw, bakw] = inputs.points[at];
+        const kind = Math.floor(rnd() * 4);
+        let edit: TinEdit;
+        if (kind === 0) {
+          // 両面を、同じ向きへ少し動かす
+          const dx = (rnd() - 0.5) * (maxx - minx) * 0.02, dy = (rnd() - 0.5) * (maxy - miny) * 0.02;
+          const neighbor = inputs.points[(at + 1) % inputs.points.length];
+          const scale = Math.hypot(neighbor[1][0] - bakw[0], neighbor[1][1] - bakw[1]) / (Math.hypot(neighbor[0][0] - forw[0], neighbor[0][1] - forw[1]) || 1);
+          edit = { type: "movePoint", id: inputs.pointIds[at], forw: [forw[0] + dx, forw[1] + dy], bakw: [bakw[0] + dx * scale, bakw[1] - dy * scale] };
+        } else if (kind === 1) {
+          edit = { type: "movePoint", id: inputs.pointIds[at], bakw: [bakw[0] + (rnd() - 0.5) * 8, bakw[1] + (rnd() - 0.5) * 8] };
+        } else if (kind === 2) {
+          // 外接矩形を 3% 広げた範囲に足す（凸包の外にも落ちる）。地理面は、その場の変換から少しずらす
+          const p: Position = [minx - 0.03 * (maxx - minx) + rnd() * 1.06 * (maxx - minx), miny - 0.03 * (maxy - miny) + rnd() * 1.06 * (maxy - miny)];
+          const q = tin.transform(p, false, true) as Position | false;
+          if (!q) continue;
+          edit = { type: "addPoint", id: nextPoint++, forw: p, bakw: [q[0] + (rnd() - 0.5) * 4, q[1] + (rnd() - 0.5) * 4] };
+        } else {
+          const used = new Set(inputs.edges.flatMap((edge) => edge[2]));
+          if (used.has(at) || inputs.points.length < 20) continue;
+          edit = { type: "removePoint", id: inputs.pointIds[at] };
+        }
+        const wasStrict = model.mesh.isStrict();
+        const patch = tin.applyEdits([edit]);
+        if (patch.mode === "local") {
+          if (patch.centroid) counts.band++;
+          else counts.local++;
+          expect(patch.boundaryStale).toBe(!patch.centroid && (patch.boundaryStale as boolean));
+          if (wasStrict) expect(patch.strict_status).toBe("strict");
+          display.apply(patch);
+        } else {
+          counts.full++;
+          reasons[patch.fallbackReason!] = (reasons[patch.fallbackReason!] ?? 0) + 1;
+          if (!tin.incrementalMesh) break;
+          display.reset(tin.incrementalMesh);
+        }
+        const now = tin.incrementalMesh!;
+        display.expectSame(now);
+        const audit = now.mesh.audit();
+        expect(audit, `${name} 編集 ${n}`).toMatchObject({ badMatches: true, indexMatches: true, nonManifoldEdges: 0, missingRequired: 0, forbiddenMatches: true });
+        expect(audit.boundarySimple, `${name} 編集 ${n}`).toBe(now.mesh.boundarySimple);
+        if (patch.mode === "local" && wasStrict) expect(audit.bad, `${name} 編集 ${n}`).toEqual([]);
+      }
+      console.info(`[帯] ${name} 150 回: 局所（帯は前のまま）${counts.local}・局所（帯を差し替え）${counts.band}・全部組み直し ${counts.full}（理由 ${JSON.stringify(reasons)}）`);
+      expect(counts.band).toBeGreaterThan(10);
+      // T5: 清書は、同じ入力を新しい Tin で組んだ結果と同じ
+      const expected = rebuilt(options, tin);
+      tin.updateTin();
+      expect(JSON.stringify(tin.getCompiled())).toBe(JSON.stringify(expected));
+    }
+  }, TIMEOUT * 2);
+
+  it("帯の差し替えが成り立たない編集は、全部組み直しへ落ちる（bandFailed）", () => {
+    const options = mapOptions("fushimijo_maplat", "strict");
+    const tin = new Tin({ ...options, incremental: true, incrementalBand: true });
+    tin.updateTin();
+    // 紙の面で x が最小の点を消すと、どの余白でも、新しい帯が strict にならない
+    const xs = options.points!.map(([forw]) => forw[0]);
+    const corner = xs.indexOf(Math.min(...xs));
+    const patch = tin.applyEdits([{ type: "removePoint", id: corner }]);
+    expect(patch).toMatchObject({ revision: 1, mode: "full", fallbackReason: "bandFailed", boundaryStale: false });
+    const fresh = new Tin({ ...options, points: options.points!.filter((_, i) => i !== corner) });
+    fresh.updateTin();
+    expect(digest(tin.getCompiled())).toBe(digest(fresh.getCompiled()));
+    expect(patch.strict_status).toBe(fresh.strict_status);
+  }, TIMEOUT);
+
+  it("スイッチが切れていれば、帯に触れる編集は全部組み直しへ落ちる", () => {
+    const options = mapOptions("kaisei_hiroshima_jissoku_sub1", "strict");
+    const tin = new Tin({ ...options, incremental: true });
+    tin.updateTin();
+    const xs = options.points!.map(([forw]) => forw[0]);
+    const patch = tin.applyEdits([{ type: "removePoint", id: xs.indexOf(Math.min(...xs)) }]);
+    expect(patch).toMatchObject({ mode: "full", fallbackReason: "unsupported" });
+    expect(patch.centroid).toBeUndefined();
+  }, TIMEOUT);
+});

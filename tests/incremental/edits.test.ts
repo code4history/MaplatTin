@@ -458,8 +458,8 @@ describe("T4: 落ちる経路", () => {
     const { mesh } = model;
     const before = JSON.stringify(model.toCompiled());
     const ids = [...mesh.triangles.keys()];
-    // 離れた 2 つの三角形（円板でない）
-    expect(mesh.replace(new Set([ids[0], ids[ids.length - 1]]))).toEqual({ ok: false, reason: "notDisk" });
+    // 三角形が 1 つも無い範囲
+    expect(mesh.replace(new Set())).toEqual({ ok: false, reason: "notDisk" });
     // 網の 20% を超える範囲
     expect(mesh.replace(new Set(ids))).toEqual({ ok: false, reason: "tooLarge" });
     // 輪の頂点は動かせない
@@ -480,6 +480,18 @@ describe("T4: 落ちる経路", () => {
     expect(mesh.triangles.size).toBe(ids.length);
     expect(mesh.isStrict()).toBe(true);
     expect(mesh.audit()).toMatchObject({ bad: [], badMatches: true, indexMatches: true, nonManifoldEdges: 0 });
+    // 円板でない範囲（離れた 2 つの三角形・穴のある範囲）も、固定する辺の内側だけを組み直す
+    const now = [...mesh.triangles.keys()];
+    expect(mesh.replace(new Set([now[0], now[now.length - 1]])).ok).toBe(true);
+    const ringOnly = mesh.grow(mesh.star(vertex));
+    for (const t of mesh.star(vertex)) ringOnly.delete(t);
+    const area = mesh.audit().forwArea;
+    expect(mesh.replace(ringOnly).ok).toBe(true);
+    expect(mesh.triangles.size).toBe(ids.length);
+    expect(mesh.isStrict()).toBe(true);
+    const after = mesh.audit();
+    expect(after).toMatchObject({ bad: [], badMatches: true, indexMatches: true, nonManifoldEdges: 0 });
+    expect(Math.abs(after.forwArea - area) / area).toBeLessThan(1e-12);
   }, TIMEOUT);
 });
 
@@ -506,7 +518,7 @@ describe("網は、呼び出し側の座標の配列を持ち続けない（#103
     // 書き出した compiled・入力を書き換える
     const compiled = model.toCompiled();
     compiled.points[100][0][0] += 123;
-    compiled.centroid_point[0][0] += 123;
+    compiled.centroid_point![0][0] += 123;
     compiled.vertices_points[0][1][1] += 123;
     model.inputs().points[50][1][0] += 123;
     expect(mesh.isStrict()).toBe(true);

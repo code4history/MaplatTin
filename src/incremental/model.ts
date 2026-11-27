@@ -105,6 +105,26 @@ export class MeshModel {
     return this.bandStats;
   }
 
+  /** 帯の判定のための量を捨てる（帯・凸包が変わったとき。次に要るときに作り直す）。 */
+  resetBand(): void {
+    this.bandStats = undefined;
+  }
+
+  /** 補助頂点の扇形の角度（compiled の `vertices_params`。紙の面・地理面）。world file 外周では undefined。 */
+  verticesParams(): number[][] | undefined {
+    const centroid = this.centroid;
+    if (!centroid) return undefined;
+    return (["forw", "bakw"] as const).map((plane) =>
+      this.ring.map((vertex) => {
+        const coord = this.mesh.vertices.get(vertex)![plane];
+        return Math.atan2(
+          coord[0] - centroid[plane][0],
+          coord[1] - centroid[plane][1]
+        );
+      })
+    );
+  }
+
   /** 対応点と必須エッジ（`setPoints`・`setEdges` に入れる形。座標は内部の座標系）と、その id の並び。 */
   inputs(): {
     points: PointSet[];
@@ -182,15 +202,7 @@ export class MeshModel {
         copyPosition(centroid.bakw)
       ];
       // 網の b{n} の座標・vertices_points・vertices_params は、必ず同じ帯から書く
-      compiled.vertices_params = (["forw", "bakw"] as const).map((plane) =>
-        this.ring.map((vertex) => {
-          const coord = at(vertex)[plane];
-          return Math.atan2(
-            coord[0] - centroid[plane][0],
-            coord[1] - centroid[plane][1]
-          );
-        })
-      );
+      compiled.vertices_params = this.verticesParams();
       compiled.vertices_points = verticesPoints;
     }
     // 編集するまでは、取り込んだときの状態を書く。編集した後は、網の不変条件で読む

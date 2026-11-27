@@ -2,7 +2,8 @@
  * 編集の列を、入力（対応点・必須エッジ）と、局所更新の網に当てる（MaplatTin#100 の第 2 段 a。設計書 §9.2）。
  */
 import type { Position } from "geojson";
-import type { EdgeSet, PointSet } from "@maplat/transform";
+import type { EdgeSet, PointSet, VertexMode } from "@maplat/transform";
+import { refreshBand } from "./band-refresh.ts";
 import {
   insertEdge,
   insertPoint,
@@ -11,6 +12,7 @@ import {
   removePoint,
   replaceEdgeNodes,
   type EditFailure,
+  type EditOptions,
   type EditResult
 } from "./edits.ts";
 import type { EdgeId, PointId, VertexRef } from "./mesh.ts";
@@ -155,12 +157,18 @@ const fallbackOf = (reason: EditFailure): TinPatchFallback =>
  *
  * 編集 1 つは、それに関わる必須エッジの区間と中継点を、1 回の差し替えで同時に張り替える（途中の状態を
  * 網にしない）。編集どうしは、順に当てる（どの時点の網も、その時点までの入力の strict な網である）。
+ *
+ * `band` を渡すと、帯（補助頂点・重心）に触れる編集も当てる: 点の編集を当てた後に、帯を 1 回差し替える。
+ * 帯の差し替えが成り立たなければ "bandFailed"・"bandNotAnnulus" を返す。
  */
 export function applyToMesh(
   model: MeshModel,
   edits: readonly TinEdit[],
-  follow: boolean
-): { ok: true; patch: Omit<TinPatch, "revision" | "mode" | "boundaryStale"> } | { ok: false; reason: TinPatchFallback } {
+  follow: boolean,
+  band?: { vertexMode: VertexMode | undefined }
+):
+  | { ok: true; patch: Omit<TinPatch, "revision" | "mode" | "boundaryStale">; refreshed: boolean }
+  | { ok: false; reason: TinPatchFallback } {
   const { mesh } = model;
   const badBefore = [...mesh.bad].sort((a, b) => a - b);
   const removedTriangles = new Set<number>();
@@ -169,30 +177,34 @@ export function applyToMesh(
   const removedRefs = new Map<string, VertexRef>();
   const addedVertices = new Set<number>();
   const movedVertices = new Set<number>();
-  for (const edit of edits) {
-    let result: EditResult;
+  const run = (edit: TinEdit, options?: EditOptions): EditResult => {
     switch (edit.type) {
       case "addPoint":
-        result = insertPoint(model, edit.id, edit.forw, inward(edit.bakw, follow), edit.position);
-        break;
+        return insertPoint(model, edit.id, edit.forw, inward(edit.bakw, follow), edit.position, options);
       case "removePoint":
-        result = removePoint(model, edit.id);
-        break;
+        return removePoint(model, edit.id, options);
       case "movePoint":
-        result = movePoint(model, edit.id, {
-          forw: edit.forw,
-          bakw: edit.bakw ? inward(edit.bakw, follow) : undefined
-        });
-        break;
+        return movePoint(
+          model,
+          edit.id,
+          { forw: edit.forw, bakw: edit.bakw ? inward(edit.bakw, follow) : undefined },
+          options
+        );
       case "addEdge":
-        result = insertEdge(model, edit.id, edit.start, edit.end, edit.forwNodes, edit.bakwNodes, edit.position);
-        break;
+        return insertEdge(model, edit.id, edit.start, edit.end, edit.forwNodes, edit.bakwNodes, edit.position, options);
       case "removeEdge":
-        result = removeEdge(model, edit.id);
-        break;
+        return removeEdge(model, edit.id, options);
       case "replaceEdgeNodes":
-        result = replaceEdgeNodes(model, edit.id, edit.forwNodes, edit.bakwNodes);
-        break;
+        return replaceEdgeNodes(model, edit.id, edit.forwNodes, edit.bakwNodes, options);
+    }
+  };
+  // 帯に触れる編集を当てたら、最後に帯を差し替える
+  let needsBand = false;
+  for (const edit of edits) {
+    let result = run(edit);
+    if (!result.ok && result.reason === "unsupported" && band && model.centroid) {
+      result = run(edit, { force: true });
+      if (result.ok) needsBand = true;
     }
     if (!result.ok) return { ok: false, reason: fallbackOf(result.reason) };
     for (const id of result.removed) {
@@ -202,6 +214,16 @@ export function applyToMesh(
     for (const ref of result.vertices.removed) removedRefs.set(refKey(ref), ref);
     for (const vertex of result.vertices.added) addedVertices.add(vertex);
     for (const vertex of result.vertices.moved) movedVertices.add(vertex);
+  }
+  if (needsBand) {
+    const refreshed = refreshBand(model, band!.vertexMode);
+    if (!refreshed.ok) return { ok: false, reason: refreshed.reason };
+    for (const id of refreshed.removed) {
+      if (!addedTriangles.delete(id)) removedTriangles.add(id);
+    }
+    for (const id of refreshed.added) addedTriangles.add(id);
+    for (const ref of refreshed.removedVertices) removedRefs.set(refKey(ref), ref);
+    for (const vertex of refreshed.addedVertices) addedVertices.add(vertex);
   }
 
   // 頂点の差分。同じ指し方（VertexRef）で消えて増えた頂点は、座標が変わった頂点として返す
@@ -250,8 +272,16 @@ export function applyToMesh(
   const badChanged = badAfter.length !== badBefore.length || badAfter.some((id, i) => id !== badBefore[i]);
   return {
     ok: true,
+    refreshed: needsBand,
     patch: {
       strict_status: mesh.isStrict() ? "strict" : "strict_error",
+      // 帯を差し替えたときだけ、重心と補助頂点の扇形の値を入れる
+      ...(needsBand && model.centroid
+        ? {
+            centroid: { forw: [...model.centroid.forw], bakw: [...model.centroid.bakw] },
+            verticesParams: model.verticesParams()
+          }
+        : {}),
       ...(moved.size > 0 ? { movedVertices: [...moved.values()] } : {}),
       ...(removedRefs.size > 0 ? { removedVertices: [...removedRefs.values()] } : {}),
       ...(added.length > 0 ? { addedVertices: added } : {}),
