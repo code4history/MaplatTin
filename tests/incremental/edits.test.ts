@@ -482,3 +482,73 @@ describe("T4: 落ちる経路", () => {
     expect(mesh.audit()).toMatchObject({ bad: [], badMatches: true, indexMatches: true, nonManifoldEdges: 0 });
   }, TIMEOUT);
 });
+
+describe("網は、呼び出し側の座標の配列を持ち続けない（#103 レビュー M-1 ほか）", () => {
+  const inner = (model: MeshModel, v: number) =>
+    [...model.mesh.byVertex.get(v)!].every((t) =>
+      model.mesh.triangles.get(t)!.every((u) => model.mesh.vertices.get(u)!.ref.kind === "gcp")
+    );
+
+  it("取り込んだ後に、入力の配列・書き出した compiled を書き換えても、網は変わらない", () => {
+    const options = mapOptions("fushimijo_maplat", "strict");
+    const points = options.points!.map(([forw, bakw]) => [[...forw], [...bakw]]) as NonNullable<typeof options.points>;
+    const tin = new Tin({ ...options, points, incremental: true });
+    tin.updateTin();
+    const model = tin.incrementalMesh!;
+    const { mesh } = model;
+    const vertex = mesh.vertices.get(model.gcps[100])!;
+    expect(vertex.forw).not.toBe(points[100][0]);
+    expect(vertex.bakw).not.toBe(points[100][1]);
+    const before = JSON.stringify(model.toCompiled());
+    // 呼び出し側が、自分の配列をその場で書き換える（setPoints を呼ばない）
+    points[100][1][0] += 5000;
+    points[100][1][1] += 5000;
+    // 書き出した compiled・入力を書き換える
+    const compiled = model.toCompiled();
+    compiled.points[100][0][0] += 123;
+    compiled.centroid_point[0][0] += 123;
+    compiled.vertices_points[0][1][1] += 123;
+    model.inputs().points[50][1][0] += 123;
+    expect(mesh.isStrict()).toBe(true);
+    expect(mesh.audit().bad).toEqual([]);
+    expect(JSON.stringify(model.toCompiled())).toBe(before);
+  }, TIMEOUT);
+
+  it("編集に渡した配列を後で書き換えても、網は変わらない。失敗した追加は、頂点の採番を進めない", () => {
+    const model = build("fushimijo_maplat");
+    const { mesh } = model;
+    const vertex = model.gcps.find((v) => inner(model, v) && model.band()!.keeps(model, [{ vertex: v, gcp: true, counted: true }]))!;
+    const id = (mesh.vertices.get(vertex)!.ref as { id: number }).id;
+    const { forw, bakw } = mesh.vertices.get(vertex)!;
+    const to: Position = [forw[0] + 0.5, forw[1] + 0.5];
+    const toBakw: Position = [bakw[0] + 0.25, bakw[1] + 0.25];
+    expect(movePoint(model, id, { forw: to, bakw: toBakw }).ok).toBe(true);
+    to[0] += 1e6;
+    toBakw[1] += 1e6;
+    expect(mesh.vertices.get(vertex)!.forw).toEqual([forw[0] + 0.5, forw[1] + 0.5]);
+    expect(mesh.vertices.get(vertex)!.bakw).toEqual([bakw[0] + 0.25, bakw[1] + 0.25]);
+    expect(mesh.audit().bad).toEqual([]);
+    // 折れ点の配列も同じ
+    const neighbor = [...mesh.byVertex.get(vertex)!].flatMap((t) => mesh.triangles.get(t)!).find((u) => u !== vertex)!;
+    const mid = mesh.vertices.get(neighbor)!.forw.map((x, i) => (x + mesh.vertices.get(vertex)!.forw[i]) / 2);
+    const nodes: Position[] = [[mid[0] + 0.01, mid[1] + 0.01]];
+    const added = insertEdge(model, 77, id, (mesh.vertices.get(neighbor)!.ref as { id: number }).id, nodes, []);
+    if (added.ok) {
+      nodes[0][0] += 1e6;
+      expect(model.toCompiled().edges!.at(-1)![0]).toEqual([[mid[0] + 0.01, mid[1] + 0.01]]);
+    }
+
+    // ほかの頂点と同じ位置への移動・追加は "duplicate"。網も、頂点の採番も変わらない
+    const state = () => JSON.stringify([[...mesh.vertices], [...mesh.triangles], (mesh as unknown as { nextVertex: number }).nextVertex, mesh.revision]);
+    const before = state();
+    const other = mesh.vertices.get(neighbor)!;
+    const far = model.gcps.find((v) => v !== vertex && v !== neighbor && inner(model, v) && !mesh.hasEdge(v, neighbor))!;
+    expect(movePoint(model, (mesh.vertices.get(far)!.ref as { id: number }).id, { forw: [...other.forw] })).toEqual({ ok: false, reason: "duplicate" });
+    expect(insertPoint(model, 9_000_000, [...other.forw], [...other.bakw])).toEqual({ ok: false, reason: "duplicate" });
+    // 有限でない座標は採らない
+    expect(movePoint(model, id, { bakw: [NaN, NaN] }).ok).toBe(false);
+    expect(movePoint(model, id, { forw: [NaN, 0] }).ok).toBe(false);
+    expect(insertPoint(model, 9_000_001, [other.forw[0] + 3, other.forw[1] + 3], [NaN, 0]).ok).toBe(false);
+    expect(state()).toBe(before);
+  }, TIMEOUT);
+});

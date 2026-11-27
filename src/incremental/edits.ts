@@ -17,6 +17,7 @@ import { intersectSegments } from "../edgebound/base.ts";
 import { interpolateEdgeNodes } from "../edge-nodes.ts";
 import type { BandChange } from "./band.ts";
 import {
+  copyPosition,
   EDGE_HULL,
   EDGE_REQUIRED,
   edgeGroupOf,
@@ -266,10 +267,30 @@ function reshape(
     if (!samePosition(move.forw, current.forw)) {
       const found = locate(mesh, move.forw, star.values().next().value as number);
       if (!found) return fail("pointOutside");
+      // ほかの頂点と同じ位置へは動かせない
+      if (
+        mesh.triangles
+          .get(found.triangle)!
+          .some((v) => v !== move.vertex && samePosition(mesh.vertices.get(v)!.forw, move.forw))
+      )
+        return fail("duplicate");
       if (!star.has(found.triangle)) {
         for (const t of found.path) seeds.add(t);
         for (const t of cavity(mesh, move.forw, found.triangle)) seeds.add(t);
       }
+    }
+  }
+
+  // 動かす点に付く、中継点の無い必須エッジ: 新しい線分が触れる三角形を R0 に入れる（§4.4）
+  if (move) {
+    const retied = new Set(specs.map((spec) => spec.edge));
+    for (const edge of model.edges) {
+      if (retied.has(edge) || edge.nodes.length > 0) continue;
+      if (edge.start !== move.vertex && edge.end !== move.vertex) continue;
+      const other = edge.start === move.vertex ? edge.end : edge.start;
+      const touched = crossed(mesh, mesh.vertices.get(other)!.forw, move.forw, hint);
+      if (!touched) return fail("pointOutside");
+      for (const t of touched) seeds.add(t);
     }
   }
 
@@ -301,6 +322,9 @@ function reshape(
       : [];
     // 折れ点があるのに中継点が 1 つも作れない入力は、全部組み直しでも必須エッジにならない。局所では扱わない
     if (hasNodes && nodes.length === 0) return fail("unsupported");
+    // 折れ点は写して持つ（呼び出し側の配列を、網の中で持ち続けない）
+    spec.forwNodes = spec.forwNodes.map(copyPosition);
+    spec.bakwNodes = spec.bakwNodes.map(copyPosition);
     layouts.push({ spec, nodes });
     for (const [forw, bakw] of nodes) {
       changes.push({ to: { forw, bakw }, gcp: false, counted: true });
@@ -422,8 +446,8 @@ export function movePoint(
   const vertex = model.pointVertex.get(id);
   if (vertex === undefined) return fail("unknownPoint");
   const current = mesh.vertices.get(vertex)!;
-  const forw = to.forw ?? current.forw;
-  const bakw = to.bakw ?? current.bakw;
+  const forw = copyPosition(to.forw ?? current.forw);
+  const bakw = copyPosition(to.bakw ?? current.bakw);
   const attached = model.edges.filter(
     (edge) => edge.start === vertex || edge.end === vertex
   );
@@ -560,7 +584,9 @@ export function insertEdge(
   const to = model.pointVertex.get(end);
   if (from === undefined || to === undefined || from === to)
     return fail("unknownPoint");
-  const edge: MeshEdge = { id, start: from, end: to, forwNodes, bakwNodes, nodes: [] };
+  const edge: MeshEdge = {
+    id, start: from, end: to, forwNodes: forwNodes.map(copyPosition), bakwNodes: bakwNodes.map(copyPosition), nodes: []
+  };
   const result = reshape(model, [
     { edge, fresh: true, drop: false, forwNodes, bakwNodes }
   ]);

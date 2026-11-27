@@ -125,6 +125,12 @@ export interface MeshAudit {
   forwArea: number;
 }
 
+/** 座標を写す（呼び出し側の配列を、網の中で持ち続けない）。 */
+export const copyPosition = (position: Position): Position => [
+  position[0],
+  position[1]
+];
+
 const KEY_BASE = 2 ** 26;
 
 /** 辺の鍵（向きによらない）。 */
@@ -268,7 +274,12 @@ export class IncrementalMesh {
     groups: number[] = []
   ): number {
     const id = this.nextVertex++;
-    this.vertices.set(id, { ref, forw, bakw, groups });
+    this.vertices.set(id, {
+      ref,
+      forw: copyPosition(forw),
+      bakw: copyPosition(bakw),
+      groups
+    });
     this.byVertex.set(id, new Set());
     return id;
   }
@@ -280,6 +291,8 @@ export class IncrementalMesh {
     }
     this.vertices.delete(id);
     this.byVertex.delete(id);
+    // 足したばかりの頂点（失敗した編集の取り消し）なら、採番を戻す
+    if (id === this.nextVertex - 1) this.nextVertex--;
   }
 
   addTriangle(a: number, b: number, c: number): number {
@@ -638,8 +651,8 @@ export class IncrementalMesh {
       (_before, after) => (after.every(good) ? [] : undefined),
       locked
     );
-    for (const t of patch.triangles)
-      if (!this.okNew(t[0], t[1], t[2], at)) return fail("notStrict");
+    // 紙の面の向き（裏返りが無いこと）も、積ではなく直接見る
+    for (const t of patch.triangles) if (!good(t)) return fail("notStrict");
 
     // 6. 禁止制約の三角形が増えていないか（S4。群の表を引いて数える）。増えたら、違反の三角形の所だけ直す
     let before = 0;
@@ -674,8 +687,8 @@ export class IncrementalMesh {
     // 8. 差し替える
     for (const [v, position] of edit.move ?? []) {
       const vertex = this.vertices.get(v)!;
-      vertex.forw = position.forw;
-      vertex.bakw = position.bakw;
+      vertex.forw = copyPosition(position.forw);
+      vertex.bakw = copyPosition(position.bakw);
     }
     const removedIds = [...range];
     for (const id of removedIds) this.removeTriangle(id);
@@ -824,8 +837,8 @@ export class IncrementalMesh {
    */
   relocate(vertex: number, forw: Position, bakw: Position): void {
     const target = this.vertices.get(vertex)!;
-    target.forw = forw;
-    target.bakw = bakw;
+    target.forw = copyPosition(forw);
+    target.bakw = copyPosition(bakw);
     for (const id of this.byVertex.get(vertex)!) {
       const [a, b, c] = this.triangles.get(id)!;
       if (this.ok(a, b, c)) this.bad.delete(id);

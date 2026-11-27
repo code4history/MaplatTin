@@ -13,6 +13,7 @@ import type { SupplementPairRecord } from "../supplement-pairs.ts";
 import type { CompiledWithSupplement } from "../tin.ts";
 import {
   BOUNDARY_GROUP,
+  copyPosition,
   EDGE_HULL,
   EDGE_REQUIRED,
   edgeGroupOf,
@@ -114,10 +115,13 @@ export class MeshModel {
     const at = (vertex: number) => this.mesh.vertices.get(vertex)!;
     const index = new Map(this.gcps.map((vertex, i) => [vertex, i]));
     return {
-      points: this.gcps.map((vertex) => [at(vertex).forw, at(vertex).bakw]),
+      points: this.gcps.map((vertex) => [
+        copyPosition(at(vertex).forw),
+        copyPosition(at(vertex).bakw)
+      ]),
       edges: this.edges.map((edge) => [
-        edge.forwNodes,
-        edge.bakwNodes,
+        edge.forwNodes.map(copyPosition),
+        edge.bakwNodes.map(copyPosition),
         [index.get(edge.start)!, index.get(edge.end)!]
       ]),
       pointIds: this.gcps.map(
@@ -156,9 +160,10 @@ export class MeshModel {
   toCompiled(): CompiledWithSupplement {
     const { mesh, context } = this;
     const at = (vertex: number) => mesh.vertices.get(vertex)!;
+    // 座標は写しを返す（返した compiled を書き換えても、網は変わらない）
     const pair = (vertex: number): PointSet => [
-      at(vertex).forw,
-      at(vertex).bakw
+      copyPosition(at(vertex).forw),
+      copyPosition(at(vertex).bakw)
     ];
     const index = this.indexTable();
     const compiled = {} as Record<string, unknown>;
@@ -172,7 +177,10 @@ export class MeshModel {
       compiled.vertices_points = verticesPoints;
     } else {
       const centroid = this.centroid!;
-      compiled.centroid_point = [centroid.forw, centroid.bakw];
+      compiled.centroid_point = [
+        copyPosition(centroid.forw),
+        copyPosition(centroid.bakw)
+      ];
       // 網の b{n} の座標・vertices_points・vertices_params は、必ず同じ帯から書く
       compiled.vertices_params = (["forw", "bakw"] as const).map((plane) =>
         this.ring.map((vertex) => {
@@ -215,8 +223,8 @@ export class MeshModel {
     }
     compiled.edges = this.edges.map(
       (edge): EdgeSet => [
-        edge.forwNodes,
-        edge.bakwNodes,
+        edge.forwNodes.map(copyPosition),
+        edge.bakwNodes.map(copyPosition),
         [index.get(edge.start) as number, index.get(edge.end) as number]
       ]
     );
@@ -334,8 +342,8 @@ export function meshFromCompiled(
       id: ids.edges?.[i] ?? i,
       start: byIndex.get(start)!,
       end: byIndex.get(end)!,
-      forwNodes,
-      bakwNodes,
+      forwNodes: forwNodes.map(copyPosition),
+      bakwNodes: bakwNodes.map(copyPosition),
       nodes: []
     })
   );
@@ -408,8 +416,8 @@ export function meshFromCompiled(
   }
   if (compiled.centroid_point) {
     model.centroid = {
-      forw: compiled.centroid_point[0],
-      bakw: compiled.centroid_point[1]
+      forw: copyPosition(compiled.centroid_point[0]),
+      bakw: copyPosition(compiled.centroid_point[1])
     };
   } else if (outerKind !== "worldFile") return { reason: "inconsistent" };
 
