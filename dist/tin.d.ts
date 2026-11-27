@@ -1,5 +1,5 @@
 import { Feature, Point, Position } from 'geojson';
-import { Transform, CompiledLegacy, CompiledTransformData, Edge, EdgeSet, EdgeSetLegacy, PointSet, StrictMode, VertexMode, WorldFile, YaxisMode } from '@maplat/transform';
+import { Transform, CompiledLegacy, CompiledTransformData, Edge, EdgeSet, EdgeSetLegacy, PointSet, StrictMode, StrictStatus, VertexMode, WorldFile, YaxisMode } from '@maplat/transform';
 import { BoundaryDiagnostics } from "./boundary-search.js";
 import { SupplementDiagnostics, SupplementPair, SupplementPairRecord } from "./supplement-pairs.js";
 import { PointsSetBD } from "./types/tin.js";
@@ -10,7 +10,64 @@ export declare const FORMAT_VERSION_V3 = 3.00001;
 /** 補完点の一覧を持つ compiled（Transform の型には無い項目。読み手は無視してよい）。 */
 export type CompiledWithSupplement = CompiledTransformData & {
     supplementPairs?: SupplementPairRecord[];
+    /**
+     * 無ければ、全部組み直し（清書）の産物。`"incremental"` は、局所更新の網をそのまま保存した特例
+     * （同じ対応点から全部を組み直すと、同じ三角網にならない。MaplatTin#100・設計書 §9.5）。
+     * 読み手（MaplatTransform・MaplatCore）は無視してよい。
+     */
+    meshOrigin?: "incremental";
 };
+/** `Tin#restoreMesh` が網を戻せなかった理由。 */
+export type RestoreFailure = ImportFailure
+/** 局所更新のスイッチ（`Options#incremental`）が切れている */
+ | "disabled"
+/** 渡された対応点・必須エッジが、compiled と合わない */
+ | "inputMismatch"
+/** compiled の中継点・補完点が、対応点と必須エッジから作り直したものと合わない */
+ | "edgeNodes"
+/** ok でない三角形がある（S1） */
+ | "notStrict"
+/** 網の外周が、両面で単純な 1 本の輪でない（S2） */
+ | "boundary"
+/** 必須エッジが、網の辺に無い（S3） */
+ | "requiredEdge"
+/** 補助頂点 3 点だけの三角形がある */
+ | "forbidden"
+/** 補助頂点の扇形の角度が、補助頂点と重心から計算し直した値と合わない */
+ | "verticesParams";
+/** 局所更新の網を保存してよいかの証拠（設計書 §9.5 の条件 (a)(b) と、診断 (d)）。 */
+export interface IncrementalEvidence {
+    /** 条件を全部満たす（`compiled` を、特例として保存してよい） */
+    eligible: boolean;
+    /** 満たさなかった条件（`eligible` が true なら空） */
+    failed: ("noMesh" | "boundaryStale" | "badTriangles" | "boundary" | "requiredEdge" | "boundaryOnlyTriangles" | "gcpRoundTrip" | "sweepKinks")[];
+    /** (a) 帯（補助頂点・重心）が最新か */
+    boundaryFresh: boolean;
+    /** (a) S1: ok でない三角形の数（網の全部を数え直した値。0 が条件） */
+    badTriangles: number;
+    /** (a) S2: 網の外周が、両面で単純な 1 本の輪か */
+    boundarySimple: boolean;
+    /** (a) S3: 網の辺に無い必須エッジの区間の数（0 が条件） */
+    missingRequiredEdges: number;
+    /** (a) S4: 補助頂点 3 点だけの三角形の数（0 が条件） */
+    boundaryOnlyTriangles: number;
+    /** (a)(d) 同じ必須エッジの点だけの三角形の数（残っていても保存はする） */
+    remainingForbiddenTriangles: number;
+    /** (b) 書き出した compiled を Transform で読み直したときの、対応点の往復の誤差の最大（紙 → 地理・地理 → 紙） */
+    gcpRoundTrip: {
+        forward: number;
+        backward: number;
+    };
+    /** (b)(d) 書き出した網へ、今の交差の数え上げを 1 件まで走らせた結果（両面の合計。0 が条件） */
+    sweepKinks: number;
+    /** (d) 最後の全部組み直し・復元から重ねた、局所更新の回数 */
+    editsSinceRebuild: number;
+    /** (d) 同じ入力を全部組み直したときの状態と交差の件数（呼び出し側が渡した値） */
+    rebuildStatus?: StrictStatus;
+    rebuildKinks?: number;
+    /** 特例として保存する compiled（`meshOrigin: "incremental"` つき）。`eligible` のときだけ */
+    compiled?: CompiledWithSupplement;
+}
 /** `incrementalRebuild` を入れた `updateTin()` の、試行の内訳。 */
 export interface RebuildDiagnostics {
     /** 今の手順（全部を組む）で組んだ試行の数 */
@@ -113,6 +170,15 @@ export declare class Tin extends Transform {
     private meshAhead;
     /** 補助頂点・重心が最新でない（局所更新を当てた後、清書か帯の差し替えをするまで）。 */
     private bandStale;
+    /** 今の三角網が、局所更新の網をそのまま保存した特例（`meshOrigin: "incremental"`）から来ているか。 */
+    private originIncremental;
+    /** 最後の全部組み直し・復元から重ねた、局所更新の回数。 */
+    private localEdits;
+    /**
+     * 今の三角網の出どころ。`"incremental"` は、局所更新の網をそのまま保存した特例（読み込んだ compiled に
+     * 印があった）。全部組み直す（`updateTin()`）と、印は外れる。
+     */
+    get meshOrigin(): "incremental" | undefined;
     /**
      * 局所更新の網（今の三角網を取り込んだもの）。スイッチが切れている・三角網が無い・取り込めない網
      * （loose・V2 など。理由は `incrementalFailure`）のときは undefined。
@@ -188,6 +254,56 @@ export declare class Tin extends Transform {
     getCompiled(): CompiledWithSupplement;
     /** コンパイルされた設定を基底クラスで復元し、外周方式を次の生成にも引き継ぐ。 */
     setCompiled(compiled: CompiledTransformData | CompiledLegacy): void;
+    /**
+     * 保存した compiled から、三角網と局所更新の網を戻す（MaplatTin#100。設計書 §9.5 (c)）。三角形分割はしない。
+     *
+     * 局所更新の網をそのまま保存した特例（`meshOrigin: "incremental"`）の地図は、`updateTin()` で開くと、
+     * 清書と同じ strict_error に戻る。この口で開けば、保存した strict な網から、局所更新を続けられる。
+     * 印の無い（全部組み直しの）compiled も、同じように戻せる（`updateTin()` を待たずに編集を始められる）。
+     *
+     * 戻すのは、対応点・必須エッジ・中継点と補完点（中継点がどの必須エッジの何番目か）・三角形・補助頂点・
+     * 重心・補助頂点の扇形。凸包の辺の印は、内側の点の紙の面の凸包の辺のうち、網の辺にあるものに付け直す。
+     * 戻した網で、S1（全部の三角形が ok）・S2（外周が両面で単純）・S3（必須エッジが全部ある）と、
+     * 補助頂点 3 点だけの三角形が無いことを、全部を数えて確かめる。
+     *
+     * 失敗したとき（理由を返す）は、`setCompiled(compiled)` をした状態（変換はできる）で、網は持たない。
+     * 呼び出し側は、対応点と必須エッジを入れ直して `updateTin()` すること。
+     *
+     * @param compiled 保存した compiled（座標は内部の座標系。follow では地理面の Y が反転済み）
+     * @param inputs 呼び出し側が持つ対応点・必須エッジ（`setPoints`・`setEdges` に渡すのと同じ、外の座標系）。
+     *   渡すと、compiled と合うかを確かめる（follow の反転は、ここで掛ける。呼び出し側で compiled と直接比べないこと）
+     */
+    restoreMesh(compiled: CompiledWithSupplement, inputs?: {
+        points?: PointSet[];
+        edges?: EdgeSet[] | EdgeSetLegacy[];
+    }): {
+        ok: true;
+    } | {
+        ok: false;
+        reason: RestoreFailure;
+    };
+    /**
+     * 帯（補助頂点・重心）を、今の内側の点から作り直す（保存の直前に、帯を最新にするために呼ぶ。設計書 §9.5 (a)）。
+     * スイッチ `incrementalBand` が要る。成り立てば差分を返し、成り立たなければ（スイッチが切れている・網が無い・
+     * どの余白でも strict な帯にならない）何も変えずに undefined を返す。
+     */
+    refreshBand(): TinPatch | undefined;
+    /** 局所更新を当てた後の、Tin の状態の更新。 */
+    private afterLocalEdit;
+    /**
+     * 局所更新の網を、そのまま保存してよいかの証拠を集める（設計書 §9.5 の条件 (a)(b) と診断 (d)）。
+     * 清書（別のインスタンスでの全部組み直し）が strict にならず、この網が strict のときに使う。
+     *
+     * 網の全部を数え直し（差分管理の値を信用しない）、書き出した compiled を Transform で読み直して対応点の往復を
+     * 確かめ、今の交差の数え上げを両面で 1 件まで走らせる。全体を回るので、保存のときだけ呼ぶこと。網は変えない。
+     * 帯が最新でないと条件を満たさないので、先に `refreshBand()` を呼ぶ。
+     *
+     * @param rebuild 同じ入力を全部組み直したときの状態と交差の件数（診断に写すだけ）
+     */
+    collectIncrementalEvidence(rebuild?: {
+        status: StrictStatus;
+        kinks: number;
+    }): IncrementalEvidence;
     /**
      * 幅と高さを設定します
      */

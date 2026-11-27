@@ -26,7 +26,9 @@ export declare function applyToInputs(inputs: TinInputs, edits: readonly TinEdit
  */
 export declare function applyToMesh(model: MeshModel, edits: readonly TinEdit[], follow: boolean, band?: {
     vertexMode: VertexMode | undefined;
-}): {
+}, 
+/** 編集が帯に触れなくても、帯を差し替える（保存の直前に、帯を最新にするとき） */
+forceBand?: boolean): {
     ok: true;
     patch: Omit<TinPatch, "revision" | "mode" | "boundaryStale">;
     refreshed: boolean;
