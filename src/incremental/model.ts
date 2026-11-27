@@ -5,7 +5,7 @@
  * 書き出すときに 1 回だけ振り直す。
  */
 import type { Position } from "geojson";
-import type { Edge, EdgeSet, PointSet } from "@maplat/transform";
+import { worldFileToCrs, type Edge, type EdgeSet, type PointSet, type WorldFile } from "@maplat/transform";
 import { orient2d } from "robust-predicates";
 import { convexHullEdges } from "../hull-edges.ts";
 import { BandStats } from "./band.ts";
@@ -108,6 +108,21 @@ export class MeshModel {
   /** world file 外周の網か（補助頂点の地理面の位置を、world file から直接決める。扇形の中心を持たない）。 */
   get isWorldFile(): boolean {
     return this.context.outer?.outerTransform === "worldFile";
+  }
+
+  /**
+   * world file 外周の網の、紙の面から地理面（網の内部の座標系）への写像。world file 外周でなければ undefined。
+   * follow では、GCP と同じく、地理面の Y を反転する。
+   */
+  worldFileProjection(): ((forw: Position) => Position) | undefined {
+    const outer = this.context.outer;
+    if (outer?.outerTransform !== "worldFile") return undefined;
+    const worldFile = outer.worldFile as WorldFile;
+    const follow = this.context.yaxisMode === "follow";
+    return (forw) => {
+      const [x, y] = worldFileToCrs(worldFile, forw);
+      return [x, follow ? -y : y];
+    };
   }
 
   /** 補完点の一覧（compiled の `supplementPairs` に、座標を付けたもの。`Tin#supplementPairs` と同じ形）。 */

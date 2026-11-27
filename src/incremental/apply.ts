@@ -215,7 +215,7 @@ export function applyToMesh(
   };
   for (const edit of edits) {
     let result = run(edit);
-    if (!result.ok && result.reason === "unsupported" && band && model.centroid) {
+    if (!result.ok && result.reason === "unsupported" && band && (model.centroid || model.isWorldFile)) {
       // 補完点の付いた対応点を消すときは、その補完点を先に消す（補完点の一覧が変わる）
       if (edit.type === "removePoint") {
         for (const removed of removeSupplementsOf(model, edit.id)) {

@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Position } from "geojson";
-import type { PointSet } from "@maplat/transform";
-import { Tin, type MeshModel, type Options, type TinEdit, type TinPatch, type VertexRef } from "../../src/index.ts";
+import { worldFileToCrs, type PointSet, type WorldFile } from "@maplat/transform";
+import {
+  Tin,
+  type CompiledWithSupplement,
+  type MeshModel,
+  type Options,
+  type TinEdit,
+  type TinPatch,
+  type VertexRef
+} from "../../src/index.ts";
 import { applyToMesh } from "../../src/incremental/apply.ts";
 import { digest, mapOptions } from "./fixtures.ts";
 import { REAL_DATA_TIMEOUT_MS } from "../timeouts.ts";
@@ -563,7 +571,7 @@ describe("applyEdits: 補完点の付いた対応点の削除・world file 外�
     expect(results.filter((r) => r.endsWith("局所")).length).toBeGreaterThan(0);
   }, TIMEOUT * 2);
 
-  it("world file 外周の網: 内側の編集を局所に当てる。帯に触れる編集は全部組み直しへ落ちる", () => {
+  it("world file 外周の網: 内側の編集も、帯に触れる編集も、局所に当てる", () => {
     const options = mapOptions("1932_nobeoka", "strict");
     const pts = options.points!;
     const mean = (side: 0 | 1, axis: number) => pts.reduce((sum, pair) => sum + pair[side][axis], 0) / pts.length;
@@ -635,11 +643,29 @@ describe("applyEdits: 補完点の付いた対応点の削除・world file 外�
     expect(fresh.applyEdits([inner])).toMatchObject({ mode: "local", strict_status: "strict", boundaryStale: false });
     // 帯が最新なので、そのまま証拠を集められる
     expect(fresh.collectIncrementalEvidence()).toMatchObject({ eligible: true, boundaryFresh: true });
+    // 帯に触れる編集（外接矩形の端の点を消す）: スイッチ incrementalBand が入っていれば、帯を world file から作り直す
+    // （紙の面で x が最小の点。x が最大の点は補完点が付いていて、消すと帯が成り立たず、全部組み直しへ落ちる）
     const xs = pts.map(([forw]) => forw[0]);
-    expect(fresh.applyEdits([{ type: "removePoint", id: xs.indexOf(Math.max(...xs)) }])).toMatchObject({
-      mode: "full", fallbackReason: "unsupported"
-    });
-    expect((fresh.getCompiled() as { outerTransform?: string }).outerTransform).toBeDefined();
+    const corner = xs.indexOf(Math.min(...xs));
+    const band = fresh.applyEdits([{ type: "removePoint", id: corner }]);
+    expect(band).toMatchObject({ mode: "local", strict_status: "strict", boundaryStale: false });
+    // world file 外周は、扇形の中心を持たない
+    expect(band.centroid).toBeUndefined();
+    const after = fresh.getCompiled() as CompiledWithSupplement & { outerTransform?: string; worldFile?: WorldFile };
+    expect(after.outerTransform).toBe("worldFile");
+    expect(after.points).toHaveLength(pts.length - 1);
+    // 補助頂点の地理面の位置は、world file の値そのもの
+    for (const [forw, bakw] of after.vertices_points) {
+      const [x, y] = worldFileToCrs(after.worldFile!, forw);
+      expect(Math.hypot(bakw[0] - x, bakw[1] - y)).toBe(0);
+    }
+    expect(fresh.incrementalMesh!.mesh.audit()).toMatchObject({ bad: [], badMatches: true, indexMatches: true, boundarySimple: true, forwFolds: 0 });
+    expect(new Tin({ incremental: true }).restoreMesh(JSON.parse(JSON.stringify(after)))).toEqual({ ok: true });
+    // スイッチが切れていれば、全部組み直しへ落ちる
+    const plain = new Tin({ ...world, incremental: true });
+    plain.updateTin();
+    expect(plain.applyEdits([{ type: "removePoint", id: corner }])).toMatchObject({ mode: "full", fallbackReason: "unsupported" });
+    expect((plain.getCompiled() as { outerTransform?: string }).outerTransform).toBeDefined();
   }, TIMEOUT * 2);
 });
 

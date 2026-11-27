@@ -11,6 +11,7 @@ import { MARGINS, isStarShaped } from "../boundary-search.ts";
 import {
   calculateBirdeyeVertices,
   calculatePlainVertices,
+  calculateWorldFileVertices,
   ringBinOf,
   type BoundaryVerticesParams,
   type RingOptions
@@ -41,7 +42,9 @@ export type BandRefresh =
  */
 export function refreshBand(model: MeshModel, vertexMode: VertexMode | undefined): BandRefresh {
   const { mesh } = model;
-  if (!model.centroid) return { ok: false, reason: "bandNotAnnulus" };
+  // world file 外周の網は、補助頂点の地理面の位置を、world file から直接決める（扇形の中心を持たない）
+  const project = model.worldFileProjection();
+  if (!model.centroid && !project) return { ok: false, reason: "bandNotAnnulus" };
   const at = (vertex: number) => mesh.vertices.get(vertex)!;
   const supplements = new Set(model.supplements.map(({ vertex }) => vertex));
   const interior = [...model.gcps, ...model.nodeOrder()];
@@ -72,6 +75,8 @@ export function refreshBand(model: MeshModel, vertexMode: VertexMode | undefined
       A.bakw[1] + u * (B.bakw[1] - A.bakw[1]) + w * (C.bakw[1] - A.bakw[1])
     ] as Position
   };
+  // 今の輪の区分を数えるときの中心（world file 外周では、内側の点の算術平均）
+  const previous = model.centroid?.forw ?? forw;
 
   // 両面の凸包の頂点（相手の面の位置は、頂点表から引く）
   const convexBuf: BoundaryVerticesParams["convexBuf"] = {};
@@ -96,10 +101,14 @@ export function refreshBand(model: MeshModel, vertexMode: VertexMode | undefined
     miny,
     maxy
   };
-  const calculate = vertexMode === "birdeye" ? calculateBirdeyeVertices : calculatePlainVertices;
+  const calculate = project
+    ? (input: BoundaryVerticesParams) => calculateWorldFileVertices(input, project)
+    : vertexMode === "birdeye"
+      ? calculateBirdeyeVertices
+      : calculatePlainVertices;
   // 今の輪の間引き方（strict を壊す補助頂点を外した区分・四隅だけの輪。MaplatTin#98）を引き継ぐ。
   // 補助頂点の無い区分を、外す区分とみなす（四隅の区分は、指定しても外れない）
-  const present = new Set(model.ring.map((vertex) => ringBinOf(at(vertex).forw, model.centroid!.forw)));
+  const present = new Set(model.ring.map((vertex) => ringBinOf(at(vertex).forw, previous)));
   const skipBins = new Set<number>();
   for (let bin = 0; bin < 36; bin++) if (!present.has(bin)) skipBins.add(bin);
   const inherited: RingOptions | undefined =
@@ -123,10 +132,12 @@ export function refreshBand(model: MeshModel, vertexMode: VertexMode | undefined
       },
       true
     );
+    if (vertices.length < 4 || !vertices.every(({ bakw }) => bakw.every(Number.isFinite))) continue;
+    // 扇形の境界には、地図面で時計回り、地理面で反時計回りの星形が必要（world file 外周では要らない）
     if (
-      !vertices.every(({ bakw }) => bakw.every(Number.isFinite)) ||
-      !isStarShaped(vertices.map((v) => v.forw), centroid.forw, -1) ||
-      !isStarShaped(vertices.map((v) => v.bakw), centroid.bakw, 1)
+      !project &&
+      (!isStarShaped(vertices.map((v) => v.forw), centroid.forw, -1) ||
+        !isStarShaped(vertices.map((v) => v.bakw), centroid.bakw, 1))
     )
       continue;
     const build = { mesh, indexOf: new Map<number, number | string>(), interior, ring: model.ring };
@@ -138,7 +149,7 @@ export function refreshBand(model: MeshModel, vertexMode: VertexMode | undefined
       continue;
     }
     model.ring = build.ring;
-    model.centroid = centroid;
+    if (!project) model.centroid = centroid;
     model.resetBand();
     return {
       ok: true,

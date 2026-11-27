@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { Transform } from "@maplat/transform";
-import { IncrementalMesh, Tin } from "../../src/index.ts";
+import { Transform, type WorldFile } from "@maplat/transform";
+import { IncrementalMesh, Tin, type Options } from "../../src/index.ts";
 import { intrusionFraction } from "../hull-intrusion.ts";
 import { orientationFlips } from "../supplement-fixtures.ts";
 import { MAP_NAMES, MODES, digest, mapOptions } from "./fixtures.ts";
@@ -113,7 +113,54 @@ describe("incrementalRebuild: 全部の実地図で、strict・食い込み・GC
     }
   }, TIMEOUT * 2);
 
-  it("world file 外周・loose 指定・V2 は、切ったときと同じ", () => {
+  it("world file 外周: strict の状態・外周の方式・紙の面の食い込みが、今と同じかそれ以上", () => {
+    const fit = (points: NonNullable<Options["points"]>): WorldFile => {
+      const mean = (side: 0 | 1, axis: number) => points.reduce((sum, pair) => sum + pair[side][axis], 0) / points.length;
+      const [xm, ym] = [mean(0, 0), mean(0, 1)];
+      const rows = points.map(([[x, y], crs]) => [x - xm, y - ym, ...crs]);
+      const dot = (a: number, b: number) => rows.reduce((sum, row) => sum + row[a] * row[b], 0);
+      const det = dot(0, 0) * dot(1, 1) - dot(0, 1) ** 2;
+      const line = (axis: number) => {
+        const x = (dot(1, 1) * dot(0, axis + 2) - dot(0, 1) * dot(1, axis + 2)) / det;
+        const y = (dot(0, 0) * dot(1, axis + 2) - dot(0, 1) * dot(0, axis + 2)) / det;
+        return [x, y, mean(1, axis) + x * (0.5 - xm) + y * (0.5 - ym)];
+      };
+      const [xScale, xSkew, xOrigin] = line(0);
+      const [ySkew, yScale, yOrigin] = line(1);
+      return { xScale, xSkew, xOrigin, ySkew, yScale, yOrigin };
+    };
+    const rows: string[] = [];
+    // 奈良町（bunko）は、今の手順では strict_error で、局所の手順では strict になる
+    for (const name of ["1932_nobeoka", "fushimijo_maplat", "tatebayashi_castle_akimoto", "naramachi_yasui_bunko"]) {
+      const options = mapOptions(name, "strict");
+      const world: Options = { ...options, outerTransform: "worldFile", worldFile: fit(options.points!) };
+      const off = new Tin(world);
+      off.updateTin();
+      const on = new Tin({ ...world, incrementalRebuild: true });
+      on.updateTin();
+      const outer = (tin: Tin) => (tin.getCompiled() as { outerTransform?: string }).outerTransform;
+      rows.push(`${name}: 今 ${off.strict_status}・${outer(off)} → ${on.strict_status}・${outer(on)}`);
+      if (off.strict_status === "strict") expect(on.strict_status, name).toBe("strict");
+      expect(outer(on), name).toBe(outer(off));
+      expect(on.rebuildDiagnostics, name).toMatchObject({ fellBack: false, localFailures: 0 });
+      expect(on.rebuildDiagnostics!.localAttempts, name).toBeGreaterThan(0);
+      if (on.strict_status !== "strict") continue;
+      expect(orientationFlips(on), name).toBe(0);
+      expect(intrusionFraction(on, 0), name).toBeLessThanOrEqual(intrusionFraction(off, 0) + 1e-12);
+      // world file 外周の補助頂点は、world file の値そのもの。Transform で読み直して、対応点が往復する
+      const compiled = JSON.parse(JSON.stringify(on.getCompiled()));
+      const reader = new Transform();
+      reader.setCompiled(compiled);
+      for (const [forw, bakw] of on.points) {
+        const geo = reader.transform(forw, false) as number[];
+        expect(Math.hypot(geo[0] - bakw[0], geo[1] - bakw[1]), name).toBeLessThan(1e-6);
+      }
+    }
+    console.info(`[world file] ${rows.join(" / ")}`);
+    expect(rows.some((row) => row.includes("strict_error・worldFile → strict・worldFile"))).toBe(true);
+  }, TIMEOUT * 4);
+
+  it("loose 指定・V2 は、切ったときと同じ", () => {
     for (const extra of [{ strictMode: "loose" as const }, { useV2Algorithm: true }]) {
       const options = { ...mapOptions("kaisei_hiroshima_jissoku_sub1", "strict"), ...extra };
       const off = new Tin(options);
