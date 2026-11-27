@@ -312,9 +312,10 @@ describe("restoreMesh: 両面で一緒に壊した compiled も断る（#103 第
     broken.points[100][1][0] += 5000;
     broken.points[100][1][1] += 5000;
     const tin = new Tin({ incremental: true });
+    // 網を調べて strict でないと分かったので、strict_error になる（未確定のままにしない）
     expect(tin.restoreMesh(broken)).toEqual({ ok: false, reason: "notStrict" });
     expect(tin.meshOrigin).toBeUndefined();
-    expect(tin.strict_status).toBeUndefined();
+    expect(tin.strict_status).toBe("strict_error");
     expect(tin.getCompiled().meshOrigin).toBeUndefined();
     // 印つきを戻した後に、読めない compiled を渡しても、前の印は残らない
     expect(tin.restoreMesh(clone(marked))).toEqual({ ok: true });
@@ -352,6 +353,43 @@ describe("restoreMesh: 両面で一緒に壊した compiled も断る（#103 第
     expect(off.restoreMesh(clone(marked))).toEqual({ ok: false, reason: "disabled" });
     expect(off.meshOrigin).toBe("incremental");
     expect(off.strict_status).toBe("strict");
+  }, TIMEOUT);
+
+  it("strict と名乗る compiled を、網を調べて断ったときは、strict_error になり、逆変換が断られる", () => {
+    // 伏見の対応点 30 を、両面で、対応点 300 の近くへ動かす（向きの積は変わらず、紙の面の折り返しだけで分かる）
+    const c = clone(compiled);
+    const [tf, tb] = c.points[300];
+    const [nf, nb] = c.points[301];
+    c.points[30] = [
+      [tf[0] + (nf[0] - tf[0]) * 0.3, tf[1] + (nf[1] - tf[1]) * 0.3],
+      [tb[0] + (nb[0] - tb[0]) * 0.3, tb[1] + (nb[1] - tb[1]) * 0.3]
+    ];
+    expect(c.strict_status).toBe("strict");
+    const tin = new Tin({ incremental: true });
+    expect(tin.restoreMesh(clone(c))).toEqual({ ok: false, reason: "notStrict" });
+    expect(tin.strict_status).toBe("strict_error");
+    expect(tin.incrementalMesh).toBeUndefined();
+    // 順変換はできるが、逆変換は断られる
+    expect(tin.transform(c.points[5][0], false)).not.toBe(false);
+    expect(() => tin.transform(c.points[5][1], true)).toThrow();
+    // 書き出した compiled も strict と名乗らない。Transform で読み直しても、逆変換は断られる
+    const written = clone(tin.getCompiled());
+    expect(written.strict_status).toBe("strict_error");
+    const reader = new Transform();
+    reader.setCompiled(written);
+    expect(() => reader.transform(c.points[5][1], true)).toThrow();
+    // 外周が単純でない（三角形を 1 つ抜いた）ときも同じ
+    const holed = clone(compiled);
+    holed.tins_points[0].splice(40, 1);
+    const other = new Tin({ incremental: true });
+    expect(other.restoreMesh(holed)).toEqual({ ok: false, reason: "boundary" });
+    expect(other.strict_status).toBe("strict_error");
+    // 網の形が読めない・食い違う、などのほかの理由では、未確定（undefined）
+    const orphan = clone(compiled);
+    orphan.points.push([[orphan.points[0][0][0] + 3, orphan.points[0][0][1] + 3], [orphan.points[0][1][0] + 3, orphan.points[0][1][1] + 3]]);
+    const third = new Tin({ incremental: true });
+    expect(third.restoreMesh(orphan)).toEqual({ ok: false, reason: "inconsistent" });
+    expect(third.strict_status).toBeUndefined();
   }, TIMEOUT);
 
   it("follow の地図: 証拠 → 保存 → restoreMesh が通る（対応点の往復は、外の座標系で比べる）", () => {

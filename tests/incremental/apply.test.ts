@@ -11,7 +11,7 @@ import {
   type VertexRef
 } from "../../src/index.ts";
 import { applyToMesh } from "../../src/incremental/apply.ts";
-import { digest, mapOptions } from "./fixtures.ts";
+import { digest, fitWorldFile, mapOptions } from "./fixtures.ts";
 import { REAL_DATA_TIMEOUT_MS } from "../timeouts.ts";
 
 // MaplatTin#100 の第 2 段 a: Tin#applyEdits（内側の編集）。
@@ -673,6 +673,22 @@ describe("applyEdits: 補完点の付いた対応点の削除・world file 外�
     const edited = JSON.stringify(fresh.getCompiled());
     fresh.transform(someForw, false);
     expect(JSON.stringify(fresh.getCompiled())).toBe(edited);
+    // 帯を作り直した輪の頂点数は、同じ入力の清書と同じ（36 頂点そろっている輪を、間引いた輪と見誤らない。
+    // world file 外周の網は、輪を作ったときの中心を持たないので、編集の後の中心で区分を数えると、区分の境の
+    // 近くの補助頂点が隣の区分に入り、空いた区分を「外した区分」と数えてしまう）
+    for (const [name, id] of [["1932_nobeoka", 141], ["miesan_ginza_map", 242]] as const) {
+      const base = mapOptions(name, "strict");
+      const fitted: Options = { ...base, outerTransform: "worldFile", worldFile: fitWorldFile(base.points!) };
+      const edited = new Tin({ ...fitted, incremental: true, incrementalBand: true });
+      edited.updateTin();
+      expect(edited.getCompiled().vertices_points, name).toHaveLength(36);
+      expect(edited.applyEdits([{ type: "removePoint", id }]), name).toMatchObject({ mode: "local", boundaryStale: false });
+      const clean = new Tin({ ...fitted, points: base.points!.filter((_, i) => i !== id) });
+      clean.updateTin();
+      expect((clean.getCompiled() as { outerTransform?: string }).outerTransform, name).toBe("worldFile");
+      expect(clean.getCompiled().vertices_points, name).toHaveLength(36);
+      expect(edited.getCompiled().vertices_points, name).toHaveLength(36);
+    }
     // スイッチが切れていれば、全部組み直しへ落ちる
     const plain = new Tin({ ...world, incremental: true });
     plain.updateTin();

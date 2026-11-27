@@ -787,8 +787,14 @@ export class Tin extends Transform {
    * 補助頂点 3 点だけの三角形が無いことを、全部を数えて確かめる。
    *
    * 失敗したとき（理由を返す）は、`setCompiled(compiled)` をした状態（変換はできる）で、網は持たない。
-   * 印（`meshOrigin`）は外れる。`strict_status` は、compiled が strict と名乗っていたときだけ未確定（undefined）に
-   * なり、strict_error・loose は compiled の値のまま残る。`"v2"`（読む前に断る）のときは、状態に触らない。
+   * 印（`meshOrigin`）は外れる。`strict_status` は、次の 3 通り:
+   * - compiled が strict と名乗っていて、網を調べて strict でないと分かったとき（`"notStrict"`・`"boundary"`）は、
+   *   strict_error になる（逆変換は断られる。交差の一覧 `kinks` は持たない）
+   * - compiled が strict と名乗っていて、ほかの理由で断ったときは、未確定（undefined）になる
+   * - compiled が strict_error・loose と名乗っていたときは、その値のまま残る
+   *
+   * スイッチが切れている（`"disabled"`）ときは、`setCompiled(compiled)` と同じ（印も `strict_status` も compiled のまま）。
+   * `"v2"`（読む前に断る）のときは、状態に触らない。
    * 呼び出し側は、対応点と必須エッジを入れ直して `updateTin()` すること。
    *
    * @param compiled 保存した compiled（座標は内部の座標系。follow では地理面の Y が反転済み）
@@ -801,11 +807,16 @@ export class Tin extends Transform {
   ): { ok: true } | { ok: false; reason: RestoreFailure } {
     const fail = (reason: RestoreFailure) => {
       // 断った compiled の印を、引き継がない（スイッチが切れているときは、setCompiled と同じ）。
-      // compiled が strict と名乗っていたときは、その判定も引き継がない（未確定にする）。strict_error・loose は、
-      // compiled の値のまま残す（Transform が逆変換を断る歯止めを、外さない）
+      // compiled が strict と名乗っていたときは、その判定も引き継がない:
+      // - 網を調べて strict でないと分かったとき（"notStrict"・"boundary"）は、strict_error にする
+      //   （未確定のままだと、逆変換が通り、getCompiled() を Transform で読み直すと strict として扱われる）
+      // - ほかの理由で断ったときは、未確定（undefined）にする
+      // strict_error・loose は、compiled の値のまま残す（Transform が逆変換を断る歯止めを、外さない）
       if (reason !== "disabled") {
         this.originIncremental = false;
-        if (this.strict_status === Tin.STATUS_STRICT) this.strict_status = undefined;
+        if (this.strict_status === Tin.STATUS_STRICT) {
+          this.strict_status = reason === "notStrict" || reason === "boundary" ? Tin.STATUS_ERROR : undefined;
+        }
       }
       return { ok: false as const, reason };
     };
