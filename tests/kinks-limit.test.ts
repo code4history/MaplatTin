@@ -72,7 +72,7 @@ describe("findIntersectionsUpTo: 交差の件数の上限", () => {
 describe("Tin: 実データの kinks は上限で切れない", () => {
   // strict で交差が残る実データ。上限なしの結果と、現在の外周での実測件数に一致すること。
   it.each([
-    ["V3", false, 27177],
+    ["V3", false, 26837],
     ["V2", true, 28599],
   ])("uno_bus_gtfs_error (%s) の bakw の kinks は全件残る", (_label, useV2, expected) => {
     const map = JSON.parse(

@@ -1,4 +1,4 @@
-export { Constrain } from "./constrain.ts";
+export { Constrain, type ConstrainSnapshot } from "./constrain.ts";
 export {
   nextEdge,
   prevEdge,

@@ -3,7 +3,8 @@ import type { Feature, Point, Position } from "geojson";
 import type { Edge, Tins } from "@maplat/transform";
 import { orient2d } from "robust-predicates";
 import type { BoundaryVerticesParams } from "./boundary-vertices.ts";
-import { buildConstrainedTin } from "./constrained-tin.ts";
+import { buildConstrainedTin, type ConstrainedTinReuse } from "./constrained-tin.ts";
+import { convexHullEdges, hullEdgeKey } from "./hull-edges.ts";
 import type { VertexPosition } from "./types/tin.ts";
 import { counterPoint, createPoint } from "./vertexutils.ts";
 
@@ -39,6 +40,11 @@ export interface BoundaryCandidate {
   hasMapBoundary: boolean;
   /** 両面で外周の辺を三角網の境界として確保できたか。 */
   hasBoundary: boolean;
+  /**
+   * 地図面の凸包の辺。`all` は凸包の辺の全部、`applied` は制約にできたもの
+   * （外す指定・必須エッジとの衝突で、`all` より少ないことがある）。
+   */
+  forwHull: { all: Edge[]; applied: Edge[] };
 }
 
 /**
@@ -97,6 +103,24 @@ function isStarShaped(
 }
 
 /**
+ * 外す凸包の辺だけを変えて `searchBoundary` を繰り返すときに、結果が変わらない計算を使い回す入れ物。
+ * 同じ点群・同じ外周の方式での呼び出しにだけ使う。余白ごとに、補助頂点の位置・地理面の三角網
+ * （凸包の辺は地理面で独立に決まり、外す指定は地図面の凸包の辺にだけ効く）・地図面の必須エッジを
+ * 張った状態を控える。
+ */
+export type SearchCache = Map<
+  number,
+  {
+    vertices?: VertexPosition[];
+    geographic?: {
+      built: ReturnType<typeof buildConstrainedTin>;
+      flips: number;
+    };
+    forwReuse: ConstrainedTinReuse;
+  }
+>;
+
+/**
  * 補助頂点のうち、内点（GCP・中継点）や先に残した補助頂点と同じ位置のものを除く。
  * 同じ位置の点は Delaunator が三角網から落とすため、落ちた側が必須エッジの端点だと
  * `Invalid edge ... is not part of the triangulation` になる。GCP の外接矩形の高さや幅が
@@ -134,7 +158,9 @@ export function searchBoundary(
   worldFile?: {
     orientation: -1 | 1;
     accept: (candidate: BoundaryCandidate) => boolean;
-  }
+  },
+  excludedHull: ReadonlySet<string> = new Set(),
+  cache?: SearchCache
 ): BoundaryCandidate | undefined {
   const { minx, maxx, miny, maxy, centroid } = params;
   const width = maxx - minx;
@@ -148,25 +174,39 @@ export function searchBoundary(
     groups[b].push(edgeGroup);
     if (b < gcpCount) edgeGroup++;
   }
+  // 凸包の辺は面ごとに作り、全部を制約にする。凸包は GCP と必須エッジの中継点（内側の点）の
+  // 全体で取り、中継点が GCP の凸包の外に出る場合も必須エッジが凸包の辺をまたがないようにする。
+  // 地図面の凸包の辺のうち excludedHull に鍵があるものは外す（strict を壊す辺を呼び出し側が特定する）。
+  const interiorCoordinates = (features: Feature<Point>[]) =>
+    features.slice(0, interiorCount).map(({ geometry }) => geometry.coordinates);
+  const forwHullAll = convexHullEdges(interiorCoordinates(points.forw));
+  const hulls = {
+    forw: forwHullAll.filter((edge) => !excludedHull.has(hullEdgeKey(edge))),
+    bakw: convexHullEdges(interiorCoordinates(points.bakw))
+  };
   const boundaryGroup = [0];
   const groupsOf = (index: number) =>
     index >= interiorCount ? boundaryGroup : groups[index];
 
   let best: BoundaryCandidate | undefined;
   for (const margin of MARGINS) {
-    const vertices = withoutCoincidentVertices(
-      calculateVertices(
-        {
-          ...params,
-          minx: minx - margin * width,
-          maxx: maxx + margin * width,
-          miny: miny - margin * height,
-          maxy: maxy + margin * height
-        },
-        true
-      ),
-      points
-    );
+    const reuse = cache?.get(margin) ?? { forwReuse: {} };
+    cache?.set(margin, reuse);
+    const vertices =
+      reuse.vertices ??
+      (reuse.vertices = withoutCoincidentVertices(
+        calculateVertices(
+          {
+            ...params,
+            minx: minx - margin * width,
+            maxx: maxx + margin * width,
+            miny: miny - margin * height,
+            maxy: maxy + margin * height
+          },
+          true
+        ),
+        points
+      ));
     if (
       worldFile &&
       (vertices.length < 4 || !vertices.every(({ bakw }) => bakw.every(Number.isFinite)))
@@ -209,24 +249,33 @@ export function searchBoundary(
         ])
       : undefined;
     const forbidden = { groupsOf, planes, boundary, allowUnusableBoundary: worldFile !== undefined };
+    const expectedOrientation = worldFile?.orientation ?? -1;
     const fromMap = buildConstrainedTin(
       forw,
       points.edges,
       "target",
-      forbidden
+      { ...forbidden, hull: hulls.forw },
+      reuse.forwReuse
     );
-    const fromGeographic = buildConstrainedTin(
-      bakw,
-      points.edges,
-      "target",
-      forbidden
-    );
+    // 地理面の三角網は、外す凸包の辺（地図面の凸包の辺）に依らないので、2 回目からは使い回す。
+    // 下流で三角形の並びを入れ替える（rotateVerticesTriangle）ので、配列は複製して渡す。
+    const geographic =
+      reuse.geographic ??
+      (reuse.geographic = (() => {
+        const built = buildConstrainedTin(bakw, points.edges, "target", {
+          ...forbidden,
+          hull: hulls.bakw
+        });
+        return { built, flips: countBoundaryFlips(built.tin as Tins, expectedOrientation) };
+      })());
+    const fromGeographic = geographic.built;
     const forwTin = fromMap.tin as Tins;
-    const bakwTin = fromGeographic.tin as Tins;
-    const expectedOrientation = worldFile?.orientation ?? -1;
+    const bakwTin = {
+      ...fromGeographic.tin,
+      features: [...fromGeographic.tin.features]
+    } as Tins;
     const boundaryTriangleFlips =
-      countBoundaryFlips(forwTin, expectedOrientation) +
-      countBoundaryFlips(bakwTin, expectedOrientation);
+      countBoundaryFlips(forwTin, expectedOrientation) + geographic.flips;
     const candidate: BoundaryCandidate = {
       vertices,
       forw: forwTin,
@@ -238,7 +287,8 @@ export function searchBoundary(
           fromMap.remaining + fromGeographic.remaining
       },
       hasMapBoundary: fromMap.hasBoundary,
-      hasBoundary: fromMap.hasBoundary && fromGeographic.hasBoundary
+      hasBoundary: fromMap.hasBoundary && fromGeographic.hasBoundary,
+      forwHull: { all: forwHullAll, applied: fromMap.hull }
     };
 
     if (worldFile) {

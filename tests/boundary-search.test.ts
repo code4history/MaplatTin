@@ -4,7 +4,7 @@ import { orient2d } from "robust-predicates";
 import type { Position } from "geojson";
 import { Tin, type Compiled, type Options } from "../src/index.ts";
 import { REAL_DATA_TIMEOUT_MS } from "./timeouts.ts";
-import { isBetterBoundaryCandidate } from "../src/boundary-search.ts";
+import { countBoundaryFlips, isBetterBoundaryCandidate } from "../src/boundary-search.ts";
 
 interface MapFixture {
   width: number;
@@ -97,13 +97,13 @@ function checkBoundary(
 
 it.each([
   ["1932_nobeoka", false, 0.1, [0, 0], 0],
-  ["1932_nobeoka", true, 0.15, [0, 0], 6],
+  ["1932_nobeoka", true, 0.1, [0, 0], 18],
   ["fushimijo_maplat", false, 0.1, [0, 0], 0],
   ["miesan_ginza_map", false, 0.1, [0, 0], 0],
-  ["tatebayashi_castle_akimoto", false, 0.15, [0, 1], 0],
+  ["tatebayashi_castle_akimoto", false, 0.15, [0, 0], 0],
   ["tatebayashi_kaei_jokamachi", false, 0.1, [0, 0], 0],
-  ["naramachi_yasui_bunko", false, 0.225, [0, 0], 19],
-  ["naramachi_yasui_revised", false, 0.225, [0, 0], 19]
+  ["naramachi_yasui_bunko", false, 0.1, [0, 0], 19],
+  ["naramachi_yasui_revised", false, 0.1, [0, 0], 19]
 ] as const)(
   "%s（サブマップ %s）の外周",
   (name, submap, margin, flips, remaining) => {
@@ -113,8 +113,8 @@ it.each([
       boundaryTriangleFlips: flips[0] + flips[1],
       remainingForbiddenTriangles: remaining
     });
-    // 延岡のサブマップでは地図面の 1 隅が必須エッジの中継点に直接つながる。
-    checkBoundary(tin, flips, submap ? [1, 0] : [0, 0]);
+    // 凸包の辺を制約にしたので、延岡のサブマップでも、どの隅も GCP に（必須エッジの中継点だけでなく）つながる。
+    checkBoundary(tin, flips, [0, 0]);
   },
   REAL_DATA_TIMEOUT_MS
 );
@@ -188,18 +188,22 @@ it("どの余白も合格しないときは、輪が閉じる候補を反転の�
   expect(isBetterBoundaryCandidate(c(true, 2), c(true, 2))).toBe(false);
 });
 
-it(
-  "strict でも診断は探索の時点の両面の値を返す（実際の三角網の反転とは一致しないことがある）",
-  () => {
-    const tin = buildMap("tatebayashi_castle_akimoto", false, Tin.MODE_STRICT);
-    expect(tin.strict_status).toBe(Tin.STATUS_STRICT);
-    expect(tin.boundaryDiagnostics).toEqual({
-      margin: 0.15,
-      boundaryTriangleFlips: 1,
-      remainingForbiddenTriangles: 0
-    });
-    // strict では地理面の三角網を地図面から写すので、実際の三角網には反転が無い
-    checkBoundary(tin, [0, 0], [0, 0]);
-  },
-  REAL_DATA_TIMEOUT_MS
-);
+it("strict でも診断は探索の時点の両面の値を返す（実際の三角網の反転とは一致しないことがある）", () => {
+  // 補助頂点を含む三角形の反転が、探索の時点（地図面と地理面の三角網を独立に作る）では 1 件あるが、
+  // strict で地理面の三角網を地図面から写すと無くなる合成の配置
+  const points: Options["points"] = [
+    [[0, 0], [-6, -3]], [[100, 0], [81, -16]], [[100, 100], [118, -92]], [[0, 100], [-20, -98]],
+    [[61, 35], [37, -47]], [[93, 24], [89, -19]], [[13, 93], [3, -106]]
+  ];
+  const tin = new Tin({ wh: [100, 100], strictMode: Tin.MODE_STRICT, points });
+  tin.updateTin();
+  expect(tin.strict_status).toBe(Tin.STATUS_STRICT);
+  expect(tin.boundaryDiagnostics).toEqual({
+    margin: 0.15,
+    boundaryTriangleFlips: 1,
+    remainingForbiddenTriangles: 0
+  });
+  // strict では地理面の三角網を地図面から写すので、実際の三角網には反転が無い
+  expect(countBoundaryFlips(tin.tins!.forw!)).toBe(0);
+  expect(countBoundaryFlips(tin.tins!.bakw!)).toBe(0);
+});

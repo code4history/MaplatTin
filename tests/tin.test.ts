@@ -68,10 +68,12 @@ type BuildDataset = {
   useV2: boolean;
   /** map ファイルから GCP を読み込む場合は "map"、compiled.points から読む場合は "compiled_points" */
   gcpSource?: "map" | "compiled_points";
+  /** サブマップ（bounds を持つ）の場合に true。bounds・xy・wh は v2 の compiled から読む */
+  submap?: boolean;
 };
 
 function buildFromDataset(dataset: BuildDataset): Compiled {
-  const { key, ver, useV2, gcpSource = "map" } = dataset;
+  const { key, ver, useV2, gcpSource = "map", submap = false } = dataset;
   const refCompiled = loadCompiled(`${key}_${ver}`);
 
   let tinOptions: ConstructorParameters<typeof Tin>[0];
@@ -83,7 +85,7 @@ function buildFromDataset(dataset: BuildDataset): Compiled {
     // v2 の GCP ソースを使う（v2/v3 で GCP は同じ）
     const gcpSource2 = loadCompiled(`${key}_v2`);
     tinOptions = {
-      wh: gcpSource2.wh as [number, number],
+      ...(submap ? { bounds: gcpSource2.bounds as [number, number][] } : { wh: gcpSource2.wh as [number, number] }),
       strictMode: gcpSource2.strictMode as Options["strictMode"],
       vertexMode: gcpSource2.vertexMode as Options["vertexMode"],
       stateFull: false,
@@ -162,6 +164,10 @@ const BUILD_DATASETS: BuildDataset[] = [
   { label: "Tatebayashi Castle v3", key: "tatebayashi_castle_akimoto", ver: "v3", useV2: false, gcpSource: "compiled_points" },
   { label: "Tatebayashi Jokamachi v2", key: "tatebayashi_kaei_jokamachi", ver: "v2", useV2: true,  gcpSource: "compiled_points" },
   { label: "Tatebayashi Jokamachi v3", key: "tatebayashi_kaei_jokamachi", ver: "v3", useV2: false, gcpSource: "compiled_points" },
+  // 延岡は main と副層（bounds）。V3 の出力を固定する（V2 は main だけ。副層の v2 は bounds 方式が別経路）
+  { label: "Nobeoka v2",     key: "1932_nobeoka",      ver: "v2", useV2: true,  gcpSource: "compiled_points" },
+  { label: "Nobeoka v3",     key: "1932_nobeoka",      ver: "v3", useV2: false, gcpSource: "compiled_points" },
+  { label: "Nobeoka Sub v3", key: "1932_nobeoka_sub0", ver: "v3", useV2: false, gcpSource: "compiled_points", submap: true },
 ];
 
 describe("Tin — build accuracy (GCP maps)", { timeout: REAL_DATA_TIMEOUT_MS }, () => {

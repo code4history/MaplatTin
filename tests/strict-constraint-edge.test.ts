@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import { featureCollection, point, polygon } from "@turf/turf";
 import { counterTri, transformArr } from "@maplat/transform";
+import { orient2d } from "robust-predicates";
 import type { PropertyTriKey, Tins, Tri } from "@maplat/transform";
 import type { Position } from "geojson";
 import { Options, Tin } from "../src/index.ts";
@@ -106,11 +107,17 @@ describe("strict mode keeps constrained edges (with edge intermediate nodes)", {
 //
 // 制約エッジが TIN の辺として保たれていれば、その辺上の点は TIN の区分アフィン
 // 変換によって対応する bakw 側の線分上へ正確に写る。
-// （2.00704 以降は重み補正は無いが、辺上の検査は補間関数そのもの
-//   （transformArr）で行う。）
+// （2.00704 以降は重み補正は無いが、辺上の検査は補間そのもので行う。）
 
-/** 制約エッジの中点を forw TIN で変換し、bakw 線分の中点からのずれを返す */
-function edgeMidpointDeviations(tin: Tin): number[] {
+/**
+ * 制約エッジの中点を forw TIN 全体で変換し、bakw 線分の中点からのずれを、エッジの bakw の長さに対する
+ * 割合と距離で返す。
+ *
+ * 制約エッジが TIN の辺なら、中点は辺の上で正確に写る。ただし、必須エッジの中継点が一直線に並ぶ
+ * 面積ほぼ 0 の三角形（禁止制約で解消しきれないもの）が辺の隣にあると、丸めで中点が隣の細長い三角形に
+ * 入り、補間が大きく外れる。そのずれる辺の数と量は、データごとに上限を固定して見張る。
+ */
+function edgeMidpointDeviations(tin: Tin): { ratio: number; distance: number }[] {
   const features = tin.pointsSet!.forw.features;
   return tin.pointsSet!.edges.map((edge) => {
     const [start, end] = [edge[0], edge[1]].map((position) => ({
@@ -126,8 +133,40 @@ function edgeMidpointDeviations(tin: Tin): number[] {
       (start.bakw[1] + end.bakw[1]) / 2,
     ];
     const actual = transformArr(point(midForw), tin.tins!.forw!) as Position;
-    return Math.hypot(actual[0] - expectedBakw[0], actual[1] - expectedBakw[1]);
+    const distance = Math.hypot(actual[0] - expectedBakw[0], actual[1] - expectedBakw[1]);
+    const length = Math.hypot(start.bakw[0] - end.bakw[0], start.bakw[1] - end.bakw[1]) || 1;
+    return { ratio: distance / length, distance };
   });
+}
+
+/** 地図面（forw）・地理面（bakw）の三角網の、面積がほぼ 0 の三角形の数（2×面積が外接矩形の長辺の 2 乗の 1e-9 未満） */
+function sliverCounts(tin: Tin): [number, number] {
+  const count = (mesh: Tins | undefined) =>
+    mesh
+      ? mesh.features.filter((tri) => {
+          const [p, q, r] = tri.geometry!.coordinates[0];
+          const w = Math.max(p[0], q[0], r[0]) - Math.min(p[0], q[0], r[0]);
+          const h = Math.max(p[1], q[1], r[1]) - Math.min(p[1], q[1], r[1]);
+          return Math.abs(orient2d(p[0], p[1], q[0], q[1], r[0], r[1])) < 1e-9 * Math.max(w, h) ** 2;
+        }).length
+      : 0;
+  return [count(tin.tins!.forw), count(tin.tins!.bakw)];
+}
+
+/** 延岡の副層（bounds を持つ）を作る。 */
+function buildNobeokaSub(strictMode: string): Tin {
+  const map = loadMap("1932_nobeoka") as { sub_maps: { compiled: Record<string, unknown> }[] };
+  const compiled = map.sub_maps[0].compiled;
+  const tin = new Tin({
+    bounds: compiled.bounds as [number, number][],
+    strictMode: strictMode as Options["strictMode"],
+    vertexMode: compiled.vertexMode as Options["vertexMode"],
+    stateFull: false,
+  });
+  tin.setPoints(compiled.points as Parameters<Tin["setPoints"]>[0]);
+  tin.setEdges(compiled.edges as Parameters<Tin["setEdges"]>[0]);
+  tin.updateTin();
+  return tin;
 }
 
 describe("points on constrained edges map onto the corresponding segment", { timeout: REAL_DATA_TIMEOUT_MS }, () => {
@@ -140,14 +179,59 @@ describe("points on constrained edges map onto the corresponding segment", { tim
     it(`naramachi_yasui_bunko (strict, ${label}): edge midpoints land on the bakw segment`, () => {
       const tin = buildTin("naramachi_yasui_bunko", Tin.MODE_STRICT, useV2);
       // bakw は web mercator（値域 ~1e7）。1e-6 m 未満なら浮動小数点誤差の範囲。
-      expect(Math.max(...edgeMidpointDeviations(tin))).toBeLessThan(1e-6);
+      expect(Math.max(...edgeMidpointDeviations(tin).map((d) => d.distance))).toBeLessThan(1e-6);
     });
   });
 
-  it("uno_bus_gtfs_error (loose): edge midpoints land on the bakw segment", () => {
-    // loose は resolveOverlaps を通らない基準ケース。
+  it("uno_bus_gtfs_error (loose): 中点がずれる辺は 1 本で、ずれは 9 m 以下（辺の長さの 5% 以下）", () => {
+    // loose は resolveOverlaps を通らない基準ケース。必須エッジは三角網に残っている（上の試験）が、
+    // 1 本だけ、辺の隣の面積ほぼ 0 の三角形に中点が入り、8.8 m（辺の長さの 3.9%）ずれる。
     const tin = buildTin("uno_bus_gtfs_error", Tin.MODE_LOOSE);
-    expect(Math.max(...edgeMidpointDeviations(tin))).toBeLessThan(1e-6);
+    const deviating = edgeMidpointDeviations(tin).filter((d) => d.ratio > 1e-6);
+    expect(deviating.length).toBeLessThanOrEqual(1);
+    expect(Math.max(0, ...deviating.map((d) => d.distance))).toBeLessThanOrEqual(9);
+    expect(Math.max(0, ...deviating.map((d) => d.ratio))).toBeLessThanOrEqual(0.05);
+  });
+
+  it.each([
+    ["strict"],
+    ["auto"]
+  ] as const)("uno_bus_gtfs_error (%s): 中点がずれる辺は 5 本以下で、ずれは辺の長さの 37% 以下", (mode) => {
+    // 元から strict_error のデータ。strict に戻せないので、凸包の辺を全部制約にした三角網を採る。
+    // その副作用で、中点がずれる必須エッジが base の 2 本から 5 本に増える。最大のずれ（110 m・辺の
+    // 長さの 36%）は base と同じ。
+    const tin = buildTin("uno_bus_gtfs_error", mode);
+    const deviating = edgeMidpointDeviations(tin).filter((d) => d.ratio > 1e-6);
+    expect(deviating.length).toBeLessThanOrEqual(5);
+    expect(Math.max(0, ...deviating.map((d) => d.ratio))).toBeLessThanOrEqual(0.37);
+  });
+
+  it.each([
+    // [モード, ずれる辺の数の上限, ずれの割合の上限]
+    ["strict", 0, 0],
+    ["auto", 0, 0],
+    ["loose", 1, 0.11] // 1 辺が長さの 10% ずれる
+  ] as const)("延岡の副層 (%s): 中点がずれる辺は %i 本以下で、ずれは辺の長さの %f 以下", (mode, count, ratio) => {
+    const tin = buildNobeokaSub(mode);
+    const deviating = edgeMidpointDeviations(tin).filter((d) => d.ratio > 1e-6);
+    expect(deviating.length).toBeLessThanOrEqual(count);
+    expect(Math.max(0, ...deviating.map((d) => d.ratio))).toBeLessThanOrEqual(ratio);
+  });
+});
+
+// ─── 面積がほぼ 0 の三角形（延岡の副層） ────────────────────────────────────
+//
+// 副層は凸包の辺を固定した分、同じ群（必須エッジの中継点）の三角形を解消する反転が減り、禁止制約の
+// 残数が増える（6→18）。そのとき地図面に現れる面積ほぼ 0 の三角形の数を固定する
+// （凸包の辺を制約にする前は forw・bakw とも 0）。
+
+describe("延岡の副層の面積がほぼ 0 の三角形", { timeout: REAL_DATA_TIMEOUT_MS }, () => {
+  it.each([
+    ["strict", [1, 2]],
+    ["auto", [1, 0]],
+    ["loose", [3, 0]]
+  ] as const)("%s: forw・bakw は %j 個", (mode, expected) => {
+    expect(sliverCounts(buildNobeokaSub(mode))).toEqual(expected);
   });
 });
 

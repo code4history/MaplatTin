@@ -13,6 +13,20 @@ import {
 } from "./base.ts";
 import type { BitSet } from "./bitset.ts";
 
+/**
+ * 制約を張った途中の三角網の状態。{@link Constrain.snapshot} で控え、{@link Constrain.restore} で
+ * 同じ状態から続きを張る（同じ制約を何度も張り直さずに済む）。
+ */
+export interface ConstrainSnapshot {
+  coords: DelaunatorLike["coords"];
+  hull: DelaunatorLike["hull"];
+  triangles: Uint32Array;
+  halfedges: Int32Array;
+  vertMap: Uint32Array;
+  flips: ReturnType<BitSet["copyBits"]>;
+  consd: ReturnType<BitSet["copyBits"]>;
+}
+
 export class Constrain extends Base {
   vertMap: Uint32Array;
   flips: BitSet;
@@ -68,6 +82,34 @@ export class Constrain extends Base {
     if (edges) {
       this.constrainAll(edges);
     }
+  }
+
+  /** 現在の三角網と制約の状態を控える（三角網の配列は複製する）。 */
+  snapshot(): ConstrainSnapshot {
+    const { coords, hull, triangles, halfedges } = this.del;
+    return {
+      coords,
+      hull,
+      triangles: Uint32Array.from(triangles as ArrayLike<number>),
+      halfedges: Int32Array.from(halfedges as ArrayLike<number>),
+      vertMap: this.vertMap.slice(),
+      flips: this.flips.copyBits(),
+      consd: this.consd.copyBits(),
+    };
+  }
+
+  /** {@link snapshot} で控えた状態を、新しい配列に複製して復元する（控えは何度でも使える）。 */
+  static restore(snapshot: ConstrainSnapshot): Constrain {
+    const constrain = new Constrain({
+      coords: snapshot.coords,
+      hull: snapshot.hull,
+      triangles: snapshot.triangles.slice(),
+      halfedges: snapshot.halfedges.slice(),
+    });
+    constrain.vertMap.set(snapshot.vertMap);
+    constrain.flips.load(snapshot.flips);
+    constrain.consd.load(snapshot.consd);
+    return constrain;
   }
 
   /**

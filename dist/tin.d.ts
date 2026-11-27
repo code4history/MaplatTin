@@ -108,6 +108,27 @@ export declare class Tin extends Transform {
      * {@link updateTinAsync} を利用してください。
      */
     updateTin(): void;
+    /**
+     * 凸包の辺を全部制約にして三角網を組み、strict を壊したときは、壊した原因の凸包の辺だけを外して
+     * 組み直す。strict に戻るか、外す辺が無くなるまで繰り返し（strict を壊さない範囲で、なるべく多くの
+     * 凸包の辺を制約にする）、戻ったら、外した辺を 1 本ずつ制約に戻して strict を保てるか試す。
+     *
+     * strict に戻らないときは、外して得るものが無いので、凸包の辺を全部制約にした最初の三角網を採る。
+     * 凸包の辺を全部外した三角網が strict になるときだけは、そちらを採る。
+     *
+     * 返す結果と `this` の状態（三角網・点群・strict の判定・交差）は、必ず同じ試行から来る。試行の結果は
+     * 控えておき、採用する試行の状態を戻す（失敗した試行の状態を残さない）。同じ外す指定の試行は
+     * 繰り返さない。strict でも auto でもない（loose の）ときは組み直さない。
+     *
+     * 外す辺がある試行（最初の試行以外）は、strict になるかどうかだけが要る（採用されるのは、交差が無い
+     * strict の試行か、最初の試行だけ）ので、交差の数え上げは 1 件で止める（`buildTin` の onlyDetectKinks）。
+     *
+     * @param attempt 外す辺の鍵を受け取り、外周を探して `this.tins` などを組み、探索の結果を返す
+     */
+    private buildWithHull;
+    /** 三角網を組んだ結果の状態（試行ごとに控え、採用する試行の状態に戻す）。 */
+    private captureBuild;
+    private restoreBuild;
     /** 補助頂点を含め、strictMode に従って実際に使う両方向の三角網を組む。 */
     private buildTin;
     /**

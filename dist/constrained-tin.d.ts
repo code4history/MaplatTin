@@ -1,4 +1,5 @@
 import { FeatureCollection, Point, Polygon } from 'geojson';
+import { ConstrainSnapshot } from "./edgebound/index.js";
 import { Edge } from '@maplat/transform';
 /**
  * 制約付きTIN（Triangulated Irregular Network）を生成します
@@ -31,12 +32,27 @@ interface ForbiddenGroups {
     groupsOf: (vertex: number) => readonly number[];
     planes: readonly ArrayLike<number>[];
     boundary?: Edge[];
+    /**
+     * GCP（と必須エッジの中継点）の凸包の辺。制約の辺にして、補助頂点を含む三角形が凸包の内側に
+     * 食い込まないようにする。必須エッジなどと両立しない辺は外す。
+     */
+    hull?: Edge[];
     allowUnusableBoundary?: boolean;
 }
+/**
+ * 必須エッジを張った後の三角網の状態を、同じ点群・同じ必須エッジでの呼び出しの間で使い回す入れ物。
+ * 外す凸包の辺だけを変えて組み直すとき、点群の三角分割と必須エッジの制約（時間の大半）を繰り返さない。
+ * 使い回しても結果は変わらない（控えた状態から続きを張るのと、最初から張るのは同じ操作の列）。
+ */
+export interface ConstrainedTinReuse {
+    snapshot?: ConstrainSnapshot;
+}
 /** 制約付き三角分割を作り、指定された群の禁止制約と残数を求める。 */
-export declare function buildConstrainedTin(points: FeatureCollection<Point>, edges: Edge[], z: string, forbidden?: ForbiddenGroups): {
+export declare function buildConstrainedTin(points: FeatureCollection<Point>, edges: Edge[], z: string, forbidden?: ForbiddenGroups, reuse?: ConstrainedTinReuse): {
     tin: FeatureCollection<Polygon>;
     remaining: number;
     hasBoundary: boolean;
+    /** 制約にできた凸包の辺 */
+    hull: Edge[];
 };
 export {};

@@ -106,15 +106,13 @@ Array of all GCPs. Each element is `[[forwX, forwY], [bakwX, bakwY]]`.
 
 #### `centroid_point: PointSet`
 
-Centroid point. Serialized format `[[forwX, forwY], [bakwX, bakwY]]` is identical across V2 and V3,
-but the **computation differs in V3 plain mode**:
+Centroid point. Serialized format `[[forwX, forwY], [bakwX, bakwY]]` and computation are identical across V2 and V3:
+the forward side is the turf centroid of the GCPs, and the backward side is that point transformed through the forw TIN.
 
-| Mode | Computation |
-|------|-------------|
-| V2 / V3 `birdeye` | turf centroid coordinate transformed through forw TIN |
-| V3 `plain` | Find the TIN triangle containing the turf centroid; use the **geometric mean** of its 3 vertices (fallback to V2 method if no containing triangle found) |
-
-V3 plain's approach guarantees the centroid always lies inside an actual triangle.
+V3 versions before the hull-edge change used the mean of the 3 vertices of the TIN triangle containing the centroid
+for `plain`. When GCPs were laid out symmetrically the centroid coincided with a GCP, the first triangle sharing
+that GCP was picked, and the center (and the auxiliary vertices chosen around it) shifted to one side.
+Compiled data written by those versions is still read as-is; only regenerating it changes the center.
 
 ---
 
@@ -281,7 +279,7 @@ Each element is `[[forwX, forwY], [bakwX, bakwY]]`.
 | `version` | `2.00704` | `3.00001` |
 | `vertices_points` count | Always 4 | Up to 36 regardless of mode (36 in practice) |
 | `vertices_params` element count | 4 | Same as `vertices_points.length` |
-| `centroid_point` computation | turf centroid → TIN transform | `plain`: geometric mean of containing triangle |
+| `centroid_point` computation | turf centroid → TIN transform | Same |
 | `wh` / `xy` presence | Depends on `setWh()`/`setBounds()` (same rule as V3) | Same |
 | `weight_buffer` | Always empty object `{}` (same rule as V3) | Same |
 | Boundary vertex algorithm | Fixed 4 corners (image rectangle) | `plain`: angular bins from GCP distribution |

@@ -11,7 +11,7 @@ import {
   point,
   polygon,
 } from "@turf/turf";
-import type { Feature, Point, Polygon, Position } from "geojson";
+import type { Feature, Point, Position } from "geojson";
 import {
   counterTri,
   normalizeEdges,
@@ -48,6 +48,7 @@ import {
   countBoundaryFlips,
   searchBoundary,
   type BoundaryCandidate,
+  type SearchCache,
   type BoundaryDiagnostics,
 } from "./boundary-search.ts";
 import { interpolateEdgeNodes } from "./edge-nodes.ts";
@@ -62,12 +63,28 @@ import { findIntersectionsUpTo, MAX_KINKS_PER_DIRECTION } from "./kinks.ts";
 import { insertSearchIndex } from "./searchutils.ts";
 import { counterPoint, createPoint, vertexCalc } from "./vertexutils.ts";
 import { resolveOverlaps } from "./strict-overlap.ts";
+import { findHullCulprits } from "./hull-culprits.ts";
+import { hullEdgeKey } from "./hull-edges.ts";
 import type { SearchIndex } from "./searchutils.ts";
 import type { PointsSetBD, VertexPosition } from "./types/tin.ts";
 
 type RawPointsSet = { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
 type CompiledOuter = Pick<CompiledWorldFileOuter, "outerTransform" | "worldFile" | "vertices_points"> |
   { outerTransform: "extrapolate" };
+
+/** 三角網を組んだ結果の状態。 */
+interface BuildState {
+  tins: Tin["tins"];
+  pointsSet: Tin["pointsSet"];
+  strict_status: Tin["strict_status"];
+  kinks: Tin["kinks"];
+}
+
+/** strict を壊した凸包の辺を外して組み直す回数の上限。 */
+const MAX_HULL_REFINEMENTS = 12;
+
+/** 外した凸包の辺を戻して試す回数の上限。 */
+const MAX_HULL_RESTORE_TRIALS = 24;
 
 /**
  * Tinクラスの初期化オプション
@@ -377,6 +394,8 @@ export class Tin extends Transform {
       (point: Feature<Point>) => point.properties!.target.index as number | string,
     );
 
+    // 凸包の辺は反転禁止にしない。重なりを直すのに必要な辺だけが反転され、それでも直らないときは
+    // buildWithHull が原因の凸包の辺を外して組み直す。
     resolveOverlaps(
       this.tins!,
       searchIndex,
@@ -648,46 +667,14 @@ export class Tin extends Transform {
     }
 
     // Set centroids
-    let centCalc: { forw: Position; bakw: Position };
-    if (isV3) {
-      // V3 (main map and submap): find the TIN triangle containing turf's centroid
-      // and use its geometric centre (mean of 3 vertices) as the new centroid.
-      const forCentCoord = forCentroid.geometry!.coordinates;
-      const containingTri = (tinForw as Tins).features.find((tri: Tri) =>
-        booleanPointInPolygon(
-          point(forCentCoord),
-          tri as unknown as Feature<Polygon>,
-        )
-      );
-      if (containingTri) {
-        const coords = containingTri.geometry!.coordinates[0];
-        const aGeom = containingTri.properties!.a.geom as Position;
-        const bGeom = containingTri.properties!.b.geom as Position;
-        const cGeom = containingTri.properties!.c.geom as Position;
-        centCalc = {
-          forw: [
-            (coords[0][0] + coords[1][0] + coords[2][0]) / 3,
-            (coords[0][1] + coords[1][1] + coords[2][1]) / 3,
-          ],
-          bakw: [
-            (aGeom[0] + bGeom[0] + cGeom[0]) / 3,
-            (aGeom[1] + bGeom[1] + cGeom[1]) / 3,
-          ],
-        };
-      } else {
-        // Fallback: use turf centroid directly.
-        centCalc = {
-          forw: forCentCoord,
-          bakw: transformArr(forCentroid, tinForw as Tins) as Position,
-        };
-      }
-    } else {
-      // V2: transform turf centroid through TIN.
-      centCalc = {
-        forw: forCentroid.geometry!.coordinates,
-        bakw: transformArr(forCentroid, tinForw as Tins) as Position,
-      };
-    }
+    // 扇形の中心は、紙側の GCP の重心そのものにする。地理側は三角網（tinForw）で変換して求める
+    // （V2 と同じ。V2 の最初の実装から一貫している）。V3 は一時期、重心を含む三角形の 3 頂点の
+    // 平均にしていたが、GCP が対称に並ぶと重心が GCP に一致して、その GCP を頂点とする最初の
+    // 三角形が選ばれ、中心が片側へずれた（補助頂点の選び方も片側に詰まる）。
+    const centCalc: { forw: Position; bakw: Position } = {
+      forw: forCentroid.geometry!.coordinates,
+      bakw: transformArr(forCentroid, tinForw as Tins) as Position,
+    };
 
     const centroidPoint = createPoint(centCalc.forw, centCalc.bakw, "c");
     this.centroid = {
@@ -719,7 +706,8 @@ export class Tin extends Transform {
       // world file 自体は反転前の係数を保存する。
       const follow = this.yaxisMode === Tin.YAXIS_FOLLOW;
       const orientation = follow ? 1 : -1;
-      const boundary = searchBoundary(
+      const cache: SearchCache = new Map();
+      const { boundary } = this.buildWithHull(strict, (excludedHull) => ({ boundary: searchBoundary(
         boundaryParams,
         (params) => calculateWorldFileVertices(params, (xy) => {
           const [x, y] = worldFileToCrs(worldFile, xy);
@@ -731,14 +719,16 @@ export class Tin extends Transform {
           orientation,
           accept: (candidate) => {
             if (!candidate.hasMapBoundary) return false;
-            this.buildTin(rawPointsSet, candidate.vertices, strict, candidate);
+            this.buildTin(rawPointsSet, candidate.vertices, strict, candidate, excludedHull.size > 0);
             // auto の切り替えと strict の重なり解消を経て、採用した三角網で判定する。
             return (this.strict_status !== Tin.STATUS_LOOSE || candidate.hasBoundary) &&
               countBoundaryFlips(this.tins!.forw!, orientation) === 0 &&
               countBoundaryFlips(this.tins!.bakw!, orientation) === 0;
           },
         },
-      );
+        excludedHull,
+        cache,
+      ) }));
       if (boundary) {
         this.compiledOuter = {
           outerTransform: "worldFile",
@@ -765,11 +755,39 @@ export class Tin extends Transform {
     const calculateVertices = this.vertexMode === Tin.VERTEX_BIRDEYE
       ? calculateBirdeyeVertices
       : calculatePlainVertices;
-    const boundary = isV3
-      ? searchBoundary(boundaryParams, calculateVertices, rawPointsSet, this.points.length)
-      : undefined;
-    const verticesSet = boundary?.vertices ?? calculateVertices(boundaryParams, false);
-    const verticesList = this.buildTin(rawPointsSet, verticesSet, strict, boundary);
+    let boundary: BoundaryCandidate | undefined;
+    let verticesList: { forw: Feature<Point>[]; bakw: Feature<Point>[] };
+    if (isV3) {
+      const cache: SearchCache = new Map();
+      ({ boundary, verticesList } = this.buildWithHull(strict, (excludedHull) => {
+        const found = searchBoundary(
+          boundaryParams,
+          calculateVertices,
+          rawPointsSet,
+          this.points.length,
+          undefined,
+          excludedHull,
+          cache,
+        );
+        return {
+          boundary: found,
+          verticesList: this.buildTin(
+            rawPointsSet,
+            found?.vertices ?? calculateVertices(boundaryParams, false),
+            strict,
+            found,
+            excludedHull.size > 0,
+          ),
+        };
+      }));
+    } else {
+      verticesList = this.buildTin(
+        rawPointsSet,
+        calculateVertices(boundaryParams, false),
+        strict,
+        undefined,
+      );
+    }
 
     this.vertices_params = {
       forw: vertexCalc(verticesList.forw, this.centroid.forw!),
@@ -794,12 +812,135 @@ export class Tin extends Transform {
     }
   }
 
+  /**
+   * 凸包の辺を全部制約にして三角網を組み、strict を壊したときは、壊した原因の凸包の辺だけを外して
+   * 組み直す。strict に戻るか、外す辺が無くなるまで繰り返し（strict を壊さない範囲で、なるべく多くの
+   * 凸包の辺を制約にする）、戻ったら、外した辺を 1 本ずつ制約に戻して strict を保てるか試す。
+   *
+   * strict に戻らないときは、外して得るものが無いので、凸包の辺を全部制約にした最初の三角網を採る。
+   * 凸包の辺を全部外した三角網が strict になるときだけは、そちらを採る。
+   *
+   * 返す結果と `this` の状態（三角網・点群・strict の判定・交差）は、必ず同じ試行から来る。試行の結果は
+   * 控えておき、採用する試行の状態を戻す（失敗した試行の状態を残さない）。同じ外す指定の試行は
+   * 繰り返さない。strict でも auto でもない（loose の）ときは組み直さない。
+   *
+   * 外す辺がある試行（最初の試行以外）は、strict になるかどうかだけが要る（採用されるのは、交差が無い
+   * strict の試行か、最初の試行だけ）ので、交差の数え上げは 1 件で止める（`buildTin` の onlyDetectKinks）。
+   *
+   * @param attempt 外す辺の鍵を受け取り、外周を探して `this.tins` などを組み、探索の結果を返す
+   */
+  private buildWithHull<T extends { boundary?: BoundaryCandidate }>(
+    strict: StrictMode,
+    attempt: (excludedHull: ReadonlySet<string>) => T,
+  ): T {
+    interface Entry {
+      value: T;
+      strict: boolean;
+      /** strict になった試行と、最初の試行だけ控える */
+      state?: BuildState;
+    }
+    const entries = new Map<string, Entry>();
+    let live: Entry | undefined; // this に状態がある試行
+    const keyOf = (excluded: ReadonlySet<string>) => [...excluded].sort().join(",");
+    const run = (excluded: ReadonlySet<string>, keepState = false): Entry => {
+      const key = keyOf(excluded);
+      const known = entries.get(key);
+      if (known) return known;
+      const value = attempt(excluded);
+      const entry: Entry = {
+        value,
+        strict: value.boundary !== undefined && this.strict_status === Tin.STATUS_STRICT,
+      };
+      if (entry.strict || keepState) entry.state = this.captureBuild();
+      entries.set(key, entry);
+      live = entry;
+      return entry;
+    };
+    /** 採用する試行の状態を this に戻して、その結果を返す。 */
+    const adopt = (entry: Entry): T => {
+      if (live !== entry) this.restoreBuild(entry.state!);
+      live = entry;
+      return entry.value;
+    };
+
+    const first = run(new Set(), true);
+    const wantsStrict = strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO;
+    if (!wantsStrict || !first.value.boundary || first.strict) return first.value;
+
+    const everyHullEdge = new Set(first.value.boundary.forwHull.all.map(hullEdgeKey));
+    const pointIndices = () =>
+      this.pointsSet!.forw.features.map(
+        (feature: Feature<Point>) => feature.properties!.target.index as number | string,
+      );
+
+    // 1. 壊した原因の凸包の辺を外していき、strict に戻す
+    const excluded = new Set<string>();
+    let current = first;
+    let recovered: Entry | undefined;
+    for (let i = 0; i < MAX_HULL_REFINEMENTS; i++) {
+      const culprits = findHullCulprits(
+        this.tins!.forw!,
+        current.value.boundary!.forwHull.applied,
+        pointIndices(),
+      ).filter((edge) => !excluded.has(hullEdgeKey(edge)));
+      if (culprits.length === 0) break;
+      for (const edge of culprits) excluded.add(hullEdgeKey(edge));
+      current = run(excluded);
+      if (!current.value.boundary) break;
+      if (current.strict) {
+        recovered = current;
+        break;
+      }
+    }
+
+    // 2. strict に戻ったら、外した辺を 1 本ずつ戻して、strict を保てる辺は制約に戻す
+    if (recovered) {
+      let best = recovered;
+      for (const key of [...excluded].slice(0, MAX_HULL_RESTORE_TRIALS)) {
+        const trial = new Set(excluded);
+        trial.delete(key);
+        const entry = run(trial);
+        if (entry.strict) {
+          excluded.delete(key);
+          best = entry;
+        }
+      }
+      return adopt(best);
+    }
+
+    // 3. 戻らないとき: 凸包の辺を全部外すと strict になるならそれを採り、ならなければ最初の三角網に戻す
+    if (excluded.size < everyHullEdge.size) {
+      const bare = run(everyHullEdge);
+      if (bare.strict) return adopt(bare);
+    }
+    return adopt(first);
+  }
+
+  /** 三角網を組んだ結果の状態（試行ごとに控え、採用する試行の状態に戻す）。 */
+  private captureBuild(): BuildState {
+    return {
+      tins: this.tins,
+      pointsSet: this.pointsSet,
+      strict_status: this.strict_status,
+      kinks: this.kinks,
+    };
+  }
+
+  private restoreBuild(state: BuildState): void {
+    this.tins = state.tins;
+    this.pointsSet = state.pointsSet;
+    this.strict_status = state.strict_status;
+    if (state.kinks) this.kinks = state.kinks;
+    else delete this.kinks;
+  }
+
   /** 補助頂点を含め、strictMode に従って実際に使う両方向の三角網を組む。 */
   private buildTin(
     rawPointsSet: RawPointsSet,
     verticesSet: VertexPosition[],
     strict: StrictMode,
     boundary?: BoundaryCandidate,
+    onlyDetectKinks = false,
   ): { forw: Feature<Point>[]; bakw: Feature<Point>[] } {
     // 補助頂点を生成する。
     const verticesList = {
@@ -832,8 +973,9 @@ export class Tin extends Transform {
     if (strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO) {
       // auto は交差の有無しか使わない（あれば loose に切り替えて kinks を捨てる）
       // ので、1 件見つけた時点で数え上げをやめる。
+      // onlyDetectKinks は、strict になるかどうかだけが要る試行（buildWithHull の途中の試行）。
       this.calculateStrictTin(
-        strict === Tin.MODE_AUTO ? 1 : MAX_KINKS_PER_DIRECTION,
+        strict === Tin.MODE_AUTO || onlyDetectKinks ? 1 : MAX_KINKS_PER_DIRECTION,
       );
     }
 

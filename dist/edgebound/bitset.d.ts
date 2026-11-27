@@ -7,6 +7,10 @@ declare abstract class BitSet {
     protected readonly bs: Uint8Array | Uint16Array | Uint32Array;
     protected readonly width: 8 | 16 | 32;
     protected constructor(width: BitSet["width"], bs: BitSet["bs"]);
+    /** Copy of the underlying bits (for restoring the set later with {@link load}). */
+    copyBits(): BitSet["bs"];
+    /** Replace the contents with bits taken by {@link copyBits} from a set of the same length. */
+    load(bits: BitSet["bs"]): this;
     /**
      * Add a number to the set.
      *

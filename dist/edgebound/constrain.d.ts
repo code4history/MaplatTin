@@ -1,5 +1,18 @@
 import { Base, DelaunatorLike, intersectSegments as baseIntersectSegments } from "./base.js";
 import { BitSet } from "./bitset.js";
+/**
+ * 制約を張った途中の三角網の状態。{@link Constrain.snapshot} で控え、{@link Constrain.restore} で
+ * 同じ状態から続きを張る（同じ制約を何度も張り直さずに済む）。
+ */
+export interface ConstrainSnapshot {
+    coords: DelaunatorLike["coords"];
+    hull: DelaunatorLike["hull"];
+    triangles: Uint32Array;
+    halfedges: Int32Array;
+    vertMap: Uint32Array;
+    flips: ReturnType<BitSet["copyBits"]>;
+    consd: ReturnType<BitSet["copyBits"]>;
+}
 export declare class Constrain extends Base {
     vertMap: Uint32Array;
     flips: BitSet;
@@ -11,6 +24,10 @@ export declare class Constrain extends Base {
      * @param edges If provided, constrain these edges via constrainAll.
      */
     constructor(del: DelaunatorLike, edges?: readonly [number, number][]);
+    /** 現在の三角網と制約の状態を控える（三角網の配列は複製する）。 */
+    snapshot(): ConstrainSnapshot;
+    /** {@link snapshot} で控えた状態を、新しい配列に複製して復元する（控えは何度でも使える）。 */
+    static restore(snapshot: ConstrainSnapshot): Constrain;
     /**
      * Constrain the triangulation such that there is an edge between p1 and p2.
      */
