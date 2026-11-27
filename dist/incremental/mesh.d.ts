@@ -45,6 +45,9 @@ export declare const MIN_DOUBLE_AREA = 0.000001;
 /** 範囲 R が網の三角形のこの割合を超えたら、組み直す前に諦める。 */
 export declare const MAX_REPLACE_FRACTION = 0.2;
 export type ReplaceFailure = "tooLarge" | "notDisk" | "constraint" | "pointOutside" | "count" | "notStrict" | "forbidden" | "boundary";
+/** 磨き（§5.3）で調べる辺の数の上限（差し替えた範囲の輪の辺の数の何倍か）。 */
+export declare const POLISH_FACTOR = 4;
+export declare const INCIRCLE_INSIDE: number;
 /** 差し替えと一緒に行う頂点の編集。 */
 export interface ReplaceEdit {
     /** 座標を変える頂点（R の内側の頂点に限る。輪の頂点は動かせない） */
@@ -58,11 +61,21 @@ export interface ReplaceEdit {
     remove?: readonly number[];
     /** 新しく張る辺（頂点の id の組と、付ける属性） */
     constrain?: readonly (readonly [number, number, number])[];
+    /** required の印を外す辺（張り直さない。必須エッジを外す・区間を張り替えるとき） */
+    release?: readonly (readonly [number, number])[];
+    /** 差し替えの後の磨き（§5.3）をしない */
+    noPolish?: boolean;
 }
 export type ReplaceResult = {
     ok: true;
     removed: number[];
     added: number[];
+    /** 重なりの解消・禁止制約の解消・磨きで反転した辺の数 */
+    flips: {
+        overlap: number;
+        forbidden: number;
+        polish: number;
+    };
 } | {
     ok: false;
     reason: ReplaceFailure;
@@ -151,10 +164,24 @@ export declare class IncrementalMesh {
      * 範囲 R の外周の輪を固定して、内側だけを三角形分割し直す（設計書 §5.1）。
      * 失敗したときは、網を変えない。
      *
-     * 重なりの解消と、禁止制約の局所の解消（§5.2）は、まだ入れていない（第 2 週）。新しい三角形に
-     * okNew でないものがあれば "notStrict"、禁止制約が増えれば "forbidden" で失敗する。
+     * 新しい三角形に okNew でないものがあれば、R' の中の辺の反転で直す（重なりの解消。§5.2）。禁止制約の
+     * 三角形が増えたら、違反の三角形の所だけ反転で直し、反転した辺に protect を付ける。それでも残れば
+     * "notStrict"・"forbidden" で失敗する。差し替えの後に、輪の辺を上限つきで磨く（§5.3）。
      */
     replace(range: ReadonlySet<number>, edit?: ReplaceEdit): ReplaceResult;
+    /**
+     * 辺を共有する 2 つの三角形の対角線を入れ替える。新しい 2 つの三角形が、紙の面で正しい向き（凸な四辺形）で、
+     * 両方 okNew で、禁止制約の違反を増やさないときだけ行う。行ったら、四辺形の外周の 4 辺を返す。
+     */
+    flipEdge(u: number, v: number, gone?: Set<number>, born?: Set<number>): [number, number][] | undefined;
+    /**
+     * 磨き（§5.3）: 与えた辺から始めて、制約（required・hull・protect）でなく、外接円の条件を満たさない辺を
+     * 反転する。反転したら、四辺形の外周の 4 辺を調べ直す。調べる辺の数の上限で止める（全体を回らない）。
+     * 外接円の判定は厳密な不等号（同じ円の上の 4 点では反転しない。往復して止まらなくなるのを防ぐ）。
+     *
+     * @returns 反転した辺の数
+     */
+    polish(seeds: readonly (readonly [number, number])[], limit: number, gone?: Set<number>, born?: Set<number>): number;
     /**
      * 接続を変えずに、頂点の座標だけを変える（地理面だけの移動。設計書 §4.3）。星の三角形の `bad` を
      * 判定し直す。採ってよいかどうか（星の三角形が全部 okNew か）は、呼び出し側が先に確かめる。

@@ -13,9 +13,9 @@ export { BOUNDARY_GROUP, EDGE_HULL, EDGE_PROTECT, EDGE_REQUIRED, IncrementalMesh
 export type { EdgeId, MeshAudit, MeshVertex, PointId, ReplaceEdit, ReplaceFailure, ReplaceResult, VertexRef, } from "./incremental/mesh.js";
 export { MeshModel, meshFromCompiled } from "./incremental/model.js";
 export type { ImportFailure, MeshEdge, MeshSupplement } from "./incremental/model.js";
-export { insertPoint, movePoint, removePoint } from "./incremental/edits.js";
-export type { EditFailure, EditResult } from "./incremental/edits.js";
-export type { TinEdit, TinPatch } from "./incremental/types.js";
+export { insertEdge, insertPoint, movePoint, removeEdge, removePoint, replaceEdgeNodes, } from "./incremental/edits.js";
+export type { EditFailure, EditResult, VertexChanges } from "./incremental/edits.js";
+export type { TinEdit, TinPatch, TinPatchFallback } from "./incremental/types.js";
 export { default as constrainedTin } from "./constrained-tin.js";
 export { default as findIntersections } from "./kinks.js";
 export { insertSearchIndex } from "./searchutils.js";

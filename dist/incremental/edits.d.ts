@@ -1,22 +1,39 @@
 import { Position } from 'geojson';
-import { IncrementalMesh, PointId, ReplaceFailure } from "./mesh.js";
+import { EdgeId, IncrementalMesh, PointId, ReplaceFailure, VertexRef } from "./mesh.js";
 import { MeshModel } from "./model.js";
 /** 範囲を広げる回数の上限。 */
 export declare const MAX_GROW = 3;
 export type EditFailure = ReplaceFailure
-/** 第 1 週の対象でない編集 */
+/** 局所更新の対象でない編集（帯に触れる・world file 外周の網、など） */
  | "unsupported"
 /** 同じ位置に、既に頂点がある */
- | "duplicate" | "unknownPoint" | "idInUse";
+ | "duplicate" | "unknownPoint" | "unknownEdge" | "idInUse";
+/** 編集で変わった頂点。 */
+export interface VertexChanges {
+    /** 増えた頂点の id */
+    added: number[];
+    /** 消えた頂点の指し方 */
+    removed: VertexRef[];
+    /** 座標が変わった頂点の id */
+    moved: number[];
+}
 export type EditResult = {
     ok: true;
-    /** "moved" は座標だけ（接続は変わらない）。"replaced" は範囲を差し替えた */
+    /** "moved" は座標・辺の属性だけ（接続は変わらない）。"replaced" は範囲を差し替えた */
     mode: "moved" | "replaced";
+    /** 消えた三角形・増えた三角形の id（磨きの分を含む） */
     removed: number[];
     added: number[];
     /** 範囲を広げた回数と、差し替えた範囲の三角形の数 */
     grown: number;
     size: number;
+    /** 重なりの解消・禁止制約の解消・磨きで反転した辺の数 */
+    flips: {
+        overlap: number;
+        forbidden: number;
+        polish: number;
+    };
+    vertices: VertexChanges;
 } | {
     ok: false;
     reason: EditFailure;
@@ -32,8 +49,16 @@ export declare function locate(mesh: IncrementalMesh, point: Position, hint: num
  */
 export declare function cavity(mesh: IncrementalMesh, point: Position, start: number): Set<number>;
 /**
- * 対応点を動かす。紙の面が変わらなければ、接続を変えずに星の三角形を判定し直す（§4.3）。
- * 変わるなら、R0 = 星 ∪（新しい位置が星の外なら）そこまでに通る三角形 ∪ 新しい位置の空洞。
+ * 線分 ab が触れる三角形（線分が通る三角形と、端点・途中の頂点で触れるだけの三角形）。
+ * a を含む三角形から、線分に触れる三角形を辺づたいにたどる。a が網の外なら undefined。
+ */
+export declare function crossed(mesh: IncrementalMesh, a: Position, b: Position, hint: number): Set<number> | undefined;
+/**
+ * 対応点を動かす。
+ *
+ * - 中継点のある必須エッジの端点は、その必須エッジの中継点が全部動く（片方の面だけを動かした場合も）。
+ *   付いている必須エッジの全部を、1 回の差し替えで同時に張り替える（§4.4）。
+ * - それ以外で、紙の面が変わらなければ、接続を変えずに星の三角形を判定し直す（§4.3）。
  */
 export declare function movePoint(model: MeshModel, id: PointId, to: {
     forw?: Position;
@@ -41,5 +66,14 @@ export declare function movePoint(model: MeshModel, id: PointId, to: {
 }): EditResult;
 /** 対応点を足す。R0 は、点の空洞。 */
 export declare function insertPoint(model: MeshModel, id: PointId, forw: Position, bakw: Position, position?: number): EditResult;
-/** 対応点を消す。R0 は、点の星。必須エッジの端点は、先に必須エッジを外す（第 2 週）。 */
+/** 対応点を消す。R0 は、点の星。必須エッジの端点は、先に必須エッジを外すこと。 */
 export declare function removePoint(model: MeshModel, id: PointId): EditResult;
+/**
+ * 必須エッジを足す。R0 は、新しい区間が触れる三角形（線分が既に網の辺なら、印を付けるだけ）。
+ * 折れ点があれば、両面の折れ線を累積長の比で突き合わせて、中継点を作る。
+ */
+export declare function insertEdge(model: MeshModel, id: EdgeId, start: PointId, end: PointId, forwNodes?: Position[], bakwNodes?: Position[], position?: number): EditResult;
+/** 必須エッジを外す。中継点は消える。R0 は、中継点の星（直線なら、辺の両側の 2 つの三角形）。 */
+export declare function removeEdge(model: MeshModel, id: EdgeId): EditResult;
+/** 必須エッジの折れ点を差し替える（足す・消す・動かす）。全部の区間と全部の中継点を張り替える。 */
+export declare function replaceEdgeNodes(model: MeshModel, id: EdgeId, forwNodes: Position[], bakwNodes: Position[]): EditResult;

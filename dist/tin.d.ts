@@ -4,6 +4,7 @@ import { BoundaryDiagnostics } from "./boundary-search.js";
 import { SupplementDiagnostics, SupplementPair, SupplementPairRecord } from "./supplement-pairs.js";
 import { PointsSetBD } from "./types/tin.js";
 import { ImportFailure, MeshModel } from "./incremental/model.js";
+import { TinEdit, TinPatch } from "./incremental/types.js";
 export declare const FORMAT_VERSION_V2 = 2.00704;
 export declare const FORMAT_VERSION_V3 = 3.00001;
 /** 補完点の一覧を持つ compiled（Transform の型には無い項目。読み手は無視してよい）。 */
@@ -64,6 +65,15 @@ export declare class Tin extends Transform {
     incremental: boolean;
     private mesh?;
     private meshFailure?;
+    /** 対応点・必須エッジの id（`points`・`edges` の並び）。undefined は、配列の添字が id。 */
+    private pointIds?;
+    private edgeIds?;
+    /** `applyEdits` で進む版の番号。`setPoints` などで入力を入れ直すと 0 に戻る。 */
+    private editRevision;
+    /** 網が、`tins`・`points`・`edges` より先に進んでいる（局所更新を当てた後、まだ書き戻していない）。 */
+    private meshAhead;
+    /** 補助頂点・重心が最新でない（局所更新を当てた後、清書か帯の差し替えをするまで）。 */
+    private bandStale;
     /**
      * 局所更新の網（今の三角網を取り込んだもの）。スイッチが切れている・三角網が無い・取り込めない網
      * （loose・V2 など。理由は `incrementalFailure`）のときは undefined。
@@ -71,6 +81,34 @@ export declare class Tin extends Transform {
     get incrementalMesh(): MeshModel | undefined;
     /** 局所更新の網へ取り込めなかった理由（取り込めた・スイッチが切れているときは undefined）。 */
     get incrementalFailure(): ImportFailure | undefined;
+    /** `applyEdits` の版の番号。次の `applyEdits` に、前提として渡す。 */
+    get revision(): number;
+    /** 網と、網から決まる状態を捨てる（入力や設定を入れ直したとき）。 */
+    private dropMesh;
+    /**
+     * 局所更新を当てた網を、`points`・`edges`・`tins` などへ書き戻す（`transform()`・`getCompiled()` の前に
+     * 自動で呼ばれる。全体を作り直すので、編集のたびには呼ばないこと。表示は `TinPatch` で足りる）。
+     */
+    private syncFromMesh;
+    /** 今の入力（対応点・必須エッジ。内部の座標系）と、その id の並び。 */
+    private currentInputs;
+    /**
+     * 編集を当てる（MaplatTin#100 の第 2 段 a）。局所で済めば、網の差分を返す（`mode: "local"`）。済まなければ、
+     * 編集を入力に当てて全部組み直し、その結果を返す（`mode: "full"`。理由は `fallbackReason`）。
+     *
+     * - `edits` は、全部が当たるか、全部組み直しか、のどちらか（一部だけ当たった網を返さない）。
+     * - `baseRevision` が今の版（`revision`）と合わなければ、何も変えずに `"revisionMismatch"` を返す。
+     *   呼び出し側は、最新の入力を `setPoints`・`setEdges` で入れ直して、`updateTin()` すること。
+     * - 当てられない編集（id が無い・既に使われている・座標が有限でない）は、何も変えずに例外を投げる。
+     * - 全部組み直しが例外を投げる入力（必須エッジが交差する・点が一直線、など）では、`updateTin()` と同じ
+     *   例外を投げる。入力は編集の後の状態になり、三角網は無い。
+     * - 局所で済むのは、スイッチ（`Options#incremental`）が入っていて、strict・strict_error の V3 の網で、
+     *   帯（補助頂点・重心）を更新しなくてよい内側の編集だけ。
+     * - 座標は、`setPoints` に渡すのと同じ、外の座標系（差分の座標は、compiled と同じ内部の座標系）。
+     */
+    applyEdits(edits: TinEdit[], baseRevision?: number): TinPatch;
+    /** 紙の面と地理面の間で座標を変換する。局所更新を当てた後は、網から三角網を作り直してから変換する。 */
+    transform(apoint: number[], backward?: boolean, ignoreBounds?: boolean): number[] | false;
     /** 現在の三角網を V3 で生成したときの外周の診断。 */
     get boundaryDiagnostics(): BoundaryDiagnostics | undefined;
     /**
@@ -103,6 +141,8 @@ export declare class Tin extends Transform {
      * 境界ポリゴンを設定します
      */
     setBounds(bounds: Position[]): void;
+    /** 設定を変える前に、局所更新を当てた網を入力へ書き戻して、網を捨てる（id の並びと版は保つ）。 */
+    private retireMesh;
     /**
      * 現在の設定を永続化可能な形式にコンパイルします
      */

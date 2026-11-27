@@ -1,8 +1,9 @@
 import { Position } from 'geojson';
-import { Edge } from '@maplat/transform';
+import { Edge, EdgeSet, PointSet } from '@maplat/transform';
+import { BandStats } from "./band.js";
 import { SupplementPairRecord } from "../supplement-pairs.js";
 import { CompiledWithSupplement } from "../tin.js";
-import { IncrementalMesh, EdgeId } from "./mesh.js";
+import { IncrementalMesh, EdgeId, PointId } from "./mesh.js";
 /** 網を取り込めない理由。 */
 export type ImportFailure = 
 /** V2 のアルゴリズムの網（補助頂点が四隅だけ） */
@@ -70,6 +71,21 @@ export declare class MeshModel {
         forw: Position;
         bakw: Position;
     };
+    /** 補完点の鍵の続き番号 */
+    nextSupplement: number;
+    private bandStats?;
+    /**
+     * 帯（補助頂点・重心）を更新しなくてよいかを判定するための量（設計書 §6.3）。最初に要るときに 1 回だけ作る。
+     * 判定できない網（world file 外周・補助頂点の輪が閉じなかった網）では null。
+     */
+    band(): BandStats | null;
+    /** 対応点と必須エッジ（`setPoints`・`setEdges` に入れる形。座標は内部の座標系）と、その id の並び。 */
+    inputs(): {
+        points: PointSet[];
+        edges: EdgeSet[];
+        pointIds: PointId[];
+        edgeIds: EdgeId[];
+    };
     readonly mesh: IncrementalMesh;
     private readonly context;
     constructor(mesh: IncrementalMesh, context: MeshContext);
@@ -94,8 +110,12 @@ export declare class MeshModel {
  *
  * @param compiled 全部組み直した結果
  * @param segments 必須エッジの区間（`pointsSet.edges`。点群の配列位置の組。対応点が先、その後ろに中継点と補完点）
+ * @param ids 対応点・必須エッジの id（compiled の並び）。省略時は、配列の添字を id にする
  */
-export declare function meshFromCompiled(compiled: CompiledWithSupplement, segments: readonly Edge[]): {
+export declare function meshFromCompiled(compiled: CompiledWithSupplement, segments: readonly Edge[], ids?: {
+    points?: readonly PointId[];
+    edges?: readonly EdgeId[];
+}): {
     model: MeshModel;
 } | {
     reason: ImportFailure;
