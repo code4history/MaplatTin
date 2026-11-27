@@ -1,0 +1,242 @@
+{
+ "maps/naramachi_yasui_bunko/v2": {
+  "compiled": "9d9b5c593093203a11066f939577d3405809857f06d17b022dd1d60db7d056bf",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "maps/naramachi_yasui_bunko/v3": {
+  "compiled": "7e44829fd8f3cee0de98b3da871135de9f0ae8e377b2c3290907ab9768399d1b",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "maps/naramachi_yasui_revised/v2": {
+  "compiled": "9d9b5c593093203a11066f939577d3405809857f06d17b022dd1d60db7d056bf",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "maps/naramachi_yasui_revised/v3": {
+  "compiled": "7e44829fd8f3cee0de98b3da871135de9f0ae8e377b2c3290907ab9768399d1b",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "maps/fushimijo_maplat/v2": {
+  "compiled": "ce36961be9d104c981dd8a16f0f7a24566ad28da02294665227a672efc19907f",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "maps/fushimijo_maplat/v3": {
+  "compiled": "21e63b9d28d7db33aabf36466332cb119448e40b7723990c56e482a7eb3cca91",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "maps/uno_bus_gtfs_loose/v2": {
+  "compiled": "2b094de22b696c6ec59725be8d0bdbb7bcdbe516988f784834ffb036944a7771",
+  "edgeNodes": "2af2287f47b880a964fbd977960a7c5bdd6d001d4a0f4379c828e782d74942f8",
+  "edgeNodesCount": 694
+ },
+ "maps/uno_bus_gtfs_loose/v3": {
+  "compiled": "ac0f6b7abecd9a09325c9f983198d86da5bc9a345d366ab14d232b7fc5f545d6",
+  "edgeNodes": "2af2287f47b880a964fbd977960a7c5bdd6d001d4a0f4379c828e782d74942f8",
+  "edgeNodesCount": 694
+ },
+ "maps/uno_bus_gtfs_error/v2": {
+  "compiled": "fa72da963a87b7485cff2498f962cfd15d10460bfe4c3a0710dc7fc8aedc2f88",
+  "edgeNodes": "2af2287f47b880a964fbd977960a7c5bdd6d001d4a0f4379c828e782d74942f8",
+  "edgeNodesCount": 694
+ },
+ "maps/uno_bus_gtfs_error/v3": {
+  "compiled": "414c028db29115d08ba647e8b38c2f97e56e9e8877daf3154035698ba3a194f7",
+  "edgeNodes": "2af2287f47b880a964fbd977960a7c5bdd6d001d4a0f4379c828e782d74942f8",
+  "edgeNodesCount": 694
+ },
+ "compiled/1932_nobeoka/v2": {
+  "compiled": "3ea295e0508dd95bd8eac6be07d28be296fb5bc63e01fdd7447a8dd42285eb0c",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/1932_nobeoka/v3": {
+  "compiled": "f44c3ccd8f033bfb448e59d8834e8720e552935ad5318445375f258f45da07e4",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/1932_nobeoka_sub0_v2/v2": {
+  "compiled": "d34acc4bec1d2d123cc6e10edfbd055ea90affe1add8696e83b3a0f596bf912a",
+  "edgeNodes": "20f80c6a29cedb7a97f0bd8e64dc17566b6a5b1aa8982d26be80bb92f91de330",
+  "edgeNodesCount": 194
+ },
+ "compiled/1932_nobeoka_sub0_v2/v3": {
+  "compiled": "b525a1a594c4785c75a8356852293e8fa5eeee002fb079258f121c374fe440ec",
+  "edgeNodes": "20f80c6a29cedb7a97f0bd8e64dc17566b6a5b1aa8982d26be80bb92f91de330",
+  "edgeNodesCount": 194
+ },
+ "compiled/1932_nobeoka_sub0_v3/v2": {
+  "compiled": "d34acc4bec1d2d123cc6e10edfbd055ea90affe1add8696e83b3a0f596bf912a",
+  "edgeNodes": "20f80c6a29cedb7a97f0bd8e64dc17566b6a5b1aa8982d26be80bb92f91de330",
+  "edgeNodesCount": 194
+ },
+ "compiled/1932_nobeoka_sub0_v3/v3": {
+  "compiled": "b525a1a594c4785c75a8356852293e8fa5eeee002fb079258f121c374fe440ec",
+  "edgeNodes": "20f80c6a29cedb7a97f0bd8e64dc17566b6a5b1aa8982d26be80bb92f91de330",
+  "edgeNodesCount": 194
+ },
+ "compiled/1932_nobeoka_v2/v2": {
+  "compiled": "3ea295e0508dd95bd8eac6be07d28be296fb5bc63e01fdd7447a8dd42285eb0c",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/1932_nobeoka_v2/v3": {
+  "compiled": "f44c3ccd8f033bfb448e59d8834e8720e552935ad5318445375f258f45da07e4",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/1932_nobeoka_v3/v2": {
+  "compiled": "3ea295e0508dd95bd8eac6be07d28be296fb5bc63e01fdd7447a8dd42285eb0c",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/1932_nobeoka_v3/v3": {
+  "compiled": "f44c3ccd8f033bfb448e59d8834e8720e552935ad5318445375f258f45da07e4",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/fushimijo_maplat_v2/v2": {
+  "compiled": "ce36961be9d104c981dd8a16f0f7a24566ad28da02294665227a672efc19907f",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/fushimijo_maplat_v2/v3": {
+  "compiled": "21e63b9d28d7db33aabf36466332cb119448e40b7723990c56e482a7eb3cca91",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/fushimijo_maplat_v3/v2": {
+  "compiled": "ce36961be9d104c981dd8a16f0f7a24566ad28da02294665227a672efc19907f",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/fushimijo_maplat_v3/v3": {
+  "compiled": "21e63b9d28d7db33aabf36466332cb119448e40b7723990c56e482a7eb3cca91",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/miesan_ginza_map_v2/v2": {
+  "compiled": "ec0f6a90fafb9dfda160a73d95b60d49259cad5df24d28708886b436bc04b956",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/miesan_ginza_map_v2/v3": {
+  "compiled": "a62ed68f502a7af4083d2f0454ccbc36bb448e8d3ea38a4fff7b9ccccaf5cf82",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/miesan_ginza_map_v3/v2": {
+  "compiled": "ec0f6a90fafb9dfda160a73d95b60d49259cad5df24d28708886b436bc04b956",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/miesan_ginza_map_v3/v3": {
+  "compiled": "a62ed68f502a7af4083d2f0454ccbc36bb448e8d3ea38a4fff7b9ccccaf5cf82",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/naramachi_yasui_bunko/v2": {
+  "compiled": "9d9b5c593093203a11066f939577d3405809857f06d17b022dd1d60db7d056bf",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_bunko/v3": {
+  "compiled": "7e44829fd8f3cee0de98b3da871135de9f0ae8e377b2c3290907ab9768399d1b",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_bunko_v2/v2": {
+  "compiled": "9d9b5c593093203a11066f939577d3405809857f06d17b022dd1d60db7d056bf",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_bunko_v2/v3": {
+  "compiled": "7e44829fd8f3cee0de98b3da871135de9f0ae8e377b2c3290907ab9768399d1b",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_bunko_v3/v2": {
+  "compiled": "9d9b5c593093203a11066f939577d3405809857f06d17b022dd1d60db7d056bf",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_bunko_v3/v3": {
+  "compiled": "7e44829fd8f3cee0de98b3da871135de9f0ae8e377b2c3290907ab9768399d1b",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_revised/v2": {
+  "compiled": "9d9b5c593093203a11066f939577d3405809857f06d17b022dd1d60db7d056bf",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_revised/v3": {
+  "compiled": "7e44829fd8f3cee0de98b3da871135de9f0ae8e377b2c3290907ab9768399d1b",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_revised_v2/v2": {
+  "compiled": "9d9b5c593093203a11066f939577d3405809857f06d17b022dd1d60db7d056bf",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_revised_v2/v3": {
+  "compiled": "7e44829fd8f3cee0de98b3da871135de9f0ae8e377b2c3290907ab9768399d1b",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_revised_v3/v2": {
+  "compiled": "9d9b5c593093203a11066f939577d3405809857f06d17b022dd1d60db7d056bf",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/naramachi_yasui_revised_v3/v3": {
+  "compiled": "7e44829fd8f3cee0de98b3da871135de9f0ae8e377b2c3290907ab9768399d1b",
+  "edgeNodes": "df10d5db0a162c383aad82889d774d184609e383b04717dc6610c3a11561b7f8",
+  "edgeNodesCount": 976
+ },
+ "compiled/tatebayashi_castle_akimoto_v2/v2": {
+  "compiled": "fd8861c7376544b1d3cc81721e93e83c4f502c91bb4b0e8fd4814f71516676c9",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/tatebayashi_castle_akimoto_v2/v3": {
+  "compiled": "c4f3007cd16b48c853eb0cc72c0694b9fcb4c93822504d466e3def16ee07592f",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/tatebayashi_castle_akimoto_v3/v2": {
+  "compiled": "fd8861c7376544b1d3cc81721e93e83c4f502c91bb4b0e8fd4814f71516676c9",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/tatebayashi_castle_akimoto_v3/v3": {
+  "compiled": "c4f3007cd16b48c853eb0cc72c0694b9fcb4c93822504d466e3def16ee07592f",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/tatebayashi_kaei_jokamachi_v2/v2": {
+  "compiled": "71951d2e46731f41cc2ce048ea596feba1da191d7830d2d216467577cf481f06",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/tatebayashi_kaei_jokamachi_v2/v3": {
+  "compiled": "fc57ded40ce08c95244b4108498f63ad06870fdf07899e2426fb7a07d770b4e8",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/tatebayashi_kaei_jokamachi_v3/v2": {
+  "compiled": "71951d2e46731f41cc2ce048ea596feba1da191d7830d2d216467577cf481f06",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ },
+ "compiled/tatebayashi_kaei_jokamachi_v3/v3": {
+  "compiled": "fc57ded40ce08c95244b4108498f63ad06870fdf07899e2426fb7a07d770b4e8",
+  "edgeNodes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "edgeNodesCount": 0
+ }
+}
