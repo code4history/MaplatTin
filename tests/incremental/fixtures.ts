@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
+import type { PointSet, WorldFile } from "@maplat/transform";
 import type { Compiled, Options } from "../../src/index.ts";
 
 /** tests/maps の地図ファイルの形（最上位に gcps を持つ形と、compiled だけを持つ形がある）。 */
@@ -60,3 +61,23 @@ export const digest = (compiled: unknown): string =>
     .slice(0, 16);
 
 export const MODES = ["strict", "auto"] as const;
+
+/** 対応点に、最小二乗で当てはめた world file（左上画素の中心の座標が原点）。 */
+export function fitWorldFile(points: PointSet[]): WorldFile {
+  const mean = (side: 0 | 1, axis: number) =>
+    points.reduce((sum, pair) => sum + pair[side][axis], 0) / points.length;
+  const xMean = mean(0, 0);
+  const yMean = mean(0, 1);
+  const rows = points.map(([[x, y], crs]) => [x - xMean, y - yMean, ...crs]);
+  const dot = (a: number, b: number) =>
+    rows.reduce((sum, row) => sum + row[a] * row[b], 0);
+  const det = dot(0, 0) * dot(1, 1) - dot(0, 1) ** 2;
+  const fit = (axis: number) => {
+    const x = (dot(1, 1) * dot(0, axis + 2) - dot(0, 1) * dot(1, axis + 2)) / det;
+    const y = (dot(0, 0) * dot(1, axis + 2) - dot(0, 1) * dot(0, axis + 2)) / det;
+    return [x, y, mean(1, axis) + x * (0.5 - xMean) + y * (0.5 - yMean)];
+  };
+  const [xScale, xSkew, xOrigin] = fit(0);
+  const [ySkew, yScale, yOrigin] = fit(1);
+  return { xScale, xSkew, xOrigin, ySkew, yScale, yOrigin };
+}

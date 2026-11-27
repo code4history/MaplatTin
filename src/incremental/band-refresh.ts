@@ -111,8 +111,15 @@ export function refreshBand(model: MeshModel, vertexMode: VertexMode | undefined
   const present = new Set(model.ring.map((vertex) => ringBinOf(at(vertex).forw, previous)));
   const skipBins = new Set<number>();
   for (let bin = 0; bin < 36; bin++) if (!present.has(bin)) skipBins.add(bin);
+  // 36 頂点そろっている輪は、間引いていない。world file 外周の網は、輪を作ったときの中心を持たないので、
+  // 編集の後の中心で区分を数えると、区分の境の近くの補助頂点が隣の区分に入り、空いた区分を「外した区分」と
+  // 見誤ることがある（そろっている輪では、引き継がない）
   const inherited: RingOptions | undefined =
-    model.ring.length <= 4 ? { cornersOnly: true } : skipBins.size > 0 ? { skipBins } : undefined;
+    model.ring.length <= 4
+      ? { cornersOnly: true }
+      : skipBins.size > 0 && model.ring.length < 36
+        ? { skipBins }
+        : undefined;
   // 間引いた輪で成り立たなければ、36 区分の全部の輪も試す
   const rings: (RingOptions | undefined)[] = inherited ? [inherited, undefined] : [undefined];
   const hull = convexHullEdges(interior.map((vertex) => at(vertex).forw));

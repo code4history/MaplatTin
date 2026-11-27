@@ -125,6 +125,22 @@ export class MeshModel {
     };
   }
 
+  /**
+   * world file 外周の網で、地理面の位置が world file の値（`worldFileProjection()(forw)`）と違う補助頂点の数。
+   * world file 外周でなければ 0。全部組み直した compiled では、差は 0（同じ式で計算した値を、そのまま持つ）。
+   */
+  worldFileMismatches(): number {
+    const project = this.worldFileProjection();
+    if (!project) return 0;
+    let count = 0;
+    for (const vertex of this.ring) {
+      const { forw, bakw } = this.mesh.vertices.get(vertex)!;
+      const expected = project(forw);
+      if (expected[0] !== bakw[0] || expected[1] !== bakw[1]) count++;
+    }
+    return count;
+  }
+
   /** 補完点の一覧（compiled の `supplementPairs` に、座標を付けたもの。`Tin#supplementPairs` と同じ形）。 */
   supplementPairs(): SupplementPair[] {
     const index = this.indexTable();

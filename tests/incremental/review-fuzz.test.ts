@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
 import type { Position } from "geojson";
 import { Transform } from "@maplat/transform";
-import { Tin, type MeshModel, type TinEdit, type TinPatch, type VertexRef } from "../../src/index.ts";
+import { Tin, type MeshModel, type Options, type TinEdit, type TinPatch, type VertexRef } from "../../src/index.ts";
 import { findIntersectionsUpTo } from "../../src/kinks.ts";
 import { edgeKey } from "../../src/incremental/mesh.ts";
-import { mapOptions } from "./fixtures.ts";
+import { fitWorldFile, mapOptions } from "./fixtures.ts";
 
 // 既定は軽い設定（CI 用）。レビューのときの設定は、
 //   REVIEW_STEPS=150 REVIEW_SEEDS=20261127,31337
@@ -92,11 +92,18 @@ function hullIds(points: Position[]): Set<number> {
 
 interface Finding { map: string; seed: number; step: number; kind: string; what: string; detail?: unknown }
 
+// 外周の方式: 扇形の外挿と、world file 外周（world file は、対応点に最小二乗で当てはめる）。
+// REVIEW_OUTER=fan か worldFile で、片方に絞れる
+const OUTERS = (process.env.REVIEW_OUTER ?? "fan,worldFile").split(",") as ("fan" | "worldFile")[];
+
 describe("レビュー: 乱数の編集", () => {
   for (const name of MAPS) {
-    for (const seed of SEEDS) {
-      it(`${name} seed=${seed} rebuild=${REBUILD} mode=${MODE}`, () => {
-        const options = mapOptions(name, MODE);
+    for (const seed of SEEDS) for (const outer of OUTERS) {
+      it(`${name} seed=${seed} rebuild=${REBUILD} mode=${MODE} outer=${outer}`, () => {
+        const plain = mapOptions(name, MODE);
+        const options: Options = outer === "worldFile"
+          ? { ...plain, outerTransform: "worldFile", worldFile: fitWorldFile(plain.points!) }
+          : plain;
         let tin = new Tin({ ...options, incremental: true, incrementalBand: true, incrementalRebuild: REBUILD });
         tin.updateTin();
         const findings: Finding[] = [];
@@ -252,7 +259,8 @@ describe("レビュー: 乱数の編集", () => {
             const errors = display.apply(patch);
             if (errors.length) note("差分が当たらない", errors);
             if (wasStrict && patch.strict_status !== "strict") note("局所更新が strict を壊した");
-            if (!patch.boundaryStale && (!patch.centroid || !patch.verticesParams)) note("帯を差し替えたのに centroid/verticesParams が無い");
+            // （world file 外周は、扇形の中心を持たない。帯は古くならないので、この検査の対象でない）
+            if (!now.isWorldFile && !patch.boundaryStale && (!patch.centroid || !patch.verticesParams)) note("帯を差し替えたのに centroid/verticesParams が無い");
           } else display.reset(now);
           const d = display.diff(now);
           if (d.length) { note("表示用の網が網と違う", d); display.reset(now); }
@@ -315,7 +323,7 @@ describe("レビュー: 乱数の編集", () => {
             if (JSON.stringify(tin.getCompiled()) !== JSON.stringify(compiled)) note("syncFromMesh の後の getCompiled が違う");
             if (tin.incrementalMesh !== now) note("syncFromMesh で網が入れ替わった");
           }
-          if (!patch.boundaryStale && patch.mode === "local") {
+          if (!patch.boundaryStale && patch.mode === "local" && patch.centroid) {
             // 帯を差し替えた直後: centroid・verticesParams の意味を、全部組み直しと比べる
             const compiled = now.toCompiled();
             const fresh = new Tin({ ...options, points: undefined, edges: undefined });
@@ -352,9 +360,9 @@ describe("レビュー: 乱数の編集", () => {
           if (a !== b) findings.push({ map: name, seed, step: -1, kind: "清書", what: "清書が新しく組んだ結果と違う" });
           bump(`清書:${a.startsWith("throw") ? a : JSON.parse(a).strict_status}`);
         }
-        const summary = { name, seed, rebuild: REBUILD, mode: MODE, stats, findings };
+        const summary = { name, seed, rebuild: REBUILD, mode: MODE, outer, stats, findings };
         console.info(`[review] ${JSON.stringify(summary, null, 1)}`);
-        if (OUT) writeFileSync(`${OUT}/${name}-${seed}-${REBUILD ? "rb" : "std"}-${MODE}.json`, JSON.stringify(summary, null, 1));
+        if (OUT) writeFileSync(`${OUT}/${name}-${seed}-${REBUILD ? "rb" : "std"}-${MODE}-${outer}.json`, JSON.stringify(summary, null, 1));
         expect(findings).toEqual([]);
       }, 3_600_000);
     }

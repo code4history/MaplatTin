@@ -661,6 +661,18 @@ describe("applyEdits: 補完点の付いた対応点の削除・world file 外�
     }
     expect(fresh.incrementalMesh!.mesh.audit()).toMatchObject({ bad: [], badMatches: true, indexMatches: true, boundarySimple: true, forwFolds: 0 });
     expect(new Tin({ incremental: true }).restoreMesh(JSON.parse(JSON.stringify(after)))).toEqual({ ok: true });
+    // transform()・setEdges() を挟んでも、getCompiled() は同じ（補助頂点が、帯を差し替える前のものに戻らない）
+    const text = JSON.stringify(after);
+    const [someForw, someBakw] = after.points[5];
+    const out = fresh.transform(someForw, false) as Position;
+    expect(Math.hypot(out[0] - someBakw[0], out[1] - someBakw[1])).toBeLessThan(1e-6);
+    expect(JSON.stringify(fresh.getCompiled())).toBe(text);
+    expect(new Tin({ incremental: true }).restoreMesh(JSON.parse(JSON.stringify(fresh.getCompiled())))).toEqual({ ok: true });
+    // 続けて編集しても、書き出しと網が合っている
+    expect(fresh.applyEdits([localEdit(fresh)]).mode).toBe("local");
+    const edited = JSON.stringify(fresh.getCompiled());
+    fresh.transform(someForw, false);
+    expect(JSON.stringify(fresh.getCompiled())).toBe(edited);
     // スイッチが切れていれば、全部組み直しへ落ちる
     const plain = new Tin({ ...world, incremental: true });
     plain.updateTin();

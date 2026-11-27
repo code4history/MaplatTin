@@ -145,6 +145,8 @@ describe("incrementalRebuild: 全部の実地図で、strict・食い込み・GC
       expect(on.rebuildDiagnostics, name).toMatchObject({ fellBack: false, localFailures: 0 });
       expect(on.rebuildDiagnostics!.localAttempts, name).toBeGreaterThan(0);
       if (on.strict_status !== "strict") continue;
+      // world file 外周を採る条件: 補助頂点を含む三角形に、向きが逆・面積 0 のものが 1 つも無い
+      expect(on.boundaryDiagnostics, name).toMatchObject({ boundaryTriangleFlips: 0, outerTransform: "worldFile" });
       expect(orientationFlips(on), name).toBe(0);
       expect(intrusionFraction(on, 0), name).toBeLessThanOrEqual(intrusionFraction(off, 0) + 1e-12);
       // world file 外周の補助頂点は、world file の値そのもの。Transform で読み直して、対応点が往復する

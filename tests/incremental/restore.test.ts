@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Position } from "geojson";
 import { Transform, type PointSet, type WorldFile } from "@maplat/transform";
 import { Tin, type CompiledWithSupplement, type Options, type TinEdit } from "../../src/index.ts";
-import { mapOptions } from "./fixtures.ts";
+import { fitWorldFile, mapOptions } from "./fixtures.ts";
 import { REAL_DATA_TIMEOUT_MS } from "../timeouts.ts";
 
 // MaplatTin#100 の特例の保存（設計書 §9.5）: 清書が strict にならず、局所更新の網が strict のとき、
@@ -328,6 +328,25 @@ describe("restoreMesh: 両面で一緒に壊した compiled も断る（#103 第
     expect(tin.restoreMesh(clone(marked))).toEqual({ ok: true });
     tin.setPoints(mapOptions("fushimijo_maplat", "strict").points!);
     expect(tin.meshOrigin).toBeUndefined();
+    // strict_error・loose と名乗る compiled を断ったときは、その値のまま残す（逆変換の歯止めを外さない）
+    const errorSource = new Tin({ ...mapOptions("uno_bus_gtfs_error", "strict") });
+    errorSource.updateTin();
+    const errorCompiled = clone(errorSource.getCompiled());
+    expect(errorCompiled.strict_status).toBe("strict_error");
+    const refused = new Tin({ incremental: true });
+    expect(refused.restoreMesh(clone(errorCompiled))).toEqual({ ok: false, reason: "notStrict" });
+    expect(refused.strict_status).toBe("strict_error");
+    expect(refused.getCompiled().strict_status).toBe("strict_error");
+    expect(() => refused.transform(errorCompiled.points[0][1], true)).toThrow();
+    // 読む前に断る組み合わせ（V2 の Tin に world file 外周）は、それまでの状態に触らない
+    const v2 = new Tin({ ...mapOptions("fushimijo_maplat", "strict"), useV2Algorithm: true, incremental: true });
+    v2.updateTin();
+    const before = JSON.stringify(v2.getCompiled());
+    const worldCompiled = { ...clone(compiled), outerTransform: "worldFile", worldFile: { xScale: 1, xSkew: 0, xOrigin: 0, ySkew: 0, yScale: -1, yOrigin: 0 } };
+    expect(v2.restoreMesh(worldCompiled as CompiledWithSupplement)).toEqual({ ok: false, reason: "v2" });
+    expect(v2.strict_status).toBe("strict");
+    expect(v2.tins).toBeDefined();
+    expect(JSON.stringify(v2.getCompiled())).toBe(before);
     // スイッチが切れているときは、setCompiled と同じ（印も状態も、compiled のまま）
     const off = new Tin({});
     expect(off.restoreMesh(clone(marked))).toEqual({ ok: false, reason: "disabled" });
@@ -359,6 +378,60 @@ describe("restoreMesh: 両面で一緒に壊した compiled も断る（#103 第
     expect(reopened.meshOrigin).toBe("incremental");
     expect(JSON.stringify(reopened.getCompiled())).toBe(JSON.stringify(saved));
     expect(reopened.applyEdits([localMove(reopened, rnd)])).toMatchObject({ mode: "local", strict_status: "strict" });
+  }, TIMEOUT);
+
+  it("網の対応点 1 つを、両面で同じように遠くへ動かすと、証拠集めは不合格になる（紙の面の折り返しを見る）", () => {
+    const tin = build(mapOptions("fushimijo_maplat", "strict"));
+    const model = tin.incrementalMesh!;
+    const { mesh } = model;
+    // 遠くの別の対応点と、その次の点の間へ（両面で同じ比。三角形ごとの向きの積は、変わらないことが多い）
+    const at = (i: number) => mesh.vertices.get(model.gcps[i])!;
+    let folded = 0;
+    for (const i of [30, 90, 150, 210]) {
+      const j = (i + 250) % model.gcps.length;
+      const forw: Position = [at(j).forw[0] + (at(j + 1).forw[0] - at(j).forw[0]) * 0.3, at(j).forw[1] + (at(j + 1).forw[1] - at(j).forw[1]) * 0.3];
+      const bakw: Position = [at(j).bakw[0] + (at(j + 1).bakw[0] - at(j).bakw[0]) * 0.3, at(j).bakw[1] + (at(j + 1).bakw[1] - at(j).bakw[1]) * 0.3];
+      const original = { forw: at(i).forw, bakw: at(i).bakw };
+      mesh.relocate(model.gcps[i], forw, bakw);
+      const evidence = tin.collectIncrementalEvidence();
+      expect(evidence.eligible, `対応点 ${i}`).toBe(false);
+      expect(evidence.forwFolds, `対応点 ${i}`).toBeGreaterThan(0);
+      expect(evidence.failed, `対応点 ${i}`).toContain("badTriangles");
+      expect(evidence.compiled).toBeUndefined();
+      // 向きの積だけでは見えない場合がある（そのときも、紙の面の折り返しで不合格になる）
+      if (evidence.badTriangles === 0) folded++;
+      mesh.relocate(model.gcps[i], original.forw, original.bakw);
+    }
+    expect(tin.collectIncrementalEvidence().eligible).toBe(true);
+    console.info(`[証拠] 両面で動かした 4 点のうち、向きの積では見えず、紙の面の折り返しだけで拾えたもの: ${folded}`);
+  }, TIMEOUT);
+
+  it("world file 外周: 補助頂点の地理面の位置が world file の値と違う compiled は断る。証拠集めも不合格にする", () => {
+    // invert の実地図と、follow の合成図（tests/world-file-outer.test.ts と同じ）
+    const real = mapOptions("1932_nobeoka", "strict");
+    const unit: WorldFile = { xScale: 1, xSkew: 0, xOrigin: 0.5, yScale: -1, ySkew: 0, yOrigin: -0.5 };
+    const synthetic: Options = {
+      points: [[0, 0], [100, 0], [100, 100], [0, 100], [54, 47]].map(([x, y]): PointSet => [[x, y], [x + 40, -y]]),
+      yaxisMode: "follow", strictMode: "strict", outerTransform: "worldFile", worldFile: unit
+    };
+    for (const options of [{ ...real, outerTransform: "worldFile" as const, worldFile: fitWorldFile(real.points!) }, synthetic]) {
+      const source = build(options);
+      const saved = clone(source.getCompiled());
+      expect((saved as { outerTransform?: string }).outerTransform).toBe("worldFile");
+      // 全部組み直した compiled は、差が 0 なので、そのまま戻せる
+      expect(new Tin({ incremental: true }).restoreMesh(clone(saved))).toEqual({ ok: true });
+      expect(source.collectIncrementalEvidence()).toMatchObject({ eligible: true, boundarySimple: true });
+      // 補助頂点を、地理面で 1 mm 動かす（網は strict のまま）
+      const moved = clone(saved);
+      moved.vertices_points[2][1][0] += 0.001;
+      expect(new Tin({ incremental: true }).restoreMesh(moved)).toEqual({ ok: false, reason: "inconsistent" });
+      const vertex = source.incrementalMesh!.ring[2];
+      const { forw, bakw } = source.incrementalMesh!.mesh.vertices.get(vertex)!;
+      source.incrementalMesh!.mesh.relocate(vertex, forw, [bakw[0] + 0.001, bakw[1]]);
+      const evidence = source.collectIncrementalEvidence();
+      expect(evidence).toMatchObject({ eligible: false, boundarySimple: false, badTriangles: 0 });
+      expect(evidence.failed).toContain("boundary");
+    }
   }, TIMEOUT);
 
   it("証拠集めは、網の形（重なった三角形・索引）も見る", () => {

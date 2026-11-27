@@ -394,6 +394,11 @@ export class Tin extends Transform {
       edge: [...record.edge] as SupplementPairRecord["edge"],
     }));
     this.pointsWeightBuffer = {};
+    // world file 外周の補助頂点は、Tin が別に持っている（getCompiled() が、ここから書く）。帯を差し替えた網の
+    // 補助頂点に合わせる（古いままだと、三角形の b{n} と vertices_points が、別の帯から来ることになる）
+    if (this.compiledOuter?.outerTransform === "worldFile") {
+      this.compiledOuter = { ...this.compiledOuter, vertices_points: compiled.vertices_points };
+    }
     this.meshAhead = false;
   }
 
@@ -782,6 +787,8 @@ export class Tin extends Transform {
    * 補助頂点 3 点だけの三角形が無いことを、全部を数えて確かめる。
    *
    * 失敗したとき（理由を返す）は、`setCompiled(compiled)` をした状態（変換はできる）で、網は持たない。
+   * 印（`meshOrigin`）は外れる。`strict_status` は、compiled が strict と名乗っていたときだけ未確定（undefined）に
+   * なり、strict_error・loose は compiled の値のまま残る。`"v2"`（読む前に断る）のときは、状態に触らない。
    * 呼び出し側は、対応点と必須エッジを入れ直して `updateTin()` すること。
    *
    * @param compiled 保存した compiled（座標は内部の座標系。follow では地理面の Y が反転済み）
@@ -793,16 +800,18 @@ export class Tin extends Transform {
     inputs?: { points?: PointSet[]; edges?: EdgeSet[] | EdgeSetLegacy[] },
   ): { ok: true } | { ok: false; reason: RestoreFailure } {
     const fail = (reason: RestoreFailure) => {
-      // 断った compiled の印と strict の判定を、引き継がない（スイッチが切れているときは、setCompiled と同じ）
+      // 断った compiled の印を、引き継がない（スイッチが切れているときは、setCompiled と同じ）。
+      // compiled が strict と名乗っていたときは、その判定も引き継がない（未確定にする）。strict_error・loose は、
+      // compiled の値のまま残す（Transform が逆変換を断る歯止めを、外さない）
       if (reason !== "disabled") {
         this.originIncremental = false;
-        this.strict_status = undefined;
+        if (this.strict_status === Tin.STATUS_STRICT) this.strict_status = undefined;
       }
       return { ok: false as const, reason };
     };
-    // この Tin で読めない組み合わせ（V2 の Tin に world file 外周）は、読む前に断る
+    // この Tin で読めない組み合わせ（V2 の Tin に world file 外周）は、読む前に断る。状態には触らない
     if (this.useV2Algorithm && (compiled as { outerTransform?: string }).outerTransform === "worldFile") {
-      return fail("v2");
+      return { ok: false, reason: "v2" };
     }
     try {
       this.setCompiled(compiled);
@@ -854,6 +863,8 @@ export class Tin extends Transform {
     const params = model.verticesParams();
     const savedParams = (compiled as { vertices_params?: number[][] }).vertices_params;
     if (params && JSON.stringify(params) !== JSON.stringify(savedParams)) return fail("verticesParams");
+    // world file 外周の補助頂点の地理面の位置は、world file の値そのもの
+    if (model.worldFileMismatches() > 0) return fail("inconsistent");
     this.mesh = model;
     this.meshFailure = undefined;
     return { ok: true };
@@ -924,7 +935,8 @@ export class Tin extends Transform {
     evidence.forwFolds = audit.forwFolds;
     evidence.nonManifoldEdges = audit.nonManifoldEdges;
     evidence.indexMatches = audit.indexMatches && audit.badMatches && audit.orphanVertices === 0;
-    evidence.boundarySimple = audit.boundarySimple;
+    // world file 外周では、補助頂点の地理面の位置が world file の値と違えば、外周は成り立っていない
+    evidence.boundarySimple = audit.boundarySimple && model.worldFileMismatches() === 0;
     evidence.missingRequiredEdges = audit.missingRequired;
     evidence.boundaryOnlyTriangles = audit.forbiddenBoundary;
     evidence.remainingForbiddenTriangles = audit.forbiddenEdge;
