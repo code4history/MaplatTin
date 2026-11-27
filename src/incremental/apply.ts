@@ -165,7 +165,9 @@ export function applyToMesh(
   model: MeshModel,
   edits: readonly TinEdit[],
   follow: boolean,
-  band?: { vertexMode: VertexMode | undefined }
+  band?: { vertexMode: VertexMode | undefined },
+  /** 編集が帯に触れなくても、帯を差し替える（保存の直前に、帯を最新にするとき） */
+  forceBand = false
 ):
   | { ok: true; patch: Omit<TinPatch, "revision" | "mode" | "boundaryStale">; refreshed: boolean }
   | { ok: false; reason: TinPatchFallback } {
@@ -199,7 +201,7 @@ export function applyToMesh(
     }
   };
   // 帯に触れる編集を当てたら、最後に帯を差し替える
-  let needsBand = false;
+  let needsBand = forceBand && band !== undefined;
   for (const edit of edits) {
     let result = run(edit);
     if (!result.ok && result.reason === "unsupported" && band && model.centroid) {
