@@ -121,9 +121,9 @@ describe("Constrain.delaunify は、掃除が済んだ後は触った辺だけ�
     for (let i = 0; i < 60; i++) pool.push([Math.floor(rnd() * 40), Math.floor(rnd() * 40)]);
     const edges = pickEdges(rnd, coords, pool, 4);
     const con = new Constrain(Delaunator.from(coords), edges);
-    // 初めからある辺だけが制約なら済んでいないので、1 本は必ず張り直しが起きる配置を探す
-    const cleanedAny = con.cleaned;
-    expect(Constrain.restore(con.snapshot()).cleaned).toBe(cleanedAny);
+    // この配置（lcg 77・78）では張り直しが起きて済んだ印が立つ。印が立っていることを固定してから、引き継ぎを確かめる
+    expect(con.cleaned).toBe(true);
+    expect(Constrain.restore(con.snapshot()).cleaned).toBe(true);
   });
 
   it("Delaunator の初期の網が厳密な意味で Delaunay でない入力でも、掃除済みの印を偽らなければ従来の方式と同じになる（Major 4 の再現）", () => {
