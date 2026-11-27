@@ -11,7 +11,9 @@ import { MARGINS, isStarShaped } from "../boundary-search.ts";
 import {
   calculateBirdeyeVertices,
   calculatePlainVertices,
-  type BoundaryVerticesParams
+  ringBinOf,
+  type BoundaryVerticesParams,
+  type RingOptions
 } from "../boundary-vertices.ts";
 import { convexHullEdges } from "../hull-edges.ts";
 import { locate } from "./edits.ts";
@@ -95,15 +97,25 @@ export function refreshBand(model: MeshModel, vertexMode: VertexMode | undefined
     maxy
   };
   const calculate = vertexMode === "birdeye" ? calculateBirdeyeVertices : calculatePlainVertices;
+  // 今の輪の間引き方（strict を壊す補助頂点を外した区分・四隅だけの輪。MaplatTin#98）を引き継ぐ。
+  // 補助頂点の無い区分を、外す区分とみなす（四隅の区分は、指定しても外れない）
+  const present = new Set(model.ring.map((vertex) => ringBinOf(at(vertex).forw, model.centroid!.forw)));
+  const skipBins = new Set<number>();
+  for (let bin = 0; bin < 36; bin++) if (!present.has(bin)) skipBins.add(bin);
+  const inherited: RingOptions | undefined =
+    model.ring.length <= 4 ? { cornersOnly: true } : skipBins.size > 0 ? { skipBins } : undefined;
+  // 間引いた輪で成り立たなければ、36 区分の全部の輪も試す
+  const rings: (RingOptions | undefined)[] = inherited ? [inherited, undefined] : [undefined];
   const hull = convexHullEdges(interior.map((vertex) => at(vertex).forw));
   const removedVertices = model.ring.map((vertex) => at(vertex).ref);
   const width = maxx - minx,
     height = maxy - miny;
   let reason: "bandNotAnnulus" | "bandFailed" = "bandFailed";
-  for (const margin of MARGINS) {
+  for (const ring of rings) for (const margin of MARGINS) {
     const vertices = calculate(
       {
         ...params,
+        ...(ring ? { ring } : {}),
         minx: minx - margin * width,
         maxx: maxx + margin * width,
         miny: miny - margin * height,

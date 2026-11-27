@@ -10,6 +10,7 @@ import {
   movePoint,
   removeEdge,
   removePoint,
+  removeSupplementsOf,
   replaceEdgeNodes,
   type EditFailure,
   type EditOptions,
@@ -202,13 +203,8 @@ export function applyToMesh(
   };
   // 帯に触れる編集を当てたら、最後に帯を差し替える
   let needsBand = forceBand && band !== undefined;
-  for (const edit of edits) {
-    let result = run(edit);
-    if (!result.ok && result.reason === "unsupported" && band && model.centroid) {
-      result = run(edit, { force: true });
-      if (result.ok) needsBand = true;
-    }
-    if (!result.ok) return { ok: false, reason: fallbackOf(result.reason) };
+  let supplementsChanged = false;
+  const absorb = (result: EditResult & { ok: true }) => {
     for (const id of result.removed) {
       if (!addedTriangles.delete(id)) removedTriangles.add(id);
     }
@@ -216,6 +212,24 @@ export function applyToMesh(
     for (const ref of result.vertices.removed) removedRefs.set(refKey(ref), ref);
     for (const vertex of result.vertices.added) addedVertices.add(vertex);
     for (const vertex of result.vertices.moved) movedVertices.add(vertex);
+  };
+  for (const edit of edits) {
+    let result = run(edit);
+    if (!result.ok && result.reason === "unsupported" && band && model.centroid) {
+      // 補完点の付いた対応点を消すときは、その補完点を先に消す（補完点の一覧が変わる）
+      if (edit.type === "removePoint") {
+        for (const removed of removeSupplementsOf(model, edit.id)) {
+          if (!removed.ok) return { ok: false, reason: fallbackOf(removed.reason) };
+          absorb(removed);
+          supplementsChanged = true;
+          needsBand = true;
+        }
+      }
+      result = run(edit, { force: true });
+      if (result.ok) needsBand = true;
+    }
+    if (!result.ok) return { ok: false, reason: fallbackOf(result.reason) };
+    absorb(result);
   }
   if (needsBand) {
     const refreshed = refreshBand(model, band!.vertexMode);
@@ -284,6 +298,8 @@ export function applyToMesh(
             verticesParams: model.verticesParams()
           }
         : {}),
+      // 補完点の一覧が変わったときだけ入れる
+      ...(supplementsChanged ? { supplementPairs: model.supplementPairs() } : {}),
       ...(moved.size > 0 ? { movedVertices: [...moved.values()] } : {}),
       ...(removedRefs.size > 0 ? { removedVertices: [...removedRefs.values()] } : {}),
       ...(added.length > 0 ? { addedVertices: added } : {}),

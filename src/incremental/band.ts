@@ -78,19 +78,29 @@ export class BandStats {
   private binHolders = new Set<number>();
   /** 補助頂点の輪（地理面）と、扇形の中心 */
   private ring: Position[];
-  private centroid: { forw: Position; bakw: Position };
+  /** world file 外周の網では、地理面の中心を持たない（補助頂点の地理面の位置は、world file から直接決まる） */
+  private centroid: { forw: Position; bakw?: Position };
   /** 内側の点（対応点と中継点）の紙の面の座標の和と数。帯を作ったときの平均 */
   private sum: [number, number] = [0, 0];
   private count = 0;
-  private mean0: [number, number];
+  private mean0: [number, number] = [0, 0];
   private diagonal: number;
 
   private constructor(model: MeshModel) {
     const { mesh } = model;
     const at = (vertex: number) => mesh.vertices.get(vertex)!;
-    this.centroid = model.centroid!;
     this.ring = model.ring.map((vertex) => at(vertex).bakw);
     const interior = [...model.gcps, ...model.nodeOrder()];
+    const supplements = new Set(model.supplements.map(({ vertex }) => vertex));
+    for (const vertex of interior) {
+      if (supplements.has(vertex)) continue;
+      this.sum[0] += at(vertex).forw[0];
+      this.sum[1] += at(vertex).forw[1];
+      this.count++;
+    }
+    this.mean0 = [this.sum[0] / this.count, this.sum[1] / this.count];
+    // world file 外周の網の、紙の面の中心は、内側の点の算術平均（今の updateTin() と同じ）
+    this.centroid = model.centroid ?? { forw: [this.mean0[0], this.mean0[1]] };
     const hullOf = (plane: "forw" | "bakw"): Position[] => {
       const edges = convexHullEdges(interior.map((vertex) => at(vertex)[plane]));
       for (const [a, b] of edges) {
@@ -126,19 +136,16 @@ export class BandStats {
     }
     for (const holder of holders)
       if (holder !== undefined) this.binHolders.add(holder);
-    const supplements = new Set(model.supplements.map(({ vertex }) => vertex));
-    for (const vertex of interior) {
-      if (supplements.has(vertex)) continue;
-      this.sum[0] += at(vertex).forw[0];
-      this.sum[1] += at(vertex).forw[1];
-      this.count++;
-    }
-    this.mean0 = [this.sum[0] / this.count, this.sum[1] / this.count];
   }
 
-  /** 判定できない網（world file 外周・補助頂点の輪が網の外周でない網）では null。 */
+  /**
+   * 判定できない網（補助頂点の輪が網の外周でない網）では null。
+   *
+   * world file 外周の網は、補助頂点の地理面の位置を world file から直接決め、囲みの拡大を通らないので、
+   * C5・C6（地理面の輪との関係）は見ない。紙の面の条件（C2〜C4・C7）は、扇形の網と同じ。
+   */
   static of(model: MeshModel): BandStats | null {
-    if (!model.centroid || model.ring.length < 3) return null;
+    if ((!model.centroid && !model.isWorldFile) || model.ring.length < 3) return null;
     const boundary = model.mesh.boundaryRing();
     if (!boundary || boundary.length !== model.ring.length) return null;
     const ring = new Set(model.ring);
@@ -159,6 +166,7 @@ export class BandStats {
    */
   private ringRatio(bakw: Position): number {
     const c = this.centroid.bakw;
+    if (!c) return 0;
     const dx = bakw[0] - c[0],
       dy = bakw[1] - c[1];
     let ratio = Infinity;

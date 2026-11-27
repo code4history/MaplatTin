@@ -9,7 +9,7 @@ import type { Edge, EdgeSet, PointSet } from "@maplat/transform";
 import { orient2d } from "robust-predicates";
 import { convexHullEdges } from "../hull-edges.ts";
 import { BandStats } from "./band.ts";
-import type { SupplementPairRecord } from "../supplement-pairs.ts";
+import type { SupplementPair, SupplementPairRecord } from "../supplement-pairs.ts";
 import type { CompiledWithSupplement } from "../tin.ts";
 import {
   BOUNDARY_GROUP,
@@ -103,6 +103,27 @@ export class MeshModel {
   band(): BandStats | null {
     if (this.bandStats === undefined) this.bandStats = BandStats.of(this);
     return this.bandStats;
+  }
+
+  /** world file 外周の網か（補助頂点の地理面の位置を、world file から直接決める。扇形の中心を持たない）。 */
+  get isWorldFile(): boolean {
+    return this.context.outer?.outerTransform === "worldFile";
+  }
+
+  /** 補完点の一覧（compiled の `supplementPairs` に、座標を付けたもの。`Tin#supplementPairs` と同じ形）。 */
+  supplementPairs(): SupplementPair[] {
+    const index = this.indexTable();
+    return this.supplements.map((supplement) => {
+      const { forw, bakw } = this.mesh.vertices.get(supplement.vertex)!;
+      return {
+        node: Number((index.get(supplement.vertex) as string).slice(1)),
+        kind: supplement.kind,
+        edge: supplement.edge.map((vertex) => index.get(vertex)!) as SupplementPair["edge"],
+        ...(supplement.anchor === undefined ? {} : { anchor: index.get(supplement.anchor)! }),
+        forw: copyPosition(forw),
+        bakw: copyPosition(bakw)
+      };
+    });
   }
 
   /** 帯の判定のための量を捨てる（帯・凸包が変わったとき。次に要るときに作り直す）。 */

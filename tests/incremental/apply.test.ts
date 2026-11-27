@@ -403,9 +403,16 @@ describe("applyEdits: 帯に触れる編集（スイッチ incrementalBand）", 
     expect(JSON.stringify(tin.getCompiled())).toBe(JSON.stringify(expected));
   }, TIMEOUT);
 
-  it("乱数の編集 150 回（凸包の外・凸包の頂点を含む）: 差分だけで表示用の網を最新にでき、strict を保つ", () => {
-    for (const name of ["fushimijo_maplat", "tatebayashi_kaei_jokamachi"]) {
-      const options = mapOptions(name, "strict");
+  it("乱数の編集（凸包の外・凸包の頂点を含む）: 差分だけで表示用の網を最新にでき、strict を保つ", () => {
+    // 奈良町は、スイッチを 3 つとも入れる（全部組み直しへ落ちたときも、局所の操作で組み直す）
+    // [地図, スイッチ, 回数, 移動の大きさ（外接矩形に対する割合）]
+    const runs: [string, Partial<Options>, number, number][] = [
+      ["fushimijo_maplat", {}, 150, 0.02],
+      ["tatebayashi_kaei_jokamachi", {}, 150, 0.02],
+      ["naramachi_yasui_bunko_core", { incrementalRebuild: true }, 100, 0.002]
+    ];
+    for (const [name, extra, total, reach] of runs) {
+      const options = { ...mapOptions(name, "strict"), ...extra };
       const tin = new Tin({ ...options, incremental: true, incrementalBand: true });
       tin.updateTin();
       const display = new DisplayMesh();
@@ -414,7 +421,8 @@ describe("applyEdits: 帯に触れる編集（スイッチ incrementalBand）", 
       const counts = { local: 0, band: 0, full: 0 };
       const reasons: Record<string, number> = {};
       let nextPoint = 50_000;
-      for (let n = 0; n < 150; n++) {
+      const times: number[] = [];
+      for (let n = 0; n < total; n++) {
         const model = tin.incrementalMesh;
         if (!model) break;
         const inputs = model.inputs();
@@ -427,7 +435,7 @@ describe("applyEdits: 帯に触れる編集（スイッチ incrementalBand）", 
         let edit: TinEdit;
         if (kind === 0) {
           // 両面を、同じ向きへ少し動かす
-          const dx = (rnd() - 0.5) * (maxx - minx) * 0.02, dy = (rnd() - 0.5) * (maxy - miny) * 0.02;
+          const dx = (rnd() - 0.5) * (maxx - minx) * reach, dy = (rnd() - 0.5) * (maxy - miny) * reach;
           const neighbor = inputs.points[(at + 1) % inputs.points.length];
           const scale = Math.hypot(neighbor[1][0] - bakw[0], neighbor[1][1] - bakw[1]) / (Math.hypot(neighbor[0][0] - forw[0], neighbor[0][1] - forw[1]) || 1);
           edit = { type: "movePoint", id: inputs.pointIds[at], forw: [forw[0] + dx, forw[1] + dy], bakw: [bakw[0] + dx * scale, bakw[1] - dy * scale] };
@@ -445,7 +453,17 @@ describe("applyEdits: 帯に触れる編集（スイッチ incrementalBand）", 
           edit = { type: "removePoint", id: inputs.pointIds[at] };
         }
         const wasStrict = model.mesh.isStrict();
-        const patch = tin.applyEdits([edit]);
+        const started = performance.now();
+        let patch: TinPatch;
+        try {
+          patch = tin.applyEdits([edit]);
+        } catch {
+          // 全部組み直しが例外を投げる入力（必須エッジが交差する、など）。網は無くなる
+          reasons["例外"] = (reasons["例外"] ?? 0) + 1;
+          expect(tin.incrementalMesh).toBeUndefined();
+          break;
+        }
+        if (patch.mode === "local" && patch.centroid) times.push(performance.now() - started);
         if (patch.mode === "local") {
           if (patch.centroid) counts.band++;
           else counts.local++;
@@ -465,14 +483,19 @@ describe("applyEdits: 帯に触れる編集（スイッチ incrementalBand）", 
         expect(audit.boundarySimple, `${name} 編集 ${n}`).toBe(now.mesh.boundarySimple);
         if (patch.mode === "local" && wasStrict) expect(audit.bad, `${name} 編集 ${n}`).toEqual([]);
       }
-      console.info(`[帯] ${name} 150 回: 局所（帯は前のまま）${counts.local}・局所（帯を差し替え）${counts.band}・全部組み直し ${counts.full}（理由 ${JSON.stringify(reasons)}）`);
-      expect(counts.band).toBeGreaterThan(10);
+      times.sort((a, b) => a - b);
+      console.info(
+        `[帯] ${name} ${total} 回: 局所（帯は前のまま）${counts.local}・局所（帯を差し替え）${counts.band}・全部組み直し ${counts.full}（理由 ${JSON.stringify(reasons)}）` +
+          ` 帯を差し替えた編集の時間の中央値 ${times[Math.floor(times.length / 2)]?.toFixed(2)} ms・最大 ${times.at(-1)?.toFixed(2)} ms`
+      );
+      expect(counts.band).toBeGreaterThan(name.startsWith("naramachi") ? 0 : 10);
+      if (!tin.incrementalMesh) continue;
       // T5: 清書は、同じ入力を新しい Tin で組んだ結果と同じ
       const expected = rebuilt(options, tin);
       tin.updateTin();
       expect(JSON.stringify(tin.getCompiled())).toBe(JSON.stringify(expected));
     }
-  }, TIMEOUT * 2);
+  }, TIMEOUT * 4);
 
   it("帯の差し替えが成り立たない編集は、全部組み直しへ落ちる（bandFailed）", () => {
     const options = mapOptions("fushimijo_maplat", "strict");
@@ -499,3 +522,129 @@ describe("applyEdits: 帯に触れる編集（スイッチ incrementalBand）", 
     expect(patch.centroid).toBeUndefined();
   }, TIMEOUT);
 });
+
+describe("applyEdits: 補完点の付いた対応点の削除・world file 外周の網", () => {
+  it("補完点の付いた対応点を消すと、その補完点も消え、差分に補完点の一覧が入る", () => {
+    const results: string[] = [];
+    for (const name of ["fushimijo_maplat", "miesan_ginza_map", "tatebayashi_kaei_jokamachi", "1932_nobeoka"]) {
+      const options = mapOptions(name, "strict");
+      const base = new Tin({ ...options, incremental: true, incrementalBand: true });
+      base.updateTin();
+      const pairs = base.supplementPairs;
+      expect(pairs.length).toBeGreaterThan(0);
+      // 補完点の理由（凸包の辺の端点）になっている対応点を、1 つずつ試す
+      for (const target of new Set(pairs.flatMap(({ edge }) => edge).filter((v): v is number => typeof v === "number"))) {
+        const tin = new Tin({ ...options, incremental: true, incrementalBand: true });
+        tin.updateTin();
+        const display = new DisplayMesh();
+        display.reset(tin.incrementalMesh!);
+        const patch = tin.applyEdits([{ type: "removePoint", id: target }]);
+        results.push(`${name}#${target}:${patch.mode === "local" ? "局所" : patch.fallbackReason}`);
+        if (patch.mode !== "local") continue;
+        const depending = pairs.filter(({ edge, anchor }) => edge.includes(target) || anchor === target).length;
+        expect(patch.supplementPairs).toHaveLength(pairs.length - depending);
+        expect(patch).toMatchObject({ strict_status: "strict", boundaryStale: false });
+        expect(patch.centroid).toBeDefined();
+        display.apply(patch);
+        display.expectSame(tin.incrementalMesh!);
+        const compiled = tin.getCompiled();
+        // 補完点の一覧は、差分・書き出し・網で同じ（番号は、消した後の並びで振り直す）
+        expect(compiled.supplementPairs ?? []).toEqual(patch.supplementPairs!.map(({ node, kind, edge, anchor }) => ({
+          node, kind, edge, ...(anchor === undefined ? {} : { anchor })
+        })));
+        for (const pair of patch.supplementPairs!) expect(compiled.edgeNodes![pair.node]).toEqual([pair.forw, pair.bakw]);
+        expect(tin.incrementalMesh!.mesh.audit()).toMatchObject({ bad: [], badMatches: true, indexMatches: true, boundarySimple: true });
+        // 書き出した compiled を読み直せる
+        const reader = new Tin({ incremental: true });
+        expect(reader.restoreMesh(JSON.parse(JSON.stringify(compiled)))).toEqual({ ok: true });
+      }
+    }
+    console.info(`[補完点] 補完点の付いた対応点の削除: ${results.join(" ")}`);
+    expect(results.filter((r) => r.endsWith("局所")).length).toBeGreaterThan(0);
+  }, TIMEOUT * 2);
+
+  it("world file 外周の網: 内側の編集を局所に当てる。帯に触れる編集は全部組み直しへ落ちる", () => {
+    const options = mapOptions("1932_nobeoka", "strict");
+    const pts = options.points!;
+    const mean = (side: 0 | 1, axis: number) => pts.reduce((sum, pair) => sum + pair[side][axis], 0) / pts.length;
+    const [xm, ym] = [mean(0, 0), mean(0, 1)];
+    const rows = pts.map(([[x, y], crs]) => [x - xm, y - ym, ...crs]);
+    const dot = (a: number, b: number) => rows.reduce((sum, row) => sum + row[a] * row[b], 0);
+    const det = dot(0, 0) * dot(1, 1) - dot(0, 1) ** 2;
+    const fit = (axis: number) => {
+      const x = (dot(1, 1) * dot(0, axis + 2) - dot(0, 1) * dot(1, axis + 2)) / det;
+      const y = (dot(0, 0) * dot(1, axis + 2) - dot(0, 1) * dot(0, axis + 2)) / det;
+      return [x, y, mean(1, axis) + x * (0.5 - xm) + y * (0.5 - ym)];
+    };
+    const [xScale, xSkew, xOrigin] = fit(0);
+    const [ySkew, yScale, yOrigin] = fit(1);
+    const world: Options = { ...options, outerTransform: "worldFile", worldFile: { xScale, xSkew, xOrigin, ySkew, yScale, yOrigin } };
+    const tin = new Tin({ ...world, incremental: true, incrementalBand: true });
+    tin.updateTin();
+    expect((tin.getCompiled() as { outerTransform?: string }).outerTransform).toBe("worldFile");
+    const model = tin.incrementalMesh!;
+    const display = new DisplayMesh();
+    display.reset(model);
+    const rnd = random(77);
+    const counts = { local: 0, skipped: 0 };
+    let nextPoint = 80_000;
+    for (let n = 0; n < 120; n++) {
+      const inputs = model.inputs();
+      const at = Math.floor(rnd() * inputs.points.length);
+      const [forw, bakw] = inputs.points[at];
+      const kind = Math.floor(rnd() * 3);
+      let edit: TinEdit;
+      if (kind === 0) edit = { type: "movePoint", id: inputs.pointIds[at], bakw: [bakw[0] + (rnd() - 0.5) * 6, bakw[1] + (rnd() - 0.5) * 6] };
+      else if (kind === 1) {
+        const dx = (rnd() - 0.5) * 6, dy = (rnd() - 0.5) * 6;
+        edit = { type: "movePoint", id: inputs.pointIds[at], forw: [forw[0] + dx, forw[1] + dy], bakw: [bakw[0] + dx * xScale, bakw[1] + dy * yScale] };
+      } else {
+        const p: Position = [forw[0] + 15 + rnd() * 10, forw[1] + 15 + rnd() * 10];
+        const q = tin.transform(p, false, true) as Position | false;
+        if (!q) continue;
+        edit = { type: "addPoint", id: nextPoint++, forw: p, bakw: [q[0] + (rnd() - 0.5) * 2, q[1] + (rnd() - 0.5) * 2] };
+      }
+      // 全部組み直しへ落ちると網が作り直されるので、ここでは網に直接当てて、局所で済むものだけを重ねる
+      const applied = applyToMesh(model, [edit], false);
+      if (!applied.ok) {
+        counts.skipped++;
+        continue;
+      }
+      counts.local++;
+      display.apply({ revision: 0, mode: "local", boundaryStale: true, ...applied.patch });
+      display.expectSame(model);
+      expect(applied.patch.strict_status).toBe("strict");
+      expect(model.mesh.audit()).toMatchObject({ bad: [], badMatches: true, indexMatches: true, nonManifoldEdges: 0, boundarySimple: true });
+    }
+    console.info(`[world file] 延岡 120 回: 局所 ${counts.local}・局所で済まなかった ${counts.skipped}`);
+    expect(counts.local).toBeGreaterThan(60);
+    // 書き出した compiled は world file 外周のままで、Transform で読み直すと、対応点が往復する
+    const compiled = model.toCompiled();
+    expect(compiled).toMatchObject({ outerTransform: "worldFile", strict_status: "strict" });
+    const reader = new Tin();
+    reader.setCompiled(JSON.parse(JSON.stringify(compiled)));
+    for (const [forw, bakw] of compiled.points) {
+      const out = reader.transform(forw, false) as Position;
+      expect(Math.hypot(out[0] - bakw[0], out[1] - bakw[1])).toBeLessThan(1e-6);
+    }
+    // applyEdits でも局所で済む。帯に触れる編集（外接矩形の端の点を消す）は、全部組み直しへ落ちる
+    const fresh = new Tin({ ...world, incremental: true, incrementalBand: true });
+    fresh.updateTin();
+    const inner = localEdit(fresh);
+    expect(fresh.applyEdits([inner])).toMatchObject({ mode: "local", strict_status: "strict", boundaryStale: true });
+    const xs = pts.map(([forw]) => forw[0]);
+    expect(fresh.applyEdits([{ type: "removePoint", id: xs.indexOf(Math.max(...xs)) }])).toMatchObject({
+      mode: "full", fallbackReason: "unsupported"
+    });
+    expect((fresh.getCompiled() as { outerTransform?: string }).outerTransform).toBeDefined();
+  }, TIMEOUT * 2);
+});
+
+/** 帯を更新しなくてよい内側の点を、地理面で少し動かす編集。 */
+function localEdit(tin: Tin): TinEdit {
+  const model = tin.incrementalMesh!;
+  const inputs = model.inputs();
+  const at = model.gcps.findIndex((vertex) => model.band()?.keeps(model, [{ vertex, gcp: true, counted: true }]));
+  const [, bakw] = inputs.points[at];
+  return { type: "movePoint", id: inputs.pointIds[at], bakw: [bakw[0] + 0.5, bakw[1] + 0.5] };
+}

@@ -600,6 +600,34 @@ export function removePoint(
 }
 
 /**
+ * 対応点に付いた補完点（その点を、凸包の辺の端点か、凹みの点にしている補完点）を消す。
+ * 補完点は、凸包の辺の所に足した「辺を持たない点」なので、星を差し替えるだけで消える。消した後は、
+ * 呼び出し側が帯を差し替えること（補完点は、重心・凸包の計算には入らないが、帯の内側の輪を変える）。
+ */
+export function removeSupplementsOf(model: MeshModel, id: PointId): EditResult[] {
+  const { mesh } = model;
+  const vertex = model.pointVertex.get(id);
+  const results: EditResult[] = [];
+  if (vertex === undefined) return results;
+  for (const supplement of [...model.supplements]) {
+    if (!supplement.edge.includes(vertex) && supplement.anchor !== vertex) continue;
+    const star = mesh.star(supplement.vertex);
+    const ref = mesh.vertices.get(supplement.vertex)!.ref;
+    const result = update(
+      mesh,
+      star,
+      { remove: [supplement.vertex] },
+      { added: [], removed: [ref], moved: [] }
+    );
+    results.push(result);
+    if (!result.ok) break;
+    model.supplements.splice(model.supplements.indexOf(supplement), 1);
+    model.resetBand();
+  }
+  return results;
+}
+
+/**
  * 必須エッジを足す。R0 は、新しい区間が触れる三角形（線分が既に網の辺なら、印を付けるだけ）。
  * 折れ点があれば、両面の折れ線を累積長の比で突き合わせて、中継点を作る。
  */
