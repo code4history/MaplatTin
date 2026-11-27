@@ -3842,7 +3842,7 @@ class nt extends ti {
         const G = U.map(([W]) => W), z = U.map(([, W]) => W);
         return (X[0] === Math.min(...G) || X[0] === Math.max(...G)) && (X[1] === Math.min(...z) || X[1] === Math.max(...z));
       }, $ = (X) => {
-        s.forw.splice(0, s.forw.length, ...F.raw[0]), s.bakw.splice(0, s.bakw.length, ...F.raw[1]), v.splice(0, v.length, ...F.gcps), this.edgeNodes.splice(0, this.edgeNodes.length, ...F.edgeNodes), this.supplementRecords = [];
+        s.forw.splice(0, s.forw.length, ...F.raw[0]), s.bakw.splice(0, s.bakw.length, ...F.raw[1]), v.splice(0, v.length, ...F.gcps), this.edgeNodes.splice(0, this.edgeNodes.length, ...F.edgeNodes), this.supplementRecords = [], this.lastSupplementDiagnostics = void 0;
         const U = B(X);
         return { built: U, strict: U.boundary !== void 0 && this.isStrict() };
       }, L = /* @__PURE__ */ new Set(), q = P.boundary.vertices.map(({ forw: X }) => X), Y = new Set(

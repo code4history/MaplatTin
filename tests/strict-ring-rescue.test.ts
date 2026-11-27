@@ -73,7 +73,8 @@ const BEFORE: Record<string, string> = {
 /**
  * 救えた 2 層の出力（compiled の digest）・輪の頂点数・補完点の数・組んだ三角網の試行数の上限。
  * [広島 strict・auto, 奈良町 strict・auto] のとおり。試行数は、最初の組み立ての試行数（広島 5・奈良町 5 前後）の
- * 倍数の上限（探索 4 倍・戻す試行を含めて 8 倍）の中に収まる。遅い退行は、この上限で気づく。
+ * 倍数の上限（探索 4 倍・戻す試行を含めて 8 倍。上限は試行を始める前にだけ見るので、最後の 1 試行の分は超えうる）の中に
+ * 収まる。遅い退行は、この上限で気づく。
  */
 const RESCUED: Record<string, { digest: string; ring: number; supplements: number; attempts: number; worldFile: { digest: string; ring: number; outer: string; attempts: number } }> = {
   "kaisei_hiroshima_jissoku_sub1|strict": {

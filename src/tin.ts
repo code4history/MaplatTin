@@ -895,7 +895,8 @@ export class Tin extends Transform {
     //
     // 手間の上限（三角網を組んだ試行の数）は、最初の組み立ての試行数 `firstCost` の倍数で置く。探索（第 1 段の
     // 各回と第 2 段）は `RING_RESCUE_BUDGET` 倍まで（第 2 段の 1 回分は取っておく）、外した区分を戻す試行は
-    // `RING_RESTORE_BUDGET` 倍まで。外す区分が輪の大半になったら、残りの回を飛ばして第 2 段へ進む。
+    // `RING_RESTORE_BUDGET` 倍まで。外す区分が輪の大半になったら、残りの回を飛ばして第 2 段へ進む。上限は試行を
+    // 始める前にだけ見るので、上限に届いたら次の試行を始めないという意味で、最後の 1 試行の分は超えることがある。
     const wantsStrict = strict === Tin.MODE_STRICT || strict === Tin.MODE_AUTO;
     const rescue = <T extends { boundary?: BoundaryCandidate }>(
       first: T,
@@ -938,6 +939,7 @@ export class Tin extends Transform {
         allGcps.splice(0, allGcps.length, ...kept.gcps);
         this.edgeNodes!.splice(0, this.edgeNodes!.length, ...kept.edgeNodes);
         this.supplementRecords = [];
+        this.lastSupplementDiagnostics = undefined;
         const built = build(ring);
         return { built, strict: built.boundary !== undefined && this.isStrict() };
       };
