@@ -77,6 +77,12 @@ export declare function insertPoint(model: MeshModel, id: PointId, forw: Positio
 /** 対応点を消す。R0 は、点の星。必須エッジの端点は、先に必須エッジを外すこと。 */
 export declare function removePoint(model: MeshModel, id: PointId, options?: EditOptions): EditResult;
 /**
+ * 対応点に付いた補完点（その点を、凸包の辺の端点か、凹みの点にしている補完点）を消す。
+ * 補完点は、凸包の辺の所に足した「辺を持たない点」なので、星を差し替えるだけで消える。消した後は、
+ * 呼び出し側が帯を差し替えること（補完点は、重心・凸包の計算には入らないが、帯の内側の輪を変える）。
+ */
+export declare function removeSupplementsOf(model: MeshModel, id: PointId): EditResult[];
+/**
  * 必須エッジを足す。R0 は、新しい区間が触れる三角形（線分が既に網の辺なら、印を付けるだけ）。
  * 折れ点があれば、両面の折れ線を累積長の比で突き合わせて、中継点を作る。
  */

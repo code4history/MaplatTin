@@ -1,7 +1,7 @@
 import { Position } from 'geojson';
 import { Edge, EdgeSet, PointSet } from '@maplat/transform';
 import { BandStats } from "./band.js";
-import { SupplementPairRecord } from "../supplement-pairs.js";
+import { SupplementPair, SupplementPairRecord } from "../supplement-pairs.js";
 import { CompiledWithSupplement } from "../tin.js";
 import { IncrementalMesh, EdgeId, PointId } from "./mesh.js";
 /** 網を取り込めない理由。 */
@@ -79,6 +79,10 @@ export declare class MeshModel {
      * 判定できない網（world file 外周・補助頂点の輪が閉じなかった網）では null。
      */
     band(): BandStats | null;
+    /** world file 外周の網か（補助頂点の地理面の位置を、world file から直接決める。扇形の中心を持たない）。 */
+    get isWorldFile(): boolean;
+    /** 補完点の一覧（compiled の `supplementPairs` に、座標を付けたもの。`Tin#supplementPairs` と同じ形）。 */
+    supplementPairs(): SupplementPair[];
     /** 帯の判定のための量を捨てる（帯・凸包が変わったとき。次に要るときに作り直す）。 */
     resetBand(): void;
     /** 補助頂点の扇形の角度（compiled の `vertices_params`。紙の面・地理面）。world file 外周では undefined。 */

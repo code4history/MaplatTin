@@ -32,6 +32,7 @@ export declare class BandStats {
     private binHolders;
     /** 補助頂点の輪（地理面）と、扇形の中心 */
     private ring;
+    /** world file 外周の網では、地理面の中心を持たない（補助頂点の地理面の位置は、world file から直接決まる） */
     private centroid;
     /** 内側の点（対応点と中継点）の紙の面の座標の和と数。帯を作ったときの平均 */
     private sum;
@@ -39,7 +40,12 @@ export declare class BandStats {
     private mean0;
     private diagonal;
     private constructor();
-    /** 判定できない網（world file 外周・補助頂点の輪が網の外周でない網）では null。 */
+    /**
+     * 判定できない網（補助頂点の輪が網の外周でない網）では null。
+     *
+     * world file 外周の網は、補助頂点の地理面の位置を world file から直接決め、囲みの拡大を通らないので、
+     * C5・C6（地理面の輪との関係）は見ない。紙の面の条件（C2〜C4・C7）は、扇形の網と同じ。
+     */
     static of(model: MeshModel): BandStats | null;
     private forwDistance;
     /**
