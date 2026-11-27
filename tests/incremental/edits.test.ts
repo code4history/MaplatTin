@@ -1,0 +1,394 @@
+import { describe, expect, it } from "vitest";
+import type { Position } from "geojson";
+import { incircle } from "robust-predicates";
+import {
+  EDGE_HULL,
+  EDGE_PROTECT,
+  EDGE_REQUIRED,
+  insertPoint,
+  movePoint,
+  removePoint,
+  Tin,
+  type EditResult,
+  type IncrementalMesh,
+  type MeshModel
+} from "../../src/index.ts";
+import { locate } from "../../src/incremental/edits.ts";
+import { findIntersectionsUpTo } from "../../src/kinks.ts";
+import { digest, mapOptions } from "./fixtures.ts";
+import { REAL_DATA_TIMEOUT_MS } from "../timeouts.ts";
+
+// MaplatTin#100 の第 1 段 a の受け入れ条件の土台。
+// T1: 内側の編集を乱数で 200 回重ねる。清書（全部組み直し）を 1 回も挟まず、毎回、網の全部を数え直す。
+// T3: 局所の判定（S1 と S2）を、今の交差の数え上げ（findIntersectionsUpTo）と突き合わせる。
+// T4: 局所で済まない編集は失敗を返し、網は変わらない（その後も編集できる。全部組み直しの結果を取り込み直せる）。
+//
+// 第 1 週に入っているのは、凸包の内側の対応点の追加・削除・移動（地理面だけの移動を含む）。
+// 重なりの解消・禁止制約の局所の解消・磨き・中継点のある必須エッジの端点の移動は第 2 週。
+
+const TIMEOUT = REAL_DATA_TIMEOUT_MS * 6;
+
+function build(name: string): MeshModel {
+  const tin = new Tin({ ...mapOptions(name, "strict"), incremental: true });
+  tin.updateTin();
+  return tin.incrementalMesh!;
+}
+
+/** 乱数（線形合同法。種を固定して再現できるようにする）。 */
+function random(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => (state = (state * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+}
+
+/** 網の三角形を、両面の座標の列にする（今の交差の数え上げに掛ける形）。 */
+function rings(mesh: IncrementalMesh, plane: "forw" | "bakw"): Position[][] {
+  return [...mesh.triangles.values()].map(([a, b, c]) => {
+    const p = [a, b, c].map((v) => mesh.vertices.get(v)![plane]);
+    return [...p, p[0]];
+  });
+}
+
+const sweepKinks = (mesh: IncrementalMesh): number =>
+  findIntersectionsUpTo(rings(mesh, "forw"), 1).length + findIntersectionsUpTo(rings(mesh, "bakw"), 1).length;
+
+/** 紙の面の点を、その点を含む三角形で地理面へ写す。 */
+function transform(mesh: IncrementalMesh, point: Position): Position | undefined {
+  const found = locate(mesh, point, mesh.triangles.keys().next().value as number);
+  if (!found) return undefined;
+  const [A, B, C] = mesh.triangles.get(found.triangle)!.map((v) => mesh.vertices.get(v)!);
+  const d = (B.forw[0] - A.forw[0]) * (C.forw[1] - A.forw[1]) - (C.forw[0] - A.forw[0]) * (B.forw[1] - A.forw[1]);
+  const u = ((point[0] - A.forw[0]) * (C.forw[1] - A.forw[1]) - (C.forw[0] - A.forw[0]) * (point[1] - A.forw[1])) / d;
+  const w = ((B.forw[0] - A.forw[0]) * (point[1] - A.forw[1]) - (point[0] - A.forw[0]) * (B.forw[1] - A.forw[1])) / d;
+  return [
+    A.bakw[0] + u * (B.bakw[0] - A.bakw[0]) + w * (C.bakw[0] - A.bakw[0]),
+    A.bakw[1] + u * (B.bakw[1] - A.bakw[1]) + w * (C.bakw[1] - A.bakw[1])
+  ];
+}
+
+/** 制約でなく、厳密な外接円の判定で反転すべき辺の数（劣化の指標）。 */
+function nonDelaunayEdges(mesh: IncrementalMesh): number {
+  let count = 0;
+  for (const [key, owners] of mesh.byEdge) {
+    if (owners.length !== 2) continue;
+    if ((mesh.edgeFlags.get(key) ?? 0) & (EDGE_REQUIRED | EDGE_HULL | EDGE_PROTECT)) continue;
+    const tri = mesh.positive(owners[0]);
+    if (!tri) continue;
+    const opposite = mesh.triangles.get(owners[1])!.find((v) => !tri.includes(v))!;
+    const [a, b, c, d] = [...tri, opposite].map((v) => mesh.vertices.get(v)!.forw);
+    // 紙の面で正の向きの三角形では、外接円の内側の点で incircle が負になる
+    if (incircle(a[0], a[1], b[0], b[1], c[0], c[1], d[0], d[1]) < 0) count++;
+  }
+  return count;
+}
+
+/** 網の全部を数え直して、不変条件 S を確かめる。 */
+function expectInvariant(model: MeshModel, initial: { forwArea: number; forbidden: number }, label: string) {
+  const { mesh } = model;
+  const audit = mesh.audit();
+  expect(audit.bad, label).toEqual([]);
+  expect(audit, label).toMatchObject({
+    badMatches: true,
+    indexMatches: true,
+    nonManifoldEdges: 0,
+    boundarySimple: true,
+    missingRequired: 0,
+    forbiddenMatches: true
+  });
+  expect(mesh.isStrict(), label).toBe(true);
+  // S4: 禁止制約の三角形が増えていない
+  expect(audit.forbiddenBoundary + audit.forbiddenEdge, label).toBeLessThanOrEqual(initial.forbidden);
+  // 紙の面を重なりなく覆っている（外周を変えていないので、面積の和が変わらない）
+  expect(Math.abs(audit.forwArea - initial.forwArea) / initial.forwArea, label).toBeLessThan(1e-9);
+  // 点が網から消えていない
+  for (const vertex of model.gcps) expect(mesh.byVertex.get(vertex)!.size, label).toBeGreaterThan(0);
+  return audit;
+}
+
+interface Summary {
+  tried: Record<string, number>;
+  done: Record<string, number>;
+  failed: Record<string, number>;
+  grown: number;
+  times: number[];
+  samples: { edit: number; nonDelaunay: number; protect: number; triangles: number }[];
+}
+
+/** 乱数の内側の編集を重ねる。清書は挟まない。 */
+function runEdits(model: MeshModel, edits: number, seed: number, sweepEvery: number): Summary {
+  const { mesh } = model;
+  const rnd = random(seed);
+  const first = mesh.audit();
+  const initial = { forwArea: first.forwArea, forbidden: first.forbiddenBoundary + first.forbiddenEdge };
+  const summary: Summary = { tried: {}, done: {}, failed: {}, grown: 0, times: [], samples: [] };
+  const xs = model.gcps.map((v) => mesh.vertices.get(v)!.forw[0]);
+  const ys = model.gcps.map((v) => mesh.vertices.get(v)!.forw[1]);
+  const box = { minx: Math.min(...xs), maxx: Math.max(...xs), miny: Math.min(...ys), maxy: Math.max(...ys) };
+  const span = Math.hypot(box.maxx - box.minx, box.maxy - box.miny);
+  let nextId = 1_000_000;
+  const added: number[] = [];
+  let vertices = model.gcps.length;
+  const pick = () => {
+    const vertex = model.gcps[Math.floor(rnd() * model.gcps.length)];
+    return (mesh.vertices.get(vertex)!.ref as { id: number }).id;
+  };
+  const sample = (edit: number) => {
+    let protect = 0;
+    for (const flags of mesh.edgeFlags.values()) if (flags & EDGE_PROTECT) protect++;
+    summary.samples.push({ edit, nonDelaunay: nonDelaunayEdges(mesh), protect, triangles: mesh.triangles.size });
+  };
+  sample(0);
+  for (let n = 1; n <= edits; n++) {
+    const kind = (["move", "move", "moveBakw", "insert", "remove"] as const)[Math.floor(rnd() * 5)];
+    let result: EditResult;
+    const before = mesh.triangles.size;
+    const start = performance.now();
+    if (kind === "move") {
+      // 紙の面で、対角線の 0.1〜1% 動かす
+      const id = pick();
+      const { forw } = mesh.vertices.get(model.pointVertex.get(id)!)!;
+      const distance = span * (0.001 + rnd() * 0.009);
+      const angle = rnd() * 2 * Math.PI;
+      result = movePoint(model, id, { forw: [forw[0] + distance * Math.cos(angle), forw[1] + distance * Math.sin(angle)] });
+    } else if (kind === "moveBakw") {
+      const id = pick();
+      const { bakw } = mesh.vertices.get(model.pointVertex.get(id)!)!;
+      result = movePoint(model, id, { bakw: [bakw[0] + (rnd() - 0.5) * 10, bakw[1] + (rnd() - 0.5) * 10] });
+    } else if (kind === "insert") {
+      const forw: Position = [box.minx + rnd() * (box.maxx - box.minx), box.miny + rnd() * (box.maxy - box.miny)];
+      const bakw = transform(mesh, forw);
+      if (!bakw) continue;
+      result = insertPoint(model, nextId, forw, [bakw[0] + (rnd() - 0.5) * 6, bakw[1] + (rnd() - 0.5) * 6]);
+      if (result.ok) added.push(nextId);
+      nextId++;
+    } else {
+      // 足した点があれば、半分はそれを消す（もとの点は、必須エッジの端点が多く、消せないことが多い）
+      const id = added.length > 0 && rnd() < 0.5 ? added.splice(Math.floor(rnd() * added.length), 1)[0] : pick();
+      result = removePoint(model, id);
+    }
+    const elapsed = performance.now() - start;
+    summary.tried[kind] = (summary.tried[kind] ?? 0) + 1;
+    const label = `編集 ${n}（${kind}）`;
+    if (result.ok) {
+      summary.done[kind] = (summary.done[kind] ?? 0) + 1;
+      summary.grown += result.grown;
+      summary.times.push(elapsed);
+      if (kind === "insert") vertices++;
+      if (kind === "remove") vertices--;
+      // 差分の帳簿: 消えた三角形と増えた三角形の数が、頂点の増減と合う
+      const delta = kind === "insert" ? 2 : kind === "remove" ? -2 : 0;
+      expect(result.added.length - result.removed.length, label).toBe(delta);
+      expect(mesh.triangles.size - before, label).toBe(delta);
+      for (const id of result.added) expect(mesh.triangles.has(id), label).toBe(true);
+      for (const id of result.removed) expect(mesh.triangles.has(id), label).toBe(false);
+    } else {
+      summary.failed[result.reason] = (summary.failed[result.reason] ?? 0) + 1;
+      // 失敗した編集は、網を変えない
+      expect(mesh.triangles.size, label).toBe(before);
+    }
+    expect(model.gcps.length, label).toBe(vertices);
+    expectInvariant(model, initial, label);
+    if (n % 20 === 0) sample(n);
+    // T3: 局所の判定が strict と言う網で、今の交差の数え上げも 0 件
+    if (n % sweepEvery === 0) expect(sweepKinks(mesh), label).toBe(0);
+  }
+  return summary;
+}
+
+function report(name: string, summary: Summary) {
+  const sorted = [...summary.times].sort((a, b) => a - b);
+  console.info(
+    `[T1] ${name}: 試行 ${JSON.stringify(summary.tried)} 成功 ${JSON.stringify(summary.done)} 失敗 ${JSON.stringify(summary.failed)}` +
+      ` 広げた回数の合計 ${summary.grown} 時間の中央値 ${sorted[Math.floor(sorted.length / 2)]?.toFixed(3)} ms 最大 ${sorted.at(-1)?.toFixed(3)} ms\n` +
+      summary.samples.map((s) => `  編集 ${s.edit}: Delaunay でない辺 ${s.nonDelaunay} protect ${s.protect} 三角形 ${s.triangles}`).join("\n")
+  );
+}
+
+describe("T1: 内側の編集を 200 回重ねる（清書なし・毎回、全部を数え直す）", () => {
+  for (const [name, seed] of [
+    ["naramachi_yasui_bunko_core", 20261127],
+    ["fushimijo_maplat", 100],
+    ["tatebayashi_castle_akimoto", 7]
+  ] as const) {
+    it(name, () => {
+      const model = build(name);
+      const summary = runEdits(model, 200, seed, 50);
+      report(name, summary);
+      const done = Object.values(summary.done).reduce((a, b) => a + b, 0);
+      // 編集の大半が局所で済んでいること（済まない編集は、全部組み直しへ落とす。第 2 週）
+      expect(done).toBeGreaterThan(100);
+      for (const kind of ["move", "moveBakw", "insert", "remove"]) expect(summary.done[kind] ?? 0).toBeGreaterThan(0);
+      // 編集を重ねた網を書き出して、読み直せる（番号の振り直し）
+      const compiled = model.toCompiled();
+      expect(compiled.strict_status).toBe("strict");
+      expect(compiled.points.length).toBe(model.gcps.length);
+      const reader = new Tin();
+      reader.setCompiled(compiled);
+      // GCP の往復: 対応点は三角形の頂点なので、紙 → 地理が一致する
+      let worst = 0;
+      for (const [forw, bakw] of compiled.points) {
+        const out = reader.transform(forw, false) as Position;
+        worst = Math.max(worst, Math.hypot(out[0] - bakw[0], out[1] - bakw[1]));
+      }
+      expect(worst).toBeLessThan(1e-6);
+    }, TIMEOUT);
+  }
+});
+
+describe("T3: 判定基準の突き合わせ", () => {
+  it("向きが逆の三角形を入れると、局所の判定も、今の交差の数え上げも、strict でないと言う", () => {
+    const model = build("fushimijo_maplat");
+    const { mesh } = model;
+    expect(mesh.isStrict()).toBe(true);
+    expect(sweepKinks(mesh)).toBe(0);
+    // 帯に触れない対応点を 1 つ、地理面で、星の外へ飛ばす（判定を通さずに座標だけ変える）
+    const vertex = model.gcps.find((v) =>
+      [...mesh.byVertex.get(v)!].every((t) => mesh.triangles.get(t)!.every((u) => mesh.vertices.get(u)!.ref.kind === "gcp"))
+    )!;
+    const { forw, bakw } = mesh.vertices.get(vertex)!;
+    mesh.relocate(vertex, forw, [bakw[0] + 5000, bakw[1] + 5000]);
+    expect(mesh.bad.size).toBeGreaterThan(0);
+    expect(mesh.isStrict()).toBe(false);
+    expect(mesh.audit().badMatches).toBe(true);
+    expect(sweepKinks(mesh)).toBeGreaterThan(0);
+    // 編集した網は、strict_error として書き出す
+    expect(model.toCompiled().strict_status).toBe("strict_error");
+    // 戻すと、strict に戻る
+    mesh.relocate(vertex, forw, bakw);
+    expect(mesh.isStrict()).toBe(true);
+    expect(sweepKinks(mesh)).toBe(0);
+  }, TIMEOUT);
+
+  it("奈良町の採用済みの網の、面積が閾値未満の三角形は ok（S1 に面積の閾値を入れない）", () => {
+    const model = build("naramachi_yasui_bunko_core");
+    const { mesh } = model;
+    let thin = 0;
+    for (const [a, b, c] of mesh.triangles.values()) {
+      if (mesh.ok(a, b, c) && !mesh.okNew(a, b, c)) thin++;
+    }
+    expect(thin).toBe(1);
+    expect(mesh.bad.size).toBe(0);
+    expect(sweepKinks(mesh)).toBe(0);
+    // 採用済みの strict の網には、禁止制約の違反が無い（設計書 §9.5 (a)。診断の 30 は探索の時点の両面の合計）
+    expect([mesh.forbiddenBoundary, mesh.forbiddenEdge]).toEqual([0, 0]);
+  }, TIMEOUT);
+
+  it("地理面だけの移動で、向きが逆になる位置へは動かせない（接続を変えて救えなければ失敗）", () => {
+    const model = build("fushimijo_maplat");
+    const { mesh } = model;
+    const vertex = model.gcps.find((v) =>
+      [...mesh.byVertex.get(v)!].every((t) => mesh.triangles.get(t)!.every((u) => mesh.vertices.get(u)!.ref.kind === "gcp"))
+    )!;
+    const id = (mesh.vertices.get(vertex)!.ref as { id: number }).id;
+    const before = digest(model.toCompiled());
+    const { bakw } = mesh.vertices.get(vertex)!;
+    const result = movePoint(model, id, { bakw: [bakw[0] + 5000, bakw[1] + 5000] });
+    expect(result.ok).toBe(false);
+    expect(mesh.isStrict()).toBe(true);
+    expect(digest(model.toCompiled())).toBe(before);
+  }, TIMEOUT);
+});
+
+describe("T4: 落ちる経路", () => {
+  it("局所で済まない編集は失敗を返し、網は変わらない。その後も編集でき、全部組み直しの結果を取り込み直せる", () => {
+    const options = mapOptions("naramachi_yasui_bunko_core", "strict");
+    const tin = new Tin({ ...options, incremental: true });
+    tin.updateTin();
+    const model = tin.incrementalMesh!;
+    const { mesh } = model;
+    const before = digest(model.toCompiled());
+    const revision = mesh.revision;
+    const vertexCount = mesh.vertices.size;
+    // 対応点を、他の三角形と必須エッジをまたいで、紙の面で大きく動かす
+    const reasons = new Map<string, number>();
+    const failures: { id: number; to: Position; reason: string }[] = [];
+    for (let id = 0; id < 60; id++) {
+      const { forw } = mesh.vertices.get(model.pointVertex.get(id)!)!;
+      const to: Position = [forw[0] + 1500, forw[1] + 900];
+      const result = movePoint(model, id, { forw: to });
+      // 60 点とも、局所では済まない
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      reasons.set(result.reason, (reasons.get(result.reason) ?? 0) + 1);
+      failures.push({ id, to, reason: result.reason });
+    }
+    console.info(`[T4] 奈良町で 60 点を大きく動かした: 失敗の理由 ${JSON.stringify([...reasons])}`);
+    expect(insertPoint(model, 0, [10, 10], [0, 0])).toEqual({ ok: false, reason: "idInUse" });
+    expect(removePoint(model, 9_999_999)).toEqual({ ok: false, reason: "unknownPoint" });
+    // 失敗した編集は、網を 1 ビットも変えない
+    expect(mesh.revision).toBe(revision);
+    expect(mesh.vertices.size).toBe(vertexCount);
+    expect(digest(model.toCompiled())).toBe(before);
+    expect(mesh.audit()).toMatchObject({ bad: [], badMatches: true, indexMatches: true, nonManifoldEdges: 0, missingRequired: 0 });
+
+    // 失敗の後も、編集できる
+    const small = failures[0];
+    const origin = mesh.vertices.get(model.pointVertex.get(small.id)!)!.bakw;
+    expect(movePoint(model, small.id, { bakw: [origin[0] + 0.5, origin[1] + 0.5] }).ok).toBe(true);
+    expect(mesh.isStrict()).toBe(true);
+
+    // 落ちた先: 同じ編集を入力に入れて、全部組み直す。結果（strict_error・例外を含む）を、そのまま返せる
+    const rebuild = (failure: { id: number; to: Position }) => {
+      const points = options.points!.map(([forw, bakw], i) => (i === failure.id ? [failure.to, bakw] : [forw, bakw]));
+      tin.setPoints(points as NonNullable<typeof options.points>);
+      expect(tin.incrementalMesh).toBeUndefined();
+      tin.updateTin();
+    };
+    // (1) 必須エッジが交差する入力は、今の updateTin() が例外を投げる。網は持たない
+    const crossing = failures.find((failure) => failure.reason === "constraint")!;
+    expect(() => rebuild(crossing)).toThrow(/constrained edge/);
+    expect(tin.incrementalMesh).toBeUndefined();
+    // (2) 組み直せる入力は、結果を取り込み直す
+    const others = failures.filter((failure) => failure.reason !== "constraint" && failure.reason !== "unsupported");
+    expect(others.length).toBeGreaterThan(0);
+    let reimported = 0;
+    for (const failure of others.slice(0, 3)) {
+      try {
+        rebuild(failure);
+      } catch {
+        continue;
+      }
+      const rebuilt = tin.incrementalMesh;
+      if (tin.strict_status === "loose") {
+        expect(rebuilt).toBeUndefined();
+        continue;
+      }
+      expect(rebuilt).toBeDefined();
+      expect(rebuilt).not.toBe(model);
+      expect(JSON.stringify(rebuilt!.toCompiled())).toBe(JSON.stringify(tin.getCompiled()));
+      expect(rebuilt!.mesh.isStrict()).toBe(tin.strict_status === "strict");
+      expect(rebuilt!.mesh.audit().badMatches).toBe(true);
+      console.info(`[T4] 点 ${failure.id}（局所の失敗の理由 ${failure.reason}）を全部組み直した: ${tin.strict_status}`);
+      reimported++;
+    }
+    expect(reimported).toBeGreaterThan(0);
+  }, TIMEOUT);
+
+  it("失敗した差し替えは、網を 1 ビットも変えない", () => {
+    const model = build("fushimijo_maplat");
+    const { mesh } = model;
+    const before = JSON.stringify(model.toCompiled());
+    const ids = [...mesh.triangles.keys()];
+    // 離れた 2 つの三角形（円板でない）
+    expect(mesh.replace(new Set([ids[0], ids[ids.length - 1]]))).toEqual({ ok: false, reason: "notDisk" });
+    // 網の 20% を超える範囲
+    expect(mesh.replace(new Set(ids))).toEqual({ ok: false, reason: "tooLarge" });
+    // 輪の頂点は動かせない
+    const [a] = mesh.triangles.get(ids[0])!;
+    const position = mesh.vertices.get(a)!;
+    expect(
+      mesh.replace(new Set([ids[0]]), { move: new Map([[a, { forw: position.forw, bakw: position.bakw }]]) })
+    ).toEqual({ ok: false, reason: "notDisk" });
+    expect(mesh.revision).toBe(0);
+    expect(JSON.stringify(model.toCompiled())).toBe(before);
+    // 編集なしの差し替え（星を組み直すだけ）は成り立ち、strict のまま
+    const vertex = model.gcps.find((v) =>
+      [...mesh.byVertex.get(v)!].every((t) => mesh.triangles.get(t)!.every((u) => mesh.vertices.get(u)!.ref.kind === "gcp"))
+    )!;
+    const star = mesh.star(vertex);
+    const result = mesh.replace(star);
+    expect(result.ok).toBe(true);
+    expect(mesh.triangles.size).toBe(ids.length);
+    expect(mesh.isStrict()).toBe(true);
+    expect(mesh.audit()).toMatchObject({ bad: [], badMatches: true, indexMatches: true, nonManifoldEdges: 0 });
+  }, TIMEOUT);
+});

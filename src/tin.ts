@@ -76,6 +76,7 @@ import {
 } from "./supplement-pairs.ts";
 import type { SearchIndex } from "./searchutils.ts";
 import type { PointsSetBD, VertexPosition } from "./types/tin.ts";
+import { meshFromCompiled, type ImportFailure, type MeshModel } from "./incremental/model.ts";
 
 type RawPointsSet = { forw: Feature<Point>[]; bakw: Feature<Point>[]; edges: Edge[] };
 /** 補完点の一覧を持つ compiled（Transform の型には無い項目。読み手は無視してよい）。 */
@@ -153,6 +154,12 @@ export interface Options {
    * 既定は true。false にすると足さない（#91 と同じ結果）。
    */
   supplementPairs?: boolean;
+  /**
+   * 局所更新（MaplatTin#100）のスイッチ。既定は false で、何も変わらない。true にすると、`updateTin()` の
+   * 後に、採用した三角網を局所更新の網（`Tin#incrementalMesh`）へ取り込む。`updateTin()` の結果
+   * （`getCompiled()`）は、どちらでも同じ。
+   */
+  incremental?: boolean;
 }
 
 /**
@@ -173,6 +180,23 @@ export class Tin extends Transform {
   private attemptTotal = 0;
   private requestedWorldFile?: WorldFile;
   private compiledOuter?: CompiledOuter;
+  /** 局所更新のスイッチ（`Options#incremental`）。 */
+  incremental: boolean;
+  private mesh?: MeshModel;
+  private meshFailure?: ImportFailure;
+
+  /**
+   * 局所更新の網（今の三角網を取り込んだもの）。スイッチが切れている・三角網が無い・取り込めない網
+   * （loose・V2 など。理由は `incrementalFailure`）のときは undefined。
+   */
+  get incrementalMesh(): MeshModel | undefined {
+    return this.tins ? this.mesh : undefined;
+  }
+
+  /** 局所更新の網へ取り込めなかった理由（取り込めた・スイッチが切れているときは undefined）。 */
+  get incrementalFailure(): ImportFailure | undefined {
+    return this.tins ? this.meshFailure : undefined;
+  }
 
   /** 現在の三角網を V3 で生成したときの外周の診断。 */
   get boundaryDiagnostics(): BoundaryDiagnostics | undefined {
@@ -218,6 +242,7 @@ export class Tin extends Transform {
     this.stateFull = options.stateFull || false;
     this.useV2Algorithm = options.useV2Algorithm ?? false;
     this.useSupplementPairs = options.supplementPairs ?? true;
+    this.incremental = options.incremental ?? false;
     if (options.outerTransform === "worldFile") {
       if (this.useV2Algorithm) throw new Error("V2 では world file 外周を使えません");
       if (!options.worldFile) throw new Error("worldFile が必要です");
@@ -407,6 +432,8 @@ export class Tin extends Transform {
     }));
     this.lastSupplementDiagnostics = undefined;
     if (replacesWorldFile) this.stateTriangle = undefined;
+    this.mesh = undefined;
+    this.meshFailure = undefined;
     this.requestedWorldFile = undefined;
     this.compiledOuter = undefined;
     if (outer?.outerTransform === "worldFile") {
@@ -750,6 +777,19 @@ export class Tin extends Transform {
    * {@link updateTinAsync} を利用してください。
    */
   updateTin(): void {
+    this.mesh = undefined;
+    this.meshFailure = undefined;
+    this.rebuildAll();
+    // 局所更新のスイッチが入っているときだけ、採用した三角網を取り込む（三角網そのものは変えない）
+    if (this.incremental) {
+      const imported = meshFromCompiled(this.getCompiled(), this.pointsSet!.edges as Edge[]);
+      if ("model" in imported) this.mesh = imported.model;
+      else this.meshFailure = imported.reason;
+    }
+  }
+
+  /** 三角網を最初から全部組む（`updateTin()` の本体）。 */
+  private rebuildAll(): void {
     this.lastBoundaryDiagnostics = undefined;
     // 補完点は保存しない入力。前回の結果は読まず、人間の対応点だけから毎回作り直す
     this.supplementRecords = [];
