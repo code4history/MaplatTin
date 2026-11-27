@@ -33,6 +33,8 @@
   - Marked `@maplat/transform` as an external dependency in the build
 
 ### Fixed
+- V3 の補助頂点が GCP や必須エッジの中継点と同じ位置になり、Delaunator がその点を三角網から落として `updateTin()` が `Invalid edge ... is not part of the triangulation` で失敗することがあったのを直した。GCP の外接矩形の高さや幅が 0 のとき、余白を広げた矩形からの補助頂点の位置が内点に一致することがあった。補助頂点は内点・他の補助頂点と位置が重なるものを除いて作るようにした
+- 必須エッジの中継点を、両面の折れ線の累積長比が厳密一致するときだけまとめていたのを直した。`Math.sqrt` と加算・除算の丸めで対応する折れ点どうしの比が数 ULP ずれると中継点が 2 件作られて点が重なり、`updateTin()` が `Invalid edge ... is not part of the triangulation` で失敗することがあった。比の差が `256 * Number.EPSILON` 以内の折れ点は最も近いもの 1 つと組み合わせて 1 つの中継点にまとめ、両側を対応確定にして重複を作らせない。相手面の端点（GCP の位置）とは組み合わせず、端点付近の内点と GCP が重なるのを防ぐ。中継点の並び替えの同値時の比較も安定するようにした。中継点の生成は `src/edge-nodes.ts` の `interpolateEdgeNodes` に切り出した
 - dist の型定義が参照する `geojson` の型が `hoist: false` の利用者で解決できない不具合を直した（`@types/geojson` を dependencies へ移動）(#76)
 - 制約線（edge）の端点の添字を検査するようにした。GCP の範囲に無い添字・整数でない添字の edge と、位置が重なって三角網に入らなかった点を端点にする edge は、`updateTin()`（と `constrainedTin`）が `Error` を投げる。制約線の処理に反復の上限（辺の数の 2 乗）を置いた
 - 対応が大きく乱れた制御点で、交差（kinks）の数え上げが時間とメモリを使い切るのを直した。`strictMode` が `auto` のときは交差を 1 件見つけた時点で `loose` へ切り替え、`strict` のときは `kinks` を 1 方向あたり 10 万件（同じ位置の交差を 1 件に数えた件数）までにし、位置が重なる交差ばかりのときは見つけた総数がその 16 倍に届いた時点で数え上げをやめる。公開関数 `findIntersections` の結果は変わらない
