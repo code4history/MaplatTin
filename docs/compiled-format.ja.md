@@ -34,6 +34,7 @@ export interface Compiled {
   edges: EdgeSet[];            // 拘束辺一覧
   edgeNodes?: PointSet[];      // 拘束辺中間点（補完点は末尾に足される）
   supplementPairs?: SupplementPairRecord[]; // 末尾の edgeNode が補完点である理由（V3・省略可）
+  meshOrigin?: "incremental";              // 局所更新の網をそのまま保存した印（V3・省略可）
 
   yaxisMode?: YaxisMode;       // Y 軸方向
   vertexMode?: VertexMode;     // 境界頂点生成モード
@@ -265,6 +266,18 @@ GCP 間の拘束辺（Constrained Delaunay Triangulation における固定辺�
 
 補完点がある V3 では、**末尾**の要素が補完点のことがある（下記）。`edgeNodes` と `"eN"` だけで読む読み手は、
 変更が要らない。
+
+#### `meshOrigin?: "incremental"`（V3・省略可）
+
+無ければ、三角網は、`points`・`edges` から全部を組み直した産物（通常）。`"incremental"` は、局所更新
+（MaplatTin #100）で編集した網を、そのまま保存した印: 編集した後の入力を全部組み直すと `strict` にならず、
+局所更新の網は `strict` だったときに、Tin の `collectIncrementalEvidence()` が付ける。
+
+- 読み手（`@maplat/transform`・MaplatCore）は、この項目を無視してよい。`tins_points` などは通常の compiled と
+  同じ形で、版（`version`）も変わらない。
+- **同じ `points`・`edges` から全部を組み直しても、同じ三角網にはならない**（`strict` にならない）。編集ツールは、
+  この印のあるデータを、`updateTin()` ではなく Tin の `restoreMesh()` で開く。
+- 全部を組み直した結果が `strict` になった時点で、印の無い compiled に置き換わる。
 
 #### `supplementPairs?: SupplementPairRecord[]`（V3・省略可）
 

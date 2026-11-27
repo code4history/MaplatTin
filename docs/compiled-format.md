@@ -38,6 +38,7 @@ export interface Compiled {
   edges: EdgeSet[];            // Constrained edges
   edgeNodes?: PointSet[];      // Intermediate edge nodes (supplement pairs are appended at the end)
   supplementPairs?: SupplementPairRecord[]; // Why each trailing edgeNode is a supplement pair (V3, optional)
+  meshOrigin?: "incremental";              // Marks a mesh saved from an incremental update (V3, optional)
 
   yaxisMode?: YaxisMode;       // Y-axis direction
   vertexMode?: VertexMode;     // Boundary vertex generation mode
@@ -271,6 +272,19 @@ Each element is `[[forwX, forwY], [bakwX, bakwY]]`.
 
 Since V3 with supplement pairs, the **trailing** entries may be supplement pairs (see below). Readers that only
 use `edgeNodes` and `"eN"` need no change.
+
+#### `meshOrigin?: "incremental"` (V3, optional)
+
+When absent, the triangulation is the product of a full build from `points` and `edges` (the normal case).
+`"incremental"` marks a mesh edited by incremental updates (MaplatTin #100) and saved as-is: Tin's
+`collectIncrementalEvidence()` sets it when a full rebuild of the edited input is not `strict` while the
+incrementally updated mesh is.
+
+- Readers (`@maplat/transform`, MaplatCore) may ignore this field. `tins_points` and the rest have the usual
+  shape, and the format `version` is unchanged.
+- **Rebuilding from the same `points` and `edges` does not give the same triangulation** (it is not `strict`).
+  Editors open such data with Tin's `restoreMesh()` instead of `updateTin()`.
+- Once a full rebuild becomes `strict`, the data is replaced by compiled data without the mark.
 
 #### `supplementPairs?: SupplementPairRecord[]` (V3, optional)
 
