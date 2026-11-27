@@ -46,7 +46,7 @@ default (nothing changes unless you turn one on).
 | Constructor option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `incremental` | `boolean` | `false` | Imports the adopted mesh after `updateTin()`; `applyEdits()` applies interior edits locally |
-| `incrementalBand` | `boolean` | `false` | `applyEdits()` also applies edits that touch the band (auxiliary vertices and centroid) locally. Also required by `refreshBand()` |
+| `incrementalBand` | `boolean` | `false` | `applyEdits()` also applies edits that touch the band (auxiliary vertices and centroid) locally. Also required by `refreshBand()`. On world-file-outer meshes, replacing the band does not put `centroid` or `verticesParams` in the patch; see `movedVertices` and `removedVertices` for the changes to the auxiliary vertices |
 | `incrementalRebuild` | `boolean` | `false` | Replaces the rebuild loops inside `updateTin()` with local band replacements |
 
 | Method / property | Description |
@@ -57,9 +57,21 @@ default (nothing changes unless you turn one on).
 | `incrementalFailure` | Why the mesh could not be imported (`"v2"`, `"loose"`, `"orientation"`, `"inconsistent"`) |
 | `refreshBand(): TinPatch \| undefined` | Rebuilds the band from the current interior points (call it just before saving). Returns `undefined`, changing nothing, if it cannot |
 | `collectIncrementalEvidence(rebuild?): IncrementalEvidence` | Gathers the evidence that the incremental mesh may be saved as-is, without changing it. When `eligible`, `compiled` holds the data to save (with `meshOrigin: "incremental"`). It recounts the whole mesh, so call it only when saving |
-| `restoreMesh(compiled, inputs?): { ok: true } \| { ok: false; reason }` | Restores the triangulation and the mesh from saved compiled data without triangulating. Pass `inputs` (GCPs and edges in the `setPoints()` coordinate system) to also check them against the compiled data. On failure it returns a reason (the state is that of `setCompiled()`, with no mesh) |
+| `restoreMesh(compiled, inputs?): { ok: true } \| { ok: false; reason }` | Restores the triangulation and the mesh from saved compiled data without triangulating. Pass `inputs` (GCPs and edges in the `setPoints()` coordinate system) to also check them against the compiled data. Call it on a `Tin` created with `incremental: true` (otherwise `"disabled"`). On failure it returns a reason (see "State after `restoreMesh()` refuses" below) |
 | `meshOrigin: "incremental" \| undefined` | Whether the current triangulation comes from data saved from an incremental mesh. Cleared by `updateTin()` |
 | `rebuildDiagnostics` | Breakdown of the attempts of an `updateTin()` with `incrementalRebuild` (full builds, band replacements, whether it fell back to the current procedure) |
+
+**State after `restoreMesh()` refuses.** The state is that of `setCompiled(compiled)` (forward transforms work), with no
+mesh. The mark (`meshOrigin`) is cleared. `strict_status` is one of three:
+
+- The compiled data claimed strict and inspecting the mesh showed it is not (`"notStrict"`, `"boundary"`): it becomes
+  `"strict_error"` (backward transforms are refused).
+- The compiled data claimed strict and was refused for another reason: it becomes undetermined (`undefined`).
+- The compiled data claimed strict_error or loose: the value is kept.
+
+There are two exceptions. With `"disabled"` (the switch is off) it behaves like `setCompiled(compiled)`: the mark and
+`strict_status` stay as in the compiled data. With `"v2"` (world-file-outer data on a V2 `Tin`, refused before
+reading) the state is not touched. In every case, to keep editing, set the GCPs and edges again and call `updateTin()`.
 
 `TinEdit` is one of `{ type: "addPoint", id, forw, bakw, position? }`, `{ type: "removePoint", id }`,
 `{ type: "movePoint", id, forw?, bakw? }`, `{ type: "addEdge", id, start, end, forwNodes, bakwNodes, position? }`,

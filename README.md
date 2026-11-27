@@ -231,14 +231,17 @@ if (patch.mode === "local") {
 - `applyEdits(edits, baseRevision?)` accepts `addPoint`, `removePoint`, `movePoint`, `addEdge`,
   `removeEdge` and `replaceEdgeNodes`. It either applies all edits locally or rebuilds everything;
   it throws (changing nothing) on unknown ids, and returns `fallbackReason: "revisionMismatch"`
-  (changing nothing) when `baseRevision` is stale.
+  (changing nothing) when `baseRevision` is stale. If the full rebuild itself throws (required
+  edges that cross, collinear points, ...), `applyEdits()` throws the same error; the input is
+  then the edited one and there is no triangulation, as after a failed `updateTin()`.
 - After local edits, `getCompiled()` and `transform()` return the up-to-date state; `updateTin()`
   rebuilds everything from the edited input.
 - **Saving a locally updated mesh as-is.** A full rebuild of the edited input can fail to be
   strict while the locally updated mesh is strict. In that case call `tin.refreshBand()`, then
   `tin.collectIncrementalEvidence()`; if `evidence.eligible`, save `evidence.compiled`, which
   carries `meshOrigin: "incremental"`. Open such data with `tin.restoreMesh(compiled)` instead
-  of `updateTin()` (a rebuild would lose strictness). `tin.meshOrigin` tells whether the current
+  of `updateTin()` (a rebuild would lose strictness), on a `Tin` created with
+  `incremental: true` (otherwise `restoreMesh()` returns `"disabled"`). `tin.meshOrigin` tells whether the current
   mesh comes from such data. If a full rebuild is strict, just save its compiled data.
 
 See [`docs/api/`](docs/api/) for the signatures and

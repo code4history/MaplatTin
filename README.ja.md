@@ -218,13 +218,16 @@ if (patch.mode === "local") {
 - `applyEdits(edits, baseRevision?)` が受け付ける編集は、`addPoint`・`removePoint`・`movePoint`・`addEdge`・
   `removeEdge`・`replaceEdgeNodes` です。全部の編集を局所に当てるか、全部を組み直すかの、どちらかです。
   id が無い編集などは、何も変えずに例外を投げます。`baseRevision` が古ければ、何も変えずに
-  `fallbackReason: "revisionMismatch"` を返します。
+  `fallbackReason: "revisionMismatch"` を返します。全部組み直しが例外を投げる入力（必須エッジが交差する・
+  点が一直線に並ぶ、など）では、`applyEdits()` も同じ例外を投げます。このとき、入力は編集した後の状態で、
+  三角網はありません（`updateTin()` が失敗した後と同じです）。
 - 局所更新の後の `getCompiled()`・`transform()` は、最新の状態を返します。`updateTin()` は、編集した後の入力から
   全部を組み直します。
 - **局所更新の網を、そのまま保存する。** 編集した後の入力を全部組み直すと strict にならないのに、局所更新の網は
   strict、ということがあります。そのときは `tin.refreshBand()` の後に `tin.collectIncrementalEvidence()` を呼び、
   `evidence.eligible` なら `evidence.compiled`（`meshOrigin: "incremental"` つき）を保存します。そのデータは、
-  `updateTin()` ではなく `tin.restoreMesh(compiled)` で開きます（組み直すと strict を失います）。今の三角網が
+  `updateTin()` ではなく `tin.restoreMesh(compiled)` で開きます（組み直すと strict を失います）。
+  `incremental: true` で作った `Tin` で開いてください（そうでなければ、`restoreMesh()` は `"disabled"` を返します）。今の三角網が
   そういうデータから来ているかは、`tin.meshOrigin` で分かります。全部組み直しが strict なら、その compiled を
   そのまま保存してください。
 
