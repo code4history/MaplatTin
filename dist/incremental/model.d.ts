@@ -79,6 +79,10 @@ export declare class MeshModel {
      * 判定できない網（world file 外周・補助頂点の輪が閉じなかった網）では null。
      */
     band(): BandStats | null;
+    /** 帯の判定のための量を捨てる（帯・凸包が変わったとき。次に要るときに作り直す）。 */
+    resetBand(): void;
+    /** 補助頂点の扇形の角度（compiled の `vertices_params`。紙の面・地理面）。world file 外周では undefined。 */
+    verticesParams(): number[][] | undefined;
     /** 対応点と必須エッジ（`setPoints`・`setEdges` に入れる形。座標は内部の座標系）と、その id の並び。 */
     inputs(): {
         points: PointSet[];

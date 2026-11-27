@@ -5,7 +5,7 @@
  * Provides TIN generation with constrained edges for map transformation.
  */
 export { Tin } from "./tin.js";
-export type { CompiledWithSupplement, Options } from "./tin.js";
+export type { CompiledWithSupplement, Options, RebuildDiagnostics } from "./tin.js";
 export type { SupplementDiagnostics, SupplementPair, SupplementPairRecord, } from "./supplement-pairs.js";
 export type { BoundaryDiagnostics } from "./boundary-search.js";
 export { Tin as default } from "./tin.js";

@@ -53,6 +53,14 @@ export declare function cavity(mesh: IncrementalMesh, point: Position, start: nu
  * a を含む三角形から、線分に触れる三角形を辺づたいにたどる。a が網の外なら undefined。
  */
 export declare function crossed(mesh: IncrementalMesh, a: Position, b: Position, hint: number): Set<number> | undefined;
+/** 編集の関数に共通の指定。 */
+export interface EditOptions {
+    /**
+     * 帯を更新しなくてよい条件（§6.3）を見ない。当てた後に、呼び出し側が帯を差し替えること
+     * （`refreshBand`）。帯に触れる編集を、「点の編集」と「帯の差し替え」の 2 回の差し替えで当てるときに使う。
+     */
+    force?: boolean;
+}
 /**
  * 対応点を動かす。
  *
@@ -63,17 +71,17 @@ export declare function crossed(mesh: IncrementalMesh, a: Position, b: Position,
 export declare function movePoint(model: MeshModel, id: PointId, to: {
     forw?: Position;
     bakw?: Position;
-}): EditResult;
+}, options?: EditOptions): EditResult;
 /** 対応点を足す。R0 は、点の空洞。 */
-export declare function insertPoint(model: MeshModel, id: PointId, forw: Position, bakw: Position, position?: number): EditResult;
+export declare function insertPoint(model: MeshModel, id: PointId, forw: Position, bakw: Position, position?: number, options?: EditOptions): EditResult;
 /** 対応点を消す。R0 は、点の星。必須エッジの端点は、先に必須エッジを外すこと。 */
-export declare function removePoint(model: MeshModel, id: PointId): EditResult;
+export declare function removePoint(model: MeshModel, id: PointId, options?: EditOptions): EditResult;
 /**
  * 必須エッジを足す。R0 は、新しい区間が触れる三角形（線分が既に網の辺なら、印を付けるだけ）。
  * 折れ点があれば、両面の折れ線を累積長の比で突き合わせて、中継点を作る。
  */
-export declare function insertEdge(model: MeshModel, id: EdgeId, start: PointId, end: PointId, forwNodes?: Position[], bakwNodes?: Position[], position?: number): EditResult;
+export declare function insertEdge(model: MeshModel, id: EdgeId, start: PointId, end: PointId, forwNodes?: Position[], bakwNodes?: Position[], position?: number, options?: EditOptions): EditResult;
 /** 必須エッジを外す。中継点は消える。R0 は、中継点の星（直線なら、辺の両側の 2 つの三角形）。 */
-export declare function removeEdge(model: MeshModel, id: EdgeId): EditResult;
+export declare function removeEdge(model: MeshModel, id: EdgeId, options?: EditOptions): EditResult;
 /** 必須エッジの折れ点を差し替える（足す・消す・動かす）。全部の区間と全部の中継点を張り替える。 */
-export declare function replaceEdgeNodes(model: MeshModel, id: EdgeId, forwNodes: Position[], bakwNodes: Position[]): EditResult;
+export declare function replaceEdgeNodes(model: MeshModel, id: EdgeId, forwNodes: Position[], bakwNodes: Position[], options?: EditOptions): EditResult;

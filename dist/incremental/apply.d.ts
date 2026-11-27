@@ -1,4 +1,4 @@
-import { EdgeSet, PointSet } from '@maplat/transform';
+import { EdgeSet, PointSet, VertexMode } from '@maplat/transform';
 import { EdgeId, PointId } from "./mesh.js";
 import { MeshModel } from "./model.js";
 import { TinEdit, TinPatch, TinPatchFallback } from "./types.js";
@@ -20,10 +20,16 @@ export declare function applyToInputs(inputs: TinInputs, edits: readonly TinEdit
  *
  * 編集 1 つは、それに関わる必須エッジの区間と中継点を、1 回の差し替えで同時に張り替える（途中の状態を
  * 網にしない）。編集どうしは、順に当てる（どの時点の網も、その時点までの入力の strict な網である）。
+ *
+ * `band` を渡すと、帯（補助頂点・重心）に触れる編集も当てる: 点の編集を当てた後に、帯を 1 回差し替える。
+ * 帯の差し替えが成り立たなければ "bandFailed"・"bandNotAnnulus" を返す。
  */
-export declare function applyToMesh(model: MeshModel, edits: readonly TinEdit[], follow: boolean): {
+export declare function applyToMesh(model: MeshModel, edits: readonly TinEdit[], follow: boolean, band?: {
+    vertexMode: VertexMode | undefined;
+}): {
     ok: true;
     patch: Omit<TinPatch, "revision" | "mode" | "boundaryStale">;
+    refreshed: boolean;
 } | {
     ok: false;
     reason: TinPatchFallback;

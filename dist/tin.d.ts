@@ -11,6 +11,21 @@ export declare const FORMAT_VERSION_V3 = 3.00001;
 export type CompiledWithSupplement = CompiledTransformData & {
     supplementPairs?: SupplementPairRecord[];
 };
+/** `incrementalRebuild` を入れた `updateTin()` の、試行の内訳。 */
+export interface RebuildDiagnostics {
+    /** 今の手順（全部を組む）で組んだ試行の数 */
+    fullAttempts: number;
+    /** 帯の差し替えで済ませた試行の数 */
+    localAttempts: number;
+    /** 帯の差し替えが成り立たず、今の手順で組み直した試行の数（fullAttempts に含む） */
+    localFailures: number;
+    /** 帯の差し替えの試行に使った時間（ミリ秒） */
+    localMs: number;
+    /** 採用した三角網が、帯の差し替えの結果か */
+    adoptedLocal: boolean;
+    /** 採用した局所の結果が、今の交差の数え上げと食い違ったので、今の手順だけで組み直した */
+    fellBack: boolean;
+}
 /**
  * Tinクラスの初期化オプション
  */
@@ -42,6 +57,19 @@ export interface Options {
      * （`getCompiled()`）は、どちらでも同じ。
      */
     incremental?: boolean;
+    /**
+     * `updateTin()` の中の組み直しの繰り返し（strict を壊す凸包の辺を外す・補完点を足す・strict を壊す補助頂点を
+     * 外す）を、網への局所の操作に置き換える（MaplatTin#100 の第 1 段 b）。既定は false で、何も変わらない。
+     * true にすると、最初の 1 回だけ今の手順で組み、2 回目からの試行は、帯（補助頂点を含む三角形）だけを
+     * 差し替える。strict になる結果だけを採るので、strict の判定は悪くならないが、三角形の集合は、切った
+     * ときと同じとは限らない。world file 外周・loose 指定・V2 では、切ったときと同じ。
+     */
+    incrementalRebuild?: boolean;
+    /**
+     * `applyEdits` で、帯（補助頂点・重心）に触れる編集も、帯の差し替えで局所に当てる（MaplatTin#100 の
+     * 第 1 段 b の帯の差し替え）。既定は false で、帯に触れる編集は全部組み直しへ落ちる。
+     */
+    incrementalBand?: boolean;
 }
 /**
  * Tin (Triangulated Irregular Network) クラス
@@ -63,6 +91,17 @@ export declare class Tin extends Transform {
     private compiledOuter?;
     /** 局所更新のスイッチ（`Options#incremental`）。 */
     incremental: boolean;
+    /** 組み直しの繰り返しを局所の操作に置き換えるスイッチ（`Options#incrementalRebuild`）。 */
+    incrementalRebuild: boolean;
+    /** 帯に触れる編集を局所に当てるスイッチ（`Options#incrementalBand`）。 */
+    incrementalBand: boolean;
+    /** 局所の試行で作った三角網（採用したら、地理面の三角網を足して、交差の数え上げで確かめる）。 */
+    private localTins;
+    /** 局所の試行の結果が、今の交差の数え上げと食い違ったので、今の手順だけで組み直している。 */
+    private localRebuildDisabled;
+    private lastRebuildDiagnostics?;
+    /** 直近の `updateTin()` の、試行の内訳（`incrementalRebuild` を入れたときだけ）。 */
+    get rebuildDiagnostics(): RebuildDiagnostics | undefined;
     private mesh?;
     private meshFailure?;
     /** 対応点・必須エッジの id（`points`・`edges` の並び）。undefined は、配列の添字が id。 */

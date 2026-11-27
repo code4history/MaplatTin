@@ -65,11 +65,32 @@ export interface ReplaceEdit {
     release?: readonly (readonly [number, number])[];
     /** 差し替えの後の磨き（§5.3）をしない */
     noPolish?: boolean;
+    /**
+     * 新しい網の外周の輪（頂点の id の列。`add` に入れた新しい補助頂点）。帯の差し替えで使う。
+     * `remove` に入れた頂点を持つ古い外周の辺の代わりに、この輪が網の外周になる。
+     */
+    outerRing?: readonly number[];
+    /** `outerRing` が、網の外周の全部を置き換える（古い外周の頂点を全部 `remove` に入れてある） */
+    replacesWholeBoundary?: boolean;
+    /** 張れたら張る辺（凸包の辺）。ほかの制約と両立しなければ外す */
+    soft?: readonly (readonly [number, number, number])[];
+    /** okNew でない三角形・禁止制約の増加が残っても採る（全部組み直しの中の試行だけ。編集では使わない） */
+    allowBad?: boolean;
+    /** 範囲の大きさの上限（20%）を見ない（帯の差し替え） */
+    unlimited?: boolean;
+    /**
+     * 紙の面だけで組む（全部組み直しの中の試行だけ）。地理面の向きを見ずに、紙の面の制約付き Delaunay を作る
+     * （重なりの解消をしない・磨きは紙の面の外接円の条件だけで反転する）。今の手順の「紙の面で三角網を組み、
+     * その後で重なりを解消する」の前半に当たる。`allowBad` を含む。
+     */
+    forwOnly?: boolean;
 }
 export type ReplaceResult = {
     ok: true;
     removed: number[];
     added: number[];
+    /** 張れた「張れたら張る辺」 */
+    soft: [number, number][];
     /** 重なりの解消・禁止制約の解消・磨きで反転した辺の数 */
     flips: {
         overlap: number;
@@ -103,6 +124,10 @@ export interface MeshAudit {
     /** 紙の面の三角形の面積の和（網が紙の面を重なりなく覆っていれば、編集の前後で変わらない） */
     forwArea: number;
 }
+/** 座標を写す（呼び出し側の配列を、網の中で持ち続けない）。 */
+export declare const copyPosition: (position: Position) => Position;
+/** 頂点の列が、単純な多角形か（隣でない辺は触れもしない・隣の辺は折り返して重ならない）。 */
+export declare function isSimpleRing(p: readonly Position[]): boolean;
 /** 辺の鍵（向きによらない）。 */
 export declare function edgeKey(a: number, b: number): number;
 type Triangle = [number, number, number];
@@ -173,7 +198,7 @@ export declare class IncrementalMesh {
      * 辺を共有する 2 つの三角形の対角線を入れ替える。新しい 2 つの三角形が、紙の面で正しい向き（凸な四辺形）で、
      * 両方 okNew で、禁止制約の違反を増やさないときだけ行う。行ったら、四辺形の外周の 4 辺を返す。
      */
-    flipEdge(u: number, v: number, gone?: Set<number>, born?: Set<number>): [number, number][] | undefined;
+    flipEdge(u: number, v: number, gone?: Set<number>, born?: Set<number>, forwOnly?: boolean): [number, number][] | undefined;
     /**
      * 磨き（§5.3）: 与えた辺から始めて、制約（required・hull・protect）でなく、外接円の条件を満たさない辺を
      * 反転する。反転したら、四辺形の外周の 4 辺を調べ直す。調べる辺の数の上限で止める（全体を回らない）。
@@ -181,7 +206,7 @@ export declare class IncrementalMesh {
      *
      * @returns 反転した辺の数
      */
-    polish(seeds: readonly (readonly [number, number])[], limit: number, gone?: Set<number>, born?: Set<number>): number;
+    polish(seeds: readonly (readonly [number, number])[], limit: number, gone?: Set<number>, born?: Set<number>, forwOnly?: boolean): number;
     /**
      * 接続を変えずに、頂点の座標だけを変える（地理面だけの移動。設計書 §4.3）。星の三角形の `bad` を
      * 判定し直す。採ってよいかどうか（星の三角形が全部 okNew か）は、呼び出し側が先に確かめる。
@@ -191,6 +216,28 @@ export declare class IncrementalMesh {
     boundaryRing(): number[] | undefined;
     /** 外周 ∂M が 1 本の輪で、両面とも単純な多角形か（S2）を計算し直す。 */
     computeBoundarySimple(): boolean;
+    /**
+     * 網を複製する（全部組み直しの中の試行で、もとの網を保つために使う）。
+     *
+     * @param shareVertices 頂点の表の中身（座標・群）を、もとの網と共有する。複製した網で、今ある頂点を
+     *   動かさない・群を変えないとき（頂点の追加と削除・三角形の差し替えだけのとき）に限る
+     */
+    clone(shareVertices?: boolean): IncrementalMesh;
+    /**
+     * ok でない三角形を、その周りの組み直しで直す（辺の反転で直らなかったもの）。ok でない三角形を、頂点で
+     * つながるかたまりに分け、かたまりごとに、周りを 1 周ずつ広げた範囲を差し替える（全部が okNew になる
+     * 差し替えだけを採る）。
+     *
+     * @returns 直せなかった、ok でない三角形の数
+     */
+    healBad(maxGrow?: number): number;
+    /**
+     * ok でない三角形を、その辺の反転で直す（重なりの解消。網の全体ではなく、ok でない三角形の所だけ）。
+     * 必須エッジは反転しない。凸包の辺は反転してよい（今の `resolveOverlaps` と同じ扱い）。
+     *
+     * @returns 反転した辺の数
+     */
+    repairBad(): number;
     audit(): MeshAudit;
 }
 export {};
