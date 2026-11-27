@@ -103,7 +103,7 @@ function affineReference(tri: Tri, p: Position): Position {
 }
 
 // GRID-P: 当該方向の対応点 bbox を各辺 20% 広げた 41×41 点
-function gridPoints(compiled: Compiled, backward: boolean): Position[] {
+function gridPoints(compiled: Pick<Compiled, "points">, backward: boolean): Position[] {
   const src = compiled.points.map((p) => (backward ? p[1] : p[0]));
   const xs = src.map((p) => p[0]);
   const ys = src.map((p) => p[1]);
@@ -126,7 +126,7 @@ function gridPoints(compiled: Compiled, backward: boolean): Position[] {
 }
 
 // 「相対 X 以内」の分母: 対応点の両座標系を通じた座標絶対値の最大
-function relativeScale(compiled: Compiled): number {
+function relativeScale(compiled: Pick<Compiled, "points">): number {
   let scale = 0;
   for (const p of compiled.points) {
     scale = Math.max(
@@ -148,7 +148,7 @@ function fanTriangles(tin: Tin, backward: boolean): Tri[] {
 
 // stateFull の stateTriangle（設定されていれば）または扇形三角形のどれかと
 // 相対 1e-12 以内であることを検査し、外れの点数を返す。
-function affineDeviations(tin: Tin, compiled: Compiled, backward: boolean): number {
+function affineDeviations(tin: Tin, compiled: Pick<Compiled, "points">, backward: boolean): number {
   const scale = relativeScale(compiled);
   const fans = fanTriangles(tin, backward);
   const grid = gridPoints(compiled, backward);

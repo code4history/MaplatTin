@@ -356,11 +356,12 @@ function calculateVerticesCore(
   params: BoundaryVerticesParams,
   mode: "plain" | "birdeye",
   withEdgeVertices: boolean,
+  project?: (forw: Position) => Position,
 ): VertexPosition[] {
   const { convexBuf, centroid, allGcps, minx, maxx, miny, maxy } = params;
 
   // ── Phase 1 ───────────────────────────────────────────────────────────────
-  const cornerRatios = buildVertexRatio(convexBuf, centroid, mode);
+  const cornerRatios = project ? undefined : buildVertexRatio(convexBuf, centroid, mode);
 
   // ── Phase 2: 4 bbox corner vertices ───────────────────────────────────────
   const bboxCornerForws: Position[] = [
@@ -371,10 +372,10 @@ function calculateVerticesCore(
   ];
   const cornerVertices: VertexPosition[] = bboxCornerForws.map((forw) => ({
     forw,
-    bakw: computeVertexBakwFromRatio(
+    bakw: project ? project(forw) : computeVertexBakwFromRatio(
       forw,
       centroid,
-      cornerRatios[forwQuadrant(forw, centroid.forw)],
+      cornerRatios![forwQuadrant(forw, centroid.forw)],
     ),
   }));
 
@@ -385,7 +386,7 @@ function calculateVerticesCore(
   );
 
   // Expand corners to enclose all GCPs + edge nodes in bakw space
-  checkAndAdjustVerticesN(cornerVertices, allGcps, centroid);
+  if (!project) checkAndAdjustVerticesN(cornerVertices, allGcps, centroid);
 
   if (!withEdgeVertices) return cornerVertices;
 
@@ -489,6 +490,10 @@ function calculateVerticesCore(
     }
 
     if (!forwEdge) continue;
+    if (project) {
+      edgeVertices.push({ forw: forwEdge, bakw: project(forwEdge) });
+      continue;
+    }
 
     const forDelta = [forwEdge[0] - centroid.forw[0], forwEdge[1] - centroid.forw[1]];
     const forwAngle = Math.atan2(forDelta[0], forDelta[1]);
@@ -514,7 +519,7 @@ function calculateVerticesCore(
   // Final expansion: ensure the full polygon encloses all GCPs + edge nodes
   // (some edge vertices may have been placed conservatively via extrapolation;
   // this step corrects any remaining gaps).
-  checkAndAdjustVerticesN(allVertices, allGcps, centroid);
+  if (!project) checkAndAdjustVerticesN(allVertices, allGcps, centroid);
 
   return allVertices;
 }
@@ -554,4 +559,18 @@ export function calculateBirdeyeVertices(
   v3 = false,
 ): VertexPosition[] {
   return calculateVerticesCore(params, "birdeye", v3);
+}
+
+/** 四隅と辺上の補助頂点を輪の順に並べ、地理側は world file の値で固定する。 */
+export function calculateWorldFileVertices(
+  params: BoundaryVerticesParams,
+  project: (forw: Position) => Position
+): VertexPosition[] {
+  const seen = new Set<string>();
+  return calculateVerticesCore(params, "plain", true, project).filter(({ forw: [x, y] }) => {
+    const key = `${x}:${y}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

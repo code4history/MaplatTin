@@ -5,6 +5,9 @@
 ## [Unreleased]
 
 ### Added
+- V3 の四辺形の外を world file で変換する `outerTransform: "worldFile"` と `worldFile` を追加した。上限までに成立しないときは扇形で作り直し、`Tin.boundaryDiagnostics` に要求方式・採用方式・理由を返す (#82)
+  - Added world file transformation outside the V3 quadrilateral, with automatic fallback to fan extrapolation and diagnostics (#82)
+
 - 制約付き三角網（`Constrain`）に `forbidGroupTriangles(groupsOf, planes?)` を足した。同じ群（四辺形の補助頂点の全体・必須エッジごとの端点と中継点など）に属する点だけでできた三角形を、制約でない辺の反転で解消する（禁止制約）。反転は、反転後の三角形がすべての面で三角網と同じ向きの、面積 0 でない三角形になるときだけ行い、反転した辺は制約として扱う。
 
 - V3 の生成時に採用した余白、補助頂点の三角形の反転数、禁止制約の残数を `Tin.boundaryDiagnostics` で参照できるようにした (#82)
@@ -13,6 +16,12 @@
 ### Changed
 - V3 は GCP の外接矩形に 10〜50% の余白を試し、地図面・地理面の三角網に補助頂点と必須エッジの禁止制約を適用する (#82)
   - V3 tries margins of 10–50% around the GCP bounding box and applies the auxiliary vertex and constrained edge group rules to triangulations in both planes (#82)
+
+- `Tin.getCompiled()` の戻り値の型を `Compiled` から `CompiledTransformData`（`Compiled` と world file 外周の `CompiledWorldFileOuter` の和）に変えた。`const c: Compiled = tin.getCompiled()` と書く TypeScript の利用者は型の調整が必要
+  - Changed the return type of `Tin.getCompiled()` from `Compiled` to `CompiledTransformData` (the union of `Compiled` and the world file outer `CompiledWorldFileOuter`). TypeScript users writing `const c: Compiled = tin.getCompiled()` need to adjust their types
+
+- ビルドで `@maplat/transform` を外部依存（external）にした
+  - Marked `@maplat/transform` as an external dependency in the build
 
 ### Fixed
 - V3 の補助頂点が GCP や必須エッジの中継点と同じ位置になり、Delaunator がその点を三角網から落として `updateTin()` が `Invalid edge ... is not part of the triangulation` で失敗することがあったのを直した。GCP の外接矩形の高さや幅が 0 のとき、余白を広げた矩形からの補助頂点の位置が内点に一致することがあった。補助頂点は内点・他の補助頂点と位置が重なるものを除いて作るようにした

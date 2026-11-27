@@ -15,13 +15,21 @@ export interface BoundaryDiagnostics {
     readonly boundaryTriangleFlips: number;
     /** 同じ群の点だけででき、辺反転で解消できなかった三角形の数。 */
     readonly remainingForbiddenTriangles: number;
+    /** world file 外周を指定した場合の要求方式。 */
+    readonly requestedOuterTransform?: "worldFile";
+    /** world file 外周を指定した場合に、実際に採用した方式。 */
+    readonly outerTransform?: "worldFile" | "extrapolate";
+    /** 上限までに使える world file 外周が見つからなかった。 */
+    readonly fallbackReason?: "boundaryFlips";
 }
-interface BoundaryCandidate {
+export interface BoundaryCandidate {
     vertices: VertexPosition[];
     forw: Tins;
     bakw: Tins;
     diagnostics: BoundaryDiagnostics;
-    /** 両面で補助頂点の輪が閉じた（扇形が星形で、輪の外に GCP・中継点が無い）か。 */
+    /** 地図面で外周の辺を三角網の境界として確保できたか。 */
+    hasMapBoundary: boolean;
+    /** 両面で外周の辺を三角網の境界として確保できたか。 */
     hasBoundary: boolean;
 }
 /**
@@ -36,9 +44,12 @@ export declare function isBetterBoundaryCandidate(a: {
     hasBoundary: boolean;
     diagnostics: Pick<BoundaryDiagnostics, "boundaryTriangleFlips">;
 } | undefined): boolean;
+export declare function countBoundaryFlips(tin: Tins, expectedOrientation?: -1 | 1): number;
 export declare function searchBoundary(params: BoundaryVerticesParams, calculateVertices: (params: BoundaryVerticesParams, v3: boolean) => VertexPosition[], points: {
     forw: Feature<Point>[];
     bakw: Feature<Point>[];
     edges: Edge[];
-}, gcpCount: number): BoundaryCandidate;
-export {};
+}, gcpCount: number, worldFile?: {
+    orientation: -1 | 1;
+    accept: (candidate: BoundaryCandidate) => boolean;
+}): BoundaryCandidate | undefined;
