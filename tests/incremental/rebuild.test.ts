@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Transform } from "@maplat/transform";
-import { Tin } from "../../src/index.ts";
+import { IncrementalMesh, Tin } from "../../src/index.ts";
 import { intrusionFraction } from "../hull-intrusion.ts";
 import { orientationFlips } from "../supplement-fixtures.ts";
 import { MAP_NAMES, MODES, digest, mapOptions } from "./fixtures.ts";
@@ -89,6 +89,29 @@ describe("incrementalRebuild: 全部の実地図で、strict・食い込み・GC
     };
     expect(build()).toBe(build());
   }, TIMEOUT);
+
+  it("局所の判定が今の交差の数え上げと食い違ったら、今の手順だけで組み直す（診断で見える）", () => {
+    // 局所の判定を、わざと「常に strict」にする。最後の確かめが拾い、切ったときと同じ結果になる
+    const original = IncrementalMesh.prototype.isStrict;
+    try {
+      // 宇野バスは、どの試行も strict にならない地図。局所の判定を偽ると、strict でない網を採ろうとする
+      for (const mode of MODES) {
+        const options = mapOptions("uno_bus_gtfs_error", mode);
+        IncrementalMesh.prototype.isStrict = original;
+        const off = new Tin(options);
+        off.updateTin();
+        IncrementalMesh.prototype.isStrict = () => true;
+        const on = new Tin({ ...options, incrementalRebuild: true });
+        on.updateTin();
+        // 丸ごと組み直したことが、診断で見える（組み直しの中では、局所の試行をしない）
+        expect(on.rebuildDiagnostics, mode).toMatchObject({ fellBack: true, localAttempts: 0, adoptedLocal: false });
+        expect(digest(on.getCompiled()), mode).toBe(digest(off.getCompiled()));
+        expect(on.strict_status, mode).toBe(off.strict_status);
+      }
+    } finally {
+      IncrementalMesh.prototype.isStrict = original;
+    }
+  }, TIMEOUT * 2);
 
   it("world file 外周・loose 指定・V2 は、切ったときと同じ", () => {
     for (const extra of [{ strictMode: "loose" as const }, { useV2Algorithm: true }]) {

@@ -12,6 +12,7 @@ import {
   polygon,
 } from "@turf/turf";
 import type { Feature, Point, Position } from "geojson";
+import { orient2d } from "robust-predicates";
 import {
   counterTri,
   normalizeEdges,
@@ -134,6 +135,7 @@ export interface IncrementalEvidence {
     | "noMesh"
     | "boundaryStale"
     | "badTriangles"
+    | "meshShape"
     | "boundary"
     | "requiredEdge"
     | "boundaryOnlyTriangles"
@@ -144,6 +146,11 @@ export interface IncrementalEvidence {
   boundaryFresh: boolean;
   /** (a) S1: ok でない三角形の数（網の全部を数え直した値。0 が条件） */
   badTriangles: number;
+  /** (a) S1: 紙の面で折り返している内側の辺の数（0 が条件） */
+  forwFolds: number;
+  /** (a) 網の形: 3 つ以上の三角形に属する辺の数（0 が条件）と、索引が三角形の表と一致するか */
+  nonManifoldEdges: number;
+  indexMatches: boolean;
   /** (a) S2: 網の外周が、両面で単純な 1 本の輪か */
   boundarySimple: boolean;
   /** (a) S3: 網の辺に無い必須エッジの区間の数（0 が条件） */
@@ -444,7 +451,11 @@ export class Tin extends Transform {
         );
         if (applied.ok) {
           // 帯を差し替えたら最新。差し替えていなければ、前のまま（最新でない）
-          this.afterLocalEdit(applied.patch.strict_status, applied.refreshed ? false : true);
+          // world file 外周の網の補助頂点は、world file から直接決まり、内側の点に依らないので、古くならない
+          this.afterLocalEdit(
+            applied.patch.strict_status,
+            applied.refreshed || this.mesh.isWorldFile ? false : true,
+          );
           return { revision: this.editRevision, mode: "local", boundaryStale: this.bandStale, ...applied.patch };
         }
         reason = applied.reason;
@@ -561,6 +572,8 @@ export class Tin extends Transform {
     }
     this.points = points;
     this.pointIds = undefined;
+    // 対応点を入れ直したら、局所更新の網をそのまま保存した特例ではない
+    this.originIncremental = false;
     this.dropMesh();
     this.tins = undefined;
     this.indexedTins = undefined;
@@ -779,12 +792,22 @@ export class Tin extends Transform {
     compiled: CompiledWithSupplement,
     inputs?: { points?: PointSet[]; edges?: EdgeSet[] | EdgeSetLegacy[] },
   ): { ok: true } | { ok: false; reason: RestoreFailure } {
-    const fail = (reason: RestoreFailure) => ({ ok: false as const, reason });
+    const fail = (reason: RestoreFailure) => {
+      // 断った compiled の印と strict の判定を、引き継がない（スイッチが切れているときは、setCompiled と同じ）
+      if (reason !== "disabled") {
+        this.originIncremental = false;
+        this.strict_status = undefined;
+      }
+      return { ok: false as const, reason };
+    };
+    // この Tin で読めない組み合わせ（V2 の Tin に world file 外周）は、読む前に断る
+    if (this.useV2Algorithm && (compiled as { outerTransform?: string }).outerTransform === "worldFile") {
+      return fail("v2");
+    }
     try {
       this.setCompiled(compiled);
-    } catch (error) {
+    } catch {
       // 三角形が無い頂点を指しているなど、Transform が読めない compiled
-      if (error instanceof Error && /world file|V2/.test(error.message)) throw error;
       this.tins = undefined;
       this.indexedTins = undefined;
       return fail("inconsistent");
@@ -820,7 +843,10 @@ export class Tin extends Transform {
     if (!("model" in imported)) return fail(imported.reason);
     const { model } = imported;
     const audit = model.mesh.audit();
-    if (audit.bad.length > 0) return fail("notStrict");
+    // 網の形: 辺が 3 つ以上の三角形に属さない（三角形が重なっていない）・全部の頂点が三角形を持つ
+    if (audit.nonManifoldEdges > 0 || audit.orphanVertices > 0 || !audit.indexMatches) return fail("inconsistent");
+    // S1: 両面の向きの積と、紙の面の折り返し（両面で一緒に裏返った三角形は、積では見えない）
+    if (audit.bad.length > 0 || audit.forwFolds > 0) return fail("notStrict");
     if (!audit.boundarySimple) return fail("boundary");
     if (audit.missingRequired > 0) return fail("requiredEdge");
     if (audit.forbiddenBoundary > 0) return fail("forbidden");
@@ -875,6 +901,9 @@ export class Tin extends Transform {
       failed: [],
       boundaryFresh: !this.bandStale,
       badTriangles: 0,
+      forwFolds: 0,
+      nonManifoldEdges: 0,
+      indexMatches: false,
       boundarySimple: false,
       missingRequiredEdges: 0,
       boundaryOnlyTriangles: 0,
@@ -892,6 +921,9 @@ export class Tin extends Transform {
     const { mesh } = model;
     const audit = mesh.audit();
     evidence.badTriangles = audit.bad.length;
+    evidence.forwFolds = audit.forwFolds;
+    evidence.nonManifoldEdges = audit.nonManifoldEdges;
+    evidence.indexMatches = audit.indexMatches && audit.badMatches && audit.orphanVertices === 0;
     evidence.boundarySimple = audit.boundarySimple;
     evidence.missingRequiredEdges = audit.missingRequired;
     evidence.boundaryOnlyTriangles = audit.forbiddenBoundary;
@@ -903,7 +935,10 @@ export class Tin extends Transform {
       reader.setCompiled(JSON.parse(JSON.stringify(compiled)));
       let forward = 0;
       let backward = 0;
-      for (const [forw, bakw] of compiled.points) {
+      // compiled の座標は内部の座標系、transform() の入出力は外の座標系（follow では地理面の Y が逆）
+      const follow = compiled.yaxisMode === Tin.YAXIS_FOLLOW;
+      for (const [forw, internal] of compiled.points) {
+        const bakw = follow ? [internal[0], -1 * internal[1]] : internal;
         const geo = reader.transform(forw, false);
         const paper = reader.transform(bakw, true);
         forward = Math.max(forward, geo ? Math.hypot(geo[0] - bakw[0], geo[1] - bakw[1]) : Infinity);
@@ -922,7 +957,8 @@ export class Tin extends Transform {
       evidence.sweepKinks += findIntersectionsUpTo(rings, 1).length;
     }
     if (!evidence.boundaryFresh) evidence.failed.push("boundaryStale");
-    if (evidence.badTriangles > 0) evidence.failed.push("badTriangles");
+    if (evidence.badTriangles > 0 || evidence.forwFolds > 0) evidence.failed.push("badTriangles");
+    if (evidence.nonManifoldEdges > 0 || !evidence.indexMatches) evidence.failed.push("meshShape");
     if (!evidence.boundarySimple) evidence.failed.push("boundary");
     if (evidence.missingRequiredEdges > 0) evidence.failed.push("requiredEdge");
     if (evidence.boundaryOnlyTriangles > 0) evidence.failed.push("boundaryOnlyTriangles");
@@ -1677,7 +1713,14 @@ export class Tin extends Transform {
       if (this.localTins.has(this.tins!)) {
         stats.adoptedLocal = true;
         this.tins!.bakw = featureCollection(this.tins!.forw!.features.map((tri: Tri) => counterTri(tri)));
-        const clean = (["forw", "bakw"] as const).every((direction) =>
+        // 向きが逆・面積 0 の三角形が無いこと（交差の数え上げは、面積 0 の三角形を拾わないことがある）と、交差が無いこと
+        const oriented = this.tins!.forw!.features.every((tri: Tri) => {
+          const { a, b, c } = tri.properties!;
+          const [p, q, r] = tri.geometry!.coordinates[0];
+          return Math.sign(orient2d(p[0], p[1], q[0], q[1], r[0], r[1])) *
+            Math.sign(orient2d(a.geom[0], a.geom[1], b.geom[0], b.geom[1], c.geom[0], c.geom[1])) === -1;
+        });
+        const clean = oriented && (["forw", "bakw"] as const).every((direction) =>
           findIntersectionsUpTo(
             this.tins![direction]!.features.map((tri: Tri) => tri.geometry!.coordinates[0]),
             1,

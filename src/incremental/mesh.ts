@@ -144,6 +144,13 @@ export interface MeshAudit {
   forbiddenMatches: boolean;
   /** 紙の面の三角形の面積の和（網が紙の面を重なりなく覆っていれば、編集の前後で変わらない） */
   forwArea: number;
+  /**
+   * 紙の面で折り返している内側の辺の数（辺を共有する 2 つの三角形の、向かいの 2 頂点が、辺の同じ側にある）。
+   * 0 が正常。両面で一緒に裏返った三角形は、向きの積（S1）では見えないので、紙の面を直接見る
+   */
+  forwFolds: number;
+  /** 三角形を 1 つも持たない頂点の数（0 が正常） */
+  orphanVertices: number;
 }
 
 /** 座標を写す（呼び出し側の配列を、網の中で持ち続けない）。 */
@@ -1182,9 +1189,30 @@ export class IncrementalMesh {
     }
     if (edges.size !== this.byEdge.size) indexMatches = false;
     let indexed = 0;
+    let orphanVertices = 0;
     for (const [v, owners] of this.byVertex) {
       if (!this.vertices.has(v)) indexMatches = false;
+      if (owners.size === 0) orphanVertices++;
       indexed += owners.size;
+    }
+    // 紙の面の折り返し: 内側の辺ごとに、向かいの 2 頂点が、辺の反対側にあること
+    let forwFolds = 0;
+    for (const [, owners] of this.byEdge) {
+      if (owners.length !== 2) continue;
+      const first = this.triangles.get(owners[0])!;
+      const second = this.triangles.get(owners[1])!;
+      const shared = first.filter((v) => second.includes(v));
+      const p = first.find((v) => !second.includes(v));
+      const q = second.find((v) => !first.includes(v));
+      if (shared.length !== 2 || p === undefined || q === undefined) {
+        forwFolds++;
+        continue;
+      }
+      const [a, b] = shared.map((v) => this.vertices.get(v)!.forw);
+      const sides =
+        sign2(a, b, this.vertices.get(p)!.forw) *
+        sign2(a, b, this.vertices.get(q)!.forw);
+      if (sides !== -1) forwFolds++;
     }
     if (indexed !== this.triangles.size * 3) indexMatches = false;
     let missingRequired = 0;
@@ -1205,7 +1233,9 @@ export class IncrementalMesh {
       forbiddenMatches:
         forbiddenBoundary === this.forbiddenBoundary &&
         forbiddenEdge === this.forbiddenEdge,
-      forwArea
+      forwArea,
+      forwFolds,
+      orphanVertices
     };
   }
 }

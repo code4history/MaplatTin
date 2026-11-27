@@ -360,6 +360,21 @@ function reshape(
     }
   }
 
+  // 同じ区間を持つ必須エッジが、ほかに残っていれば、その区間の required の印は外さない
+  // （同じ 2 点を結ぶ必須エッジが 2 本あるとき、片方を外しても、残る方の区間は必須のまま）
+  if (release.length > 0) {
+    const retied = new Set(specs.map((spec) => spec.edge));
+    const held = new Set<number>();
+    for (const edge of model.edges) {
+      if (retied.has(edge)) continue;
+      const chain = [edge.start, ...edge.nodes, edge.end];
+      for (let i = 0; i + 1 < chain.length; i++) held.add(edgeKey(chain[i], chain[i + 1]));
+    }
+    for (let i = release.length - 1; i >= 0; i--) {
+      if (held.has(edgeKey(release[i][0], release[i][1]))) release.splice(i, 1);
+    }
+  }
+
   // 帯を更新しなくてよい編集か（C1〜C7）
   const commitBand = bandGate(model, changes, options);
   if (!commitBand) return fail("unsupported");

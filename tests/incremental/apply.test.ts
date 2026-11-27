@@ -631,7 +631,10 @@ describe("applyEdits: 補完点の付いた対応点の削除・world file 外�
     const fresh = new Tin({ ...world, incremental: true, incrementalBand: true });
     fresh.updateTin();
     const inner = localEdit(fresh);
-    expect(fresh.applyEdits([inner])).toMatchObject({ mode: "local", strict_status: "strict", boundaryStale: true });
+    // world file 外周の網の補助頂点は、内側の点に依らないので、帯は古くならない
+    expect(fresh.applyEdits([inner])).toMatchObject({ mode: "local", strict_status: "strict", boundaryStale: false });
+    // 帯が最新なので、そのまま証拠を集められる
+    expect(fresh.collectIncrementalEvidence()).toMatchObject({ eligible: true, boundaryFresh: true });
     const xs = pts.map(([forw]) => forw[0]);
     expect(fresh.applyEdits([{ type: "removePoint", id: xs.indexOf(Math.max(...xs)) }])).toMatchObject({
       mode: "full", fallbackReason: "unsupported"

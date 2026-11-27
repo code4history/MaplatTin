@@ -564,3 +564,85 @@ describe("網は、呼び出し側の座標の配列を持ち続けない（#103
     expect(state()).toBe(before);
   }, TIMEOUT);
 });
+
+describe("同じ 2 点を結ぶ必須エッジが 2 本あるとき（#103 第 2〜3 週のレビュー M-1）", () => {
+  /** 内側の、網の辺で結ばれた対応点の対（印の無い辺）。 */
+  function freeEdge(model: MeshModel): [number, number] {
+    const { mesh } = model;
+    for (const [key, owners] of mesh.byEdge) {
+      if (owners.length !== 2 || mesh.edgeFlags.get(key)) continue;
+      const tri = mesh.triangles.get(owners[0])!;
+      for (let k = 0; k < 3; k++) {
+        const u = tri[k], v = tri[(k + 1) % 3];
+        const ru = mesh.vertices.get(u)!.ref, rv = mesh.vertices.get(v)!.ref;
+        if (mesh.hasEdge(u, v) && mesh.flagsOf(u, v) === 0 && ru.kind === "gcp" && rv.kind === "gcp" && ru.id > 40 && rv.id > 40 &&
+          model.band()!.keeps(model, [{ vertex: u, gcp: true, counted: true }, { vertex: v, gcp: true, counted: true }])) return [ru.id, rv.id];
+      }
+    }
+    throw new Error("対が無い");
+  }
+
+  it("片方を外しても、残る方の区間は必須のままで、近くの編集で網から消えない", () => {
+    const tin = new Tin({ ...mapOptions("fushimijo_maplat", "strict"), incremental: true });
+    tin.updateTin();
+    const model = tin.incrementalMesh!;
+    const { mesh } = model;
+    const [a, b] = freeEdge(model);
+    const va = model.pointVertex.get(a)!, vb = model.pointVertex.get(b)!;
+    expect(tin.applyEdits([{ type: "addEdge", id: 9001, start: a, end: b, forwNodes: [], bakwNodes: [] }]).mode).toBe("local");
+    expect(tin.applyEdits([{ type: "addEdge", id: 9002, start: b, end: a, forwNodes: [], bakwNodes: [] }]).mode).toBe("local");
+    expect(tin.applyEdits([{ type: "removeEdge", id: 9001 }]).mode).toBe("local");
+    expect(tin.incrementalMesh).toBe(model);
+    expect(model.edges.map((edge) => edge.id)).toEqual([9002]);
+    expect(mesh.flagsOf(va, vb) & EDGE_REQUIRED).toBe(EDGE_REQUIRED);
+    // 辺の中点のすぐ脇に点を足す（印が無ければ、辺 a–b は反転して消える）
+    const fa = mesh.vertices.get(va)!, fb = mesh.vertices.get(vb)!;
+    const mid = [(fa.forw[0] + fb.forw[0]) / 2, (fa.forw[1] + fb.forw[1]) / 2];
+    const midB = [(fa.bakw[0] + fb.bakw[0]) / 2, (fa.bakw[1] + fb.bakw[1]) / 2];
+    const dx = fb.forw[1] - fa.forw[1], dy = -(fb.forw[0] - fa.forw[0]), len = Math.hypot(dx, dy);
+    const bx = fb.bakw[1] - fa.bakw[1], by = -(fb.bakw[0] - fa.bakw[0]), blen = Math.hypot(bx, by);
+    for (const side of [1, -1]) {
+      tin.applyEdits([{
+        type: "addPoint", id: 9100 + side,
+        forw: [mid[0] + (side * dx) / len * 0.3, mid[1] + (side * dy) / len * 0.3],
+        bakw: [midB[0] - (side * bx) / blen * 0.05, midB[1] - (side * by) / blen * 0.05]
+      }]);
+      const now = tin.incrementalMesh!;
+      expect(now.mesh.hasEdge(now.pointVertex.get(a)!, now.pointVertex.get(b)!), `点を足す ${side}`).toBe(true);
+      expect(now.mesh.audit().missingRequired).toBe(0);
+    }
+    const compiled = tin.getCompiled();
+    expect(compiled.edges).toHaveLength(1);
+    // 残る方も外すと、印が外れる
+    const last = tin.incrementalMesh!;
+    if (last === model) {
+      expect(tin.applyEdits([{ type: "removeEdge", id: 9002 }]).mode).toBe("local");
+      expect(mesh.flagsOf(va, vb) & EDGE_REQUIRED).toBe(0);
+    }
+  }, TIMEOUT);
+
+  it("片方の折れ点を差し替えても、残る方の直線の区間は必須のまま", () => {
+    const model = build("fushimijo_maplat");
+    const { mesh } = model;
+    const [a, b] = freeEdge(model);
+    const va = model.pointVertex.get(a)!, vb = model.pointVertex.get(b)!;
+    expect(insertEdge(model, 9001, a, b).ok).toBe(true);
+    expect(insertEdge(model, 9002, b, a).ok).toBe(true);
+    const fa = mesh.vertices.get(va)!.forw, fb = mesh.vertices.get(vb)!.forw;
+    const node: Position = [(fa[0] + fb[0]) / 2 - (fb[1] - fa[1]) * 0.05, (fa[1] + fb[1]) / 2 + (fb[0] - fa[0]) * 0.05];
+    const replaced = replaceEdgeNodes(model, 9001, [node], []);
+    // 折れ点つきに張り替えられても、られなくても、9002 の区間 a–b は必須のまま
+    expect(mesh.hasEdge(va, vb)).toBe(true);
+    expect(mesh.flagsOf(va, vb) & EDGE_REQUIRED).toBe(EDGE_REQUIRED);
+    expect(mesh.audit().missingRequired).toBe(0);
+    if (replaced.ok) {
+      expect(model.edges.find((edge) => edge.id === 9001)!.nodes).toHaveLength(1);
+      // 折れ点を消して直線に戻し、9001 を外しても同じ
+      expect(replaceEdgeNodes(model, 9001, [], []).ok).toBe(true);
+    }
+    expect(removeEdge(model, 9001).ok).toBe(true);
+    expect(mesh.flagsOf(va, vb) & EDGE_REQUIRED).toBe(EDGE_REQUIRED);
+    expect(removeEdge(model, 9002).ok).toBe(true);
+    expect(mesh.flagsOf(va, vb) & EDGE_REQUIRED).toBe(0);
+  }, TIMEOUT);
+});

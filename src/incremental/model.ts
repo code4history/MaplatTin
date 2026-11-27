@@ -438,6 +438,9 @@ export function meshFromCompiled(
     if (!record || !edge || edge.some((vertex) => vertex === undefined)) {
       return { reason: "inconsistent" };
     }
+    if (record.anchor !== undefined && byIndex.get(record.anchor) === undefined) {
+      return { reason: "inconsistent" };
+    }
     model.supplements.push({
       vertex: byIndex.get(`e${n}`)!,
       kind: record.kind,

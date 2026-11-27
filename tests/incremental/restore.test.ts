@@ -125,14 +125,20 @@ describe("restoreMesh: 保存した compiled から、局所更新の網を戻�
     // 中継点（必須エッジから決まる）を動かす
     expect(tamper((c) => { c.edgeNodes![0][0][0] += 0.5; })).toEqual({ ok: false, reason: "edgeNodes" });
     // 対応点を、地理面で遠くへ動かす（向きが逆の三角形ができる）
-    expect(tamper((c) => { c.points[500][1][0] += 5000; c.points[500][1][1] += 5000; }).ok).toBe(false);
+    expect(tamper((c) => { c.points[500][1][0] += 5000; c.points[500][1][1] += 5000; })).toEqual({ ok: false, reason: "notStrict" });
     expect(tamper((c) => { c.vertices_points[3][1][0] += 1; })).toEqual({ ok: false, reason: "verticesParams" });
     expect(tamper((c) => { (c as { vertices_params: number[][] }).vertices_params[0][0] += 1e-9; })).toEqual({ ok: false, reason: "verticesParams" });
     expect(tamper((c) => { c.tins_points[0][10][0] = 99_999; })).toEqual({ ok: false, reason: "inconsistent" });
     expect(tamper((c) => { c.supplementPairs = []; })).toEqual({ ok: false, reason: "edgeNodes" });
     expect(tamper((c) => { c.strict_status = "loose"; c.tins_points[1] = c.tins_points[0]; })).toEqual({ ok: false, reason: "loose" });
     // 補助頂点だけの三角形を作る（補助頂点 3 点に書き換える）
-    expect(tamper((c) => { c.tins_points[0][0] = ["b0", "b1", "b2"]; }).ok).toBe(false);
+    expect(tamper((c) => { c.tins_points[0][0] = ["b0", "b1", "b2"]; })).toEqual({ ok: false, reason: "notStrict" });
+    // 補完点の理由（凹みの点）が、網に無い番号を指している
+    expect(tamper((c) => { c.supplementPairs![0].anchor = 99_999; })).toEqual({ ok: false, reason: "inconsistent" });
+    // V2 の Tin に、world file 外周の compiled は読ませない（読む前に断る）
+    expect(
+      tamper((c) => { Object.assign(c, { outerTransform: "worldFile", worldFile: { xScale: 1, xSkew: 0, xOrigin: 0, ySkew: 0, yScale: -1, yOrigin: 0 } }); }, { incremental: true, useV2Algorithm: true })
+    ).toEqual({ ok: false, reason: "v2" });
     // 失敗しても、setCompiled した状態で変換はできる
     const tin = new Tin({});
     expect(tin.restoreMesh(clone(compiled)).ok).toBe(false);
@@ -254,5 +260,115 @@ describe("特例の保存: 清書が strict にならず、局所更新の網が
     const plain = new Tin({ ...options, incremental: true });
     plain.updateTin();
     expect(plain.refreshBand()).toBeUndefined();
+  }, TIMEOUT);
+});
+
+describe("restoreMesh: 両面で一緒に壊した compiled も断る（#103 第 4 週のレビュー M-1・m-1・m-2）", () => {
+  const source = build(mapOptions("fushimijo_maplat", "strict"));
+  const compiled = source.getCompiled();
+
+  it("対応点を、両面で同じように遠くへ動かした compiled（向きの積は変わらない）は、strict として受け入れない", () => {
+    let tried = 0;
+    for (let i = 0; i < compiled.points.length && tried < 60; i += 3) {
+      const c = clone(compiled);
+      // 遠くの別の対応点と、その次の点の間へ（両面で同じ比）
+      const j = (i + Math.floor(compiled.points.length / 2)) % compiled.points.length;
+      const k = (j + 1) % compiled.points.length;
+      const [tf, tb] = c.points[j];
+      c.points[i] = [
+        [tf[0] + (c.points[k][0][0] - tf[0]) * 0.3, tf[1] + (c.points[k][0][1] - tf[1]) * 0.3],
+        [tb[0] + (c.points[k][1][0] - tb[0]) * 0.3, tb[1] + (c.points[k][1][1] - tb[1]) * 0.3]
+      ];
+      tried++;
+      const tin = new Tin({ incremental: true });
+      const result = tin.restoreMesh(c);
+      expect(result.ok, `対応点 ${i}`).toBe(false);
+      if (!result.ok) expect(["notStrict", "boundary", "verticesParams"], `対応点 ${i}`).toContain(result.reason);
+      expect(tin.incrementalMesh).toBeUndefined();
+    }
+    expect(tried).toBe(60);
+  }, TIMEOUT);
+
+  it("網の形が壊れた compiled（網に無い対応点・重なった三角形・抜けた三角形）は断る", () => {
+    const restore = (change: (c: CompiledWithSupplement) => void) => {
+      const c = clone(compiled);
+      change(c);
+      return new Tin({ incremental: true }).restoreMesh(c);
+    };
+    // どの三角形にも入らない対応点
+    expect(restore((c) => { c.points.push([[c.points[0][0][0] + 3, c.points[0][0][1] + 3], [c.points[0][1][0] + 3, c.points[0][1][1] + 3]]); }))
+      .toEqual({ ok: false, reason: "inconsistent" });
+    // 同じ三角形を 2 回
+    expect(restore((c) => { c.tins_points[0].push([...c.tins_points[0][40]]); })).toEqual({ ok: false, reason: "inconsistent" });
+    // 三角形を 1 つ抜く（穴）
+    expect(restore((c) => { c.tins_points[0].splice(40, 1); })).toEqual({ ok: false, reason: "boundary" });
+  }, TIMEOUT);
+
+  it("断ったときは、印と strict の判定を引き継がない。対応点を入れ直すと、印は外れる", () => {
+    const marked = clone(compiled);
+    marked.meshOrigin = "incremental";
+    // 印つきで、壊れた compiled
+    const broken = clone(marked);
+    broken.points[100][1][0] += 5000;
+    broken.points[100][1][1] += 5000;
+    const tin = new Tin({ incremental: true });
+    expect(tin.restoreMesh(broken)).toEqual({ ok: false, reason: "notStrict" });
+    expect(tin.meshOrigin).toBeUndefined();
+    expect(tin.strict_status).toBeUndefined();
+    expect(tin.getCompiled().meshOrigin).toBeUndefined();
+    // 印つきを戻した後に、読めない compiled を渡しても、前の印は残らない
+    expect(tin.restoreMesh(clone(marked))).toEqual({ ok: true });
+    expect(tin.meshOrigin).toBe("incremental");
+    const unreadable = clone(compiled);
+    unreadable.tins_points[0][10][0] = 99_999;
+    expect(tin.restoreMesh(unreadable)).toEqual({ ok: false, reason: "inconsistent" });
+    expect(tin.meshOrigin).toBeUndefined();
+    expect(tin.strict_status).toBeUndefined();
+    // 印つきを戻した後に、対応点を入れ直すと、updateTin() の前でも印は外れる
+    expect(tin.restoreMesh(clone(marked))).toEqual({ ok: true });
+    tin.setPoints(mapOptions("fushimijo_maplat", "strict").points!);
+    expect(tin.meshOrigin).toBeUndefined();
+    // スイッチが切れているときは、setCompiled と同じ（印も状態も、compiled のまま）
+    const off = new Tin({});
+    expect(off.restoreMesh(clone(marked))).toEqual({ ok: false, reason: "disabled" });
+    expect(off.meshOrigin).toBe("incremental");
+    expect(off.strict_status).toBe("strict");
+  }, TIMEOUT);
+
+  it("follow の地図: 証拠 → 保存 → restoreMesh が通る（対応点の往復は、外の座標系で比べる）", () => {
+    const options = mapOptions("fushimijo_maplat", "strict");
+    const follow: Options = {
+      ...options,
+      yaxisMode: "follow",
+      points: options.points!.map(([forw, bakw]): PointSet => [forw, [bakw[0], -bakw[1]]])
+    };
+    const tin = build(follow);
+    const rnd = random(9);
+    for (let n = 0; n < 5; n++) expect(tin.applyEdits([localMove(tin, rnd)]).mode).toBe("local");
+    expect(tin.refreshBand()).toMatchObject({ mode: "local", boundaryStale: false });
+    const evidence = tin.collectIncrementalEvidence({ status: "strict_error", kinks: 3 });
+    expect(evidence).toMatchObject({ eligible: true, failed: [], forwFolds: 0, nonManifoldEdges: 0, indexMatches: true, sweepKinks: 0 });
+    expect(evidence.gcpRoundTrip.forward).toBeLessThan(1e-6);
+    expect(evidence.gcpRoundTrip.backward).toBeLessThan(1e-6);
+    const saved = clone(evidence.compiled!);
+    expect(saved).toMatchObject({ yaxisMode: "follow", meshOrigin: "incremental", strict_status: "strict" });
+    const reopened = new Tin({ incremental: true, incrementalBand: true });
+    // 呼び出し側の対応点（外の座標系）: compiled の内部の座標から、Y を戻したもの
+    const external = saved.points.map(([forw, bakw]): PointSet => [forw, [bakw[0], -bakw[1]]]);
+    expect(reopened.restoreMesh(clone(saved), { points: external })).toEqual({ ok: true });
+    expect(reopened.meshOrigin).toBe("incremental");
+    expect(JSON.stringify(reopened.getCompiled())).toBe(JSON.stringify(saved));
+    expect(reopened.applyEdits([localMove(reopened, rnd)])).toMatchObject({ mode: "local", strict_status: "strict" });
+  }, TIMEOUT);
+
+  it("証拠集めは、網の形（重なった三角形・索引）も見る", () => {
+    const tin = build(mapOptions("fushimijo_maplat", "strict"));
+    const { mesh } = tin.incrementalMesh!;
+    const [a, b, c] = mesh.triangles.get(40)!;
+    mesh.addTriangle(a, b, c);
+    const evidence = tin.collectIncrementalEvidence();
+    expect(evidence.eligible).toBe(false);
+    expect(evidence.nonManifoldEdges).toBe(3);
+    expect(evidence.failed).toContain("meshShape");
   }, TIMEOUT);
 });
