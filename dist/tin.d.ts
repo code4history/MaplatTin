@@ -3,6 +3,7 @@ import { Transform, CompiledLegacy, CompiledTransformData, Edge, EdgeSet, EdgeSe
 import { BoundaryDiagnostics } from "./boundary-search.js";
 import { SupplementDiagnostics, SupplementPair, SupplementPairRecord } from "./supplement-pairs.js";
 import { PointsSetBD } from "./types/tin.js";
+import { ImportFailure, MeshModel } from "./incremental/model.js";
 export declare const FORMAT_VERSION_V2 = 2.00704;
 export declare const FORMAT_VERSION_V3 = 3.00001;
 /** 補完点の一覧を持つ compiled（Transform の型には無い項目。読み手は無視してよい）。 */
@@ -34,6 +35,12 @@ export interface Options {
      * 既定は true。false にすると足さない（#91 と同じ結果）。
      */
     supplementPairs?: boolean;
+    /**
+     * 局所更新（MaplatTin#100）のスイッチ。既定は false で、何も変わらない。true にすると、`updateTin()` の
+     * 後に、採用した三角網を局所更新の網（`Tin#incrementalMesh`）へ取り込む。`updateTin()` の結果
+     * （`getCompiled()`）は、どちらでも同じ。
+     */
+    incremental?: boolean;
 }
 /**
  * Tin (Triangulated Irregular Network) クラス
@@ -53,6 +60,17 @@ export declare class Tin extends Transform {
     private attemptTotal;
     private requestedWorldFile?;
     private compiledOuter?;
+    /** 局所更新のスイッチ（`Options#incremental`）。 */
+    incremental: boolean;
+    private mesh?;
+    private meshFailure?;
+    /**
+     * 局所更新の網（今の三角網を取り込んだもの）。スイッチが切れている・三角網が無い・取り込めない網
+     * （loose・V2 など。理由は `incrementalFailure`）のときは undefined。
+     */
+    get incrementalMesh(): MeshModel | undefined;
+    /** 局所更新の網へ取り込めなかった理由（取り込めた・スイッチが切れているときは undefined）。 */
+    get incrementalFailure(): ImportFailure | undefined;
     /** 現在の三角網を V3 で生成したときの外周の診断。 */
     get boundaryDiagnostics(): BoundaryDiagnostics | undefined;
     /**
@@ -139,6 +157,8 @@ export declare class Tin extends Transform {
      * {@link updateTinAsync} を利用してください。
      */
     updateTin(): void;
+    /** 三角網を最初から全部組む（`updateTin()` の本体）。 */
+    private rebuildAll;
     /**
      * `buildWithHull` で三角網を組み、strict のために制約から外した凸包の辺があれば、システムが補完点を
      * 足して組み直す（#89）。外れた辺が無いとき、補完点を使わない指定のとき、V2 のときは、`buildWithHull` の
