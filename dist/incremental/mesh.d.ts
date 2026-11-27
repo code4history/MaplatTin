@@ -123,6 +123,13 @@ export interface MeshAudit {
     forbiddenMatches: boolean;
     /** 紙の面の三角形の面積の和（網が紙の面を重なりなく覆っていれば、編集の前後で変わらない） */
     forwArea: number;
+    /**
+     * 紙の面で折り返している内側の辺の数（辺を共有する 2 つの三角形の、向かいの 2 頂点が、辺の同じ側にある）。
+     * 0 が正常。両面で一緒に裏返った三角形は、向きの積（S1）では見えないので、紙の面を直接見る
+     */
+    forwFolds: number;
+    /** 三角形を 1 つも持たない頂点の数（0 が正常） */
+    orphanVertices: number;
 }
 /** 座標を写す（呼び出し側の配列を、網の中で持ち続けない）。 */
 export declare const copyPosition: (position: Position) => Position;

@@ -40,11 +40,16 @@ export interface IncrementalEvidence {
     /** 条件を全部満たす（`compiled` を、特例として保存してよい） */
     eligible: boolean;
     /** 満たさなかった条件（`eligible` が true なら空） */
-    failed: ("noMesh" | "boundaryStale" | "badTriangles" | "boundary" | "requiredEdge" | "boundaryOnlyTriangles" | "gcpRoundTrip" | "sweepKinks")[];
+    failed: ("noMesh" | "boundaryStale" | "badTriangles" | "meshShape" | "boundary" | "requiredEdge" | "boundaryOnlyTriangles" | "gcpRoundTrip" | "sweepKinks")[];
     /** (a) 帯（補助頂点・重心）が最新か */
     boundaryFresh: boolean;
     /** (a) S1: ok でない三角形の数（網の全部を数え直した値。0 が条件） */
     badTriangles: number;
+    /** (a) S1: 紙の面で折り返している内側の辺の数（0 が条件） */
+    forwFolds: number;
+    /** (a) 網の形: 3 つ以上の三角形に属する辺の数（0 が条件）と、索引が三角形の表と一致するか */
+    nonManifoldEdges: number;
+    indexMatches: boolean;
     /** (a) S2: 網の外周が、両面で単純な 1 本の輪か */
     boundarySimple: boolean;
     /** (a) S3: 網の辺に無い必須エッジの区間の数（0 が条件） */

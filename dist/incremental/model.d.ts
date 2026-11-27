@@ -81,6 +81,11 @@ export declare class MeshModel {
     band(): BandStats | null;
     /** world file 外周の網か（補助頂点の地理面の位置を、world file から直接決める。扇形の中心を持たない）。 */
     get isWorldFile(): boolean;
+    /**
+     * world file 外周の網の、紙の面から地理面（網の内部の座標系）への写像。world file 外周でなければ undefined。
+     * follow では、GCP と同じく、地理面の Y を反転する。
+     */
+    worldFileProjection(): ((forw: Position) => Position) | undefined;
     /** 補完点の一覧（compiled の `supplementPairs` に、座標を付けたもの。`Tin#supplementPairs` と同じ形）。 */
     supplementPairs(): SupplementPair[];
     /** 帯の判定のための量を捨てる（帯・凸包が変わったとき。次に要るときに作り直す）。 */
