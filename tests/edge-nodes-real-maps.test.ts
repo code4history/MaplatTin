@@ -72,11 +72,16 @@ function build(job: Job): { compiled: string; edgeNodes: string; edgeNodesCount:
   tin.setPoints(job.gcps as Parameters<Tin["setPoints"]>[0]);
   const edges = job.edges as Parameters<Tin["setEdges"]>[0] | undefined;
   if (edges?.length) tin.setEdges(edges);
+  // 必須エッジの中継点（この変更が守る範囲）は generatePointsSet() の直後に取る。
+  // 1 月トレインの補完点（supplement-pairs）は updateTin() の中で edgeNodes の末尾に足されるため。
+  tin.generatePointsSet();
+  const edgeNodes = JSON.stringify(tin.edgeNodes ?? []);
+  const edgeNodesCount = tin.edgeNodes?.length ?? 0;
   tin.updateTin();
   return {
     compiled: sha256(JSON.stringify(tin.getCompiled())),
-    edgeNodes: sha256(JSON.stringify(tin.edgeNodes ?? [])),
-    edgeNodesCount: tin.edgeNodes?.length ?? 0,
+    edgeNodes: sha256(edgeNodes),
+    edgeNodesCount,
   };
 }
 

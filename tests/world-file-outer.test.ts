@@ -186,16 +186,35 @@ it("strict と loose は実際に使う三角網で余白を選ぶ", () => {
     [[100, 100], [98, -78]], [[0, 100], [-5, -93]],
     [[78, 20], [81, -4]], [[40, 31], [31, -7]], [[54, 45], [66, -38]]
   ];
-  const strictTin = new Tin({ points, strictMode: "strict", outerTransform: "worldFile", worldFile });
+  // 補完点を足さない指定（#91 までと同じ結果）。探索の時点の反転は strict で 1 件、loose では 0 件
+  const strictTin = new Tin({ points, strictMode: "strict", outerTransform: "worldFile", worldFile, supplementPairs: false });
   strictTin.updateTin();
   expect(strictTin.strict_status).toBe("strict");
   expect(strictTin.boundaryDiagnostics).toMatchObject({
     margin: 0.15, boundaryTriangleFlips: 1, outerTransform: "worldFile"
   });
-  const looseTin = new Tin({ points, strictMode: "loose", outerTransform: "worldFile", worldFile });
+  const looseTin = new Tin({ points, strictMode: "loose", outerTransform: "worldFile", worldFile, supplementPairs: false });
   looseTin.updateTin();
   expect(looseTin.strict_status).toBe("loose");
   expect(looseTin.boundaryDiagnostics).toMatchObject({
+    margin: 0.225, boundaryTriangleFlips: 0, outerTransform: "worldFile"
+  });
+
+  // 既定（補完点あり）: この入力は外れた凸包の辺が出て、補完点が付く。strict は strict のまま余白 0.15 を選び、
+  // 補完点を足した三角網では探索の時点の反転も 0 になる。loose には補完点を足さない（MaplatTin#95）ので、
+  // 指定なしと同じ
+  const withPairs = new Tin({ points, strictMode: "strict", outerTransform: "worldFile", worldFile });
+  withPairs.updateTin();
+  expect(withPairs.strict_status).toBe("strict");
+  expect(withPairs.supplementPairs.length).toBeGreaterThan(0);
+  expect(withPairs.boundaryDiagnostics).toMatchObject({
+    margin: 0.15, boundaryTriangleFlips: 0, outerTransform: "worldFile"
+  });
+  const looseWithPairs = new Tin({ points, strictMode: "loose", outerTransform: "worldFile", worldFile });
+  looseWithPairs.updateTin();
+  expect(looseWithPairs.strict_status).toBe("loose");
+  expect(looseWithPairs.supplementPairs).toHaveLength(0);
+  expect(looseWithPairs.boundaryDiagnostics).toMatchObject({
     margin: 0.225, boundaryTriangleFlips: 0, outerTransform: "worldFile"
   });
 });

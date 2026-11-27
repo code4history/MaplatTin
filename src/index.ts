@@ -7,7 +7,12 @@
 
 // Main class exports
 export { Tin } from "./tin.ts";
-export type { Options } from "./tin.ts";
+export type { CompiledWithSupplement, Options } from "./tin.ts";
+export type {
+  SupplementDiagnostics,
+  SupplementPair,
+  SupplementPairRecord,
+} from "./supplement-pairs.ts";
 export type { BoundaryDiagnostics } from "./boundary-search.ts";
 export { Tin as default } from "./tin.ts";
 

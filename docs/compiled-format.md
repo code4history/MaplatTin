@@ -36,7 +36,8 @@ export interface Compiled {
   kinks_points?: Position[];        // Self-intersection points (strict_error only)
 
   edges: EdgeSet[];            // Constrained edges
-  edgeNodes?: PointSet[];      // Intermediate edge nodes
+  edgeNodes?: PointSet[];      // Intermediate edge nodes (supplement pairs are appended at the end)
+  supplementPairs?: SupplementPairRecord[]; // Why each trailing edgeNode is a supplement pair (V3, optional)
 
   yaxisMode?: YaxisMode;       // Y-axis direction
   vertexMode?: VertexMode;     // Boundary vertex generation mode
@@ -54,6 +55,14 @@ type StrictStatus  = "strict" | "strict_error" | "loose";
 type YaxisMode     = "invert" | "follow";
 type VertexMode    = "birdeye" | "plain";
 type StrictMode    = "strict" | "auto" | "loose";
+
+// Supplement pair record (see "Supplement pairs"): the coordinates are edgeNodes[node]
+type SupplementPairRecord = {
+  node: number;                       // position in edgeNodes (referenced as "e{node}")
+  kind: "hullEdge";                   // why it was added (only hull edges so far)
+  edge: [number | string, number | string]; // the hull edge it was added to (GCP index, or "eN")
+  anchor?: number | string;           // the most-dented point that decided its place (omitted if none)
+};
 
 // Constrained edge: [forw intermediate points, bakw intermediate points, [startIdx, endIdx]]
 type EdgeSet = [Position[], Position[], [number, number]];
@@ -259,6 +268,25 @@ Each element format:
 
 Intermediate points of constrained edges. Correspond to `"eN"` indices in `tins_points`.
 Each element is `[[forwX, forwY], [bakwX, bakwY]]`.
+
+Since V3 with supplement pairs, the **trailing** entries may be supplement pairs (see below). Readers that only
+use `edgeNodes` and `"eN"` need no change.
+
+#### `supplementPairs?: SupplementPairRecord[]` (V3, optional)
+
+Supplement pairs: points the system adds (MaplatTin #89) to a convex-hull edge that had to be dropped to keep
+`strict`, so that auxiliary-vertex triangles do not cut into the hull. They are **not** human GCPs: they are not in
+`points` or `edges`, and Tin recomputes them from the GCPs on every `updateTin()` (the stored list is a copy for
+readers, never an input).
+
+- The coordinates live only in `edgeNodes[node]`; triangles reference them as `"e{node}"` in `tins_points`. The
+  supplement pairs are the last `supplementPairs.length` entries of `edgeNodes`, in `node` order.
+- `kind` is `"hullEdge"`, `edge` the hull edge A–B it was added to, `anchor` the most-dented point.
+- The field is omitted when there is none (maps without a dropped hull edge are unchanged from before).
+  `@maplat/transform` ignores it and reads the pairs through `edgeNodes`, so no reader change or format version
+  bump is needed (`version` stays 3.00001). V2 never has it.
+- Do not store the pairs as new index kinds such as `"a0"`: Transform's `indexesToTri` rejects every index other than
+  a number, `"c"`, `"bN"` and `"eN"` with `Bad index value`.
 
 ---
 

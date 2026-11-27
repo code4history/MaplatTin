@@ -61,12 +61,13 @@ function clip(subject: P[], hull: P[]): P[] {
 /**
  * 補助頂点を含む三角形が、GCP（と必須エッジの中継点）の凸包の内側に食い込む面積の、凸包の面積に対する割合。
  * direction は 0 が地図面、1 が地理面。三角網は `tin.tins` の採用した三角網。
+ * 凸包は、システムが足した補完点（`tin.supplementPairs`）を入れずに取る。
  */
 export function intrusionFraction(tin: Tin, direction: 0 | 1): number {
   const side = direction === 0 ? "forw" : "bakw";
-  const points: P[] = [...tin.points, ...((tin.edgeNodes ?? []) as Position[][])].map(
-    (pair) => pair[direction] as P
-  );
+  const supplement = new Set(tin.supplementPairs.map(({ node }) => node));
+  const edgeNodes = ((tin.edgeNodes ?? []) as Position[][]).filter((_, node) => !supplement.has(node));
+  const points: P[] = [...tin.points, ...edgeNodes].map((pair) => pair[direction] as P);
   const hull = hullOf(points);
   const hullArea = Math.abs(area(hull));
   let total = 0;
