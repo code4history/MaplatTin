@@ -86,6 +86,11 @@ export declare class MeshModel {
      * follow では、GCP と同じく、地理面の Y を反転する。
      */
     worldFileProjection(): ((forw: Position) => Position) | undefined;
+    /**
+     * world file 外周の網で、地理面の位置が world file の値（`worldFileProjection()(forw)`）と違う補助頂点の数。
+     * world file 外周でなければ 0。全部組み直した compiled では、差は 0（同じ式で計算した値を、そのまま持つ）。
+     */
+    worldFileMismatches(): number;
     /** 補完点の一覧（compiled の `supplementPairs` に、座標を付けたもの。`Tin#supplementPairs` と同じ形）。 */
     supplementPairs(): SupplementPair[];
     /** 帯の判定のための量を捨てる（帯・凸包が変わったとき。次に要るときに作り直す）。 */

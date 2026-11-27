@@ -4512,6 +4512,20 @@ class no {
       return [o, n ? -i : i];
     };
   }
+  /**
+   * world file 外周の網で、地理面の位置が world file の値（`worldFileProjection()(forw)`）と違う補助頂点の数。
+   * world file 外周でなければ 0。全部組み直した compiled では、差は 0（同じ式で計算した値を、そのまま持つ）。
+   */
+  worldFileMismatches() {
+    const t = this.worldFileProjection();
+    if (!t) return 0;
+    let e = 0;
+    for (const n of this.ring) {
+      const { forw: s, bakw: o } = this.mesh.vertices.get(n), i = t(s);
+      (i[0] !== o[0] || i[1] !== o[1]) && e++;
+    }
+    return e;
+  }
   /** 補完点の一覧（compiled の `supplementPairs` に、座標を付けたもの。`Tin#supplementPairs` と同じ形）。 */
   supplementPairs() {
     const t = this.indexTable();
@@ -5154,7 +5168,7 @@ function ho(r, t) {
     maxy: F
   }, Y = n ? (V) => Ts(V, n) : t === "birdeye" ? Os : Fs, I = new Set(r.ring.map((V) => Pe(s(V).forw, p))), O = /* @__PURE__ */ new Set();
   for (let V = 0; V < 36; V++) I.has(V) || O.add(V);
-  const N = r.ring.length <= 4 ? { cornersOnly: !0 } : O.size > 0 ? { skipBins: O } : void 0, B = N ? [N, void 0] : [void 0], C = te(i.map((V) => s(V).forw)), P = r.ring.map((V) => s(V).ref), _ = y - E, T = F - A;
+  const N = r.ring.length <= 4 ? { cornersOnly: !0 } : O.size > 0 && r.ring.length < 36 ? { skipBins: O } : void 0, B = N ? [N, void 0] : [void 0], C = te(i.map((V) => s(V).forw)), P = r.ring.map((V) => s(V).ref), _ = y - E, T = F - A;
   let $ = "bandFailed";
   for (const V of B) for (const z of mn) {
     const X = Y(
@@ -5468,7 +5482,7 @@ class ot extends xn {
     super.setCompiled(e), Object.assign(this, { xy: s, wh: o }), delete this.kinks, this.pointsSet = void 0, this.pointIds = n.pointIds, this.edgeIds = n.edgeIds, this.supplementRecords = (e.supplementPairs ?? []).map((i) => ({
       ...i,
       edge: [...i.edge]
-    })), this.pointsWeightBuffer = {}, this.meshAhead = !1;
+    })), this.pointsWeightBuffer = {}, this.compiledOuter?.outerTransform === "worldFile" && (this.compiledOuter = { ...this.compiledOuter, vertices_points: e.vertices_points }), this.meshAhead = !1;
   }
   /** 今の入力（対応点・必須エッジ。内部の座標系）と、その id の並び。 */
   currentInputs() {
@@ -5681,6 +5695,8 @@ class ot extends xn {
    * 補助頂点 3 点だけの三角形が無いことを、全部を数えて確かめる。
    *
    * 失敗したとき（理由を返す）は、`setCompiled(compiled)` をした状態（変換はできる）で、網は持たない。
+   * 印（`meshOrigin`）は外れる。`strict_status` は、compiled が strict と名乗っていたときだけ未確定（undefined）に
+   * なり、strict_error・loose は compiled の値のまま残る。`"v2"`（読む前に断る）のときは、状態に触らない。
    * 呼び出し側は、対応点と必須エッジを入れ直して `updateTin()` すること。
    *
    * @param compiled 保存した compiled（座標は内部の座標系。follow では地理面の Y が反転済み）
@@ -5688,9 +5704,9 @@ class ot extends xn {
    *   渡すと、compiled と合うかを確かめる（follow の反転は、ここで掛ける。呼び出し側で compiled と直接比べないこと）
    */
   restoreMesh(t, e) {
-    const n = (v) => (v !== "disabled" && (this.originIncremental = !1, this.strict_status = void 0), { ok: !1, reason: v });
+    const n = (v) => (v !== "disabled" && (this.originIncremental = !1, this.strict_status === ot.STATUS_STRICT && (this.strict_status = void 0)), { ok: !1, reason: v });
     if (this.useV2Algorithm && t.outerTransform === "worldFile")
-      return n("v2");
+      return { ok: !1, reason: "v2" };
     try {
       this.setCompiled(t);
     } catch {
@@ -5721,7 +5737,7 @@ class ot extends xn {
     if (h.missingRequired > 0) return n("requiredEdge");
     if (h.forbiddenBoundary > 0) return n("forbidden");
     const u = l.verticesParams(), g = t.vertices_params;
-    return u && JSON.stringify(u) !== JSON.stringify(g) ? n("verticesParams") : (this.mesh = l, this.meshFailure = void 0, { ok: !0 });
+    return u && JSON.stringify(u) !== JSON.stringify(g) ? n("verticesParams") : l.worldFileMismatches() > 0 ? n("inconsistent") : (this.mesh = l, this.meshFailure = void 0, { ok: !0 });
   }
   /**
    * 帯（補助頂点・重心）を、今の内側の点から作り直す（保存の直前に、帯を最新にするために呼ぶ。設計書 §9.5 (a)）。
@@ -5769,7 +5785,7 @@ class ot extends xn {
     if (!n)
       return e.failed.push("noMesh"), e;
     const { mesh: s } = n, o = s.audit();
-    e.badTriangles = o.bad.length, e.forwFolds = o.forwFolds, e.nonManifoldEdges = o.nonManifoldEdges, e.indexMatches = o.indexMatches && o.badMatches && o.orphanVertices === 0, e.boundarySimple = o.boundarySimple, e.missingRequiredEdges = o.missingRequired, e.boundaryOnlyTriangles = o.forbiddenBoundary, e.remainingForbiddenTriangles = o.forbiddenEdge;
+    e.badTriangles = o.bad.length, e.forwFolds = o.forwFolds, e.nonManifoldEdges = o.nonManifoldEdges, e.indexMatches = o.indexMatches && o.badMatches && o.orphanVertices === 0, e.boundarySimple = o.boundarySimple && n.worldFileMismatches() === 0, e.missingRequiredEdges = o.missingRequired, e.boundaryOnlyTriangles = o.forbiddenBoundary, e.remainingForbiddenTriangles = o.forbiddenEdge;
     const i = { ...n.toCompiled(), strict_status: "strict", meshOrigin: "incremental" }, a = new xn();
     try {
       a.setCompiled(JSON.parse(JSON.stringify(i)));
