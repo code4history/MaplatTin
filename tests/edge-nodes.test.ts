@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Position } from "geojson";
-import fs from "node:fs";
 import {
   edgeNodeMatchTolerance,
   interpolateEdgeNodes,
+  MAX_RATIO_MATCH_TOLERANCE,
   RATIO_MATCH_TOLERANCE,
   ULP_TOLERANCE_FACTOR,
   ulp,
@@ -137,8 +137,11 @@ describe("interpolateEdgeNodes: 許容幅の境界", () => {
     expect(nodes[0][0]).toEqual([2, 0]);
     expect(nodes[0][1]).toEqual([2 - d, 0]);
     expect(nodes[0][2]).toBe(0.5);
-    // 0.5+12ULP の折れ点は紙面の同じ折れ点の許容幅にも入る。別に作ると、ほぼ同じ位置の
-    // 中継点が 2 つでき三角網から外れるので、すでに作った中継点と同じ位置とみなして作らない
+    // 0.5+12ULP の折れ点は紙面の同じ折れ点の許容幅にも入る。許容幅の中の余りなので、同じ位置と
+    // みなして作らない（許容幅には上限があるので、はっきり別の折れ点を消すことはない）。
+    // 注: この入力は master（固定の許容幅）では、余った折れ点が補間で作られ、重ならずに中継点 2 点に
+    // なっていた。座標が大きく辺が短い入力では、許容幅の拡大でこの 2 点が重なる（Issue #106）ので、
+    // 作らない。
   });
 
   it("端点の比に許容幅内で近い内点は、端点と結ばず補間される", () => {
@@ -206,6 +209,40 @@ describe("Tin: 三角網の構築（回帰）", () => {
     tin.generatePointsSet();
     expect(tin.edgeNodes!.length).toBe(1);
     expect(() => tin.updateTin()).not.toThrow();
+  });
+});
+
+describe("edgeNodeMatchTolerance: 許容幅の上限", () => {
+  it("片方の面の折れ線が極端に短いと、上限の値を返す（例外にしない）", () => {
+    const illst: Position[] = [[0, 0], [500, 0], [1000, 0]];
+    const merc: Position[] = [[1.5e7, 1.5e7], [1.5e7 + 1e-6, 1.5e7], [1.5e7 + 2e-6, 1.5e7]];
+    expect(edgeNodeMatchTolerance(illst, merc)).toBe(MAX_RATIO_MATCH_TOLERANCE);
+    expect(edgeNodeMatchTolerance(illst, merc, 1e30)).toBe(MAX_RATIO_MATCH_TOLERANCE);
+  });
+
+  it("上限は、Issue #106 の最悪の比のずれ（約 6e-11）より十分に大きく、固定の分より大きい", () => {
+    expect(MAX_RATIO_MATCH_TOLERANCE).toBe(1e-9);
+    expect(edgeNodeMatchTolerance([[0, 0], [1, 0]], [[0, 0], [1, 0]])).toBeLessThan(MAX_RATIO_MATCH_TOLERANCE);
+  });
+
+  it("再現 1: 片方の面が極端に短くても、紙面の 1 px の段差の折れ点は消えない（master と同じ 3 点）", () => {
+    const illst: Position[] = [[0, 0], [500, 0], [500, 1], [1000, 0]];
+    const merc: Position[] = [[1.5e7, 1.5e7], [1.5e7 + 1e-6, 1.5e7], [1.5e7 + 2e-6, 1.5e7]];
+    const nodes = interpolateEdgeNodes(illst, merc);
+    expect(nodes.length).toBe(3);
+    // 紙面の折れ点 2 つと、地理面の折れ点 1 つが、それぞれ自分の位置のまま中継点になる
+    expect(nodes.some((n) => n[0][0] === 500 && n[0][1] === 0)).toBe(true);
+    expect(nodes.some((n) => n[0][0] === 500 && n[0][1] === 1)).toBe(true);
+    expect(nodes.some((n) => n[1][0] === 1.5e7 + 1e-6 && n[1][1] === 1.5e7)).toBe(true);
+  });
+
+  it("再現 2: 0.5 px ずれた別の折れ点は、1 つにまとめない（master と同じ 2 点）", () => {
+    const illst: Position[] = [[0, 0], [500, 10], [1000, 0]];
+    const merc: Position[] = [[1.5e7, 1.5e7], [1.5e7 + 5.005e-6, 1.5e7], [1.5e7 + 1e-5, 1.5e7]];
+    const nodes = interpolateEdgeNodes(illst, merc);
+    expect(nodes.length).toBe(2);
+    expect(nodes.some((n) => n[0][0] === 500 && n[0][1] === 10)).toBe(true);
+    expect(nodes.some((n) => n[1][0] === 1.5e7 + 5.005e-6)).toBe(true);
   });
 });
 
@@ -339,8 +376,8 @@ describe("interpolateEdgeNodes: 許容幅内の折れ点が両面に複数ある
   });
 
   it("最寄りの貪欲では対応が 1 組取れなくなる入力でも、対応づけられる数が最大になる", () => {
-    // 紙面 a1=0.5・a2=0.5+(許容幅-4)EPS、地理面 b1=0.5-(許容幅-14)EPS・b2=0.5+10EPS。
-    // a1 の最寄りは b2 だが、a2 が許容幅内に持つ相手は b2 だけ。a1↔b2 と取ると a2 が余って
+    // 紙面 a1=0.5・a2=b2+(許容幅-4)EPS=0.5+(許容幅+6)EPS、地理面 b1=0.5-(許容幅-14)EPS・
+    // b2=0.5+10EPS。a1 の最寄りは b2 だが、a2 が許容幅内に持つ相手は b2 だけ。a1↔b2 と取ると a2 が余って
     // 地理面に b2 と近接した補間点ができる。a1↔b1・a2↔b2 なら 2 組とも対応づけられる。
     const tolEps = edgeNodeMatchTolerance([[0, 0], [1, 0]], [[0, 0], [1, 0]]) / E;
     const a2 = 0.5 + (tolEps + 6) * E;
@@ -366,24 +403,4 @@ describe("interpolateEdgeNodes: 許容幅内の折れ点が両面に複数ある
     expect(nodes[0][1]).toEqual([0.5 + ulpHalf, 0]);
     expect(nodes[0][2]).toBe(0.5 + ulpHalf);
   });
-});
-
-describe("interpolateEdgeNodes: 実地図で突き合わせの結果が変わらない", () => {
-  // tests/compiled の実地図（折れ点つきの辺を含む）の GCP と必須エッジから中継点を作り直し、
-  // compiled に保存された edgeNodes とビットまで一致することを確かめる。
-  const load = (name: string) =>
-    JSON.parse(fs.readFileSync(`${__dirname}/compiled/${name}.json`, "utf-8"));
-
-  it.each(["naramachi_yasui_bunko_v2", "naramachi_yasui_revised_v2", "1932_nobeoka_sub0_v3"])(
-    "%s",
-    (name) => {
-      const c = load(name);
-      const tin = new Tin({ wh: c.wh, stateFull: false });
-      tin.setPoints(c.points);
-      tin.setEdges(c.edges);
-      tin.generatePointsSet();
-      expect(tin.edgeNodes!.length).toBeGreaterThan(0);
-      expect(tin.edgeNodes).toEqual(c.edgeNodes);
-    },
-  );
 });

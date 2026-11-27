@@ -35,7 +35,18 @@ export const RATIO_MATCH_TOLERANCE = 256 * Number.EPSILON;
  */
 export const ULP_TOLERANCE_FACTOR = 4;
 
-/** x の 1 ULP（x と次に大きい倍精度数との差）。x が 0 のときは最小の非正規数。 */
+/**
+ * 許容幅（比）の上限。
+ *
+ * 量子化の項は ULP ÷ 折れ線の全長なので、片方の面の折れ線が極端に短いと（座標が大きいまま全長が
+ * 数 μm など）いくらでも大きくなり、もう片方の面の、はっきり別の折れ点まで 1 つにまとめてしまう。
+ * Issue #106 の最悪の比のずれは約 65536 EPS ≈ 1.5e-11、k=4 でも 6e-11 なので、その 16 倍の余裕を
+ * 見て 1e-9 を上限にする。全長 1000 px の折れ線なら 1e-6 px より離れた折れ点はまとめない。
+ * 上限に当たったときは、例外にせず上限の値を使う。
+ */
+export const MAX_RATIO_MATCH_TOLERANCE = 1e-9;
+
+/** |x| の 1 ULP（|x| と次に大きい倍精度数との差）。x が 0 のときは最小の非正規数。 */
 export function ulp(x: number): number {
   const abs = Math.abs(x);
   if (!Number.isFinite(abs)) return NaN;
@@ -57,6 +68,7 @@ function maxAbsCoordinate(nodes: Position[]): number {
 /**
  * 1 つの必須エッジについて、両面の折れ点の比を「同じ位置」とみなす許容幅を返す。
  * 面ごとの「座標の ULP ÷ 折れ線の全長」を足すので、座標が大きく辺が短いときだけ広がる。
+ * 広がる幅は {@link MAX_RATIO_MATCH_TOLERANCE} で頭打ちにする。
  *
  * @param illstNodes 紙の面の折れ線（始点・折れ点・終点）
  * @param mercNodes 地理面の折れ線（始点・折れ点・終点）
@@ -79,7 +91,9 @@ export function edgeNodeMatchTolerance(
     const term = ulp(maxAbsCoordinate(nodes)) / length;
     return Number.isFinite(term) ? term : 0;
   };
-  return RATIO_MATCH_TOLERANCE + factor * (quantization(illstNodes) + quantization(mercNodes));
+  const tolerance =
+    RATIO_MATCH_TOLERANCE + factor * (quantization(illstNodes) + quantization(mercNodes));
+  return Math.min(tolerance, MAX_RATIO_MATCH_TOLERANCE);
 }
 
 /**
@@ -197,8 +211,9 @@ function matchBends(
  * 対応する折れ点を 2 つに分けて作らせないため、範囲チェックより前に許容幅内の相手を探す。
  *
  * 突き合わせで余った折れ点が、相手面の折れ点と許容幅内で一致するとき（同じ面の 2 つの折れ点が
- * 同じ相手の許容幅に入る退化した入力）は、すでに作った中継点と同じ位置とみなして中継点を作らない。
- * 作ると、ほぼ同じ位置の中継点が 2 つでき、三角網から外れて構築に失敗するため。
+ * 同じ相手の許容幅に入る退化した入力）は、許容幅の中の余りなので同じ位置とみなし、中継点を作らない。
+ * 作ると、ほぼ同じ位置の中継点が 2 つでき、三角網から外れて構築に失敗するため。許容幅には上限
+ * （{@link MAX_RATIO_MATCH_TOLERANCE}）があるので、はっきり別の折れ点をこの経路で消すことはない。
  *
  * `Tin#generatePointsSet` がこの関数を使う。
  *
@@ -238,7 +253,8 @@ export function interpolateEdgeNodes(
   const { illstToMerc, mercToIllst } = matchBends(segments[0], segments[1], tolerance);
   const matchedTo = [illstToMerc, mercToIllst];
 
-  // 突き合わせで余った折れ点が、相手面のいずれかの折れ点と許容幅内で一致するか
+  // 突き合わせで余った折れ点が、相手面のいずれかの折れ点と許容幅内で一致するか。許容幅は上限つきなので、
+  // 一致するのは同じ位置とみなせる折れ点だけ
   const absorbed = (ratio: number, otherSegment: EdgeSegmentItem[]): boolean => {
     for (let i = 1; i < otherSegment.length - 1; i++) {
       if (Math.abs((otherSegment[i][3]) - ratio) <= tolerance) return true;
@@ -266,7 +282,7 @@ export function interpolateEdgeNodes(
         return;
       }
 
-      // 余った折れ点が、すでに対応づけた相手と同じ位置とみなせるときは作らない
+      // 許容幅の中の余りは、同じ位置とみなして作らない（上限があるので、別の折れ点を消すことはない）
       if (absorbed(ratio, otherSegment)) return;
 
       // 一致する折れ点が無ければ、比が入る区間を線形補間する
